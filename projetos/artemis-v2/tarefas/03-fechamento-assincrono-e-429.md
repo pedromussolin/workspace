@@ -1,7 +1,7 @@
 # 03 — Fechamento de lote: mais rápido, sem espera e sem 429
 
 - **Status:** proposta revisada em 09/10/2026.
-- **Repos:** platform-cessao, BFF, front.
+- **Repos:** platform-cessao, BFF, front, platform-cessao-argocd (fila dedicada).
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
 - **Evidências:** [Datadog, 09/10/2026](../evidencias/fechamento-lote-datadog-2026-10-09.md).
@@ -86,7 +86,8 @@ Primeiro deixar cada fechamento barato; depois tirá-lo da requisição
 8. **P8 — fechamento assíncrono:**
    - a rota grava a marca `fechando:<chave da linha>` no Redis (`SET NX`,
      TTL curto) e enfileira a task numa fila dedicada, com concorrência
-     limitada. Marca já existente → 409. Sai o `@max_calls`;
+     limitada (decidido em 13/10: deployment próprio no argocd e variável
+     nova de filas no `entrypoint.sh`, com a lista atual como padrão). Marca já existente → 409. Sai o `@max_calls`;
    - a task fecha (etapas 1 e 2), renova o TTL enquanto roda e grava na marca
      o resultado: `fechado` (id do lote) ou `falhou` (motivo), que expira
      minutos depois;

@@ -576,6 +576,33 @@ Só vale no cenário assíncrono.
 - **Conclusão:** é rede de segurança. Quem resolve é tornar cada fechamento
   barato (etapas 1 e 2).
 
+**Como limitar: fila dedicada (decidido em 13/10)**
+
+Hoje todo worker escuta todas as filas: o `entrypoint.sh` fixa a lista no
+`-Q` e não lê o `CELERY_WORKER_QUEUES` que aparece no argocd. São 18 pods com
+concorrência 16, ou 288 tarefas ao mesmo tempo. [C]
+
+| | Fila dedicada (escolhida) | Semáforo no Redis (descartado) |
+|---|---|---|
+| Limite | físico: pods × concorrência | lógico; vaga presa se o worker morrer |
+| Ordem | preservada | perdida nas novas tentativas |
+| Espera | previsível | irregular (atraso de cada tentativa) |
+| Isolamento | não disputa vaga com outras tarefas | disputa as 288 vagas |
+| Visibilidade | tamanho da fila = atraso real | espalhada em novas tentativas |
+| Custo | PR no argocd e um pod a mais | só código |
+
+O que muda:
+
+- **Cessão:** rota da task nova para a fila própria em `task_routes`
+  (`app_factory.py:63-74`), e o `entrypoint.sh` aceita a lista de filas por
+  uma variável **nova**, com a lista atual como padrão. Assim os pods de hoje
+  não mudam e não escutam a fila nova. Não usar o `CELERY_WORKER_QUEUES`, que
+  ativaria a configuração adormecida do argocd.
+- **Argocd:** deployment novo só para a fila de fechamento (sandbox e
+  produção), com concorrência baixa via `CELERY_WORKER_CONCURRENCY`.
+- **Risco:** com 1 pod, se ele cair, os fechamentos esperam ele voltar; a
+  marca expira e a linha volta a ficar clicável.
+
 ## 5. Fechar o grupo numa instrução (proposta B)
 
 ### Em que etapa acontece
