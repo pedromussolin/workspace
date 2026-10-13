@@ -39,14 +39,15 @@ e testes; **Val** = validação em ambiente, liberação e acompanhamento. Os it
 | Etapa | Itens | Dev | Val | Total | Depende de | Risco |
 |---|---|---|---|---|---|---|
 | 0. Levantamentos | L1 dono da varredura, L2 produtos por modo, L3 medir na réplica o UPDATE único com o maior grupo real, L4 decisão D9 | 6 | 0 | 6 | infra (L1), DBA (L3), negócio (L4) | sem L4, a etapa 2 não começa |
-| 1. Ganhos rápidos | P1 origem no agrupamento, P3 trava sem 500, P4 `EXISTS` na esteira | 6 | 4 | 10 | — | baixo: mesma regra, mesmo contrato |
+| 1. Ganhos rápidos | adiados em 13/10 (só mexem no legado; ver `depois-da-v2.md`) | 0 | 0 | 0 | — | — |
 | 2. Fechar numa instrução | P5 regra única + UPDATE por grupo, P7 medição | 14 | 5 | 19 | D9 | médio: muda a regra de elegibilidade |
 | 3. Clique sem espera e sem 429 | P8 **assíncrono** (D10, 09/10): fila dedicada, marca no Redis, endpoint de status, polling na tela, BFF | 28 | 7 | 35 | contrato com Rafael Frankl (varredura) | médio |
-| **Total** | | **54** | **16** | **70** | | |
+| **Total** | | **48** | **12** | **60** | | |
 
 A estimativa anterior era 38 h. A diferença vem das etapas 1 e 2, que não
 existiam, e do assíncrono escolhido na D10 (+20 h sobre o cenário síncrono).
-O P2 (6 h) foi cortado em 13/10: a rota passa a devolver 202 e ninguém lê a
+P1, P3 e P4 (10 h) saíram em 13/10 para `depois-da-v2.md`, porque a
+TS-5377 segue o `refact.py` e não mexe no legado. O P2 (6 h) foi cortado em 13/10: a rota passa a devolver 202 e ninguém lê a
 resposta atual. Os índices (P6, 12 h) saíram em 13/10 e foram para
 [depois-da-v2.md](../depois-da-v2.md).
 

@@ -6,6 +6,9 @@ item diz de onde veio, quando foi adiado e o que falta para retomar.
 
 | Item | Origem | Adiado em | Para retomar |
 |---|---|---|---|
+| P1 — Q1 recebe a origem pedida | [tarefa 03](tarefas/03-analise-do-fechamento.md#problemas), 5 h | 13/10/2026 | substituição do legado pelo `refact.py`; só afeta a rota antiga, o Atlas, a varredura e o automático |
+| P3 — trava expirada (`@max_calls`) não vira 500 | [tarefa 03](tarefas/03-analise-do-fechamento.md#8-proposta-consolidada), 3 h | 13/10/2026 | idem; vale também para as outras 3 rotas com o decorator |
+| P4 — `EXISTS` em vez de `lote.pagamentos` na `esteira_baixar` | [tarefa 03](tarefas/03-analise-do-fechamento.md#8-proposta-consolidada), 2 h | 13/10/2026 | idem; esteira compartilhada por todos os fluxos |
 | [Índices para o fechamento de lote](#índices-para-o-fechamento-de-lote) | [tarefa 03](tarefas/03-analise-do-fechamento.md), antigo P6 (12 h) | 13/10/2026 | DBA; medir o efeito das etapas 1 e 2 da tarefa 03 antes |
 
 ## Índices para o fechamento de lote

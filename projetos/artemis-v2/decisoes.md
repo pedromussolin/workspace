@@ -8,7 +8,6 @@ o motivo — é o que evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D2 | Réplica: usuário da aplicação, `statement_timeout` e ajustes de conflito com replicação | — | `statement_timeout` ~120 s (o limite do BFF); avaliar `hot_standby_feedback`. A réplica já existe (conexão "[REPLICA] platform-cessao" do DBeaver, 06/10/2026) | DBA | [01](tarefas/01-replica-de-leitura.md) |
-| D3 | Proc_id com pagamentos de mais de um fundo | (a) um lote por proc_id; (b) um por (proc_id, fundo) | **adiada pelo Pietro (06/10)**. A remessa à ADM e a conta de conciliação são por fundo | Pietro | [02](tarefas/02-fechar-lote-por-proc-id.md) |
 | D4 | Qual nome de CNAB mostrar | (a) o arquivo que o parceiro enviou (já salvo); (b) o arquivo que mandamos à ADM (não é salvo hoje) | depende do uso pela operação | Pietro + operação | [06](tarefas/06-nome-do-cnab-na-tela.md) |
 | D5 | Filtro por contrato: igualdade, prefixo ou "contém" | — | igualdade ou prefixo, para usar índice | Pietro | [07](tarefas/07-filtro-identificador-contrato.md) |
 | D7 | Acúmulo (`acumula_liquidacoes`) no modo por proc_id | (a) só no modo por chave, validado na config; (b) outra regra | (a): o lote vigente é por chave, o oposto de fechar por proc_id | Pietro | [02](tarefas/02-fechar-lote-por-proc-id.md) |
@@ -19,6 +18,9 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 13/10/2026 | TS-5377 segue o `refact.py`: fluxo novo em rota própria só para o front; o legado (rota antiga, Atlas, varredura, automático, agendado) não muda. Linhas `proc:` continuam no legado. P1, P3 e P4 vão para `depois-da-v2.md`. B5 entra no BFF (rota nova e consolidate legado) | Pietro |
+| 13/10/2026 | D3: proc_id com mais de um fundo fecha **um lote por (proc_id, fundo)**, aplicado na tarefa que mudar o fechamento de linhas `proc:` (não na TS-5377) | Pietro; remessa à ADM e conciliação são por fundo |
+| 13/10/2026 | Worker dedicado usa `CELERY_WORKER_QUEUES` (o `entrypoint.sh` passou a ler a variável num hotfix de 07/10) e `INICIAR_CONSUMER=0` para não subir o consumer do RabbitMQ; ajusta a decisão anterior, que previa variável nova | o hotfix tornou a variável nova desnecessária |
 | 13/10/2026 | Limite de concorrência do fechamento por **fila dedicada**: fila própria no Celery e deployment novo no argocd (ex.: 1 pod, concorrência 2), em vez de semáforo no Redis. O `entrypoint.sh` passa a aceitar a lista de filas por uma variável nova, com a lista atual como padrão | Pietro; limite garantido, ordem preservada, espera previsível e atraso visível no tamanho da fila. Ver [análise](tarefas/03-analise-do-fechamento.md#limitar-a-concorrência-no-celery) |
 | 13/10/2026 | D9: um pagamento entra em lote sem exigir a cessão concluída, pelo **produto da liquidação**; a regra vale para listagem, fechamento e acúmulo, em todos os produtos. Cessão que não seguiu: **sem tratativa automática** (caso extraordinário, tratado à mão, como as exclusões de pagamento do Rafael) | Lukas Freyta (negócio). Liquidação e cessão devem ter o mesmo produto; divergência é anomalia. Ver [respostas](tarefas/03-analise-do-fechamento.md#respostas-do-negócio-lukas-freyta-1310) |
 | 13/10/2026 | Índices do fechamento de lote (antigo P6 da tarefa 03) ficam para depois da V2, em [depois-da-v2.md](depois-da-v2.md) | Pietro; a tarefa 03 já reduz o número de buscas e a concorrência; medir o efeito antes de mexer em índice |

@@ -1,6 +1,8 @@
 # 03 — Fechamento de lote: mais rápido, sem espera e sem 429
 
-- **Status:** proposta revisada em 09/10/2026.
+- **Status:** em implementação (13/10/2026), **TS-5377**. Branch
+  `feature/TS-5377-fechamento-lote-fake-assincrono` (cessão, BFF, front) e
+  `feature/TS-5377-worker-fechamento-lote` (argocd).
 - **Repos:** platform-cessao, BFF, front, platform-cessao-argocd (fila dedicada).
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
@@ -60,17 +62,18 @@ Primeiro deixar cada fechamento barato; depois tirá-lo da requisição
   TTL da marca e quanto a task segura a fila).
 - **L4:** ~~decisão D9~~ decidida em 13/10: não exige cessão concluída; produto da liquidação.
 
-### Etapa 1 — ganhos rápidos (mesma regra, mesmo contrato)
+### Etapa 1 — ganhos rápidos (fora da TS-5377)
 
-1. **P1:** a Q1 recebe a origem (`models.py:6094-6124`). Some a Q2 das
-   origens descartadas (`models.py:6060`).
-2. ~~**P2:** resposta montada numa consulta~~ — cortado em 13/10: com a D10
-   a rota devolve 202 sem lista, e ninguém lê a resposta atual.
-3. **P3:** a trava expirada deixa de virar 500 (`cache/decorators.py:25-55`).
-   Na etapa 3 o `@max_calls` sai desta rota; o P3 segue valendo para as
-   outras 3 rotas com o decorator.
-4. **P4:** `esteira_baixar` testa o lote com `EXISTS`, em vez de carregar os
-   pagamentos (`tasks/liquidacao_lote.py:93`).
+Seguindo o `refact.py`, o fluxo novo nasce em rota própria, só para o front,
+e o legado não muda. P1, P3 e P4 mexem só no legado (rota antiga, Atlas,
+varredura, esteira compartilhada) e foram para
+[depois-da-v2.md](../depois-da-v2.md). A rota nova não usa a Q1: a linha da
+tela já traz fundo e origem.
+
+1. ~~**P1:** a Q1 recebe a origem~~ — adiado em 13/10.
+2. ~~**P2:** resposta montada numa consulta~~ — cortado em 13/10.
+3. ~~**P3:** trava expirada deixa de virar 500~~ — adiado em 13/10.
+4. ~~**P4:** `EXISTS` na esteira~~ — adiado em 13/10.
 
 ### Etapa 2 — fechar o grupo numa instrução
 
