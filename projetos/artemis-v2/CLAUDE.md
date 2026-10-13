@@ -95,6 +95,11 @@ As regras de git (branch e commit com o ID `TS-…`, sem `Co-Authored-By`,
 replicar na branch `-sdbx`) estão no `CLAUDE.md` da pasta de repositórios e
 valem para os repos da empresa. Este repo não usa ID de tarefa.
 
+**Sincronização deste repo:** a cada iteração do projeto, `git pull` antes de
+mexer e, ao terminar, commit e `push` direto na `main`. Commits atômicos,
+PT-BR, até 72 caracteres, prefixo `docs:` ou `chore:`, sem `Co-Authored-By`.
+A conferência de sigilo acima roda antes de cada commit.
+
 ## Diretrizes de desenvolvimento do projeto
 
 - **Código novo da liquidação** vai em `cessao/api/liquidacao/refact.py`
