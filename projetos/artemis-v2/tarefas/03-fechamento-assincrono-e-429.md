@@ -4,6 +4,23 @@
   `feature/TS-5377-fechamento-lote-fake-assincrono` (cessão, BFF, front) e
   `feature/TS-5377-worker-fechamento-lote` (argocd).
 - **Repos:** platform-cessao, BFF, front, platform-cessao-argocd (fila dedicada).
+- **Implementação (13/10/2026):** commits locais, sem push; testes passando
+  (cessão: suíte completa, 4643; BFF: 106 do módulo; front: 19 dos specs da
+  tela e do serviço).
+  - **Cessão:** `cessao/api/liquidacao/refact.py` (`FakeBatchKey`,
+    `RefactLiquidacaoRepository`, `RefactLiquidacaoService`), task
+    `close_fake_batch` na fila `fake_batch_closing_celery`, rotas
+    `POST /liquidacao/fake-batches/close` e `/fake-batches/close/status`,
+    trava e resultado no Redis em `liquidacao:fake-batch-closing:*`,
+    `INICIAR_CONSUMER` no `entrypoint.sh`.
+  - **BFF:** `POST /operations/liquidation/fake-batches/close` e
+    `/fake-batches/close/status`; B5 também no consolidate legado.
+  - **Front:** linhas `origem:` fecham pelo fluxo novo, com polling (4 s/60 s)
+    e estado na célula; linhas `proc:` seguem no legado.
+  - **Argocd:** worker `fake-batch-closing` (1 pod, concorrência 2) em
+    sandbox, produção e vivo.
+  - **Código novo em inglês**, com nomes explícitos do processo; mensagens ao
+    usuário em PT-BR.
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
 - **Evidências:** [Datadog, 09/10/2026](../evidencias/fechamento-lote-datadog-2026-10-09.md).

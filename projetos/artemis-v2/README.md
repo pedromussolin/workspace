@@ -41,7 +41,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 |---|---|---|---|---|---|
 | 01 | [Réplica de leitura no init do SQLAlchemy](tarefas/01-replica-de-leitura.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
 | 02 | [Dois modos de fechamento: chave ou proc_id](tarefas/02-fechar-lote-por-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
-| 03 | [Fechamento: mais rápido, sem espera e sem 429](tarefas/03-fechamento-assincrono-e-429.md) | cessão, BFF, front, argocd | — | em implementação | TS-5377 |
+| 03 | [Fechamento: mais rápido, sem espera e sem 429](tarefas/03-fechamento-assincrono-e-429.md) | cessão, BFF, front, argocd | — | implementada, aguardando PR | TS-5377 |
 | 04 | [Performance das listagens de lotes](tarefas/04-performance-listagens.md) | cessão, front | revisão da DBA | mapeado | a definir |
 | 05 | [Tipo de baixa na tabela de pagamentos](tarefas/05-tipo-de-baixa.md) | cessão, front | — | mapeado | a definir |
 | 06 | [Nome do CNAB na tela](tarefas/06-nome-do-cnab-na-tela.md) | cessão, BFF, front | decisão D4 | mapeado | a definir |
