@@ -1,0 +1,33 @@
+# Decisões
+
+Cada decisão tem um dono e uma data. Quando fechar, mover para "Tomadas" com
+o motivo — é o que evita rediscutir depois.
+
+## Pendentes
+
+| # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
+|---|---|---|---|---|---|
+| D2 | Réplica: usuário da aplicação, `statement_timeout` e ajustes de conflito com replicação | — | `statement_timeout` ~120 s (o limite do BFF); avaliar `hot_standby_feedback`. A réplica já existe (conexão "[REPLICA] platform-cessao" do DBeaver, 06/10/2026) | DBA | [01](tarefas/01-replica-de-leitura.md) |
+| D3 | Proc_id com pagamentos de mais de um fundo | (a) um lote por proc_id; (b) um por (proc_id, fundo) | **adiada pelo Pietro (06/10)**. A remessa à ADM e a conta de conciliação são por fundo | Pietro | [02](tarefas/02-fechar-lote-por-proc-id.md) |
+| D4 | Qual nome de CNAB mostrar | (a) o arquivo que o parceiro enviou (já salvo); (b) o arquivo que mandamos à ADM (não é salvo hoje) | depende do uso pela operação | Pietro + operação | [06](tarefas/06-nome-do-cnab-na-tela.md) |
+| D5 | Filtro por contrato: igualdade, prefixo ou "contém" | — | igualdade ou prefixo, para usar índice | Pietro | [07](tarefas/07-filtro-identificador-contrato.md) |
+| D7 | Acúmulo (`acumula_liquidacoes`) no modo por proc_id | (a) só no modo por chave, validado na config; (b) outra regra | (a): o lote vigente é por chave, o oposto de fechar por proc_id | Pietro | [02](tarefas/02-fechar-lote-por-proc-id.md) |
+| D8 | Onde guardar modo e horário do fechamento automático | `produto_config` ou `produto_fundo.config_extra` | sem tabela nova; produto + fundo se o horário variar por fundo | Pietro | [11](tarefas/11-fechamento-por-horario-de-corte.md) |
+| D6 | Fechamento em lote: rota nova com várias chaves ou só tornar a atual assíncrona | — | tornar assíncrona primeiro; rota em lote é a mesma task recebendo uma lista | Pietro + Heitor | [03](tarefas/03-fechamento-assincrono-e-429.md) |
+
+## Tomadas
+
+| Data | Decisão | Motivo |
+|---|---|---|
+| 13/10/2026 | D9: um pagamento entra em lote sem exigir a cessão concluída, pelo **produto da liquidação**; a regra vale para listagem, fechamento e acúmulo, em todos os produtos. Cessão que não seguiu: **sem tratativa automática** (caso extraordinário, tratado à mão, como as exclusões de pagamento do Rafael) | Lukas Freyta (negócio). Liquidação e cessão devem ter o mesmo produto; divergência é anomalia. Ver [respostas](tarefas/03-analise-do-fechamento.md#respostas-do-negócio-lukas-freyta-1310) |
+| 13/10/2026 | Índices do fechamento de lote (antigo P6 da tarefa 03) ficam para depois da V2, em [depois-da-v2.md](depois-da-v2.md) | Pietro; a tarefa 03 já reduz o número de buscas e a concorrência; medir o efeito antes de mexer em índice |
+| 09/10/2026 | D10: fechamento pela tela **assíncrono** (opção b): tudo no Celery, fila dedicada com concorrência limitada, marca "em fechamento" no Redis por linha (TTL renovado pela task, resultado `fechado`/`falhou` na marca) e polling adaptativo na tela, sobre um endpoint leve de status. **Revisa, só para essa marca, a decisão de 06/10** sobre não depender do Redis; a proteção contra fechar em dobro continua no banco (`WHERE liquidacao_lote_id IS NULL`). O P7 passa a calibrar concorrência e TTL. Motivo do erro só na marca do Redis (temporário) e no log do Datadog, sem gravar em tabela | Pietro; escala e controle de carga no banco, um caminho só para tela, agendado, rota em lote e corte (tarefa 11). Contrato da rota só muda após combinar com Rafael Frankl (varredura do Mercato Libero). Ver [análise](tarefas/03-analise-do-fechamento.md#3-síncrono-e-assíncrono) |
+| 07/10/2026 | D1: só os GETs da tela leem da réplica, marcados com `@consulta_replica` (lotes reais, lotes fake, pagamentos, rejeitados, saldo da conciliação) | Opção (a); todo GET incluiria GETs que gravam. Implementado na TS-5279 |
+| 06/10/2026 | Dois modos de fechamento, para todos os produtos: por chave (produto, originador, fundo, origem) ou por proc_id, que ignora as outras chaves. Quem escolhe é a flag `fechar_lote_por_proc_id` | Pietro; ver tarefa 02 |
+| 06/10/2026 | Estado da tela (fechamento/exclusão em andamento) vem todo do banco, sem tabela nova e sem depender do Redis (**revisada em 09/10 pela D10** para a marca de fechamento) | A tela é por data e a chave no Redis expira; já há tabelas demais para o mesmo controle |
+| 06/10/2026 | Bypass da conciliação = aprovar na hora um lote em `aguarda_conciliacao`, sem esperar o corte; lote após o corte segue para a fila manual | Pietro; ver tarefa 11 |
+| 06/10/2026 | Cache de lotes fake no Redis (`listeners.py`) fica até o atlas sair | Pietro; parece não ter leitor hoje (só `/v2`, sem chamadas em 7 dias) |
+| 23/09/2026 | Dayvale antes do BGT | No BGT a atuação é passiva na maioria dos fundos (ata) |
+| 05/10/2026 | A DBA revisa as queries; a aplicação começa pela separação leitura/escrita | Divisão de trabalho combinada pelo Pietro |
+| 05/10/2026 | Fechar lote por proc_id deve fechar exatamente o proc_id, sem derivar originador/fundo/origem | Pedido do Pietro; ver tarefa 02 |
+| 05/10/2026 | Replicar o fluxo da Genius para a Dayvale, corrigindo o que deu errado na Genius | Pedido do Pietro; ver tarefas 08, 09 e 10 |
