@@ -26,8 +26,8 @@
     na lista padrão do `entrypoint.sh`), linha sem origem/fundo fechando
     lotes vigentes de outras linhas, lote vigente preso fora da esteira após
     erro, trava sem dono (renovação e liberação por `job_id`, em Lua), cache
-    limpo sem commit; UPDATE refeito via ORM; D9 exclui cessão
-    `rejeitado`/`errado`; BFF confere o produto da chave e valida tamanho das
+    limpo sem commit; UPDATE refeito via ORM; D9 exige cessão
+    `cadastrado` (revista em 14/10); BFF confere o produto da chave e valida tamanho das
     chaves. Bugs de código antigo do BFF viraram B9 a B11.
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
@@ -85,7 +85,7 @@ Primeiro deixar cada fechamento barato; depois tirá-lo da requisição
 - **L2:** produtos por modo de fechamento (SQL na réplica).
 - **L3:** medir na réplica o UPDATE único com o maior grupo real (define o
   TTL da marca e quanto a task segura a fila).
-- **L4:** ~~decisão D9~~ decidida em 13/10: não exige cessão concluída; produto da liquidação.
+- **L4:** ~~decisão D9~~ decidida em 13/10 e **revista em 14/10**: exige a cessão `cadastrado`; produto da liquidação.
 
 ### Etapa 1 — ganhos rápidos (fora da TS-5377)
 
@@ -145,8 +145,9 @@ tela já traz fundo e origem.
 
 ## Pontos para estressar
 
-- **D9 (decidida em 13/10):** a regra única não exige a cessão concluída e
-  usa o produto da liquidação. Muda a Q1, que hoje exige a cessão.
+- **D9 (decidida em 13/10):** a regra única exige a cessão concluída
+  (`cadastrado`, revisão de 14/10 sobre a resposta do negócio de 13/10) e usa o
+  produto da liquidação. Coincide com a Q1, que já exige a cessão.
 - **Cessão que não seguiu:** sem tratativa automática; caso extraordinário,
   tratado à mão.
 - **Varredura (Rafael Frankl, Mercato Libero):** não lê a resposta e aceita o

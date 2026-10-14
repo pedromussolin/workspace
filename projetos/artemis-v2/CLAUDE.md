@@ -109,8 +109,8 @@ A conferência de sigilo acima roda antes de cada commit.
 - **Fechamento de lote:** assíncrono (D10), com marca no Redis por linha da
   tela e polling no front; a proteção contra fechar em dobro é o
   `WHERE liquidacao_lote_id IS NULL`. Ver `tarefas/03-*`.
-- **Regra para entrar em lote (D9):** não exige a cessão concluída e usa o
-  produto da liquidação.
+- **Regra para entrar em lote (D9):** exige a cessão do contrato `cadastrado`
+  (revisão de 14/10) e usa o produto da liquidação.
 - **Logs como eventos:** mensagem fixa, dimensões no `extra`, um INFO por
   execução.
 - **Migrations:** nunca alterar uma existente; mudança vai em migration nova.
