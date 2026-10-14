@@ -146,3 +146,132 @@ nova AS (
 SELECT 'so_na_atual' AS lado, * FROM (SELECT * FROM atual EXCEPT SELECT * FROM nova) x
 UNION ALL
 SELECT 'so_na_nova', * FROM (SELECT * FROM nova EXCEPT SELECT * FROM atual) y;
+
+
+-- 6. Teste só com os filtros da tela: fundo, produto e período.
+-- Monta a página como a tela (20 lotes mais recentes), tira dela as remessas
+-- e roda a busca dos lotes irmãos na versão atual (6b) e na nova (6c).
+-- Compare o tempo de execução que o DBeaver mostra. Rode cada uma duas
+-- vezes e compare a segunda (a primeira paga o cache do disco).
+-- :inicio e :fim são datas (ex.: 2026-10-01 e 2026-10-14), como na tela.
+-- Para "todos os produtos", apague a linha do :produto_id.
+SET statement_timeout = '300s';
+
+-- 6a. Tamanho do problema: quantas remessas e pagamentos a página arrasta.
+WITH pagina AS MATERIALIZED (
+    SELECT llp.id AS lote_id
+    FROM liquidacao_lote_processo llp
+    WHERE llp.data_criacao >= CAST(:inicio AS date)
+      AND llp.data_criacao < CAST(:fim AS date) + 1
+      AND llp.produto_id = :produto_id
+      AND EXISTS (
+          SELECT 1
+          FROM liquidacao_pagamento lp
+          JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+          WHERE lp.liquidacao_lote_id = llp.id
+            AND cp.fundo_id = :fundo_id
+      )
+    ORDER BY llp.data_criacao DESC, llp.identificador
+    LIMIT 20
+),
+remessas AS MATERIALIZED (
+    SELECT DISTINCT pr.proc_id
+    FROM pagina
+    JOIN liquidacao_pagamento lp ON lp.liquidacao_lote_id = pagina.lote_id
+    JOIN liquidacao_processo pr ON pr.uuid = lp.liquidacao_processo_uuid
+)
+SELECT (SELECT count(*) FROM pagina)   AS lotes_na_pagina,
+       (SELECT count(*) FROM remessas) AS remessas,
+       (SELECT count(*)
+        FROM liquidacao_processo pr
+        JOIN liquidacao_pagamento lp ON lp.liquidacao_processo_uuid = pr.uuid
+        WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+       ) AS pagamentos_das_remessas;
+
+-- 6b. Lotes irmãos como a cessão faz hoje.
+WITH pagina AS MATERIALIZED (
+    SELECT llp.id AS lote_id
+    FROM liquidacao_lote_processo llp
+    WHERE llp.data_criacao >= CAST(:inicio AS date)
+      AND llp.data_criacao < CAST(:fim AS date) + 1
+      AND llp.produto_id = :produto_id
+      AND EXISTS (
+          SELECT 1
+          FROM liquidacao_pagamento lp
+          JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+          WHERE lp.liquidacao_lote_id = llp.id
+            AND cp.fundo_id = :fundo_id
+      )
+    ORDER BY llp.data_criacao DESC, llp.identificador
+    LIMIT 20
+),
+remessas AS MATERIALIZED (
+    SELECT DISTINCT pr.proc_id
+    FROM pagina
+    JOIN liquidacao_pagamento lp ON lp.liquidacao_lote_id = pagina.lote_id
+    JOIN liquidacao_processo pr ON pr.uuid = lp.liquidacao_processo_uuid
+)
+SELECT DISTINCT pr.proc_id::text AS proc_id, lp.liquidacao_lote_id AS lote_id
+FROM liquidacao_pagamento lp
+JOIN liquidacao_processo pr ON pr.uuid = lp.liquidacao_processo_uuid
+JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+  AND lp.liquidacao_lote_id IS NOT NULL
+  AND cp.fundo_id = :fundo_id
+  -- O filtro de soft delete entra duas vezes hoje (por Parcela e por
+  -- LiquidacaoPagamento); repetido aqui para medir o custo real.
+  AND NOT EXISTS (
+      SELECT 1
+      FROM contrato c
+      JOIN contrato_processo cpr ON cpr.uuid = c.processo_uuid
+      WHERE c.id = cp.contrato_id
+        AND cpr.data_delete IS NOT NULL
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM contrato_parcela cp2
+      JOIN contrato c2 ON c2.id = cp2.contrato_id
+      JOIN contrato_processo cpr2 ON cpr2.uuid = c2.processo_uuid
+      WHERE cp2.id = lp.parcela_id
+        AND cpr2.data_delete IS NOT NULL
+  );
+
+-- 6c. Lotes irmãos na versão nova: lotes primeiro, fundo depois.
+WITH pagina AS MATERIALIZED (
+    SELECT llp.id AS lote_id
+    FROM liquidacao_lote_processo llp
+    WHERE llp.data_criacao >= CAST(:inicio AS date)
+      AND llp.data_criacao < CAST(:fim AS date) + 1
+      AND llp.produto_id = :produto_id
+      AND EXISTS (
+          SELECT 1
+          FROM liquidacao_pagamento lp
+          JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+          WHERE lp.liquidacao_lote_id = llp.id
+            AND cp.fundo_id = :fundo_id
+      )
+    ORDER BY llp.data_criacao DESC, llp.identificador
+    LIMIT 20
+),
+remessas AS MATERIALIZED (
+    SELECT DISTINCT pr.proc_id
+    FROM pagina
+    JOIN liquidacao_pagamento lp ON lp.liquidacao_lote_id = pagina.lote_id
+    JOIN liquidacao_processo pr ON pr.uuid = lp.liquidacao_processo_uuid
+),
+lotes_das_remessas AS MATERIALIZED (
+    SELECT DISTINCT pr.proc_id::text AS proc_id, lp.liquidacao_lote_id AS lote_id
+    FROM liquidacao_processo pr
+    JOIN liquidacao_pagamento lp ON lp.liquidacao_processo_uuid = pr.uuid
+    WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+      AND lp.liquidacao_lote_id IS NOT NULL
+)
+SELECT l.proc_id, l.lote_id
+FROM lotes_das_remessas l
+WHERE (
+    SELECT cp.fundo_id
+    FROM liquidacao_pagamento lp
+    JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+    WHERE lp.liquidacao_lote_id = l.lote_id
+    LIMIT 1
+) = :fundo_id;
