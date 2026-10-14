@@ -21,6 +21,13 @@
     sandbox, produção e vivo.
   - **Código novo em inglês**, com nomes explícitos do processo; mensagens ao
     usuário em PT-BR.
+  - **Code review (14/10):** corrigidos fila sem consumidor em staging (fila
+    na lista padrão do `entrypoint.sh`), linha sem origem/fundo fechando
+    lotes vigentes de outras linhas, lote vigente preso fora da esteira após
+    erro, trava sem dono (renovação e liberação por `job_id`, em Lua), cache
+    limpo sem commit; UPDATE refeito via ORM; D9 exclui cessão
+    `rejeitado`/`errado`; BFF confere o produto da chave e valida tamanho das
+    chaves. Bugs de código antigo do BFF viraram B9 a B11.
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
 - **Evidências:** [Datadog, 09/10/2026](../evidencias/fechamento-lote-datadog-2026-10-09.md).

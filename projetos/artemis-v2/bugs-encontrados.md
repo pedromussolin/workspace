@@ -123,6 +123,40 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
 - **Correção:** enfileirar depois do commit. Relacionado ao B3 (mesma task) e
   ao opcional O3 da [tarefa 03](tarefas/03-analise-do-fechamento.md).
 
+## B9 — Parceiro sem `internal_id` enxerga todos os produtos (segurança)
+
+- **Onde:** BFF `src/shared/repository/users.py:33-50` e
+  `src/shared/business/users.py:128-131`. Para quem não é PLGN,
+  `get_partner_internal_id_list` devolve `[]` quando falta `client_id`, ele não
+  é inteiro ou nenhum produto tem `internal_id`. A busca de fundos vai sem
+  `identificador_parceiro`, e a cessão só filtra com a lista preenchida
+  (`cessao/api/fundo/repository.py:27`).
+- **Efeito:** um parceiro com cadastro incompleto lista, fecha e consulta
+  status de lotes de qualquer produto. Enfraquece o B5.
+- **Confirmado:** leitura do código no code review da TS-5377 (14/10). Não se
+  sabe se há usuários nessa situação.
+- **Correção:** em `get_allowed_product_ids`, lista vazia para não PLGN vira
+  `[]` (nenhum produto) ou 403, nunca busca sem filtro.
+
+## B10 — Rotas de lote sem checagem de produto (segurança)
+
+- **Onde:** BFF `liquidation_batches/viewer.py`: `delete_batch`,
+  `get_payments_by_proc_id` (com `key`/`proc_id`) e
+  `export_rejected_payments`.
+- **Efeito:** parceiro com o papel certo exclui lote ou lê pagamentos de outro
+  produto passando a chave ou o proc_id.
+- **Confirmado:** leitura do código no code review da TS-5377 (14/10).
+- **Correção:** a mesma restrição de produtos da listagem e do fechamento.
+
+## B11 — Parceiro sem fundos recebe 500
+
+- **Onde:** BFF `src/shared/business/users.py:136` lança
+  `Exception("User has no associated products.")`.
+- **Efeito:** vira 500 genérico. Depois da TS-5377 também atinge o consolidate
+  legado e a rota de status, que a tela consulta em loop.
+- **Confirmado:** leitura do código no code review da TS-5377 (14/10).
+- **Correção:** responder 403.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
