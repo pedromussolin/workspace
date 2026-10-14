@@ -100,3 +100,34 @@ SELECT relname, indexrelname, idx_scan,
 Depois, `EXPLAIN (ANALYZE, BUFFERS)` da Q1 e da Q2 com um caso real (produto
 713, originador 1282, fundo 209). O SQL completo está nos spans do APM, hashes
 `9544189cfdc7d6a9` e `af6c090c7fa63323`.
+
+## Acúmulo de liquidações e a cessão (B12)
+
+**Prioridade alta**: a correção é importante, vira tarefa nova quando as
+tarefas atuais acabarem, junto com os outros itens deste documento.
+
+- **Problema:** o acúmulo (`acumula_liquidacoes`) vincula o pagamento ao lote
+  vigente quando a liquidação vira `cadastrado`, sem olhar a cessão. Detalhes
+  em [B12](bugs-encontrados.md#b12--acúmulo-de-liquidações-ignora-o-estado-da-cessão-importante).
+- **Correção proposta:** em `insert_pagamento_into_lote`, só vincular se a
+  cessão do contrato estiver `cadastrado`; senão o pagamento fica sem lote e
+  entra pelo fechamento novo (D9 revista). Atenção: o lote vigente passa a
+  acumular menos e mais devagar; o negócio precisa aceitar.
+- **Antes de abrir a tarefa:** medir na réplica quantos pagamentos estão em
+  lote vigente com a cessão diferente de `cadastrado`. Se der zero, o risco é
+  só teórico; se não, o número justifica a urgência.
+
+```sql
+SELECT count(*)
+  FROM liquidacao_pagamento lp
+  JOIN liquidacao_lote_processo l ON l.id = lp.liquidacao_lote_id
+  JOIN liquidacao_lote_vigente v ON v.liquidacao_lote_id = l.id
+  JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+  JOIN contrato c ON c.id = cp.contrato_id
+  JOIN contrato_processo cpr ON cpr.uuid = c.processo_uuid
+ WHERE cpr.estado_atual <> 'cadastrado'
+   AND cpr.data_delete IS NULL;
+```
+
+(Os nomes das colunas de ligação entre lote e vigente precisam ser
+conferidos no modelo antes de rodar.)

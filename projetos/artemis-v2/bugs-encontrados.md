@@ -157,6 +157,26 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
 - **Confirmado:** leitura do código no code review da TS-5377 (14/10).
 - **Correção:** responder 403.
 
+## B12 — Acúmulo de liquidações ignora o estado da cessão (importante)
+
+- **Onde:** `EstadoCadastrado.acumula_liquidacao`
+  (`cessao/framework/liquidacao/estados_liquidacao.py:350`) chama
+  `RepositoryLiquidacao.insert_pagamento_into_lote`
+  (`cessao/api/liquidacao/repository.py:459-472`) em produto com
+  `acumula_liquidacoes`.
+- **Efeito:** o pagamento entra no lote vigente (lote real) assim que a
+  liquidação vira `cadastrado`, sem checar a cessão. Ao fechar o vigente, o
+  lote segue para a `esteira_baixar` e o arquivo pode ir para a administradora
+  antes de a cessão terminar. Contraria a D9 revista (14/10): a listagem e o
+  fechamento da TS-5377 exigem a cessão `cadastrado`, o acúmulo não.
+- **Confirmado:** leitura do código. **Não confirmado:** quantos casos
+  acontecem na prática (falta medir na réplica).
+- **Correção:** só acumular quando a cessão estiver `cadastrado`; o resto fica
+  sem lote, aparece na listagem fake e cai no fechamento novo. Muda o
+  comportamento de todos os produtos que acumulam, então precisa de aval do
+  negócio. Fica fora da TS-5377 (legado intocado). Ver
+  [depois-da-v2.md](depois-da-v2.md#acúmulo-de-liquidações-e-a-cessão-b12).
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
