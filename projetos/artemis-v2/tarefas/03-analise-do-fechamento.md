@@ -162,8 +162,8 @@ Efeitos práticos:
 Para unificar, o negócio precisa dizer qual regra vale (**D9**), e a mesma
 regra deve valer na listagem, no fechamento e no acúmulo.
 
-**Decidido em 13/10 (Lukas Freyta, negócio), revisto em 14/10 (Pietro: exige a cessão `cadastrado`):** a regra única **não exige a
-cessão concluída** e usa o **produto da liquidação**. Ver as respostas abaixo.
+**Decidido em 13/10 (Lukas Freyta, negócio), revisto em 14/10 (Pietro: exige a cessão `cadastrado`):** a regra única **exige a
+cessão concluída** (a resposta 1 do negócio, abaixo, foi revertida) e usa o **produto da liquidação**. Ver as respostas abaixo.
 
 ### Perguntas para o negócio (D9)
 
