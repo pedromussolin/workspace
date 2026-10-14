@@ -12,6 +12,7 @@ o motivo — é o que evita rediscutir depois.
 | D5 | Filtro por contrato: igualdade, prefixo ou "contém" | — | igualdade ou prefixo, para usar índice | Pietro | [07](tarefas/07-filtro-identificador-contrato.md) |
 | D7 | Acúmulo (`acumula_liquidacoes`) no modo por proc_id | (a) só no modo por chave, validado na config; (b) outra regra | (a): o lote vigente é por chave, o oposto de fechar por proc_id | Pietro | [02](tarefas/02-fechar-lote-por-proc-id.md) |
 | D8 | Onde guardar modo e horário do fechamento automático | `produto_config` ou `produto_fundo.config_extra` | sem tabela nova; produto + fundo se o horário variar por fundo | Pietro | [11](tarefas/11-fechamento-por-horario-de-corte.md) |
+| D11 | Lote real pode ter pagamentos de mais de um fundo? | (a) não: o fundo do lote é o de qualquer pagamento; (b) sim: coluna `fundo_id` no lote ou manter o `EXISTS` | responder com o passo 1 de [anexos/sql/lotes_reais_lotes_antes_dos_valores.sql](anexos/sql/lotes_reais_lotes_antes_dos_valores.sql) antes do código | Pietro (dado da réplica) | [12](tarefas/12-lotes-reais-lotes-antes-dos-valores.md) |
 | D6 | Fechamento em lote: rota nova com várias chaves ou só tornar a atual assíncrona | — | tornar assíncrona primeiro; rota em lote é a mesma task recebendo uma lista | Pietro + Heitor | [03](tarefas/03-fechamento-assincrono-e-429.md) |
 
 ## Tomadas

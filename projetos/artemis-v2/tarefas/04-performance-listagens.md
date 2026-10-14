@@ -1,6 +1,10 @@
 # 04 — Performance das listagens de lotes
 
 - **Status:** mapeado; a revisão de queries é com a DBA.
+- **14/10/2026:** a parte de lotes reais (`lotes_das_remessas` e o filtro de
+  fundo da página) saiu daqui para a
+  [tarefa 12](12-lotes-reais-lotes-antes-dos-valores.md), que passou na
+  frente. Aqui ficam lotes fake, `pagamentos/query` e métricas.
 - **Repos:** platform-cessao (e front, se mudar quando os lotes irmãos são
   carregados).
 
@@ -21,7 +25,7 @@ O gargalo mudou de lugar.
 
 ## Onde está o gargalo agora
 
-### Lotes reais — `lotes_das_remessas`
+### Lotes reais — `lotes_das_remessas` (movido para a tarefa 12)
 
 - Chamada por `ServiceLiquidacao._lotes_por_remessa`
   (`cessao/api/liquidacao/service.py:1338-1353`) para montar

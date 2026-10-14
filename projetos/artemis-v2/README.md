@@ -21,6 +21,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 |---|---|
 | [decisoes.md](decisoes.md) | Decisões tomadas e pendentes, com quem decide |
 | [evidencias/baseline-datadog-2026-10-05.md](evidencias/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
+| [evidencias/lotes-reais-datadog-2026-10-14.md](evidencias/lotes-reais-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
 | [bugs-encontrados.md](bugs-encontrados.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
 | [depois-da-v2.md](depois-da-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
 | `tarefas/` | Uma tarefa por arquivo (lista abaixo) |
@@ -39,6 +40,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 
 | # | Tarefa | Repos | Depende de | Status | TS |
 |---|---|---|---|---|---|
+| 12 | [Lotes reais: buscar os lotes antes dos valores](tarefas/12-lotes-reais-lotes-antes-dos-valores.md) | cessão | D11 | **prioridade máxima** (14/10); mapeada | a definir |
 | 01 | [Réplica de leitura no init do SQLAlchemy](tarefas/01-replica-de-leitura.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
 | 02 | [Dois modos de fechamento: chave ou proc_id](tarefas/02-fechar-lote-por-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
 | 03 | [Fechamento: mais rápido, sem espera e sem 429](tarefas/03-fechamento-assincrono-e-429.md) | cessão, BFF, front, argocd | — | implementada, aguardando PR | TS-5377 |
@@ -56,6 +58,8 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 A ordem prioriza o que tira carga do banco e o que causa erro em produção.
 É uma proposta para discutir, não um compromisso.
 
+0. **Antes de tudo (14/10):** 12 Lotes reais, lotes antes dos valores. A aba
+   de lotes reais continua falhando em 19,5% das cargas mesmo com a réplica.
 1. **Estancar a carga no banco**
    - 01 Réplica de leitura, com `statement_timeout` na conexão da réplica.
    - 02 Fechar por proc_id: além de corrigir o comportamento, elimina a
