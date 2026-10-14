@@ -185,7 +185,7 @@ SELECT (SELECT count(*) FROM pagina)   AS lotes_na_pagina,
        (SELECT count(*)
         FROM liquidacao_processo pr
         JOIN liquidacao_pagamento lp ON lp.liquidacao_processo_uuid = pr.uuid
-        WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+        WHERE pr.proc_id = ANY(ARRAY(SELECT proc_id FROM remessas))
        ) AS pagamentos_das_remessas;
 
 -- 6b. Lotes irmãos como a cessão faz hoje.
@@ -215,7 +215,7 @@ SELECT DISTINCT pr.proc_id::text AS proc_id, lp.liquidacao_lote_id AS lote_id
 FROM liquidacao_pagamento lp
 JOIN liquidacao_processo pr ON pr.uuid = lp.liquidacao_processo_uuid
 JOIN contrato_parcela cp ON cp.id = lp.parcela_id
-WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+WHERE pr.proc_id = ANY(ARRAY(SELECT proc_id FROM remessas))
   AND lp.liquidacao_lote_id IS NOT NULL
   AND cp.fundo_id = :fundo_id
   -- O filtro de soft delete entra duas vezes hoje (por Parcela e por
@@ -263,7 +263,7 @@ lotes_das_remessas AS MATERIALIZED (
     SELECT DISTINCT pr.proc_id::text AS proc_id, lp.liquidacao_lote_id AS lote_id
     FROM liquidacao_processo pr
     JOIN liquidacao_pagamento lp ON lp.liquidacao_processo_uuid = pr.uuid
-    WHERE pr.proc_id = ANY((SELECT array_agg(proc_id) FROM remessas))
+    WHERE pr.proc_id = ANY(ARRAY(SELECT proc_id FROM remessas))
       AND lp.liquidacao_lote_id IS NOT NULL
 )
 SELECT l.proc_id, l.lote_id
