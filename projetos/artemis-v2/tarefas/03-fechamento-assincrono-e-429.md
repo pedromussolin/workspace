@@ -17,8 +17,9 @@
     `/fake-batches/close/status`; B5 também no consolidate legado.
   - **Front:** linhas `origem:` fecham pelo fluxo novo, com polling (4 s/60 s)
     e estado na célula; linhas `proc:` seguem no legado.
-  - **Argocd:** worker `fake-batch-closing` (1 pod, concorrência 2) em
-    sandbox, produção e vivo.
+  - **Argocd:** worker `fake-batch-closing` (1 pod, concorrência 2). O PR
+    inicial altera só o `asgard-sandbox` (homologação); `asgard-production` e
+    `vivo-production` entram num PR seguinte, depois de validado.
   - **Código novo em inglês**, com nomes explícitos do processo; mensagens ao
     usuário em PT-BR.
   - **Code review (14/10):** corrigidos fila sem consumidor em staging (fila
