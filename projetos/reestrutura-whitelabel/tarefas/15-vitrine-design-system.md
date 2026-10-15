@@ -1,7 +1,7 @@
 # 15 — Vitrine do design system
 
 - **TS:** TS-5372 · **Branch:** `feature/TS-5372-vitrine-design-system` (da 04)
-- **Status:** a iniciar
+- **Status:** em andamento (15/10, 4ª leva)
 - **Depende de:** 04. Pode começar parcial depois da 03.
 
 ## Objetivo

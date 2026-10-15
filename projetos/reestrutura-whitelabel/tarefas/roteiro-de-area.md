@@ -78,6 +78,28 @@ Toda tela segue os estilos e os componentes definidos por nós:
 
 ## Como validar uma leva (comandos)
 
+**Desde a 4ª leva, dois scripts fazem tudo isto:**
+- `anexos/scripts/validar-leva.sh <worktree> [rota ...]` confere:
+  - commits: 72 caracteres, trailers e se cada um compila sozinho;
+  - build, lint e a suíte inteira contra a base da 04;
+  - smoke em claro, escuro, Dots e celular, com `FIXTURES` e `SCENES`.
+  - Os agentes rodam o script antes de entregar, e eu rodo de novo na
+    revisão.
+- `anexos/scripts/merge-teste.sh <repo>` junta todas as áreas sobre a 04
+  numa worktree descartável e confere `tsc`. Com `FULL=1`, roda também
+  build e testes. Conflito conhecido tem resolução automática por branch.
+- **O que fica fora do repo,** em `~/repos/.reestrutura_whitelabel/`:
+  - o lock comum;
+  - as listas de falhas da base (front e BFF);
+  - os logs e os prints;
+  - o `playwright-core`;
+  - os dados de smoke que vêm do código da empresa (ex.: o OpenAPI do BFF);
+  - as resoluções de conflito.
+- **As instruções comuns aos agentes** estão em `anexos/agentes/brief-comum.md`.
+  O pedido de cada agente traz só o que é da tarefa dele.
+
+Os passos abaixo são o que os scripts fazem, para referência.
+
 O scratchpad do Claude fica em `/tmp` e se perde entre sessões. Por isso os
 números de base estão aqui:
 

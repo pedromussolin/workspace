@@ -52,10 +52,11 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5369 |
 | 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12 | a iniciar | TS-5370 |
-| 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | a iniciar | TS-5371 |
-| 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` | 04 | a iniciar | TS-5372 |
+| 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | em andamento (15/10, 4ª leva) | TS-5371 |
+| 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | em andamento (15/10, 4ª leva) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
+| 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-?-seguranca-front` | `master` (independente do épico) | a iniciar | — |
 
 ## Situação em 15/10
@@ -91,12 +92,13 @@ visíveis para a PR e a validação.
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
 ordem.
 
-**Faltam: 5.**
+**Faltam: 6.**
 
 | # | O quê | Como vai |
 |---|---|---|
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
-| 14, 15 | Docs da API (front e BFF) e vitrine do design system | por último. Só dependem da 04 |
+| 14, 15 | Docs da API e vitrine do design system, com a parte de cada uma no BFF | 4ª leva, em andamento desde 15/10, agentes Opus em xhigh. Escopos novos `api-docs:read` e `design-system:read` (D14 e D15). A 15 traz as 19 peças comuns das áreas e cria o rodapé da sidebar com os dois atalhos |
+| 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
 | 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
 | 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | da `master`, a qualquer momento. Não depende do épico |
 

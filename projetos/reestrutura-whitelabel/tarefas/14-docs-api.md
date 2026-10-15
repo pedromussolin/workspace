@@ -1,7 +1,7 @@
 # 14 — Docs da API autenticada
 
 - **TS:** TS-5371 · **Branch:** `feature/TS-5371-docs-api-autenticada` (da 04)
-- **Status:** a iniciar
+- **Status:** em andamento (15/10, 4ª leva)
 - **Depende de:** 04 (componentes). Decisão D8.
 
 ## Objetivo
