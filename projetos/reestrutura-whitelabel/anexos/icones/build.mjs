@@ -1,0 +1,11 @@
+import { ICONS, CATEGORIES } from './icons.mjs';
+import fs from 'node:fs';
+fs.mkdirSync('svg', { recursive: true });
+const svg = (b) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${b}</svg>\n`;
+for (const [n,, b] of ICONS) fs.writeFileSync(`svg/${n}.svg`, svg(b));
+const mapping = Object.fromEntries(ICONS.flatMap(([n,,, rep]) => rep.map((m) => [m, n])).sort());
+fs.writeFileSync('material-para-novo.json', JSON.stringify(mapping, null, 2) + '\n');
+const data = JSON.stringify({ cats: CATEGORIES, icons: ICONS.map(([n, c, b, rep]) => ({ n, c, b, rep })) });
+const tpl = fs.readFileSync('gallery.tpl.html', 'utf8');
+fs.writeFileSync('gallery.html', tpl.replace('/*__DATA__*/null', data));
+console.log('ok', ICONS.length, Object.keys(mapping).length);

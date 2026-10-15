@@ -1,0 +1,20 @@
+# Achados
+
+Coisas encontradas no mapeamento que não são o objetivo do épico. Cada uma
+vira commit `fix` separado, uma tarefa nova ou fica anotada com o motivo.
+
+| # | Achado | Onde | O que fazer |
+|---|---|---|---|
+| A1 | O tipo `environment.themeKey` aceita `default`, `dots` e `viva`, mas não `cerys`, que tem deploy próprio (`apl-credit-whitelabel-front-cerys`) | `src/environments/environment.ts`, `theme/theme.config.ts` | Corrigir na 01 |
+| A2 | `services/legal/condominiums.service.ts` não tem nenhum consumidor | `services/legal/` | Confirmar e apagar na 01 (código morto) |
+| A3 | Header e sidebar são recriados a cada navegação, porque cada página embrulha a si mesma em `<app-layout>` | 26 páginas | Resolvido pelo app-shell (01 + 05–12) |
+| A4 | O mesmo status tem cores diferentes em telas diferentes (ex.: "pendente" é laranja `#f57c00` nos lotes, `_batches-shell.scss`, e cinza no detalhe do Pré-Trade, `pre-trade-details.page.scss:699`) | lotes, pré-trade, orquestrador | Unificar nos semânticos em cada área. Avisar o Pietro antes de mudar uma cor que a operação já conhece |
+| A5 | O `index.html` carrega duas fontes de ícone (Material Icons e Material Symbols Rounded), e o `styles.scss` carrega três famílias de texto (Inter, Roboto, Sora) | `index.html`, `styles.scss` | Sai na 13 (ícones) e na 02 (D4) |
+| A6 | `BaseApiService` importa `CloseScrollStrategy` do CDK sem usar | `http/base-api.service.ts` | Limpar na 01 |
+| A7 | O `apexcharts.min.js` (580 kB) entra global pelo `angular.json` e pesa no bundle inicial de todas as telas, mas só CERC e Performance usam gráfico | `angular.json` (`scripts`) | Avaliar na 09 importar só nas duas telas (o `ng-apexcharts` 2 importa o `apexcharts` como módulo) |
+| A8 | A suíte de testes não compilava na master (6 specs com nomes antigos) e, corrigida, tem 95 de 249 testes falhando | specs, ver [baseline](evidencias/baseline-2026-10-10.md) | Compilação corrigida na 01; cada área corrige as falhas da própria área |
+| A9 | O CI só dispara em push de `master`, `main`, `staging`, `sandbox`, `feature/*`, `hotfix/*` e `release/*`. Branches `refact/*`, `chore/*`, `fix/*` e `test/*` não buildam, e o `build.yml` compartilhado recebe `test_image: ''`, então os testes não rodam no CI | `.github/workflows/workflow.yml` | Tratar na 16. Até lá, eu valido build, lint e testes localmente em cada fatia |
+| A10 | A rota `/pdd` não tem `iamGuard`, ao contrário de todas as outras autenticadas | `app.routes.ts` | Perguntar ao Pietro se é de propósito. Não muda nesta reestruturação (o BFF valida as chamadas da tela) |
+| A11 | `FunnelPage` (`pages/orchestrator/orchestrator/funnel`) não aparece em nenhuma rota nem em outro componente | orquestrador | Confirmar e remover na 10 |
+| A12 | A Home dependia de estar dentro do `<app-layout>`: o `::ng-deep .app-main` fazia dos blocos dela itens do flex do `<main>`. Com o shell, ela ficou desalinhada até ganhar `:host { display: contents }` | `home.page.scss` | Corrigido na 01; a regressão visual pegou |
+| A13 | Contraste abaixo de AA no tema claro (medido no spec `themes.spec.ts`): Dots primária/fundo 4,07, secundária/superfície 2,93 e texto branco/primária 4,18; Cerys primária/fundo 2,22 e texto branco/primária 2,28 | `core/theme/themes.ts` | Não muda nesta reestruturação (não alterar visual). Sugestão para decidir com o Pietro: texto escuro sobre a laranja da Cerys |
