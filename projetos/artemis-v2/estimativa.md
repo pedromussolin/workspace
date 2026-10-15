@@ -55,6 +55,8 @@ da etapa 2, ela sai do prazo e vira uma entrega à parte.
 
 ## O que mudou desde a primeira versão
 
+- 15/10: o escopo da tarefa 08 cresceu (A3 com a I7 decidida na D17; I1–I6;
+  propostas 7 a 9). As 36 h da linha 08 ainda não foram revistas.
 - 14/10: entra a tarefa 12 (24 h), na frente das outras; a parte de lotes
   reais sai da 04 (32 h → 24 h). Total de 370 h para 386 h.
 - 13/10: tarefa 03 vira TS-5377 e segue o `refact.py`; P1, P3 e P4 vão para
