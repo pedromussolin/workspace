@@ -81,9 +81,9 @@ Toda tela segue os estilos e os componentes definidos por nós:
 O scratchpad do Claude fica em `/tmp` e se perde entre sessões. Por isso os
 números de base estão aqui:
 
-- **Base da 04:**
+- **Base da 04 (rebaseada na master em 15/10):**
   - lint: 59 erros e 281 avisos;
-  - testes: 674, com 76 falhando.
+  - testes: 675, com 77 falhando.
 - **Regra:** nenhuma falha nova e nenhum erro de lint novo.
 
 Comandos:
