@@ -15,7 +15,7 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
 
 | Métrica | Antes (01–13/10) | 14/10 |
 |---|---|---|
-| Rodadas por dia | 4 | **1** (19h00–20h41 UTC) |
+| Rodadas por dia | 4 | **1** (19h00–20h04 UTC; mais 2 chamadas às 13h49) |
 | Payload | produto + originador (78 distintos) | 4 chaves (1 sem fundo em 479) |
 | Chamadas | 312–316 | **419** |
 | "Nada a fechar" (400) | ~96% | 90% (376) |
@@ -37,12 +37,36 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
 - **Saldo [C]:** 44 min de servidor contra a mediana de 54 min (−18%), dentro
   da variação dos dias anteriores (24–158 min). Com um dia só, ainda não dá
   para afirmar ganho no total.
-- **Chamadas repetidas [C]:** na hora das 20h, 164 chamadas para 111 payloads
-  distintos; 53 repetem uma linha já enviada segundos antes (ex.: fundo 144,
-  produto 1274, às 20:41:45 e 20:41:56). Combinar com o Rafael.
-- **Produtos fora da lista [H]:** há payloads do produto 1274, que não está
-  entre os 6 informados (80, 4, 1406, 81, 581, 15). Separar o que é da
-  varredura e o que é do BFF/Atlas pelo `trace_id` antes de concluir.
+- **Chamadas repetidas [C]:** no produto 1406, entre 20:00 e 20:04 UTC, 119
+  chamadas para 67 payloads distintos: 52 repetem uma linha já enviada.
+  Combinar com o Rafael.
+- **Produtos da rodada [C]:** 4, 80, 81 e 1406. O 581 só aparece em 2
+  chamadas às 13h49, e o 15 não aparece.
+- **A rota antiga não ignora a origem nas chamadas dele [C]:** zero tentativas
+  de grupo vazio por chamada em 13/10 e 14/10 (log `Tentativa de criar lote
+  sem pagamentos` contado por `trace_id`). O custo de ~2 s é a busca dos
+  grupos aptos, não um laço pelas outras origens.
+
+## Vektor (produto 1274), outro fechamento por fora
+
+Não é da varredura: é o fechamento que Gus Xavi e Joan Mendonsa fazem pelo
+**Atlas** (`python-requests/2.28.2`, pods do EKS), na mão. 30 dias até 14/10:
+
+| Métrica | Valor |
+|---|---|
+| Chamadas | 63 em 20 dias úteis (1 a 9 por dia) |
+| Payload | sempre fundo 144, originador 259, produto 1274; varia a origem (17 vezes `<boleto>manual_chamado`) |
+| Padrão | rajadas, uma origem por clique (ex.: 6 chamadas em 29 s em 14/10; 6 em 70 s em 29/09) |
+| Repetições | 63 chamadas para 52 payloads distintos por dia (11 repetidas) |
+| Status (26 spans guardados de 63) | 25 × 200, 1 × 400 |
+| Latência | p50 0,6 s, p95 6,3 s, máximo 6,7 s; ~57 s somados nos spans guardados |
+| Efeito colateral | a rota antiga ignora a origem pedida: em 14/10, 6 chamadas geraram 16 tentativas em grupos vazios (até 5 por chamada) |
+
+Custo no banco desprezível perto da varredura (minutos no mês contra ~54 min
+por dia). O mesmo efeito colateral é bem maior nas outras chamadas da tela e
+do Atlas: em 14/10, 54 chamadas geraram 358 tentativas vazias (até 30 numa
+chamada). É o problema descrito na
+[análise da tarefa 03, seção 5](../tarefas/03-analise-do-fechamento.md#5-fechar-o-grupo-numa-instrução-proposta-b).
 
 ## Consultas para medir de novo
 
