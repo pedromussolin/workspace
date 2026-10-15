@@ -123,7 +123,7 @@ Para a 13: ao tirar o tema do Material do `angular.json`, incluir
 ### Correções depois da publicação (15/10)
 
 Os problemas apareceram na revisão das áreas 07 e 08. Cada correção tem um
-teste que falha sem ela. Os três commits estão **só no local, sem push**.
+teste que falha sem ela. Os três commits foram publicados em 15/10.
 
 | Commit | O quê |
 |---|---|

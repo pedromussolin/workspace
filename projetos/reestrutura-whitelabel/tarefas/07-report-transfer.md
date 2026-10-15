@@ -1,7 +1,7 @@
 # 07 — Report Transfer
 
 - **TS:** TS-5364 · **Branch:** `refact/TS-5364-report-transfer-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
-- **Status:** commits feitos, sem push (15/10)
+- **Status:** publicada (15/10), sem merge em ambiente
 - **Depende de:** 04
 - **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
 
