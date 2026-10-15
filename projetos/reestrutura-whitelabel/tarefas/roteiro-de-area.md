@@ -81,14 +81,15 @@ Toda tela segue os estilos e os componentes definidos por nós:
 O scratchpad do Claude fica em `/tmp` e se perde entre sessões. Por isso os
 números de base estão aqui:
 
-- **Base da 04 (rebaseada na master em 15/10):**
+- **Base da 04 com as três correções de 15/10:**
   - lint: 59 erros e 281 avisos;
-  - testes: 675, com 77 falhando.
+  - testes: 678, com 77 falhando.
 - **Regra:** nenhuma falha nova e nenhum erro de lint novo.
 
 Comandos:
 
-1. **Testes:**
+1. **Testes:** sem `--port`, porque o `ng test` desta versão não aceita a opção; o Karma escolhe outra porta quando a dele está ocupada.
+   Comando:
    `CHROME_BIN=~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome npx ng test --watch=false --browsers=ChromeHeadless`.
    - A lista de falhas sai das linhas `... FAILED` do log, depois de tirar as
      cores ANSI.

@@ -8,6 +8,7 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D9 | Onde rodam o E2E e a cobertura | (a) job novo no `workflow.yml` do front; (b) mudar o `build.yml` compartilhado de `Capitalis/actions` | (a). Não mexe no pipeline dos outros repos | Pietro, com o time de infraestrutura (adiada em 11/10: tarefa 16 fica para depois) | [16](tarefas/16-testes-e2e-cobertura.md) |
+| D10 | Padrão dos campos liga/desliga nos formulários (ex.: "Ativo", "Coobrigação") | (a) um `app-switch` novo em `shared/ui`, parecido com os interruptores de antes; (b) caixa de marcar; (c) controle segmentado Sim/Não | (a) nos formulários, que é o mais fiel ao que havia. O Sim/Não segmentado fica só para filtros. Hoje cada área fez de um jeito: a 07 usou caixa de marcar e a 08 usou Sim/Não | Pietro | 07, 08 e passada de consistência |
 
 ## Tomadas
 

@@ -43,67 +43,68 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 04 | [Componentes: overlay, tabela e shell novo](tarefas/04-componentes-overlay-tabela.md) | `feature/TS-5361-componentes-overlay-tabela` | 03 | **commits feitos, sem push** (11/10) | TS-5361 |
 | 05 | [Pré-Trade](tarefas/05-pre-trade.md) | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5362 |
 | 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5363 |
-| 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | a iniciar | TS-5364 |
+| 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5364 |
 | 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5365 |
 | 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | a iniciar | TS-5366 |
 | 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | a iniciar | TS-5367 |
-| 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | a iniciar | TS-5368 |
+| 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | a iniciar | TS-5369 |
 | 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12 | a iniciar | TS-5370 |
 | 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | a iniciar | TS-5371 |
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` | 04 | a iniciar | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 
-## Situação em 13/10
+## Situação em 15/10
 
-**Prontas: 6 de 15** (a 16 está adiada e fica fora da conta). Todas foram
-publicadas em 15/10, sem merge em nenhum ambiente. Cada uma tem a seção "O que foi
-feito" no arquivo da tarefa, com os commits, as mudanças visíveis para a PR
-e a validação.
+**Prontas: 9 de 15** (a 16 está adiada e fica fora da conta).
+- 01 a 06: publicadas em 15/10, sem merge em nenhum ambiente.
+- 07, 08 e 11: prontas no local, sem push. Elas nascem da 04 com três
+  correções novas, que também estão só no local.
 
-| # | Branch | Nasce de | Commits |
-|---|---|---|---|
-| 01 | `refact/TS-5358-estrutura-base-front` | `master` (`3f5ea96`) | 13 |
-| 02 | `feature/TS-5359-temas-claro-escuro` | 01 | 5 |
-| 03 | `feature/TS-5360-componentes-formulario` | 02 | 22 |
-| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 26 |
-| 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 |
-| 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 |
+Cada tarefa tem a seção "O que foi feito", com os commits, as mudanças
+visíveis para a PR e a validação.
 
-Abrir as PRs nesta ordem: 01 → 02 → 03 → 04 → 05 e 06. A 05 e a 06 não
-dependem uma da outra.
+| # | Branch | Nasce de | Commits | Situação |
+|---|---|---|---|---|
+| 01 | `refact/TS-5358-estrutura-base-front` | `master` (`3f5ea96`) | 13 | publicada |
+| 02 | `feature/TS-5359-temas-claro-escuro` | 01 | 5 | publicada |
+| 03 | `feature/TS-5360-componentes-formulario` | 02 | 22 | publicada |
+| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 26 + 3 | publicada; 3 correções só no local |
+| 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 | publicada |
+| 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 | publicada |
+| 07 | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 corrigida | 14 | local |
+| 08 | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 corrigida | 7 | local |
+| 11 | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 corrigida | 24 | local |
 
-**Faltam: 9.**
+Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
+ordem.
+
+**Faltam: 6.**
 
 | # | O quê | Como vai |
 |---|---|---|
-| 07, 08 | Report Transfer e Formalização | 2ª leva, em paralelo |
-| 09, 10 | Controladoria e Orquestrador | 3ª leva (a 10 aplica a D7 no `product.service`) |
-| 11, 12 | Onboarding/usuários/clientes/simulação e páginas gerais | 4ª leva |
-| 13 | Remove Angular Material | depois de todas as áreas, porque junta tudo |
+| 09, 10, 12 | Controladoria, Orquestrador e páginas gerais | 3ª leva, em paralelo, modo completo. A 10 aplica a D7 no `product.service`; a 09 trata o A7 (`apexcharts`) |
+| 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
 | 14, 15 | Docs da API (front e BFF) e vitrine do design system | por último. Só dependem da 04 |
 
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura.
 - **Pendências do Pietro:**
-  - abrir as PRs das branches 01 a 06 (publicadas em 15/10);
-  - testar o login real na sandbox;
-  - conferir a tabela de Lotes na sandbox. O mock local não tem os escopos
-    de lotes, então ali a tela abre em "sem permissão".
-  - decidir se fica o commit `129bee4` da 05: a celebração passa a fechar
-    com Enter/Esc e faz só o fade com movimento reduzido. Se não ficar, é só
-    reverter esse commit;
-  - definir o fluxo de commit: nesta pasta eu commito e você revisa os
-    commits antes de publicar. Na regra que você deu em 13/10 em outra
-    tarefa, eu não commito antes da sua revisão. Decidir qual vale para o
-    épico.
-- **Esforço:**
-  - a 1ª leva (05 e 06) gastou cerca de uma sessão inteira;
-  - estimativa para o restante: 4 a 6 sessões;
-  - para gastar menos, as próximas levas podem ir no modo enxuto:
-    - só migrar para `shared/ui`, tokens e `features/`, sem extrair peças
-      novas;
-    - cada agente roda só os testes das telas que mexeu.
+  - publicar as três correções da 04 e as branches 07, 08 e 11;
+  - abrir as PRs;
+  - testar o login real e os fluxos na sandbox.
+- **Decisões abertas:**
+  - D10: padrão dos campos liga/desliga;
+  - commit `129bee4` da 05;
+  - A13: contraste da Dots e da Cerys no tema claro;
+  - A15: títulos fora do padrão;
+  - fluxo de commit: eu commito e o Pietro revisa antes de publicar, ou não
+    commito antes da revisão.
+- **Passada de consistência no fim:**
+  - A14: margem do contêiner das páginas;
+  - a Formalização trocar o `.search-box` local pelo `.app-input-icon`.
+- **Esforço:** cada leva de três áreas, em modo completo, consome perto de
+  uma sessão inteira.
 
 ## Ordem e branches
 

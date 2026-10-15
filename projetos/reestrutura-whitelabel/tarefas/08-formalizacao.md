@@ -81,7 +81,7 @@ duas correções de 15/10. São 7 commits:
 |---|---|
 | Build | ok |
 | Lint | 58 erros / 279 avisos |
-| Testes | 815, com 55 falhando, nenhuma falha nova. Specs da área: 150/150 |
+| Testes | 818, com 55 falhando, nenhuma falha nova. Specs da área: 150/150 (reconferido na 04 com as três correções) |
 | Smoke (mock) | 29 rotas, sem erro de página |
 | Prints | cabeçalho da tabela e controle segmentado no celular conferidos depois das correções da 04 |
 

@@ -122,13 +122,14 @@ Para a 13: ao tirar o tema do Material do `angular.json`, incluir
 
 ### Correções depois da publicação (15/10)
 
-Os dois problemas apareceram na revisão da Formalização (08). Cada correção
-tem um teste que falha sem ela. Os dois commits estão **só no local, sem push**.
+Os problemas apareceram na revisão das áreas 07 e 08. Cada correção tem um
+teste que falha sem ela. Os três commits estão **só no local, sem push**.
 
 | Commit | O quê |
 |---|---|
 | `d1c63b0` | **Seta de ordenar sobrepunha o nome da coluna** quando a tabela fica justa. Causa: o botão do cabeçalho tinha `max-width: 100%`. Para o navegador, um botão com largura máxima em porcentagem pode encolher até zero, então a coluna ficava mais estreita que o texto. |
 | `3ea9153` | **No celular, o controle segmentado cortava as opções** em "T…" e "P…" quando tem muitas, como os 5 status da Formalização. Agora a opção nunca encolhe abaixo do texto e o grupo rola na horizontal. Com poucas opções, elas continuam ocupando a largura toda. |
+| `779aa13` | **Rolagem lateral na página do celular** quando a tabela é mais larga que a tela. Causa: o texto que só o leitor de tela lê (`position: absolute`) escapava do recorte do wrapper da tabela. O wrapper agora é `position: relative`. A correção veio da 07 e subiu para a 04 |
 
 O controle segmentado veio da 03, mas a correção entrou na 04 para não
 mexer em duas branches publicadas. As áreas 07, 08 e 11 nascem desta 04
