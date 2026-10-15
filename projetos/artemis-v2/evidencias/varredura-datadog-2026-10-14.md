@@ -68,6 +68,32 @@ dessa lista fixa todo dia, sem consultar contratos, e fazer a varredura
 completa só de vez em quando (ex.: uma vez por semana) para achar
 combinação nova, como o 1406/72, que fechou uma vez só.
 
+## Produtos que acumulam liquidações (4, 80, 81, 1406)
+
+Código (`origin/master` `d72e01c`):
+
+- Com `acumula_liquidacoes`, o pagamento que chega a `cadastrado` entra no
+  **lote vigente** de (produto, originador, fundo, origem); o lote nasce
+  `pendente` no primeiro pagamento (`repository.py:470-485`,
+  `estados_liquidacao.py:349-351`). Pagamento de renegociação não acumula.
+- O lote vigente **fica aberto e não vai para a ADM** até alguém fechá-lo:
+  - `POST /liquidacao/` marca `fechado` e manda para a esteira
+    (`viewer.py:387-401`, `service.py:1165-1184`);
+  - ou o agendamento das 19h UTC, só se o produto tiver
+    `baixa_por_agendamento` (`tasks/liquidacao_lote.py:254-265`).
+- O `POST` roda **também** a busca dos grupos aptos (`create_by_originador`),
+  mesmo quando só havia o vigente para fechar.
+
+Trace `1665628995083531236` (produto 4, 14/10 19:13 UTC, 200 em 14,3 s):
+leitura e fechamento do vigente em ~4 ms; busca de grupos aptos
+(`9544189cfdc7d6a9`) 2,1 s sem achar nada; `proc_id` da resposta
+(`a869cdebee701bb5`) 6,5 s sobre um lote de 10.418 pagamentos.
+
+Leitura: nesses produtos a varredura só precisa fechar os vigentes abertos, e
+a tabela `liquidacao_lote_vigente` já tem produto, originador, fundo, origem e
+`fechado`, sem passar por contrato. Os produtos 15 e 581 não acumulam e
+continuam dependendo da busca de grupos aptos.
+
 ## Vektor (produto 1274), outro fechamento por fora
 
 Não é da varredura: é o fechamento que Gus Xavi e Joan Mendonsa fazem pelo
