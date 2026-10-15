@@ -1,6 +1,8 @@
 // Smoke test visual do front sem BFF real: serve o dist e um BFF falso (sessão válida, todas as
 // rotas liberadas, dados vazios) e tira prints de cada rota em desktop e celular.
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
+// NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); FIXTURES=<arquivo.json> dá dados
+// ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -22,12 +24,13 @@ const PATHS = [
   '/cash-consolidation', '/orchestrator', '/orchestrator/product-config', '/users', '/onboarding-bgt/monitoring',
 ];
 const IAM = {
-  'iam/status': true,
+  'iam/status': !process.env.NO_SESSION,
   'iam/navigation': true,
   'iam/paths': PATHS,
   'iam/organization': 'plgn',
   'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com' },
 };
+const FIXTURES = process.env.FIXTURES ? JSON.parse(fs.readFileSync(process.env.FIXTURES, 'utf8')) : {};
 
 const bff = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -37,7 +40,7 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', '*');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
-  res.end(JSON.stringify(key in IAM ? IAM[key] : []));
+  res.end(JSON.stringify(key in IAM ? IAM[key] : key in FIXTURES ? FIXTURES[key] : []));
 });
 
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.mp4': 'video/mp4' };
@@ -63,7 +66,13 @@ const VIEWPORTS = [['desktop', { width: 1440, height: 900 }], ['celular', { widt
 );
 for (const [label, viewport] of VIEWPORTS) {
   const page = await browser.newPage({ viewport });
+  if (process.env.SCHEME) {
+    // A mesma chave que o ColorSchemeService grava; o script do index.html aplica antes do Angular subir.
+    await page.addInitScript((scheme) => localStorage.setItem('portal.color-scheme', scheme), process.env.SCHEME);
+  }
   page.on('pageerror', (e) => errors.push(`${label} ${page.url()}: ${e.message}`));
+  // O Angular entrega os erros de template ao ErrorHandler, que só escreve no console.
+  page.on('console', (m) => m.type() === 'error' && errors.push(`${label} ${page.url()} [console]: ${m.text().slice(0, 300)}`));
   for (const route of routes) {
     const ok = await page.goto(`http://localhost:4300${route}`, { waitUntil: 'load', timeout: 20000 }).then(() => true, () => false);
     if (!ok) { console.log(`${label} ${route} -> TIMEOUT ao carregar`); continue; }
