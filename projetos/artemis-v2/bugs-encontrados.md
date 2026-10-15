@@ -177,6 +177,31 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   negócio. Fica fora da TS-5377 (legado intocado). Ver
   [depois-da-v2.md](depois-da-v2.md#acúmulo-de-liquidações-e-a-cessão-b12).
 
+## B13 — Repasse para a Genius usa só o primeiro arquivo do parceiro
+
+- **Onde:** no modo repasse, o CNAB enviado à Genius vem de um único arquivo
+  do parceiro. Na cessão, do anexo do **primeiro contrato** do lote, filtrado
+  pelos contratos do lote (`geradores/remessa_genius.py:51-80`, `:95-135`). Na
+  liquidação, do proc_id do **primeiro pagamento**, sem filtro
+  (`geradores/cnab_500_liquidacao_genius.py:63-77`, `:132-175`).
+- **Efeito (hipótese):** num lote com contratos ou pagamentos de mais de um
+  arquivo do parceiro, a cessão deixa de fora os contratos que não estão no
+  primeiro arquivo, e a liquidação manda o arquivo inteiro do primeiro proc_id,
+  inclusive pagamentos que não são do lote, e não manda os outros.
+- **Confirmado:** leitura do código (14/10/2026) e Datadog (15/10/2026): em
+  30 dias, 3 nomes de arquivo foram enviados por 2 a 5 lotes de liquidação
+  do mesmo fundo em segundos, todos com data anterior ao envio (arquivo do
+  parceiro). Esses lotes concentram avisos de recusa sem pagamento
+  correspondente. Ver
+  [evidência](evidencias/genius-reenvio-datadog-2026-10-15.md#2-mesmo-nome-de-arquivo-em-lotes-diferentes).
+- **Validar:** contar lotes de fundos da Genius em modo repasse com mais de um
+  proc_id (liquidação) ou com contratos de mais de um arquivo (cessão).
+- **Relacionado:** [tarefa 02](tarefas/02-fechar-lote-por-proc-id.md) (fechar
+  por proc_id daria um arquivo por lote) e D3 (decidida em 13/10: um lote por
+  proc_id e fundo).
+- **Correção:** depende da validação; se existir, montar o arquivo a partir de
+  todos os arquivos do lote ou fechar esses produtos por proc_id.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
