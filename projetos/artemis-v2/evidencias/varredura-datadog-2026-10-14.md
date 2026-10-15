@@ -47,6 +47,27 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
   sem pagamentos` contado por `trace_id`). O custo de ~2 s é a busca dos
   grupos aptos, não um laço pelas outras origens.
 
+## Quais combinações da varredura fecham lote (30 dias até 14/10)
+
+Contado por `trace_id`: chamada com `Criar lote de liquidacoes` seguida de
+`Enviar para esteira de baixa` fechou lote. Das **78 combinações** produto ×
+originador, só **14 fecharam algum lote em 30 dias**; as outras 64 (82%)
+nunca fecharam nada.
+
+| Produto | Originadores que fecham (dias com fechamento em 21) |
+|---|---|
+| 4 | 4 (21), 1051 (21), 72 (21), 6 (21), 5 (21), 17 (11), 16 (6) |
+| 80 | 80 (21), 79 (21) |
+| 81 | 80 (21) |
+| 1406 | 1117 (21), 72 (1) |
+| 581 | 589 (20) |
+| 15 | 19 (20) |
+
+Leitura: a relação produto → originador é estável. A varredura pode partir
+dessa lista fixa todo dia, sem consultar contratos, e fazer a varredura
+completa só de vez em quando (ex.: uma vez por semana) para achar
+combinação nova, como o 1406/72, que fechou uma vez só.
+
 ## Vektor (produto 1274), outro fechamento por fora
 
 Não é da varredura: é o fechamento que Gus Xavi e Joan Mendonsa fazem pelo
