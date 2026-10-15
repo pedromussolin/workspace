@@ -8,6 +8,7 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D9 | Onde rodam o E2E e a cobertura | (a) job novo no `workflow.yml` do front; (b) mudar o `build.yml` compartilhado de `Capitalis/actions` | (a). Não mexe no pipeline dos outros repos | Pietro, com o time de infraestrutura (adiada em 11/10: tarefa 16 fica para depois) | [16](tarefas/16-testes-e2e-cobertura.md) |
+| D13 | Ícone `more-vertical` (três pontinhos do menu de cada conversa do Poli Chat) | (a) entra no conjunto, que vai a 149; (b) usar outro ícone do conjunto | (a). O inventário não pegou o `more_vert` (estava numa linha separada da tag) e o conjunto não tem equivalente: `menu` é o hambúrguer e `grip-vertical` é a alça de arrastar | Pietro | 12 |
 
 ## Tomadas
 

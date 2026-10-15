@@ -47,7 +47,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5363 |
 | 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5364 |
 | 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5365 |
-| 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | em andamento (15/10) | TS-5366 |
+| 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5366 |
 | 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5367 |
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5369 |
@@ -60,8 +60,13 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 ## Situação em 15/10
 
-**Prontas: 9 de 17** (a 16 está adiada e fica fora da conta).
-- Todas publicadas em 15/10, sem merge em nenhum ambiente.
+**Prontas: 12 de 17** (a 16 está adiada e fica fora da conta).
+- 01 a 08 e 11 publicadas em 15/10, sem merge em nenhum ambiente.
+- 09, 10 e 12 (3ª leva) com commits feitos, sem push, esperando o Pietro
+  publicar.
+- Merge de teste das oito áreas juntas sobre a 04: compila e passa nos
+  testes (1.627, só 1 falha, que já é da base). O único conflito é o da 10
+  com a 11, com o passo a passo na tarefa 10.
 - A 07, a 08 e a 11 nascem da 04 com as três correções de 15/10, que também
   já estão publicadas.
 
@@ -81,15 +86,15 @@ visíveis para a PR e a validação.
 | 11 | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 corrigida | 24 | publicada |
 | 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | commits feitos, sem push. No merge com a 11, conflito em 3 imports, com o passo a passo na tarefa |
 | 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | commits feitos, sem push |
+| 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | commits feitos, sem push |
 
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
 ordem.
 
-**Faltam: 8.**
+**Faltam: 5.**
 
 | # | O quê | Como vai |
 |---|---|---|
-| 09, 10, 12 | Controladoria, Orquestrador e páginas gerais | 3ª leva, em andamento desde 15/10, em paralelo e modo completo. A 10 aplica a D7 no `product.service` e cria o `app-switch` (D11); a 09 troca o ApexCharts por gráficos próprios em SVG (D10, resolve o A7) |
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
 | 14, 15 | Docs da API (front e BFF) e vitrine do design system | por último. Só dependem da 04 |
 | 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
@@ -98,9 +103,14 @@ ordem.
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura.
 - **Pendências do Pietro:**
-  - abrir as PRs;
+  - publicar as branches 09, 10 e 12 e abrir as PRs;
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:**
+  - D13: ícone `more-vertical` novo (conjunto vai a 149);
+  - 09: a barra de ferramentas do ApexCharts (zoom e baixar imagem) saiu
+    da Performance. Repor o "baixar imagem" no `app-chart`?
+  - 12: envio à base de conhecimento com só "Poliedro - Geral" manda
+    `department=all`; confirmar com o BFF;
   - commit `129bee4` da 05;
   - A13: contraste da Dots e da Cerys no tema claro;
   - A15: títulos fora do padrão;
@@ -108,7 +118,11 @@ ordem.
     commito antes da revisão.
 - **Passada de consistência no fim:**
   - A14: margem do contêiner das páginas;
-  - a Formalização trocar o `.search-box` local pelo `.app-input-icon`.
+  - a Formalização trocar o `.search-box` local pelo `.app-input-icon`;
+  - a Formalização usar o `app-split-button` no Exportar;
+  - a `kpi-grid` da 09 subir para `shared/ui` e servir às outras grades de
+    KPI;
+  - D11: a 07 e a 08 passarem ao `app-switch`.
 - **Esforço:** cada leva de três áreas, em modo completo, consome perto de
   uma sessão inteira.
 

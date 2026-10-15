@@ -103,7 +103,23 @@ Comandos:
    a branch final a partir da worktree do agente.
    - Os agentes Sonnet costumam passar de 72 caracteres no assunto do commit.
    - Os assuntos encurtados vão no mapa `R` do script.
-4. **Conferências de revisão:** sem `@angular/material`, sem `#hex`/`rgb(` nos
+4. **Smoke completo (desde a 3ª leva):** o `smoke.mjs` aceita, por
+   variável de ambiente:
+   - `SCHEME=dark` (escuro), `THEME_KEY=<chave real da marca>` e
+     `NO_SESSION=1` (tela de login);
+   - `FIXTURES=anexos/smoke-dados/<área>.json`, com dados fictícios por
+     caminho da API;
+   - `SCENES='[["nome","/rota","texto de um app-toggle"]]'`, para abas e
+     visões sem URL própria (print da página inteira).
+   - Além dos erros de página, ele acusa os erros de console (o Angular só
+     escreve neles) e a página mais larga que a tela (rolagem lateral).
+5. **Commit a commit:** `tsc -p tsconfig.app.json --noEmit` e o mesmo com
+   `tsconfig.spec.json` em cada commit, numa worktree à parte. Leva poucos
+   segundos por commit e pega commit que não compila sozinho.
+6. **Merge de teste:** juntar todas as áreas sobre a 04 numa worktree
+   descartável, rodar `tsc`, build e testes. Mostra antes da `sandbox` os
+   conflitos entre áreas.
+7. **Conferências de revisão:** sem `@angular/material`, sem `#hex`/`rgb(` nos
    `.scss`, sem `@Input`/`*ngIf`/`::ng-deep` e com um spec por componente.
 
 **Lição da 1ª leva:**
@@ -111,6 +127,17 @@ Comandos:
 - Os agentes da próxima leva vão com escopo enxuto e com commit a cada etapa.
 - Se um agente cair, um agente novo termina o que ficou pendente no working
   tree da worktree.
+
+**Lições da 3ª leva (15/10):**
+- Pedir ao agente que terminou os dados fictícios da área para o smoke: ele
+  conhece os serviços e escreve o arquivo em minutos.
+- Revisar com dados e no celular achou o que os specs não acham: valores
+  de KPI cortados, colunas escondidas, rolagem lateral causada por uma
+  tabela oculta para leitor de tela e um erro de template que travava a
+  tela (sem aparecer como erro de página).
+- Um agente misturou num commit de teste a remoção de arquivos do commit
+  seguinte. A conferência commit a commit pegou, e a branch final foi
+  montada separando as duas partes.
 
 **Montagem da 3ª leva (15/10):**
 - Agentes Opus 5.5 em esforço alto, a pedido do Pietro. A leva começou em
