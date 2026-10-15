@@ -22,6 +22,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 | [decisoes.md](decisoes.md) | Decisões tomadas e pendentes, com quem decide |
 | [evidencias/baseline-datadog-2026-10-05.md](evidencias/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
 | [evidencias/lotes-reais-datadog-2026-10-14.md](evidencias/lotes-reais-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
+| [evidencias/varredura-datadog-2026-10-14.md](evidencias/varredura-datadog-2026-10-14.md) | Varredura com 4 chaves e 1 rodada: fim das chamadas longas, saldo ainda inconclusivo |
 | [bugs-encontrados.md](bugs-encontrados.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
 | [depois-da-v2.md](depois-da-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
 | `tarefas/` | Uma tarefa por arquivo (lista abaixo) |
