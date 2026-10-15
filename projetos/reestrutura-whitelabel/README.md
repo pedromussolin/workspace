@@ -56,21 +56,21 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 ## Situação em 13/10
 
-**Prontas: 6 de 15** (a 16 está adiada e fica fora da conta). Todas têm os
-commits feitos e nenhuma foi publicada. Cada uma tem a seção "O que foi
+**Prontas: 6 de 15** (a 16 está adiada e fica fora da conta). Todas foram
+publicadas em 15/10, sem merge em nenhum ambiente. Cada uma tem a seção "O que foi
 feito" no arquivo da tarefa, com os commits, as mudanças visíveis para a PR
 e a validação.
 
 | # | Branch | Nasce de | Commits |
 |---|---|---|---|
-| 01 | `refact/TS-5358-estrutura-base-front` | `master` (`d0bc3de`) | 13 |
+| 01 | `refact/TS-5358-estrutura-base-front` | `master` (`3f5ea96`) | 13 |
 | 02 | `feature/TS-5359-temas-claro-escuro` | 01 | 5 |
 | 03 | `feature/TS-5360-componentes-formulario` | 02 | 22 |
 | 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 26 |
 | 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 |
 | 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 |
 
-Publicar nesta ordem: 01 → 02 → 03 → 04 → 05 e 06. A 05 e a 06 não
+Abrir as PRs nesta ordem: 01 → 02 → 03 → 04 → 05 e 06. A 05 e a 06 não
 dependem uma da outra.
 
 **Faltam: 9.**
@@ -86,7 +86,7 @@ dependem uma da outra.
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura.
 - **Pendências do Pietro:**
-  - publicar as branches 01 a 06 e abrir as PRs;
+  - abrir as PRs das branches 01 a 06 (publicadas em 15/10);
   - testar o login real na sandbox;
   - conferir a tabela de Lotes na sandbox. O mock local não tem os escopos
     de lotes, então ali a tela abre em "sem permissão".
@@ -128,6 +128,16 @@ master ── 01 ── 02 ── 03 ── 04 ──┬── 05 Pré-Trade
 - Eu faço os commits sem push. Ao fim de cada fatia, entrego a lista exata de
   branches para o Pietro publicar e abrir as PRs.
 - **`-sdbx`**: só se criar quando o merge na `sandbox` der conflito.
+- **Caminho até a master** (combinado em 15/10):
+  - tudo o que o épico planeja entra primeiro na `sandbox`;
+  - o que chegar na `master` nesse meio-tempo vem junto, já refatorado no
+    padrão novo;
+  - no fim, a `sandbox` vai inteira para a `master`.
+- **Publicação de 15/10:**
+  - as branches 01 a 06 foram rebaseadas na `master` (`3f5ea96`, PR #220:
+    status `pendente_cerys`/`pendente_poliedro` da formalização) e
+    publicadas;
+  - a tarefa 08 precisa levar esses status novos para a tela refatorada.
 - **Requisitos que valem para todas:**
   - tudo responsivo, até ~400 px;
   - Chrome, Edge e Safari;
