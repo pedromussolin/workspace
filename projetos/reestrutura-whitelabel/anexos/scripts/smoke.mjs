@@ -13,6 +13,9 @@ const require = createRequire(process.env.PW_DIR ? path.join(process.env.PW_DIR,
 const { chromium } = require('playwright-core');
 
 const [dist, out, ...argRoutes] = process.argv.slice(2);
+// SCENES='[["nome", "/rota", "texto de um app-toggle a clicar" | null], ...]' tira print da página
+// inteira depois do clique, para visões sem URL própria (abas, troca de visão).
+const SCENES = process.env.SCENES ? JSON.parse(process.env.SCENES) : null;
 const routes = argRoutes.length
   ? argRoutes
   : ['/home', '/pre-trade', '/liquidation-batches', '/report-transfer', '/formalization', '/orchestrator', '/users', '/not-found'];
@@ -73,7 +76,19 @@ for (const [label, viewport] of VIEWPORTS) {
   page.on('pageerror', (e) => errors.push(`${label} ${page.url()}: ${e.message}`));
   // O Angular entrega os erros de template ao ErrorHandler, que só escreve no console.
   page.on('console', (m) => m.type() === 'error' && errors.push(`${label} ${page.url()} [console]: ${m.text().slice(0, 300)}`));
-  for (const route of routes) {
+  for (const [name, route, toggle] of SCENES ?? []) {
+    await page.goto(`http://localhost:4300${route}`, { waitUntil: 'load', timeout: 20000 });
+    await page.waitForTimeout(1500);
+    if (toggle) {
+      await page.locator('app-toggle', { hasText: toggle }).first().click();
+      await page.waitForTimeout(1000);
+    }
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (wide > 0) errors.push(`${label} ${name}: página ${wide} px mais larga que a tela (rolagem lateral)`);
+    await page.screenshot({ path: path.join(out, `${label}_${name}.png`), fullPage: true });
+    console.log(`${label} ${name} ok`);
+  }
+  for (const route of SCENES ? [] : routes) {
     const ok = await page.goto(`http://localhost:4300${route}`, { waitUntil: 'load', timeout: 20000 }).then(() => true, () => false);
     if (!ok) { console.log(`${label} ${route} -> TIMEOUT ao carregar`); continue; }
     await page.waitForTimeout(1500);
@@ -81,6 +96,8 @@ for (const [label, viewport] of VIEWPORTS) {
     const shot = await page.screenshot({ path: path.join(out, name), timeout: 15000 }).then(() => true, () => false);
     if (!shot) { console.log(`${label} ${route} -> TIMEOUT no print (página travada)`); continue; }
     const shell = await page.locator('app-shell').count();
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (wide > 0) errors.push(`${label} ${route}: página ${wide} px mais larga que a tela (rolagem lateral)`);
     const header = await page.locator('app-page-header h1').first().textContent().catch(() => null);
     console.log(`${label} ${route} -> ${page.url().replace('http://localhost:4300', '')} | shell=${shell} | título=${header?.trim() ?? '-'}`);
   }
