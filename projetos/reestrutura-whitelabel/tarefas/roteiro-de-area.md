@@ -113,7 +113,12 @@ Comandos:
   tree da worktree.
 
 **Montagem da 3ª leva (15/10):**
-- Agentes Opus 5.5 em esforço médio, a pedido do Pietro.
+- Agentes Opus 5.5 em esforço alto, a pedido do Pietro. A leva começou em
+  esforço médio; os agentes foram trocados no meio e os novos continuaram da
+  worktree, o que funcionou porque cada etapa já estava commitada.
+- Validação intermediária mínima ("acelere"): sem smoke nem prints nos
+  agentes, build a cada 2–3 etapas e lint uma vez. A validação completa é na
+  revisão.
 - Uma worktree por área em `~/repos/apl-credit-whitelabel-wt/<nº>`, com a
   branch `wip/TS-<id>` saída da 04. O `node_modules` é cópia por hardlink
   (`cp -al`) do repositório principal: fica pronto na hora, sem ocupar disco,
