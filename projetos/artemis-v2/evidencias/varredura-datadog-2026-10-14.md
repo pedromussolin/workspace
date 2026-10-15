@@ -74,13 +74,13 @@ Código (`origin/master` `d72e01c`):
 
 - Com `acumula_liquidacoes`, o pagamento que chega a `cadastrado` entra no
   **lote vigente** de (produto, originador, fundo, origem); o lote nasce
-  `pendente` no primeiro pagamento (`repository.py:470-485`,
+  `pendente` no primeiro pagamento (`repository.py:428-472`,
   `estados_liquidacao.py:349-351`). Pagamento de renegociação não acumula.
 - O lote vigente **fica aberto e não vai para a ADM** até alguém fechá-lo:
   - `POST /liquidacao/` marca `fechado` e manda para a esteira
     (`viewer.py:387-401`, `service.py:1165-1184`);
   - ou o agendamento das 19h UTC, só se o produto tiver
-    `baixa_por_agendamento` (`tasks/liquidacao_lote.py:254-265`).
+    `baixa_por_agendamento` (`tasks/liquidacao_lote.py:254-266`).
 - O `POST` roda **também** a busca dos grupos aptos (`create_by_originador`),
   mesmo quando só havia o vigente para fechar.
 
