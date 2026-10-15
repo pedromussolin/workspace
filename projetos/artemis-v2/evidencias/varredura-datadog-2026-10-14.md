@@ -11,6 +11,21 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
   ([evidência de 09/10](fechamento-lote-datadog-2026-10-09.md)), então serve
   de medida do custo no banco.
 
+## Alerta (15/10): produtos 15 e 581 sem fechamento desde a mudança
+
+- Última rodada com os produtos 15 e 581: 13/10, 23h52 UTC (formato antigo).
+  Em 14/10 a rodada nova chamou só 4, 80, 81 e 1406. No 581 houve só 2
+  chamadas às 13h49 e 13h54 com originador 4 e origem
+  `prendarios_baixa_ordinaria_padrao`, ambas 400 após ~133 s; quem fecha o 581
+  é o originador 589. Até a manhã de 15/10, nenhuma chamada dos dois. **[C]**
+- Até 13/10 os dois fecharam lote em todos os dias úteis (réplica, 30 dias):
+  produto 15 com 25–40 mil pagamentos por dia útil (112–137 mil na segunda e
+  depois de feriado); produto 581 com 2–7 mil (até 10 mil). Os dois só no
+  fundo 3. **[C]**
+- Efeito provável: os pagamentos desses produtos estão sem lote e sem ir para
+  a ADM desde 13/10 à noite. **[H]** Conferir na listagem de lotes fake
+  (fundo 3) e avisar o Rafael antes da rodada de 15/10.
+
 ## Resultado
 
 | Métrica | Antes (01–13/10) | 14/10 |
