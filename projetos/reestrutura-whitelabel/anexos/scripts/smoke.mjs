@@ -25,6 +25,7 @@ const PATHS = [
   '/poli-chat', '/knowledge-base', '/assignment-batches', '/liquidation-batches', '/formalization',
   '/report-transfer', '/portfolio-performance', '/cerc-reconciliation', '/pdd', '/pre-trade',
   '/cash-consolidation', '/orchestrator', '/orchestrator/product-config', '/users', '/onboarding-bgt/monitoring',
+  '/api-docs', '/design-system',
 ];
 const IAM = {
   'iam/status': !process.env.NO_SESSION,
