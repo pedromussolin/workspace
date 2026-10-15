@@ -114,6 +114,8 @@ Médio.
   `test_viewer_fake_batch_closing.py`, `test_fake_batch_closing.py`): regra de
   entrada no lote, UPDATE único, trava por linha e liberação pelo dono,
   fechamento do lote vigente, rotas 202 e status, task na fila dedicada.
+  Suíte completa da cessão no mesmo commit: 4.647 testes passando, 41
+  ignorados, nenhuma falha (15/10/2026).
 - **Testes do BFF e do Portal (13/10, na implementação):** 106 testes do
   módulo de lotes de liquidação do BFF e 19 specs da tela e do serviço do
   Portal passando.
