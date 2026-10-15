@@ -9,6 +9,8 @@ validação. A ideia é revisar o desenho **antes** de abrir cada branch.
   - os temas de marca valem em todas as páginas;
   - existe dark mode;
   - o portal não usa mais Angular Material, só componentes próprios;
+  - o repositório fica pronto para desenvolver com IA (pasta `.ai`, tarefa
+    17);
   - a arquitetura segue `core/`, `shared/`, `layouts/` e `features/`, sem
     mudar o comportamento das telas.
 - Referência visual: as páginas de **Pré-Trade** e de **Lotes de
@@ -53,10 +55,11 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | a iniciar | TS-5371 |
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` | 04 | a iniciar | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
+| 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
 
 ## Situação em 15/10
 
-**Prontas: 9 de 15** (a 16 está adiada e fica fora da conta).
+**Prontas: 9 de 16** (a 16 está adiada e fica fora da conta).
 - Todas publicadas em 15/10, sem merge em nenhum ambiente.
 - A 07, a 08 e a 11 nascem da 04 com as três correções de 15/10, que também
   já estão publicadas.
@@ -79,13 +82,14 @@ visíveis para a PR e a validação.
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
 ordem.
 
-**Faltam: 6.**
+**Faltam: 7.**
 
 | # | O quê | Como vai |
 |---|---|---|
 | 09, 10, 12 | Controladoria, Orquestrador e páginas gerais | 3ª leva, em andamento desde 15/10, em paralelo e modo completo. A 10 aplica a D7 no `product.service` e cria o `app-switch` (D11); a 09 troca o ApexCharts por gráficos próprios em SVG (D10, resolve o A7) |
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
 | 14, 15 | Docs da API (front e BFF) e vitrine do design system | por último. Só dependem da 04 |
+| 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
 
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura.
