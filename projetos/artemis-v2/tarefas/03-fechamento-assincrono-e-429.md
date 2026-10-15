@@ -29,6 +29,10 @@
     limpo sem commit; UPDATE refeito via ORM; D9 exige cessão
     `cadastrado` (revista em 14/10); BFF confere o produto da chave e valida tamanho das
     chaves. Bugs de código antigo do BFF viraram B9 a B11.
+- **Revisão antes de produção (15/10):** [03-revisao-pre-producao.md](03-revisao-pre-producao.md).
+  Bloqueios R1–R6 (worker de produção, ordem de deploy, deploy que mata o
+  fechamento em andamento, limites de tempo em grupos grandes, fundo da
+  parcela × processo, B9); médios R7–R15.
 - **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
 - **Evidências:** [Datadog, 09/10/2026](../evidencias/fechamento-lote-datadog-2026-10-09.md).
