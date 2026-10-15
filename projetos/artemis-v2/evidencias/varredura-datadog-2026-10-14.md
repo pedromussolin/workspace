@@ -22,9 +22,22 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
   produto 15 com 25–40 mil pagamentos por dia útil (112–137 mil na segunda e
   depois de feriado); produto 581 com 2–7 mil (até 10 mil). Os dois só no
   fundo 3. **[C]**
-- Efeito provável: os pagamentos desses produtos estão sem lote e sem ir para
-  a ADM desde 13/10 à noite. **[H]** Conferir na listagem de lotes fake
-  (fundo 3) e avisar o Rafael antes da rodada de 15/10.
+- **Confirmado na réplica em 15/10 (~16h UTC) [C]:** pagamentos `cadastrado`
+  sem lote só a partir de 14/10 (nada em 12 e 13/10):
+
+  | Produto | Originador | Fundo | Origem | Pagamentos parados |
+  |---|---|---|---|---|
+  | 15 | 19 | 3 | `PPV_baixa_ordinaria_padrao` | 59.630 |
+  | 15 | 19 | 3 | `parcelas_nulas` | 204 |
+  | 15 | 19 | 3 | `cancelamento_PPV` | 9 |
+  | 581 | 589 | 3 | `prendarios_baixa_ordinaria_padrao` | 7.163 |
+  | 581 | 589 | 3 | `parcelas_nulas` | 5 |
+
+- Causa provável: a lista nova da varredura não tem o 15 nem o 581, e as
+  duas chamadas avulsas do 581 usaram o originador 4 em vez do 589. Com as
+  quatro chaves, a lista precisa conter **todas** as origens; origens raras
+  (`parcelas_nulas`, `cancelamento_PPV`) ficariam paradas mesmo com o
+  originador certo. O pedido antigo (produto + originador) pegava todas.
 
 ## Resultado
 
@@ -109,6 +122,12 @@ Configuração em 15/10 (`produto_config`, réplica): nos 6 produtos,
 `fechar_lote_por_proc_id` falsos, `padrao_liquidacao = json_padrao` (formato
 de entrada dos dados, que o Rafael troca às 10h para subir arquivos). Sem
 agendamento, **só o `POST` fecha os vigentes** desses produtos.
+
+Volume e fundos dos que acumulam (réplica, 7 dias até 15/10, por dia de
+abertura do lote): produto 4 no fundo 3 (14–25 lotes, até 123 mil
+pagamentos por dia); 80 e 81 no fundo 36 (80 com até 620 mil pagamentos por
+dia); 1406 só no fundo 704 (6 lotes, 2–8 mil). O fundo 3 já recebe lotes
+acumulados (produto 4), e o acúmulo já roda em escala bem maior que a do 15.
 
 Leitura: nesses produtos a varredura só precisa fechar os vigentes abertos, e
 a tabela `liquidacao_lote_vigente` já tem produto, originador, fundo, origem e
