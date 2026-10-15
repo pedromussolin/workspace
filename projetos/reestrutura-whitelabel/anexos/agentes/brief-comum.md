@@ -53,6 +53,9 @@ Se uma peça dessas precisar de ajuste, não mexa: descreva no relatório, que e
 - Sem `@angular/material`, sem `mat-icon` (use `app-icon`), sem `::ng-deep`, sem `#hex`/`rgb(` nos
   `.scss` (só tokens de `src/styles/_tokens.scss`). O SCSS da tela fica só com o layout.
 - Padrão que faltar nasce em `shared/ui`, com spec. Nunca como versão local na tela.
+- **Antes de criar peça nova em `shared/ui`**, avise com `SendMessage` para `main` o nome e a API
+  pensada, e espere a resposta. Agentes em paralelo já criaram a mesma peça duas vezes (o
+  `app-code-block` na 4ª leva), e duas versões do mesmo arquivo viram conflito no merge.
 - Preserve comportamento, regras de negócio, URLs, guards e `data` das rotas. Toda mudança visível
   entra no relatório (antes → depois) para a descrição da PR.
 - Nomes explícitos do domínio. Código e comentários em inglês; textos de tela e mensagens em PT-BR.
