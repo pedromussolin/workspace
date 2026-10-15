@@ -138,6 +138,13 @@ Comandos:
 - Um agente misturou num commit de teste a remoção de arquivos do commit
   seguinte. A conferência commit a commit pegou, e a branch final foi
   montada separando as duas partes.
+- **Para a próxima leva** (a 13 em diante), a pedido do Pietro ("use os
+  agentes no xhigh e torne o processo mais rápido"):
+  - agentes Opus 5.5 em esforço xhigh;
+  - os dados fictícios do smoke prontos antes de disparar os agentes;
+  - cada agente roda um smoke com dados no fim (claro, escuro e celular,
+    com a conferência de console e de largura), antes de entregar. Isso
+    corta as rodadas de revisão, que foram o que mais atrasou a 3ª leva.
 
 **Montagem da 3ª leva (15/10):**
 - Agentes Opus 5.5 em esforço alto, a pedido do Pietro. A leva começou em
