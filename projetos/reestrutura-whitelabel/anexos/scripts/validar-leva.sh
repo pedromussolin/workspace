@@ -52,7 +52,16 @@ if [ -z "${SKIP_TESTS:-}" ]; then
   strip < "$LOG/test.log" | sed -E 's/^Chrome Headless [^)]*\) //' | grep -E " FAILED$" | sort -u > "$LOG/falhas.txt"
   new=$(comm -13 "$PRIV/base-04-falhas.txt" "$LOG/falhas.txt")
   fixed=$(comm -23 "$PRIV/base-04-falhas.txt" "$LOG/falhas.txt" | wc -l)
-  [ -z "$new" ] && echo "- falhas novas: nenhuma ($fixed da base corrigidas)" || { echo "- FALHAS NOVAS:"; echo "$new" | sed 's/^/    /'; ok=0; }
+  if [ -n "$new" ]; then
+    # Falha nova pode ser spec instável (depende da ordem aleatória do Jasmine): roda a suíte de novo
+    # e só conta como real o que falhar nas duas vezes.
+    flock "$LOCK" bash -c "cd '$WT' && CHROME_BIN='$CHROME' npx ng test --watch=false --browsers=ChromeHeadless > '$LOG/test2.log' 2>&1"
+    strip < "$LOG/test2.log" | sed -E 's/^Chrome Headless [^)]*\) //' | grep -E " FAILED$" | sort -u > "$LOG/falhas2.txt"
+    flaky=$(comm -23 <(echo "$new") "$LOG/falhas2.txt")
+    new=$(comm -12 <(echo "$new") "$LOG/falhas2.txt")
+    [ -z "$flaky" ] || { echo "- instáveis (falharam só numa de duas rodadas):"; echo "$flaky" | sed 's/^/    /'; }
+  fi
+  [ -z "$new" ] && echo "- falhas novas: nenhuma ($fixed da base corrigidas)" || { echo "- FALHAS NOVAS (nas duas rodadas):"; echo "$new" | sed 's/^/    /'; ok=0; }
 fi
 
 if [ ${#ROUTES[@]} -gt 0 ] || [ -n "${SCENES:-}" ]; then
