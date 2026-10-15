@@ -1,5 +1,10 @@
 # GMUD — TS-5377: fechamento de lote fake assíncrono pela tela
 
+> **Status (15/10/2026): não submeter ainda.** A revisão antes de produção
+> ([tarefas/03-revisao-pre-producao.md](tarefas/03-revisao-pre-producao.md))
+> achou bloqueios (R1 a R6). Este texto já está corrigido; falta o PR do
+> worker de produção e as correções.
+
 Tipo: Mudança programada
 
 ## Summary
@@ -18,7 +23,7 @@ repetido. O BFF desiste em 120 s e o operador não sabe se o lote foi fechado.
 
 **O que muda**
 - **Cessão:** rotas novas `POST /liquidacao/fake-batches/close` (responde 202
-  na hora, com o identificador do pedido) e
+  na hora, com a chave da linha e o status "em fechamento") e
   `POST /liquidacao/fake-batches/close/status` (situação de cada linha). O
   fechamento roda na task `close_fake_batch`, na fila dedicada
   `fake_batch_closing_celery`. Cada linha da tela tem uma trava no Redis com
@@ -28,11 +33,15 @@ repetido. O BFF desiste em 120 s e o operador não sabe se o lote foi fechado.
   (`cadastrado`). Se a linha tiver lote vigente aberto, ele é fechado junto.
 - **BFF:** rotas `POST /operations/liquidation/fake-batches/close` e
   `/fake-batches/close/status`, conferindo se o produto da linha é do usuário.
+  A rota existente de fechamento (`consolidate`) passa a fazer a mesma
+  conferência de produto.
 - **Portal:** as linhas de lote fake agrupadas por origem fecham pelo fluxo
   novo; a célula mostra "em fechamento" e consulta a situação até concluir.
   Linhas agrupadas por remessa (`proc:`) continuam no fluxo atual.
 - **Argocd:** deployment novo do worker dedicado (1 pod, concorrência 2) em
-  produção, igual ao que já roda no sandbox.
+  asgard-production e vivo-production, igual ao que já roda no sandbox. É o
+  **único** consumidor da fila: os workers de produção têm a lista de filas
+  fixa e não a incluem.
 
 **O que não muda**
 `POST /liquidacao/` e quem o usa fora da tela (Atlas, automações externas,
@@ -55,14 +64,21 @@ Médio.
   listagem até a cessão terminar. É a regra pedida pelo negócio, mas muda o
   que o operador vê.
 - **Dependência do Redis:** a situação "em fechamento" fica no Redis. Se ele
-  estiver indisponível, o pedido responde erro (500) na hora, sem enfileirar,
-  sem fechar nada e sem gravar dado errado.
-- **Fila dedicada:** se o worker novo não subir, os pedidos esperam na fila
-  (a fila também está na lista padrão dos workers atuais, que a consomem).
+  estiver indisponível, o pedido responde erro, sem enfileirar, sem fechar
+  nada e sem gravar dado errado. Se a conexão ficar pendurada (sem recusa), a
+  resposta só vem pelo corte do BFF (504).
+- **Fila dedicada:** o worker novo é o único consumidor em produção. Se ele
+  não subir, nenhum fechamento acontece: o pedido fica "em fechamento" por
+  até 5 min e é descartado. Por isso o front só sobe depois de conferido o
+  consumidor (passo 3).
 - **Fechamento em dobro:** coberto pela trava por linha e, no banco, pelo
   `liquidacao_lote_id IS NULL`; o pedido repetido para a mesma linha recebe
   409 ("Lote já está em fechamento"). Mensagem que ficar na fila além da
   validade da trava é descartada, para não fechar uma linha pedida de novo.
+- **Deploy com fechamento em andamento:** um fechamento que estiver rodando
+  no worker durante o deploy é interrompido e a linha volta a ficar
+  disponível; o operador fecha de novo. Fazer o deploy fora do horário de
+  fechamento.
 - Mudança restrita à tela; os outros chamadores do fechamento não são
   afetados.
 
@@ -75,36 +91,43 @@ Médio.
   no Python e devolvê-los num UPDATE com a lista inteira. A concorrência fica
   limitada a 2 fechamentos simultâneos pela fila dedicada.
 - **Infra:** um pod novo em produção (worker de fechamento de lote fake).
-- Sem indisponibilidade no deploy, sem migration, sem variável nova no
-  Parameter Store.
+- Sem indisponibilidade das telas no deploy, sem migration, sem variável nova
+  no Parameter Store (as variáveis do worker ficam no values do argocd).
 
 ## Plano de implantação
 
-1. Merge dos PRs na `master`: platform-cessao, apl-credit-whitelabel-api e
-   apl-credit-whitelabel; e o PR do platform-cessao-argocd que cria o worker
-   de produção.
-2. Deploy da platform-cessao em produção. Conferir pods na nova versão e
-   healthcheck ok.
-3. Sync do argocd: conferir o pod `fake-batch-closing-worker` em execução e
-   consumindo a fila `fake_batch_closing_celery`.
-4. Deploy do BFF e, por último, do Portal (é o que expõe o fluxo ao usuário).
+1. Merge e deploy da platform-cessao em produção. Conferir pods na nova
+   versão e healthcheck ok.
+2. Só depois que o tag de produção apontar para a imagem nova: merge e sync do
+   PR do platform-cessao-argocd que cria o worker. (Worker antes da imagem
+   nova roda o código antigo e sobe o consumer do RabbitMQ.)
+3. Conferir que a fila `fake_batch_closing_celery` tem 1 consumidor (painel
+   do RabbitMQ ou `celery -A cessao.app.celery inspect active_queues` no pod
+   do worker).
+4. Merge e deploy do BFF; por último, do Portal (é o que expõe o fluxo ao
+   usuário).
 5. Fechar um lote fake pequeno pela tela e conferir:
    - célula "em fechamento" e depois "fechado";
-   - no Datadog, os logs `Fechamento de lote fake solicitado` (api) e
-     `Fechamento de lote fake concluído` (worker) com o mesmo `job_id`;
+   - no Datadog, os logs `Fechamento de lote fake solicitado`
+     (`service:platform-cessao`) e `Fechamento de lote fake concluído`
+     (deployment do worker dedicado) com o mesmo `job_id`;
    - o lote criado na aba de lotes reais.
-6. Acompanhar no Datadog, no restante do dia, os logs
-   `Fechamento de lote fake descartado` e erros nas rotas
-   `fake-batches/close`.
+6. Acompanhar no Datadog, no restante do dia: pedidos `solicitado` sem
+   `concluído` correspondente, logs `Fechamento de lote fake descartado`,
+   tamanho da fila e erros nas rotas `fake-batches/close`.
 
 ## Plano de Rollback
 
 1. Reverter o PR do Portal e fazer deploy: a tela volta a fechar pelo fluxo
    atual (`POST /liquidacao/` via BFF). As rotas novas do BFF e da cessão
    ficam sem uso e não interferem no resto.
-2. Se o problema for na cessão: reverter o PR e fazer deploy da versão
-   anterior, e reverter o PR do argocd (remove o worker dedicado).
-3. Lotes já criados pelo fluxo novo são lotes normais e seguem a esteira; não
+2. Se o problema for na cessão, nesta ordem: esperar a fila esvaziar e não
+   haver fechamento em andamento (até ~15 min); reverter o PR do argocd
+   (remove o worker); voltar a imagem da cessão; limpar a fila
+   `fake_batch_closing_celery` no RabbitMQ.
+3. Se o problema for a conferência de produto na rota `consolidate`: reverter
+   o PR do BFF.
+4. Lotes já criados pelo fluxo novo são lotes normais e seguem a esteira; não
    há dado a desfazer.
 
 ## Evidências de validação
