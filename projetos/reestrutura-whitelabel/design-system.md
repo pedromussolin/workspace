@@ -115,8 +115,9 @@ O E2E roda no WebKit, que é o motor do Safari (tarefa 16).
   subir. Sem ele, a tela piscaria clara antes de ficar escura.
 - `color-scheme: light dark` no `:root` faz barras de rolagem e controles
   nativos acompanharem o tema.
-- ApexCharts: as cores dos gráficos vêm dos tokens, lidos na hora de montar o
-  gráfico, e o gráfico é refeito quando o esquema muda.
+- Gráficos: componentes próprios em `shared/ui/charts`, desenhados em SVG
+  pelo código do componente (D10). As cores vêm dos tokens no CSS, então a
+  troca de esquema não precisa redesenhar o gráfico.
 - O seletor fica no menu do usuário (rodapé da sidebar), com Claro / Escuro / Sistema. Ele só aparece na
   tarefa 13 (ver [decisoes.md](decisoes.md)).
 

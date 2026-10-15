@@ -1,7 +1,7 @@
 # 10 — Orquestrador
 
 - **TS:** TS-5367 · **Branch:** `refact/TS-5367-orquestrador-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
-- **Status:** a iniciar
+- **Status:** em andamento (15/10, 3ª leva)
 - **Depende de:** 04
 - **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
 
@@ -33,7 +33,8 @@ snack-bar (4), select (3), table, paginator, form-field e expansion.
   `IconName` e os semânticos.
 - Detalhe de fluxo com subfluxos e processos.
 - Config de produto: os toggles (`toggle_on` e `toggle_off` desenhados como
-  ícone viram um switch de verdade, com `role="switch"`) e o salvamento.
+  ícone viram o `app-switch` de `shared/ui`, com `role="switch"`, criado
+  nesta tarefa pela D11) e o salvamento.
 
 ## Pontos de atenção
 

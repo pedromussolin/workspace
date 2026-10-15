@@ -8,12 +8,13 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D9 | Onde rodam o E2E e a cobertura | (a) job novo no `workflow.yml` do front; (b) mudar o `build.yml` compartilhado de `Capitalis/actions` | (a). Não mexe no pipeline dos outros repos | Pietro, com o time de infraestrutura (adiada em 11/10: tarefa 16 fica para depois) | [16](tarefas/16-testes-e2e-cobertura.md) |
-| D10 | Padrão dos campos liga/desliga nos formulários (ex.: "Ativo", "Coobrigação") | (a) um `app-switch` novo em `shared/ui`, parecido com os interruptores de antes; (b) caixa de marcar; (c) controle segmentado Sim/Não | (a) nos formulários, que é o mais fiel ao que havia. O Sim/Não segmentado fica só para filtros. Hoje cada área fez de um jeito: a 07 usou caixa de marcar e a 08 usou Sim/Não | Pietro | 07, 08 e passada de consistência |
 
 ## Tomadas
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 15/10/2026 | D11: campo liga/desliga nos formulários (ex.: "Ativo", "Coobrigação") é um `app-switch` próprio em `shared/ui`, com `role="switch"`, parecido com os interruptores de antes. O Sim/Não segmentado fica só para filtros. A 10 cria o componente; a 07 (caixa de marcar) e a 08 (Sim/Não) se alinham na passada de consistência | Pietro escolheu a recomendada. Antes cada área fez de um jeito. Era a "D10" pendente, renumerada porque D10 já era a dos gráficos |
+| 15/10/2026 | D10 confirmada para a 09: os gráficos do CERC e da Performance saem do ApexCharts e viram componentes próprios em `shared/ui/charts`, desenhados por código em SVG com as cores dos tokens no CSS. A 09 tira o `apexcharts.min.js` dos `scripts` do `angular.json` (A7); os pacotes saem na 13 | Pietro perguntou se não havia saída melhor. Com a biblioteca, ou com outra em canvas (ex.: Chart.js), as cores ficam no JavaScript e o gráfico precisa ser refeito a cada troca de tema. O SVG por código usa os tokens direto, tira 580 kB do bundle inicial e cobre bem os dois gráficos, que são simples |
 | 11/10/2026 | D7: cada serviço vai para o `data-access/` da feature dona dele. O que mais de uma feature usa (ex.: `product.service`, usado por Orquestrador, Onboarding e Usuários) fica na feature dona (`features/products/data-access/`) com um único arquivo público que as outras importam; o que for genérico de verdade (sem regra de negócio) sobe para `shared/` | Pietro: "organize da maneira que fizer mais sentido pra arquitetura que montamos" |
 | 11/10/2026 | D8: docs da API com visual próprio (componentes de `shared/ui`), sem Swagger UI nem Redoc | Pietro |
 | 10/10/2026 | D5: tabela própria sobre `@angular/cdk/table` (estrutura e acessibilidade do CDK, visual todo nosso) | Pietro escolheu a recomendada |

@@ -1,7 +1,7 @@
 # 09 — Controladoria e Consolidação de Caixa
 
 - **TS:** TS-5366 · **Branch:** `refact/TS-5366-controladoria-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
-- **Status:** a iniciar
+- **Status:** em andamento (15/10, 3ª leva)
 - **Depende de:** 04
 - **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
 
@@ -28,8 +28,12 @@ spinner, paginator, dialog e button.
 
 ## Fluxos críticos
 
-- Gráficos ApexCharts (CERC e Performance): cores dos tokens, refeitos ao
-  trocar o esquema, e o redimensionamento (`apx-chart-resize`).
+- Gráficos do CERC (barras agrupadas por data) e da Performance (barras e
+  linhas com dois eixos): saem do ApexCharts e viram componentes próprios em
+  `shared/ui/charts`, em SVG, com cores dos tokens e redimensionamento pelo
+  contêiner (D10, confirmada em 15/10). Com as duas telas migradas, saem o
+  `apexcharts.min.js` do `angular.json` e a diretiva `apx-chart-resize` (A7).
+  Os pacotes saem na 13.
 - Alternância de visualização: dashboard, tabela e pendências; gráfico e
   tabela.
 - Exportações e filtros por fundo e produto.

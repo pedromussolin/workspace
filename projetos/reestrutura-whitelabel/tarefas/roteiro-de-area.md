@@ -111,3 +111,14 @@ Comandos:
 - Os agentes da próxima leva vão com escopo enxuto e com commit a cada etapa.
 - Se um agente cair, um agente novo termina o que ficou pendente no working
   tree da worktree.
+
+**Montagem da 3ª leva (15/10):**
+- Agentes Opus 5.5 em esforço médio, a pedido do Pietro.
+- Uma worktree por área em `~/repos/apl-credit-whitelabel-wt/<nº>`, com a
+  branch `wip/TS-<id>` saída da 04. O `node_modules` é cópia por hardlink
+  (`cp -al`) do repositório principal: fica pronto na hora, sem ocupar disco,
+  e por isso ninguém roda `npm install` na worktree.
+- A máquina tem 7 GB de RAM. Build, lint, testes e smoke rodam com `flock`
+  num arquivo de lock comum, um de cada vez entre os agentes.
+- As instruções comuns aos agentes ficam num arquivo só; o pedido de cada
+  área traz só o que é dela.

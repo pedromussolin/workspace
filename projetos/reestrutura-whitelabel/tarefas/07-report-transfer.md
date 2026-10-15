@@ -80,7 +80,7 @@ três correções de 15/10. São 14 commits.
     com "(só destino)" ou "(só origem)".
 - **Diálogos:**
   - usam o diálogo comum, com cabeçalho e rodapé fixos;
-  - os interruptores "Ativo/Ativa" viraram caixas de marcar (ver D10);
+  - os interruptores "Ativo/Ativa" viraram caixas de marcar (ver D11);
   - Origem e Destino são caixas de marcar;
   - a paginação dos arquivos é o paginador comum.
 - **Pílulas:** status e situação são pílulas tonais. "Em andamento" tem um

@@ -45,10 +45,10 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5363 |
 | 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5364 |
 | 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5365 |
-| 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | a iniciar | TS-5366 |
-| 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | a iniciar | TS-5367 |
+| 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | em andamento (15/10) | TS-5366 |
+| 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | em andamento (15/10) | TS-5367 |
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
-| 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | a iniciar | TS-5369 |
+| 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | em andamento (15/10) | TS-5369 |
 | 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12 | a iniciar | TS-5370 |
 | 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | a iniciar | TS-5371 |
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` | 04 | a iniciar | TS-5372 |
@@ -83,7 +83,7 @@ ordem.
 
 | # | O quê | Como vai |
 |---|---|---|
-| 09, 10, 12 | Controladoria, Orquestrador e páginas gerais | 3ª leva, em paralelo, modo completo. A 10 aplica a D7 no `product.service`; a 09 trata o A7 (`apexcharts`) |
+| 09, 10, 12 | Controladoria, Orquestrador e páginas gerais | 3ª leva, em andamento desde 15/10, em paralelo e modo completo. A 10 aplica a D7 no `product.service` e cria o `app-switch` (D11); a 09 troca o ApexCharts por gráficos próprios em SVG (D10, resolve o A7) |
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
 | 14, 15 | Docs da API (front e BFF) e vitrine do design system | por último. Só dependem da 04 |
 
@@ -93,7 +93,6 @@ ordem.
   - abrir as PRs;
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:**
-  - D10: padrão dos campos liga/desliga;
   - commit `129bee4` da 05;
   - A13: contraste da Dots e da Cerys no tema claro;
   - A15: títulos fora do padrão;

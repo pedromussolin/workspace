@@ -6,7 +6,7 @@
 
 ## Escopo
 
-1. Remover `@angular/material`, `@angular/material-moment-adapter`, `ngx-skeleton-loader` e (se D10 = a) `apexcharts`/`ng-apexcharts` do
+1. Remover `@angular/material`, `@angular/material-moment-adapter`, `ngx-skeleton-loader`, `apexcharts` e `ng-apexcharts` (D10; a 09 já tira o script do `angular.json`) do
    `package.json` e do lockfile. O `@angular/cdk` fica. Avaliar se o
    `moment` ainda é usado fora do adapter.
 2. Remover o `azure-blue.css` do `angular.json`, os `<link>` das fontes

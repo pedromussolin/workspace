@@ -1,7 +1,7 @@
 # 12 — Páginas gerais
 
 - **TS:** TS-5369 · **Branch:** `refact/TS-5369-paginas-gerais-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
-- **Status:** a iniciar
+- **Status:** em andamento (15/10, 3ª leva)
 - **Depende de:** 04
 - **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
 
