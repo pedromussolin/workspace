@@ -89,6 +89,12 @@ leitura e fechamento do vigente em ~4 ms; busca de grupos aptos
 (`9544189cfdc7d6a9`) 2,1 s sem achar nada; `proc_id` da resposta
 (`a869cdebee701bb5`) 6,5 s sobre um lote de 10.418 pagamentos.
 
+Configuração em 15/10 (`produto_config`, réplica): nos 6 produtos,
+`baixa_por_agendamento` nulo, `lote_liquidacao`, `liquidacao_automatico` e
+`fechar_lote_por_proc_id` falsos, `padrao_liquidacao = json_padrao` (formato
+de entrada dos dados, que o Rafael troca às 10h para subir arquivos). Sem
+agendamento, **só o `POST` fecha os vigentes** desses produtos.
+
 Leitura: nesses produtos a varredura só precisa fechar os vigentes abertos, e
 a tabela `liquidacao_lote_vigente` já tem produto, originador, fundo, origem e
 `fechado`, sem passar por contrato. Os produtos 15 e 581 não acumulam e
