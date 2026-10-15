@@ -36,6 +36,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | apl-credit-whitelabel-api (BFF) | `d8512aa` |
 | apl-credit-whitelabel (front) | `e49c9b6` |
 | genius-sftp-listener | `9b3b19c` |
+| westworld | `195e01e` (tag 1.36.5, a versão usada pela cessão) |
 
 ## Tarefas
 
@@ -49,7 +50,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 05 | [Tipo de baixa na tabela de pagamentos](tarefas/05-tipo-de-baixa.md) | cessão, front | — | mapeado | a definir |
 | 06 | [Nome do CNAB na tela](tarefas/06-nome-do-cnab-na-tela.md) | cessão, BFF, front | decisão D4 | mapeado | a definir |
 | 07 | [Filtro por identificador de contrato](tarefas/07-filtro-identificador-contrato.md) | cessão, BFF, front | — | mapeado | a definir |
-| 08 | [Genius: reenvio e logs de erro](tarefas/08-genius-reenvio-e-logs.md) | cessão, westworld, listener | — | mapeado | a definir |
+| 08 | [Genius: reenvio e logs de erro](tarefas/08-genius-reenvio-e-logs.md) | cessão, westworld, listener | D12–D16 | mapeado (revisado 13/10) | a definir |
 | 09 | [Lote automático da Voltis](tarefas/09-lote-automatico-voltis.md) | cessão | configs do produto | aguardando dados | a definir |
 | 11 | [Fechamento automático por horário de corte, com bypass](tarefas/11-fechamento-por-horario-de-corte.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tarefas/10-adm-dayvale.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
