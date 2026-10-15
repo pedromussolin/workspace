@@ -33,6 +33,11 @@ vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/
   | 581 | 589 | 3 | `prendarios_baixa_ordinaria_padrao` | 7.163 |
   | 581 | 589 | 3 | `parcelas_nulas` | 5 |
 
+- Leitura dos números: dos 67.011 sem lote, **30.801 são de 14/10** (26.762 no
+  15 e 4.039 no 581) e já deveriam ter entrado na rodada de 14/10; os 36.210
+  de 15/10 esperariam a rodada das 16h de qualquer forma, mas a lista atual
+  também não os pega. Consulta: "pagamentos sem lote por dia", em
+  `liquidacao_processo` por produto e `data_criacao` desde 12/10.
 - Causa provável: a lista nova da varredura não tem o 15 nem o 581, e as
   duas chamadas avulsas do 581 usaram o originador 4 em vez do 589. Com as
   quatro chaves, a lista precisa conter **todas** as origens; origens raras
