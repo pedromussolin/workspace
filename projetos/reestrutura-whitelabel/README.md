@@ -56,12 +56,13 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
+| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-?-devcontainer` | `master` (independente do épico) | a planejar | — |
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-?-seguranca-front` | `master` (independente do épico) | a iniciar | — |
 
 ## Situação em 15/10
 
-**Prontas: 14 de 18** (a 16 está adiada e fica fora da conta).
+**Prontas: 14 de 19** (a 16 está adiada e fica fora da conta).
 - 01 a 08 e 11 publicadas em 15/10, sem merge em nenhum ambiente.
 - 09, 10 e 12 (3ª leva) e 14 e 15 (4ª leva, front e BFF) com commits
   feitos, sem push, esperando o Pietro publicar.
@@ -95,12 +96,13 @@ visíveis para a PR e a validação.
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
 ordem.
 
-**Faltam: 4.**
+**Faltam: 5.**
 
 | # | O quê | Como vai |
 |---|---|---|
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
 | 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
+| 20 | Devcontainer do front mais leve: subida rápida, sem erro no Angular, extensões certas | da `master`, a qualquer momento. Antes, decidir D20–D22 |
 | 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
 | 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | da `master`, a qualquer momento. Não depende do épico |
 
