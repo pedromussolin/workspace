@@ -159,3 +159,21 @@ front.
   fez com o `e4e13a5`;
 - **BFF:** conflito em 2 arquivos (`exceptions_handlers.py` e o viewer do
   pré-trade), da TS-5377 e da TS-5228.
+
+## Migração das permissões (D59, 16/10)
+
+Sem a transição, a ordem no deploy é:
+1. sobe a release;
+2. logo em seguida, alguém com `access-control:write` abre a aba Migração da
+   tela da 19 e aplica o plano: cria as roles novas e copia as atribuições;
+3. quem recebeu entra de novo no portal para a role chegar à sessão;
+4. as roles antigas aparecem como "sem uso no código" na aba Permissões e
+   são apagadas pela tela.
+
+**Antes do deploy:**
+- as permissões do Graph (passo 3), para a tela gravar;
+- a **D56** (admins): sem a transição, quem só tem `admin:update` perde o
+  dry run e o "Enviar agora", e quem tem `admin:read` perde o re-executar
+  do orquestrador. A migração precisa dar `admin:test`, `admin:run`,
+  `admin:approve` e `admin:reprocess` a quem for decidido;
+- avisar as áreas da janela sem acesso entre os passos 1 e 3.
