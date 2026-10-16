@@ -100,15 +100,22 @@ ordem.
 
 | # | O quê | Como vai |
 |---|---|---|
-| 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
+| 13 | Remove o Angular Material e liga o seletor de tema | 5ª leva. Nasce do merge de teste local (`merge-teste.sh`), porque nenhuma branch do épico está na `sandbox` |
 | 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
-| 20 | Devcontainer do front mais leve: subida rápida, sem erro no Angular, extensões certas | da `master`, a qualquer momento. Antes, decidir D20–D22 |
+| 20 | Devcontainer do front mais leve: subida rápida, sem erro no Angular, extensões certas | 5ª leva, da `master`. Só o front (D22). Antes, decidir D20 e D21 |
 | 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
-| 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | da `master`, a qualquer momento. Não depende do épico |
+| 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | 5ª leva, da `master`. Não depende do épico |
 
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
-  infraestrutura.
+  infraestrutura. A 17 e a 19 ficam para depois da 5ª leva.
+- **Master andou depois do rebase:** o `e4e13a5` (PR #224, responsividade
+  da Formalização) entrou na `master` e na `sandbox`. A 08 recebe um merge
+  da `master` com a mudança levada para os arquivos refatorados; sem isso,
+  o merge da 08 na `sandbox` dá conflito (arquivo movido × arquivo
+  alterado).
 - **Pendências do Pietro:**
+  - criar as tarefas da 18 ("Segurança do front") e da 20 ("Devcontainer
+    mais leve") e passar os TS;
   - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
   - antes do deploy de tudo: criar as app roles (`api-docs:read`,
     `design-system:read` e as que vierem) e a variável `ENVIRONMENT` do
@@ -118,6 +125,7 @@ ordem.
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:**
   - D13: ícone `more-vertical` novo (conjunto vai a 149);
+  - D20 (Node 22 ou 20) e D21 (ferramentas de IA fora do contêiner);
   - 09: a barra de ferramentas do ApexCharts (zoom e baixar imagem) saiu
     da Performance. Repor o "baixar imagem" no `app-chart`?
   - 12: envio à base de conhecimento com só "Poliedro - Geral" manda
