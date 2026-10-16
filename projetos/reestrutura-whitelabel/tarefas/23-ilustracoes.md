@@ -1,8 +1,7 @@
 # 23 — Ilustrações próprias
 
 - **TS:** TS-5393 · **Branch:** `feature/TS-5393-ilustracoes` (da 13)
-- **Status:** a planejar (pedido de 16/10). Direção escolhida: A (D47). Falta
-  decidir D44 a D46.
+- **Status:** a iniciar (direção A e D44 a D46 decididas em 16/10)
 - **Depende de:** 13 (tokens finais, tema claro/escuro e `shared/ui`)
 
 ## Por quê

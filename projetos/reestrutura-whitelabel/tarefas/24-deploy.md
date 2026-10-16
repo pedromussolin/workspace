@@ -1,7 +1,7 @@
 # 24 — Deploy da reestruturação
 
 - **TS:** TS-5394 · **Branch:** `release/AAAAMMDD` (front e BFF)
-- **Status:** a planejar (pedido de 16/10). É a última tarefa do épico.
+- **Status:** a iniciar quando 13 e 21 a 23 estiverem prontas (D40 a D43 decididas em 16/10). É a última tarefa do épico.
 - **Depende de:** todas as outras (01 a 23, menos a 16)
 
 ## O que é

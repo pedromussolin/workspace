@@ -1,7 +1,7 @@
 # 22 — Observabilidade: logs estruturados no BFF e visibilidade no front
 
 - **TS:** TS-5392 · **Branch:** `feature/TS-5392-observabilidade` (BFF e front)
-- **Status:** a planejar (pedido de 16/10). Vem antes do deploy (24).
+- **Status:** a iniciar (decisões D34 a D39 tomadas em 16/10). Vem antes do deploy (24).
 - **Depende de:** 13 (front) e da `origin/master` (BFF). Usa o lote da 19 só
   como exemplo de evento de auditoria.
 - **Referência:** o guia de logging da empresa, guardado fora do repo em

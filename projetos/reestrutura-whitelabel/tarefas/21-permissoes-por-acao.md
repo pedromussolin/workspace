@@ -1,7 +1,7 @@
 # 21 — Permissões por ação: escopos e ações bem definidos
 
 - **TS:** TS-5391 · **Branch:** `feature/TS-5391-permissoes-por-acao` (front da 19; BFF da 19)
-- **Status:** a planejar (pedido de 16/10)
+- **Status:** a iniciar (decisões tomadas em 16/10)
 - **Depende de:** 19 (catálogo de roles a partir do código e lote para reatribuir)
 
 ## Por quê
@@ -104,14 +104,57 @@ editar fluxos e também para o dry run. A ideia:
 5. **Reatribuição pela tela da 19** (D32): uma operação nova no lote,
    `copy_assignments { from, to }`, com prévia.
 
-## Decisões a tomar
+## Mapa de permissões (decidido em 16/10)
 
-| # | Decisão | Opções | Recomendação |
-|---|---|---|---|
-| D27 | Vocabulário de ações | (a) `read`, `create`, `update`, `delete`, `approve`, `review`, `reprocess`, `run` e `test`, com exportar dentro de `read`; (b) idem mais `export` | (a): exportar quase sempre acompanha a leitura |
-| D28 | Override do `admin:*` | **Decidida em 16/10:** o `admin:{ação}` vale em todas as telas, escopos e ações, exceto no `access-control` (D16 e D55) | O `require(escopo, ação)` do catálogo acrescenta o `admin:{ação}` sozinho, menos nos escopos de `SCOPES_WITHOUT_ADMIN_OVERRIDE` |
-| D29 | Aprovação na Formalização | (a) `approve` para status e ativação, separado de `update`; (b) como hoje | (a) |
-| D30 | Envio de Relatórios | (a) `test` e `run` separados, e ativar/desativar continua `update`; (b) também separar o liga/desliga | (a) |
-| D31 | Transição | (a) período com role antiga ou nova, migração espelhando quem tem hoje e remoção das antigas depois; (b) troca direta num deploy | (a): ninguém perde acesso no dia |
-| D32 | Como reatribuir | (a) tela da 19, com `copy_assignments`; (b) script com a CLI do Azure | (a): prévia, auditoria e repetível |
-| D33 | Brechas achadas (escrita só com `read`, exclusão sem departamento, renomear sem dono, `app-role-assignments` sem sessão) | (a) entram na 21, junto com a transição; (b) correção urgente antes, da `master` | (b) para as brechas que expõem escrita hoje, se a transição demorar; senão (a) |
+**Regras gerais:**
+- toda rota declara `require(escopo, ação)`, que aceita `{escopo}:{ação}` ou
+  `admin:{ação}`, menos nos escopos de `SCOPES_WITHOUT_ADMIN_OVERRIDE`
+  (D28, D55);
+- o catálogo de cada escopo (ações, nome e descrição em PT-BR) é a fonte do
+  `iam/actions`, do `FRONTEND_ROUTE_PERMISSIONS` e da tela da 19;
+- **transição** (D31): cada ação nova aceita também a role antiga enquanto
+  `CFG_PERMISSIONS_LEGACY_ROLES` estiver ligada.
+
+| Escopo | Ação na tela | Hoje | Depois | Na transição, também aceita |
+|---|---|---|---|---|
+| `report-transfer` | dry run (testar fluxo) | `create` ou `update` | `test` | `create`, `update` |
+| `report-transfer` | "Enviar agora" | `reprocess` | `run` | `reprocess` |
+| `report-transfer` | criar e duplicar fluxo, criar agendamento | `create` | `create` | — |
+| `report-transfer` | editar fluxo, editar e ativar agendamento | `update` | `update` | — |
+| `report-transfer-manage` | testar conexão | `read` | `test` | `read` |
+| `whitelists` | mudar status em lote, ativar/inativar, cadastrar com status ≠ pendente, editar mudando o status | `update` (`create` no cadastro) | `approve` | `update` |
+| `whitelists` | editar os dados, sem mudar o status | `update` | `update` | — |
+| `liquidation-fake-batches` | fechar lote | `update` | `run` | `update` |
+| `liquidation-real-batches` | recusar ("Excluir lote" no front) | front `delete`, BFF `approve` | `approve`; o botão do front confere `approve` | — |
+| `onboarding-bgt` | reprocessar (um e em lote), reenviar webhook | `update` | `reprocess` | `update` |
+| `orchestrator` | re-executar processo | `read` | `reprocess` | `read` |
+| `products-config` | criar produto e cadastros | `read` | `create` | `read` |
+| `products-config` | salvar produto | `read` | `update` | `read` |
+| `poli-chat` | conversar e gerir conversas | `poli-chat` (sem ação) | `read` | `poli-chat` |
+| `{dept}-poli-knowledge-base` | indexar e excluir documento | `poli-chat` (fix da D33 já confere o departamento) | `create` e `delete` do departamento | — |
+| `pdd` | ver o PDD | menu `pdd:read`, API `valid:read` | `pdd:read` | `valid:read` |
+| `contract-details` | abrir o detalhe do contrato | rota `contract-details:read`, API `assignment-batches:read` | `contract-details:read` | `assignment-batches:read` |
+| `cash-consolidation` | analítico do fundo | rota sem entrada (nega todos) | `cash-consolidation:read` em `/cash-consolidation/{fund}/analytic` | — |
+| `all-pre-trade` | bypass de aprovação | o header apaga | `approve-bypass` nas `Policies` e no header | — |
+
+**Migração** (D32, pela tela da 19 com `copy_assignments`; espelha quem tem
+hoje, sem tirar nada):
+- `report-transfer:create` e `report-transfer:update` → `report-transfer:test`;
+- `report-transfer:reprocess` → `report-transfer:run`;
+- `report-transfer-manage:read` → `report-transfer-manage:test`;
+- `whitelists:update` → `whitelists:approve`;
+- `liquidation-fake-batches:update` → `liquidation-fake-batches:run`;
+- `onboarding-bgt:update` → `onboarding-bgt:reprocess`;
+- `orchestrator:read` → `orchestrator:reprocess`;
+- `products-config:read` → `products-config:create` e
+  `products-config:update`;
+- `poli-chat` → `poli-chat:read`;
+- `valid:read` → `pdd:read`.
+
+Depois de um ciclo, o dono de cada área revisa quem precisa da nova, a
+`CFG_PERMISSIONS_LEGACY_ROLES` desliga e as roles antigas que sobraram saem
+pela tela da 19. Isso fica na 24.
+
+## Decisões (tomadas em 16/10, ver `decisoes.md`)
+
+D27 a D33 aprovadas como recomendadas; D28 com a regra do admin (D55).
