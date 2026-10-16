@@ -1,7 +1,7 @@
 // Smoke test visual do front sem BFF real: serve o dist e um BFF falso (sessão válida, todas as
 // rotas liberadas, dados vazios) e tira prints de cada rota em desktop e celular.
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
-// NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); FIXTURES=<arquivo.json> dá dados
+// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
@@ -36,7 +36,7 @@ const IAM = {
   'iam/navigation': true,
   'iam/paths': PATHS,
   'iam/organization': 'plgn',
-  'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com' },
+  'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com', azureId: '00000000-0000-4000-8000-000000000001' },
 };
 const FIXTURES = process.env.FIXTURES ? JSON.parse(fs.readFileSync(process.env.FIXTURES, 'utf8')) : {};
 
@@ -45,7 +45,10 @@ const bff = http.createServer((req, res) => {
   const key = url.pathname.replace(/^\//, '');
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4300');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  // Com credenciais, o '*' não vale como curinga: devolve os cabeçalhos e métodos que o preflight pediu.
+  res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'content-type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
   res.end(JSON.stringify(key in IAM ? IAM[key] : key in FIXTURES ? FIXTURES[key] : []));
@@ -66,6 +69,12 @@ const web = http.createServer((req, res) => {
 
 await new Promise((r) => bff.listen(8765, r));
 await new Promise((r) => web.listen(4300, r));
+
+// SERVE=1: só sobe o portal e o BFF falso, para navegar à mão; sem prints.
+if (process.env.SERVE) {
+  console.log('Portal em http://localhost:4300 (BFF falso em http://localhost:8765). Ctrl+C para sair.');
+  await new Promise(() => {});
+}
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN });
 const errors = [];
