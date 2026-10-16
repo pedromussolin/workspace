@@ -83,8 +83,8 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
 
 ## O que foi feito (16/10/2026)
 
-Branch `feature/TS-5393-ilustracoes`, criada da 13 (`fd987f8c`). São 10
-commits, sem push:
+Branch `feature/TS-5393-ilustracoes`, criada da 13 (`fd987f8c`). São 12
+commits e 2 merges da 13, sem push:
 
 | Commit | O quê |
 |---|---|
@@ -97,7 +97,12 @@ commits, sem push:
 | `9cf19bfa` | login com a composição de fundo própria, nos dois esquemas |
 | `6d5abe04` | aba "Ilustrações" na vitrine, nas 4 marcas e nos 2 esquemas |
 | `7532528a` | apaga 9 ilustrações de banco sem uso (cerca de 94 KB) |
-| `7ab840fc` | regra no `AGENTS.md` |
+| `e4a72239` | merge da 13 final: os tokens `--brand-icon` e `--brand-accent` e as abas Formatos e Ilustrações da vitrine juntos |
+| `334b78c4` | spec da diretiva de prévia de tema da vitrine (`theme-preview.directive.spec.ts`) |
+| `81cda192` | merge da 13 sem o `@angular/animations` (sem conflito) |
+
+O commit da regra no `AGENTS.md` (`7ab840fc`) saiu da branch: a regra vai
+para a `.ai/` da 17.
 
 **Cenas:**
 
@@ -138,6 +143,12 @@ segue a marca do deploy. Num deploy da Dots, o fundo fica laranja atrás do
 logo da Poliedro.
 
 **Na junção com a 17:**
-- a regra das ilustrações vai para a `.ai/` e o `check-patterns`;
-- o `--brand-accent` encontra o `--brand-icon` da 13 nos mesmos arquivos.
+- a regra das ilustrações já está na `.ai/` da 17 (`3966e04e`), e o
+  `check-patterns` aceita o `bypassSecurityTrustHtml` do `app-illustration`
+  (`f18d17f3`);
+- o `--brand-accent` e o `--brand-icon` já estão juntos (`e4a72239`).
+
+**Tom suave:** usa o `--tonal-bg` do sistema (12% no claro e 18% no escuro).
+A proposta tinha 14% e 20%; ficou o do sistema, para a ilustração casar com
+os chips e os destaques das telas.
 

@@ -320,3 +320,37 @@ consentimento de admin:
   `tests/unit/modules/pre_trade/test_repository.py::test_token_do_login_vai_para_o_cache_ate_perto_de_expirar`
   calcula o horário na coleta e só tolera 10 s.
 
+
+## O que foi feito: front (16/10/2026)
+
+Branch `feature/TS-5390-controle-de-acesso`, criada da 13 (`4bd8380f`). São
+17 commits e 1 merge da 17, sem push:
+
+| Commit | O quê |
+|---|---|
+| `ff1bccfe` | ação `write` no enum de permissões do IAM |
+| `78adb4ef` | tipos e chamadas do controle de acesso no `data-access/` |
+| `e92a8f95` | regras do lote, da prévia e da visão, em funções puras com spec |
+| `2acc643e` | spec do serviço confere o método das chamadas por id |
+| `69c6189c` | rota `/access-control` com `iamGuard`, menu e página com as abas |
+| `d5a4e70a` | aba Permissões: KPIs, pílulas e "criar no Azure" |
+| `61906344`, `e30427f8` | avisos fixos do controle de acesso (colunas, depois lista); aba do lote sem contador |
+| `aa8cd222` | aba Pessoas: busca no diretório e permissões da pessoa |
+| `9fbcdbee` | aba Grupos: membros, permissões e grupo novo |
+| `eb48d89a` | formulários de permissão e de grupo num serviço da feature |
+| `351c7326` | rótulos, erros e repetição das falhas do lote |
+| `a8f0db42` | aba Em lote: montagem, prévia, confirmação e resultado |
+| `cdd57eaa` | o aviso do lote cita só o que a operação aceita |
+| `4a1d435a` | specs do detalhe da pessoa e do grupo |
+| `05f45955` | merge da 17 (com a 13 final), sem conflito |
+| `3400422a` | contagens pelo `formatNumber` e pelo pipe `appNumber`, no lugar do `toLocaleString` |
+
+**Validação (com a 17):**
+- `check-patterns` sem nada a apontar;
+- `validate.sh` ok: build, lint 20/163 (igual à base), 2.031 testes, todos
+  passando. O audit ficou de fora (`SKIP_AUDIT=1`), porque a 18 não está na
+  base.
+
+**Para a parte do front da 21:** a tela ganha "Aplicar migração" (rota
+`access-control/migrations` e `copy_assignments`) e mostra o nome, a
+descrição e o `legacyFor` de cada permissão.
