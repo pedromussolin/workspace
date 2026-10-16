@@ -24,9 +24,13 @@ fs.mkdirSync(out, { recursive: true });
 const PATHS = [
   '/poli-chat', '/knowledge-base', '/assignment-batches', '/liquidation-batches', '/formalization',
   '/report-transfer', '/portfolio-performance', '/cerc-reconciliation', '/pdd', '/pre-trade',
-  '/cash-consolidation', '/orchestrator', '/orchestrator/product-config', '/users', '/onboarding-bgt/monitoring',
+  '/cash-consolidation', '/orchestrator', '/orchestrator/product-config', '/users',
   '/api-docs', '/design-system',
 ];
+// Caminhos com nome real de parceiro ficam fora do repo, em $PRIV/smoke-paths-extra.json (lista de strings).
+const PRIV = process.env.PRIV || path.join(process.env.HOME || '', 'repos/.reestrutura_whitelabel');
+const EXTRA_PATHS = path.join(PRIV, 'smoke-paths-extra.json');
+if (fs.existsSync(EXTRA_PATHS)) PATHS.push(...JSON.parse(fs.readFileSync(EXTRA_PATHS, 'utf8')));
 const IAM = {
   'iam/status': !process.env.NO_SESSION,
   'iam/navigation': true,
