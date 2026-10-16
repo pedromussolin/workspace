@@ -162,7 +162,7 @@ D27 a D33 aprovadas como recomendadas; D28 com a regra do admin (D55).
 ## O que foi feito: fix das brechas (D33, 16/10/2026)
 
 BFF, branch `fix/TS-5391-brechas-de-permissao`, criada da `origin/master`
-(`946dce3`). São 4 commits, sem push:
+(`946dce3`). São 5 commits, sem push:
 
 | Commit | O quê |
 |---|---|
@@ -170,9 +170,10 @@ BFF, branch `fix/TS-5391-brechas-de-permissao`, criada da `origin/master`
 | `39cc6bc` | excluir documento exige o grupo e `{dept}-poli-knowledge-base:delete` (ou `admin:delete`) e só apaga se o documento existe naquele departamento. Se o mesmo nome existe em mais de um, devolve 409. O `department` ficou opcional, porque o front ainda não manda |
 | `780e558` | renomear conversa manda o e-mail da sessão, e o serviço de IA confere o dono. **Hoje a função está quebrada para todos** (422 no serviço de IA, 500 no BFF), e volta a funcionar |
 | `6b3a696` | o BFF recusa (400) a exclusão de documento com apóstrofo no nome. Isso fecha, do lado do BFF, a falha A29 do serviço de IA |
+| `99dcd3e` | a listagem da Base de Conhecimento usa só o índice padrão: o `index_name` livre, que deixava ler outro índice do Azure AI Search, sai da rota. O front nunca mandou esse parâmetro |
 
 **Validação:**
-- 554 testes, com as mesmas 8 falhas da base; `ruff` e `black` iguais à
+- 555 testes, com as mesmas 8 falhas da base; `ruff` e `black` iguais à
   base;
 - os testes novos falham no código antigo.
 
