@@ -1,7 +1,7 @@
 # 17 — Pasta `.ai`: repositório pronto para desenvolver com IA
 
 - **TS:** TS-5389 · **Branch:** `chore/TS-5389-pasta-ai` (da 13)
-- **Status:** em andamento (6ª leva, 16/10)
+- **Status:** **commits feitos, sem push** (16/10). Falta o critério de aceite do agente sem contexto, em andamento
 - **Depende de:** 04. Pode começar já e fecha depois da 13, quando as regras
   de lint que garantem as fronteiras existirem.
 
@@ -100,3 +100,62 @@ Mudou um padrão, muda a `.ai/` na mesma PR. Vai escrito no `README.md` da
 
 Levar o mesmo modelo para o apl-credit-whitelabel-api, o apl-shared-service
 e o data-lake-api. Está como pedido no pitch para a diretoria.
+
+## O que foi feito (16/10/2026)
+
+Branch `chore/TS-5389-pasta-ai`, criada da 13 (`4bd8380f`). São 21 commits,
+sem push. A estrutura usa nomes padrão (D26):
+- **`.ai/rules/`:** architecture, styling, components, angular, testing,
+  responsive, permissions, security e git;
+- **`.ai/context/`:** design-system, reference-screens, domain e bff;
+- **`.ai/skills/`**, no formato Agent Skills:
+  - `new-page`, com o `scaffold.mjs`, que gera uma lista completa e testada;
+  - `new-component`, `new-brand`, `fix-bug` e `validate-change`;
+- **`.ai/scripts/`:** `validate.sh`, `check-patterns.mjs`, `smoke.mjs`,
+  `known-failures.txt` (vazia), `known-lint-errors.txt` (os 20 da base) e
+  `smoke-data/` (11 JSONs fictícios);
+- **`.ai/boundaries.md`** e o **`.ai/README.md`** (cerca de 860 palavras,
+  uns 4 minutos de leitura).
+
+**Na raiz:**
+- `CLAUDE.md` (com `@.ai/README.md` e `@.ai/boundaries.md`), `AGENTS.md` e
+  `.github/copilot-instructions.md`, que só apontam para a `.ai/`;
+- `.github/pull_request_template.md`, com a regra de manutenção;
+- `.claude/skills` e `.agents/skills` como links simbólicos para
+  `.ai/skills`. Cobrem Claude Code, Copilot e Codex, conforme a
+  documentação de cada um;
+- `docs/architecture.md` vira ponteiro (D23).
+
+**Outros commits:**
+- `512f3b9b` corrige o spec que falhava ("should render title"). A suíte
+  fica sem nenhuma falha;
+- `505476dc` põe o `playwright-core` 1.63.0 como devDependency.
+
+**O que cada script verifica:**
+- **`validate.sh`:**
+  - build, lint, `check-patterns`, a suíte e o
+    `npm audit --omit=dev --audit-level=moderate`;
+  - falha com lint ou teste fora das listas conhecidas;
+  - separa teste instável;
+  - aceita `SKIP_AUDIT=1` até a 18 entrar.
+- **`check-patterns.mjs`:** 15 verificações que o lint não faz, entre elas
+  `::ng-deep`, decorador antigo, `*ngIf`, `subscribe` sem limpeza, sem
+  `OnPush`, sem spec, spec só de "should create", HTTP fora do
+  `data-access`, cor fixa no template, URL absoluta, `bypassSecurityTrust`,
+  script inline, resto do Material, API depreciada e comentário divisor. O
+  legado fica em listas que só diminuem.
+- **`smoke.mjs`:**
+  - BFF falso, rotas do menu lidas da `navigation.ts`, claro, celular,
+    escuro, outra marca e marca no escuro;
+  - falha com erro de página ou de console e com rolagem lateral;
+  - lista as origens externas, para a CSP.
+
+**Validação:**
+- `validar-leva.sh`: ok. Build ok; lint 20/163; **1.820 testes, nenhuma
+  falha**;
+- smoke sem erro em claro, escuro, Dots e celular;
+- `validate.sh` com `SKIP_AUDIT=1`: ok;
+- `smoke.mjs --all`: 29 rotas, 116 páginas, sem erro.
+
+**Pedidos de ajuste em peças comuns** (não feitos aqui): ver A27 e A28.
+
