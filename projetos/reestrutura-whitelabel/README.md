@@ -59,6 +59,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5387 |
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 / `origin/master` | **em andamento** (6ª leva) | TS-5390 |
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5386 |
+| 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-?-permissoes-por-acao` (front e BFF) | 19 | a planejar (decidir D27–D33) | — |
+| 22 | [Deploy da reestruturação](tarefas/22-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a planejar (decidir D34–D37). É a última | — |
 
 ## Situação em 16/10
 
@@ -113,7 +115,7 @@ visíveis para a PR e a validação.
    spec de rotas com os imports de `@core` e as rotas públicas lazy. O
    passo a passo está na tarefa 18.
 
-**Faltam: 2.**
+**Faltam: 4** (17 e 19 em andamento; 21 e 22 a planejar).
 
 | # | O quê | Como vai |
 |---|---|---|
