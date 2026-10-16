@@ -208,3 +208,40 @@ resolução de `$PRIV/resolucoes/`):
 - O smoke continua sem erro (Formalização, Pré-Trade, Lotes de Liquidação,
   Report Transfer e CERC).
 
+### Datas e formatadores (16/10)
+
+- **`f903fd9c`** corrige a data `AAAA-MM-DD` que aparecia com um dia a menos
+  (A26):
+  - o `new Date('2026-10-01')` lê a data como meia-noite em UTC, que no
+    Brasil ainda é 30/09;
+  - o `parseApiDate` lê a data sem hora como dia do calendário;
+  - corrige os formatadores das tabelas antigas e o `formatDateToISO`.
+- **`fd987f8c`:** a data de nascimento de Usuários também deixa de voltar
+  um dia.
+- Os specs falhavam antes da correção, num fuso -03.
+
+**Camada de formatação (D49 a D53, em andamento):**
+- um formatador por tipo de dado em `shared/utils/format/`, com um
+  catálogo fechado de formatos;
+- pipes por tipo;
+- lint contra formatação solta;
+- página "Formatos" na vitrine;
+- migração de todas as telas.
+
+**Catálogo** (o primeiro formato de cada tipo é o padrão):
+
+| Tipo | Formatos |
+|---|---|
+| Data | `dd/mm/aaaa`, `dd/mm/aaaa HH:mm`, `dd/mm/aaaa HH:mm:ss`, `HH:mm`, `HH:mm:ss`, `mmm/aaaa`, `dd/mmm` |
+| Período | `dd/mm/aaaa a dd/mm/aaaa` |
+| Tempo relativo | `relativo`: "há 5 min", "há 2 h", "ontem às 14:30" e, depois, `dd/mm/aaaa HH:mm` |
+| Dinheiro | `R$ 0,00`, `R$ 0`, `compacto` |
+| Número | `0`, `0,00`, `compacto` |
+| Percentual | `0%`, `0,0%`, `0,00%` |
+| Documento | `completo`, `mascarado` |
+| Telefone | `completo` |
+| CEP | `completo` |
+| Sim/Não | `Sim/Não` |
+| Tamanho de arquivo | `automático` |
+| Duração | `curta`, `relógio` |
+
