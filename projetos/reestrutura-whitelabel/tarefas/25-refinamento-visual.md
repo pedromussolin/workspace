@@ -111,6 +111,9 @@ Decisões da rodada 1 (16/10, Pietro):
 | R20 | Tabela comum | Filtro de coluna (botão no cabeçalho e popover) ainda mora no `config-table` e cada tela repete o estilo: levar para `shared/ui/table` | `shared/ui/table` | a decidir |
 | R21 | Lotes de Cessão | Status como pílula exige um enum de status no BFF (hoje `estado_atual` livre) | BFF + tela | a decidir |
 | R22 | Accordion | Itens colados: o `:host + :host` do espaço não compila no Angular (vira seletor inválido). O espaço vai para o `app-accordion`; lista numerada ganha o número num quadrado (`marker`), usado no analítico do Consolidado | `shared/ui/accordion`, `features/cash-consolidation` | feito |
+| R23 | Docs da API | Layout novo no estilo do exemplo de 16/10: um painel com navegação (combobox da documentação, busca, grupos com método + nome) e conteúdo (barra do endpoint com copiar, parâmetros em tabela, corpo com Exemplo/Esquema/cURL, respostas por status, "Testar chamada"). Só o BFF por enquanto, pronto para outros serviços. Proposta: artifact "Docs da API: proposta" | `features/api-docs` | proposta em revisão |
+| R24 | Onboarding BGT, lista | Filtros com largura fixa e linhas pela metade; atalhos de período menores que os campos (V33) | `features/onboarding-bgt` | leva dos filtros |
+| R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | leva dos filtros |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
