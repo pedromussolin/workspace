@@ -30,6 +30,20 @@ branch:
 - ajuste que vier da revisão de uma tarefa entra na branch dela, e a release
   faz merge de novo.
 
+## Para começar (outro chat)
+
+- **Worktree:** `~/repos/apl-credit-whitelabel-wt/25`, branch
+  `refact/TS-5395-refinamento-visual`, igual à `release/20261016` (`082111a5`),
+  com `node_modules` e build prontos.
+- **Portal local:** `anexos/scripts/portal-local.sh ~/repos/apl-credit-whitelabel-wt/25`
+  (http://localhost:4300), com os dados fictícios de acesso, liquidação e
+  Pré-Trade. `BUILD=1` refaz o build depois de cada rodada.
+  - Pare o portal antes do `validar-leva.sh`, que usa as mesmas portas.
+- **Validação da rodada:** `validar-leva.sh` com
+  `BASE=082111a5`, `BASE_FALHAS=$PRIV/base-vazia-falhas.txt`,
+  `BASE_LINT=20/163` e os dados `todas-acesso-21.json`. A base passa com
+  2.210 testes, audit 0 e smoke ok.
+
 ## Como funciona a rodada
 
 1. **Revisão:** o Pietro navega no portal local, com dados fictícios
