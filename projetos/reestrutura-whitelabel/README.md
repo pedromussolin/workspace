@@ -75,12 +75,24 @@ e a 19.
   e a 08 (merge da master e porte da responsividade, 3 commits).
 - **A 13 já junta tudo:** ela nasce do merge de todas as áreas (05 a 12, 14
   e 15) sobre a 04. Por isso entra na `sandbox` por último.
-- **Junção da 5ª leva** (13 + 18 + 20, numa worktree descartável):
-  - a 18 conflita com a 13 em 10 arquivos, e a 20 em 6;
+- **Junção da 6ª leva** (19 com a 17 e a 13, mais 23, 18 e 20, numa
+  worktree descartável, em 16/10):
+  - a 23 entra limpa; a 18 conflita em 10 arquivos e a 20 em 6;
   - os scripts `$PRIV/resolucoes/fix_TS-5386-seguranca-front.sh` e
-    `chore_TS-5387-devcontainer.sh` resolvem tudo sozinhos;
-  - resultado: build ok, bundle inicial de 497 kB, lint 20/163, 1.823
-    testes com só a falha da base, e `npm audit --omit=dev` com 0 falhas.
+    `chore_TS-5387-devcontainer.sh` resolvem tudo sozinhos. O da 18 também
+    tira o spec do erro da lista de legado do `check-patterns`;
+  - resultado:
+    - `npm ci` ok, `tsc` 0/0, `check-patterns` limpo e `npm audit
+      --omit=dev` com 0 falhas;
+    - build ok, com bundle inicial de 423 kB (118 kB na rede);
+    - lint 20/163, igual à base;
+    - 2.083 testes, todos passando;
+    - smoke de 8 rotas no claro (desktop e celular), no escuro e na Dots,
+      sem erro;
+  - o `validar-leva.sh` marca "commits que não compilam sozinhos" nos
+    commits da 18 e da 20: eles nascem da master, na estrutura antiga, e não
+    compilam sobre as dependências do épico. Foram validados nas próprias
+    branches.
 
 Cada tarefa tem a seção "O que foi feito", com os commits, as mudanças
 visíveis para a PR e a validação.
