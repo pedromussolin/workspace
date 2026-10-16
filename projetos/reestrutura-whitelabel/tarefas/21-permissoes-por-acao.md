@@ -1,6 +1,6 @@
 # 21 — Permissões por ação: escopos e ações bem definidos
 
-- **TS:** a criar · **Branch:** `feature/TS-?-permissoes-por-acao` (front da 19; BFF da 19)
+- **TS:** TS-5391 · **Branch:** `feature/TS-5391-permissoes-por-acao` (front da 19; BFF da 19)
 - **Status:** a planejar (pedido de 16/10)
 - **Depende de:** 19 (catálogo de roles a partir do código e lote para reatribuir)
 

@@ -1,6 +1,6 @@
 # 23 — Ilustrações próprias
 
-- **TS:** a criar · **Branch:** `feature/TS-?-ilustracoes` (da 13)
+- **TS:** TS-5393 · **Branch:** `feature/TS-5393-ilustracoes` (da 13)
 - **Status:** a planejar (pedido de 16/10). Primeiro passo: a proposta visual,
   para escolher a direção.
 - **Depende de:** 13 (tokens finais, tema claro/escuro e `shared/ui`)
