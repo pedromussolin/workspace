@@ -106,6 +106,16 @@ números de base estão aqui:
 - **Base da 04 com as três correções de 15/10:**
   - lint: 59 erros e 281 avisos;
   - testes: 678, com 77 falhando.
+- **Base da `origin/master` (`576957c`) com o `9bcf7b7`:**
+  - lint: 73 erros e 288 avisos;
+  - testes: 250, com 96 falhando.
+  - Sem o `9bcf7b7`, a suíte nem compila (A21).
+  - Vale para as tarefas que nascem da master (18 e 20):
+    `BASE=origin/master BASE_FALHAS=$PRIV/base-master-falhas.txt BASE_LINT=73/288`.
+- **Base da 13 (`2dbb699`):**
+  - lint: 20 erros e 166 avisos;
+  - testes: 1.822, com 1 falhando.
+  - Para validar: `BASE=2dbb699 BASE_FALHAS=$PRIV/base-13-falhas.txt BASE_LINT=20/166`.
 - **Regra:** nenhuma falha nova e nenhum erro de lint novo.
 
 Comandos:
