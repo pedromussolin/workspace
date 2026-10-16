@@ -134,6 +134,8 @@ visíveis para a PR e a validação.
     - criar a variável `ENVIRONMENT` do front em cada ambiente;
   - confirmar com a infraestrutura o que o gateway envia (HSTS e outros
     cabeçalhos) antes de ligar o HSTS da 18;
+  - na 24: pedir as permissões do Graph para o app do BFF (lista na 19) e
+    o consentimento de admin;
   - testar o login real e os fluxos na sandbox;
   - depois de um ciclo na sandbox sem violação, trocar a CSP de report-only
     para valendo.

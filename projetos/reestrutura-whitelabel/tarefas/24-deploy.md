@@ -19,13 +19,32 @@
    - **observabilidade (22):** as chaves do RUM no `env.js` do front
      (aplicação, client token, `env`, versão e amostragem);
    - inventário dos **nomes** que o código lê × os que cada ambiente tem.
-3. **Normalizar roles e grupos do Azure**, a partir do catálogo do BFF
+3. **Liberar as permissões do Graph para o app do BFF** (D18). A lista e o
+   porquê de cada uma estão na tarefa 19, em "O que foi feito: BFF".
+   - Pedir à infraestrutura:
+     - `Application.ReadWrite.OwnedBy`, `AppRoleAssignment.ReadWrite.All`,
+       `Group.Create` e `GroupMember.ReadWrite.All`, com consentimento de
+       admin;
+     - pôr o service principal do BFF como dono do próprio app
+       registration.
+   - Proteger a credencial do app, de preferência com um certificado,
+     porque a `AppRoleAssignment.ReadWrite.All` deixa o app dar privilégio
+     a si mesmo.
+   - Testar na sandbox, com o lote da 19:
+     - as buscas;
+     - criar role e grupo;
+     - atribuir e remover;
+     - apagar grupo do app sem a `Group.ReadWrite.All`. Se não der, decidir
+       entre pedir essa permissão ou apagar grupo pelo portal do Azure.
+   - Ligar a `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED` só depois de a
+     infraestrutura confirmar a licença Entra ID P1/P2 (D17).
+4. **Normalizar roles e grupos do Azure**, a partir do catálogo do BFF
    (19/21):
    - criar as roles novas (`api-docs:read`, `design-system:read`,
      `access-control:read/write` e as da 21);
    - reatribuir;
    - tirar as que sobram.
-4. **Release:** criar a `release/AAAAMMDD`, subir para o ambiente, validar e
+5. **Release:** criar a `release/AAAAMMDD`, subir para o ambiente, validar e
    fazer a GMUD de produção (skill `criando-gmud`).
 
 ## Segredos: rodar os scripts do Pietro sem ler os valores
@@ -57,4 +76,4 @@ ver valor nenhum:
 | D40 | Ambientes | (a) sandbox, validação com login real e, depois, produção com GMUD; (b) só sandbox agora | (a), em duas etapas |
 | D41 | Valores visíveis | (a) nenhum; (b) só a lista aprovada de chaves que não são segredo | (b) |
 | D42 | Trava com hook | (a) sim; (b) só o wrapper | (a) |
-| D43 | Normalização no Azure | (a) pela tela da 19, se as permissões do Graph (D18) já tiverem saído; (b) pela CLI do Azure, com o login do Pietro | (a), com (b) como plano B |
+| D43 | Normalização no Azure | (a) pela tela da 19, depois do passo 3, que libera as permissões do Graph; (b) pela CLI do Azure, com o login do Pietro | (a), com (b) como plano B, se o consentimento atrasar |

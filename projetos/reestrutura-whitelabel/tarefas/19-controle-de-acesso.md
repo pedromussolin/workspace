@@ -282,7 +282,7 @@ Branch `feature/TS-5390-controle-de-acesso`, criada da `origin/master`
 - **Variável nova:** `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED`, desligada
   por padrão (D17).
 
-**Permissões do Graph para pedir à infraestrutura (D18),** todas com
+**Permissões do Graph** (o pedido e o teste fazem parte da tarefa de deploy, a 24, pela D18 revista). Todas pedem
 consentimento de admin:
 - **Já existem:** `Application.Read.All`, `User.Read.All` e
   `GroupMember.Read.All`.
