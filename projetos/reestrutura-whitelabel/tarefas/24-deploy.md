@@ -49,6 +49,21 @@
 
 ## Segredos: rodar os scripts do Pietro sem ler os valores
 
+**Onde estão:** em `~/bashes`. As variáveis ficam no AWS Systems Manager
+Parameter Store:
+- `list-parameter-store`, `diff-parameter-store`, `create-parameter-store`
+  e `delete-parameter-store`;
+- `params`, um arquivo de dados que deve ter parâmetros e valores. **Ninguém
+  abre esse arquivo**, e ele entra na trava;
+- fora do escopo: `generate-codeartifact-token`, `rot-crypt`,
+  `clear-docker` e `hello-pietro`.
+
+Em 16/10 só os nomes foram listados, sem abrir nem executar nada. O formato
+da saída (para o wrapper) sai do código dos scripts `list` e `diff`, lido
+depois de a trava estar ligada. Se o código tiver algum valor embutido, a
+leitura passa por uma máscara.
+
+
 Os scripts do Pietro leem e gravam variáveis de verdade. Para eu usá-los sem
 ver valor nenhum:
 
@@ -62,7 +77,7 @@ ver valor nenhum:
    - o valor só aparece para as chaves de uma lista aprovada pelo Pietro,
      que não são segredo (ex.: `THEME_KEY`, `ENVIRONMENT`, `PRODUCTION`).
 2. **Trava:** um hook `PreToolUse` no Claude Code nega qualquer comando que
-   leia `$PRIV/env/`, exceto o wrapper.
+   leia `$PRIV/env/` ou o `~/bashes/params`, exceto o wrapper.
 3. **Gravar:**
    - valor que não é segredo (ex.: `ENVIRONMENT=sandbox`): eu passo para o
      script;
