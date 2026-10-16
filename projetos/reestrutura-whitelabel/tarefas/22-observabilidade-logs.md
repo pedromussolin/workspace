@@ -183,11 +183,26 @@ testes, com as mesmas 8 falhas da base.
 - a exceção não tratada passa de 3 para 1;
 - o 4xx deixa de contar como erro.
 
-**Ajustes pedidos ao agente:**
-- as mensagens em PT-BR (as chaves continuam em inglês) e um `evt.name`
-  estável nos eventos técnicos, para os monitores filtrarem por ele;
-- `UtcDatetime` nas datas sem fuso (D51 revista). Ele também achou que o
-  `createdAtFormatted` da Formalização mostra a hora UTC, 3 h à frente.
+**Ajustes feitos** (16 commits, 566 testes, com as mesmas 8 falhas da base):
+- **`7909ab5`:** as mensagens dos eventos técnicos em PT-BR, com um
+  `evt.name` estável:
+  - `http.request` (requisição);
+  - `http.outbound_failed` (chamada externa que falhou);
+  - `file_transfer.*` (arquivos) e `stream.*` (streaming);
+  - `http.unhandled_exception` e `process.unhandled_exception` (exceções).
+
+  Os monitores e o dashboard filtram por `@evt.name`.
+- **`f3c7972`:** o `UtcDatetime` (`src/shared/schemas/datetimes.py`) faz toda
+  data com hora sair em UTC com `Z` e milissegundos. Vale para:
+  - Formalização (whitelists e unidades), liquidação (balance e statement) e
+    lotes;
+  - histórico do chat;
+  - onboarding.
+
+  Cada upstream foi confirmado no código. Os textos `*Formatted` e a coluna
+  do xlsx convertem para Brasília. Exemplo: o `createdAt`
+  `2026-08-10T13:05:00.123456` vira `2026-08-10T13:05:00.123Z`, e o
+  `createdAtFormatted`, `10/08/2026 13:05`, vira `10/08/2026 10:05`.
 
 **Achado à parte:** o path `/real-batches//statement` tem barra dupla
 (`viewer.py:444`).
