@@ -226,3 +226,89 @@ falhas da base):
   lote;
 - dashboard "Portal: saúde".
 
+
+## O que foi feito: front (16/10/2026)
+
+Branch `feature/TS-5392-observabilidade` do front, criada da 17 com o merge
+da 18 (`0ea7a527`). São 13 commits, sem push:
+
+| Commit | O quê |
+|---|---|
+| `11128be0` | chaves do Datadog no `env.js`, geradas pelo `entrypoint.sh` e pelo `generate-env.js` |
+| `787ee2cf` | `@datadog/browser-rum` e `@datadog/browser-logs` 7.15.0, com versão exata |
+| `4986437d`, `ecc6bff7` | `core/observability`: RUM e Browser Logs, telas pelo caminho template da rota e `usr.id` pelo `azureId`, com specs |
+| `7098d2ad`, `c330f15c` | `ErrorHandler` global e interceptor: erro de JavaScript e falha de chamada ao BFF (método, rota sem query, status, `http.request_id` e duração, sem corpo), com specs |
+| `07a964bc` | CSP: `connect-src` com o intake do Datadog |
+| `fb102e67` | nginx: log de acesso em JSON e `X-Request-ID` repassado ao BFF |
+| `b01092b6` | `error_log` em `warn` (um `sed` no `nginx.conf` da imagem, que quebra o build se o formato mudar) |
+| `e40f31a7` | `.ai/rules/observability.md`: o que vai e o que nunca vai ao Datadog; o evento de negócio é do BFF |
+| `98ba9983` | o SDK do Datadog é baixado sob demanda, fora do bundle inicial |
+| `25989e89` | 404 de arquivo estático só no log de acesso (`log_not_found off`) |
+| `cf907c2c` | a `.ai` deixa de dizer que a TS-5386 não está na base (feito pelo main) |
+
+**Privacidade:**
+- 100% das sessões, `mask-user-input` e sem Session Replay;
+- nenhum corpo, e-mail nem token: o `beforeSend` tira a query das URLs,
+  inclusive das que aparecem dentro do texto do erro, e mascara e-mail no
+  caminho e nas causas;
+- o `usr.id` é o `azureId`, sem nome e sem e-mail (D38).
+
+**Bundle:** com o SDK no bundle inicial, ele ia a 630 kB e estourava o
+orçamento de 500 kB. Agora o SDK vem num chunk próprio, só quando o `env.js`
+liga o Datadog, e as chamadas anteriores ficam numa fila. O bundle inicial
+ficou em 429 kB (121 kB na rede). Com o Datadog ligado, a página baixa uns
+170 kB a mais (cerca de 55 kB na rede).
+
+**Variáveis de ambiente novas do front** (nenhuma é segredo: o client token
+do RUM só envia dados, e a chave de API não vai ao navegador):
+
+| Variável | Padrão |
+|---|---|
+| `DD_RUM_APPLICATION_ID` | vazio (Datadog desligado) |
+| `DD_RUM_CLIENT_TOKEN` | vazio (Datadog desligado) |
+| `DD_SITE` | `datadoghq.com` |
+| `DD_SERVICE` | `apl-credit-whitelabel-front` |
+| `DD_ENV` | o valor do `ENVIRONMENT` |
+| `DD_VERSION` | vazio (a tag da imagem) |
+| `DD_RUM_SESSION_SAMPLE_RATE` | `100` |
+| `DD_RUM_TRACE_SAMPLE_RATE` | `100` |
+
+**Validação:**
+- `validar-leva.sh` ok: os 12 commits do agente compilam sozinhos;
+- `validate.sh` ok: audit 0, 1.968 testes passando;
+- `check-patterns` limpo;
+- imagem de produção com um BFF falso:
+  - a CSP traz o intake;
+  - o `X-Request-ID` chega ao BFF: gerado pelo nginx, mantido quando é
+    válido e trocado quando não é, e volta na resposta, até no 504;
+  - o log de acesso sai em JSON, sem a query;
+  - nenhum `[notice]`;
+- portal num Chromium com o Datadog ligado e os envios segurados no
+  navegador:
+  - telas com o nome da rota;
+  - `usr.id` com o `azureId`;
+  - a falha de chamada traz o `request_id`;
+  - nenhum e-mail nem corpo;
+  - nenhuma violação da CSP.
+
+**Para a 24 e o Datadog:**
+- criar a aplicação de RUM do tipo Browser, sem Session Replay. Ela fornece
+  o application id e o client token;
+- no argocd: `DD_RUM_APPLICATION_ID`, `DD_RUM_CLIENT_TOKEN` e `DD_VERSION`, e
+  a anotação de logs `source:nginx` no contêiner. Se o admission controller
+  do Datadog injetar `DD_ENV`, `DD_SERVICE` e `DD_VERSION`, o front usa esses
+  valores; conferir o `DD_SERVICE` dos deploys das outras marcas;
+- facets: `@http.request_id`, `@evt.name`, `@http.url_details.path` e
+  `@upstream.duration`;
+- monitores:
+  - erros de JavaScript por versão;
+  - `@evt.name:http.bff_request_failed status:error`;
+  - LCP p75 por tela.
+
+**Observações:**
+- a primeira checagem de rota sai antes de o SDK chegar e vai sem cabeçalho
+  de trace;
+- eventos anteriores ao perfil ficam sem `usr.id`;
+- a linha de erro nativa do nginx (502 e 504) traz a requisição com a query;
+- se um dia ligarem o Session Replay, a CSP vai precisar de
+  `worker-src blob:`.
