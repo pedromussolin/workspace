@@ -79,7 +79,9 @@ if [ ${#ROUTES[@]} -gt 0 ] || [ -n "${SCENES:-}" ]; then
   rm -rf "$out"
   smoke() { flock "$LOCK" env "$@" node "$SMOKE" "$WT/dist/apl-credit-whitelabel/browser" "$out/${1#*=}" "${ROUTES[@]}" 2>&1; }
   res=$( { smoke VARIANTE=claro; smoke SCHEME=dark ONLY=desktop; smoke THEME_KEY="$(cat "$PRIV/tema-secundario" 2>/dev/null || echo default)" ONLY=desktop; } | grep -vE " ok$|-> |navegação interna" )
-  if echo "$res" | grep -q "ERROS NO CONSOLE"; then echo "- smoke: com erros"; echo "$res" | grep -v "sem erros" | cut -c1-220 | sed 's/^/    /'; ok=0
+  # Sem print nenhum, o smoke nem subiu (ex.: porta 4300 ou 8765 ocupada pelo portal local).
+  if [ "$(find "$out" -name '*.png' 2>/dev/null | wc -l)" = 0 ]; then echo "- smoke: NÃO RODOU (nenhum print; porta ocupada?)"; echo "$res" | tail -3 | cut -c1-220 | sed 's/^/    /'; ok=0
+  elif echo "$res" | grep -q "ERROS NO CONSOLE"; then echo "- smoke: com erros"; echo "$res" | grep -v "sem erros" | cut -c1-220 | sed 's/^/    /'; ok=0
   else echo "- smoke: claro (desktop e celular), escuro e Dots sem erro de página, de console nem rolagem lateral"; fi
   echo "- prints: $out"
 fi
