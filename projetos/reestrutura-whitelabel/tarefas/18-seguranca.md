@@ -1,6 +1,6 @@
 # 18 — Segurança do front
 
-- **TS:** a criar · **Branch:** `fix/TS-?-seguranca-front` (da `master`, com
+- **TS:** a criar (nome: "Segurança do front") · **Branch:** `fix/TS-?-seguranca-front` (da `master`, com
   `--no-track`)
 - **Status:** a iniciar
 - **Depende de:** nada. Nasce da `master` e entra direto, sem esperar o
@@ -45,7 +45,9 @@ resultado (D12).
    - depois de um ciclo na sandbox sem violação, vira
      `Content-Security-Policy`.
 4. **Permissão em todas as rotas** ([A10](../achados.md)):
-   - `/pdd` ganha o `iamGuard`, com o escopo a confirmar com o Pietro;
+   - `/pdd` ganha o `iamGuard`. O BFF já libera a rota com `pdd:read` (e
+     `admin:read`) no `FRONTEND_ROUTE_PERMISSIONS`, então não há escopo
+     novo a decidir (conferido em 15/10);
    - um spec percorre as rotas e falha se uma rota autenticada ficar sem
      guard.
 5. **Checagem contínua:**
