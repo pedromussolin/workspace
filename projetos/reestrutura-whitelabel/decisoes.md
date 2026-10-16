@@ -8,12 +8,18 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D9 | Onde rodam o E2E e a cobertura | (a) job novo no `workflow.yml` do front; (b) mudar o `build.yml` compartilhado de `Capitalis/actions` | (a). Não mexe no pipeline dos outros repos | Pietro, com o time de infraestrutura (adiada em 11/10: tarefa 16 fica para depois) | [16](tarefas/16-testes-e2e-cobertura.md) |
-| D16–D19 | Controle de acesso pelo portal: quem usa a tela, atribuir a grupos (licença P1/P2), permissões de escrita no Graph e o que dá para remover | ver a tarefa | ver a tarefa | Pietro (D17 e D18 com a infraestrutura) | [19](tarefas/19-controle-de-acesso.md) |
 
 ## Tomadas
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 16/10/2026 | D16: a tela de acesso tem escopo próprio (`access-control:read` e `access-control:write`), sem o override do `admin:*` | Pietro: "todas as recomendadas". Quem administra acesso é um grupo menor que os admins de dados |
+| 16/10/2026 | D17: o código atribui permissões a pessoas e a grupos. A atribuição a grupo fica atrás de uma configuração do BFF até a infraestrutura confirmar a licença Entra ID P1/P2 | Pietro: "todas as recomendadas" |
+| 16/10/2026 | D18: o Pietro pede à infraestrutura, já, as permissões do Graph para o app do BFF, com consentimento de admin | Pietro: "todas as recomendadas". O consentimento costuma demorar |
+| 16/10/2026 | D19: dá para remover pela tela atribuições e membros, e também apagar permissões e grupos, **desde que só afete o app registration do BFF**. Só se apagam: (1) app roles do próprio app registration; (2) grupos de que o app é dono (criados pela tela) e que não tenham atribuição em outro app. Permissão que o código ainda usa não pode ser apagada. Toda remoção passa pela prévia e por uma confirmação reforçada | Pietro: "quero a opção b, desde que só afete as permissões e grupos daquele app registration" |
+| 16/10/2026 | D23: a `.ai/` é a fonte única. O `docs/architecture.md` da 13 vai para `.ai/regras/`, e o `AGENTS.md` vira ponteiro | Pietro: "todas as recomendadas" |
+| 16/10/2026 | D24: adaptadores para Claude (`CLAUDE.md`), Codex e outras (`AGENTS.md`) e Copilot (`.github/copilot-instructions.md`); sem Cursor | Pietro: "todas as recomendadas" |
+| 16/10/2026 | D25: a `.ai/` é escrita em PT-BR, e os exemplos de código em inglês | Pietro: "todas as recomendadas" |
 | 16/10/2026 | Margem lateral das páginas: 26 px no desktop, sem os 2,5% extras (antigo visual das páginas em 95%). Commit isolado `4bd8380f` na 13. **O Pietro pode querer voltar atrás depois: para isso, basta `git revert 4bd8380f`** | Pietro: "pode mexer, mas deixe anotado que eu possivelmente posso querer voltar atrás depois". Com a margem menor, a tabela inteira da Formalização cabe em 1440 px com a sidebar aberta |
 | 16/10/2026 | O gráfico do CERC fica com o "baixar imagem", como a Performance | Pietro: "Sim" |
 | 16/10/2026 | O proxy do BFF da sandbox vai para `scripts/bff-sandbox-proxy.mjs` do repo da empresa (`npm run bff:sandbox`), na 20 | Pietro: "Sim" |
