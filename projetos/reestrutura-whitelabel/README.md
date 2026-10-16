@@ -66,33 +66,14 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 ## Situação em 16/10
 
-**Prontas: 17 de 19** (a 16 está adiada e fica fora da conta). Faltam a 17
-e a 19.
+**Prontas: 22 de 23** (a 16 está adiada e fica fora da conta). Falta a 24,
+o deploy, que é a última.
 - **Publicadas em 15/10:** 01 a 08 e 11, sem merge em nenhum ambiente.
-- **Commits feitos, sem push:** 09, 10 e 12 (3ª leva), 14 e 15 (4ª leva,
-  front e BFF), e 13, 18 e 20 (5ª leva).
-- **Branches publicadas que ganharam commits:** a 04 (`e031e31`, contraste)
-  e a 08 (merge da master e porte da responsividade, 3 commits).
-- **A 13 já junta tudo:** ela nasce do merge de todas as áreas (05 a 12, 14
-  e 15) sobre a 04. Por isso entra na `sandbox` por último.
-- **Junção da 6ª leva** (19 com a 17 e a 13, mais 23, 18 e 20, numa
-  worktree descartável, em 16/10):
-  - a 23 entra limpa; a 18 conflita em 10 arquivos e a 20 em 6;
-  - os scripts `$PRIV/resolucoes/fix_TS-5386-seguranca-front.sh` e
-    `chore_TS-5387-devcontainer.sh` resolvem tudo sozinhos. O da 18 também
-    tira o spec do erro da lista de legado do `check-patterns`;
-  - resultado:
-    - `npm ci` ok, `tsc` 0/0, `check-patterns` limpo e `npm audit
-      --omit=dev` com 0 falhas;
-    - build ok, com bundle inicial de 423 kB (118 kB na rede);
-    - lint 20/163, igual à base;
-    - 2.083 testes, todos passando;
-    - smoke de 8 rotas no claro (desktop e celular), no escuro e na Dots,
-      sem erro;
-  - o `validar-leva.sh` marca "commits que não compilam sozinhos" nos
-    commits da 18 e da 20: eles nascem da master, na estrutura antiga, e não
-    compilam sobre as dependências do épico. Foram validados nas próprias
-    branches.
+- **Publicadas que ganharam commits:** a 04 (`e031e31`, contraste) e a 08
+  (merge da master, porte da responsividade e ajuste dos filtros).
+- **Commits feitos, sem push:** 09, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21,
+  22 e 23. A 14, a 15, a 19, a 21 e a 22 têm branch no front e no BFF; a 21
+  tem ainda o fix das brechas, só no BFF.
 
 Cada tarefa tem a seção "O que foi feito", com os commits, as mudanças
 visíveis para a PR e a validação.
@@ -106,58 +87,90 @@ visíveis para a PR e a validação.
 | 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 | publicada |
 | 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 | publicada |
 | 07 | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 corrigida | 14 | publicada |
-| 08 | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 corrigida | 7 + 3 | publicada; **publicar de novo** (merge da master, porte e ajuste dos filtros) |
+| 08 | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 corrigida | 7 + 3 | publicada; **publicar de novo** |
 | 11 | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 corrigida | 24 | publicada |
 | 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | sem push |
 | 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | sem push. Conflito conhecido com a 11 (3 imports) |
 | 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | sem push |
 | 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 18 + 3 | sem push |
 | 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | sem push |
-| 13 | `chore/TS-5370-remove-angular-material` | 04 + merge de todas as áreas (`2dbb699`) | 53 + merges | sem push. Vai por último |
+| 13 | `chore/TS-5370-remove-angular-material` | 04 + merge de todas as áreas | 90 + merges | sem push |
 | 18 | `fix/TS-5386-seguranca-front` | `origin/master` (`576957c`) | 6 | sem push |
 | 20 | `chore/TS-5387-devcontainer` | `origin/master` (`576957c`) | 10 | sem push |
+| 17 | `chore/TS-5389-pasta-ai` | 13 (`4bd8380f`) | 35 + 2 merges da 13 | sem push |
+| 19 | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 (`4bd8380f`) / `origin/master` (`946dce3`) | 16 + merge da 17 / 6 | sem push |
+| 21 | `feature/TS-5391-permissoes-por-acao` (front e BFF) | 19 / 19 do BFF | 18 / 15 | sem push |
+| 21 | `fix/TS-5391-brechas-de-permissao` (só BFF) | `origin/master` (`946dce3`) | 5 | sem push |
+| 22 | `feature/TS-5392-observabilidade` (front e BFF) | 17 + merge da 18 (`0ea7a527`) / `origin/master` (`946dce3`) | 13 / 18 | sem push |
+| 23 | `feature/TS-5393-ilustracoes` | 13 (`fd987f8c`) | 10 + 2 merges da 13 | sem push |
 
 **Ordem para abrir as PRs na `sandbox`:**
 1. 01 → 02 → 03 → 04.
 2. As áreas (05 a 12, 14 e 15), em qualquer ordem. Na 11 depois da 10,
    aplicar a resolução da tarefa 10.
-3. A 13, por último.
-4. A 18 e a 20 podem ir a qualquer momento. Quem entrar depois resolve os
-   conflitos como os scripts: specs do `9bcf7b7` ficam na versão do épico;
-   `package.json` do épico com as versões da 18; lock refeito sem as
-   entradas `@angular/*`; guard do `/pdd` em `controllership.routes.ts`;
-   spec de rotas com os imports de `@core` e as rotas públicas lazy. O
-   passo a passo está na tarefa 18.
+3. A 13.
+4. A 17, a 23 e a 19, nessa ordem; depois a 21, que nasce da 19.
+5. A 18 e a 20 podem ir a qualquer momento. A 22 vai depois da 17 e da 18.
+6. No BFF: o fix das brechas da 21, a 14, a 15 e a 22 em qualquer ordem; a
+   19 e depois a 21.
 
-**Faltam: 6** (17 e 19 em andamento; 21 a 24 a planejar).
+Quem entrar depois resolve os conflitos como os scripts em
+`$PRIV/resolucoes/` (os da 18, da 20 e da 22). O passo a passo da 18 está
+na tarefa 18.
 
-| # | O quê | Como vai |
-|---|---|---|
-| 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | pode começar: a 13 já criou as regras de lint e o `AGENTS.md`. Leva também as regras de segurança da 18 |
-| 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
+**Junção completa do front** (19 com a 17 e a 13, mais 23, 18, 20, 21 e 22,
+numa worktree descartável, em 16/10):
+- a 23 e a 21 entram limpas. A 18 conflita em 10 arquivos, a 20 em 6 e a 22
+  em 4 (`package.json`, lock, `entrypoint.sh` e o spec do erro). Os scripts
+  resolvem tudo sozinhos;
+- resultado:
+  - `npm ci` ok, `tsc` 0/0, `check-patterns` limpo e `npm audit
+    --omit=dev` com 0 falhas;
+  - os 34 commits da 21 e da 22 compilam sozinhos sobre a junção;
+  - build ok, bundle inicial de 430 kB (121 kB na rede);
+  - lint 20/163, igual à base;
+  - 2.213 testes, todos passando;
+  - smoke de 9 rotas no claro (desktop e celular), no escuro e na Dots, sem
+    erro.
 
-- **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
-  infraestrutura.
-- **Pendências do Pietro:**
-  - publicar as branches sem push (09, 10, 12, 14 e 15 no front e no BFF;
-    13, 18 e 20) e de novo a 04 e a 08, e abrir as PRs;
-  - antes do deploy de tudo:
-    - criar as app roles (`api-docs:read`, `design-system:read`);
-    - criar a variável `ENVIRONMENT` do front em cada ambiente;
-  - confirmar com a infraestrutura o que o gateway envia (HSTS e outros
-    cabeçalhos) antes de ligar o HSTS da 18;
-  - na 24: pedir as permissões do Graph para o app do BFF (lista na 19) e
-    o consentimento de admin;
-  - testar o login real e os fluxos na sandbox;
-  - depois de um ciclo na sandbox sem violação, trocar a CSP de report-only
-    para valendo.
-- **Perguntas da 5ª leva:** respondidas em 16/10 (ver `decisoes.md`):
-  - o CERC fica com o "baixar imagem";
-  - a margem sem os 2,5% extras, num commit que pode ser revertido;
-  - o proxy da sandbox vai para `scripts/` (20);
-  - o compose da raiz fica só com a imagem de produção (20).
-- **Achados novos:** A23 a A25 (tooltip de ação desabilitada, login apaga
-  a preferência do menu e ícones com a secundária crua na Dots).
+**Falta: a 24 (deploy).**
+- **Atualizar com a master:** todas as branches, no front e no BFF.
+- **Variáveis:**
+  - BFF: `CFG_PERMISSIONS_LEGACY_ROLES` e
+    `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED`;
+  - front: `ENVIRONMENT` e as do Datadog (lista na 22).
+  - Pelos scripts de Parameter Store, só depois do wrapper e do hook que
+    escondem os valores (D41, D42).
+- **Azure:**
+  - permissões do Graph e consentimento de admin;
+  - o service principal como dono do app (D18 revista);
+  - as app roles novas: `api-docs:read`, `design-system:read` e
+    `access-control:read`/`write`. As da 21 são criadas pela migração;
+  - normalizar roles e grupos pela tela da 19 (D43).
+- **Datadog:** criar a aplicação de RUM; facets, monitores e dashboard
+  (listas na 22).
+- **Release:** `release/AAAAMMDD`, primeiro na sandbox e depois em produção,
+  com GMUD (D40).
+
+**Pendências do Pietro:**
+- publicar as branches sem push e de novo a 04 e a 08, e abrir as PRs;
+- **decisões:**
+  - **D56:** como migrar os `admin:*`;
+  - **D57:** o logo do login;
+  - **A31:** confirmar com a infraestrutura se o host do BFF é público;
+- confirmar com a infraestrutura o HSTS do gateway antes de ligá-lo (18) e
+  a anotação `source:nginx` no argocd (22).
+
+**Depois de um ciclo na sandbox:**
+- **Graph real:** testar a tela da 19. Nada rodou contra ele ainda; é o
+  maior risco.
+- **CSP:** trocar de report-only para valendo, se não houver violação.
+- **Transição das permissões:** desligar a `CFG_PERMISSIONS_LEGACY_ROLES`
+  e apagar as roles antigas pela tela da 19. Quem tem `whitelists:create`
+  sem `whitelists:update` fica mais restrito no front desde já (21).
+
+**Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
+infraestrutura. **Fora do épico:** a A29 (injeção no apl-ai-service).
 
 ## Ordem e branches
 
