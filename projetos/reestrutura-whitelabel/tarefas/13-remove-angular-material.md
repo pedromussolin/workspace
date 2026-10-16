@@ -1,8 +1,31 @@
 # 13 — Remove Angular Material
 
-- **TS:** TS-5370 · **Branch:** `chore/TS-5370-remove-angular-material` (da `origin/master`, depois do merge de 01–12)
-- **Status:** a iniciar
-- **Depende de:** 01–12
+- **TS:** TS-5370 · **Branch:** `chore/TS-5370-remove-angular-material`
+- **Status:** em andamento (5ª leva, 15/10)
+- **Depende de:** 01–12, 14 e 15
+
+## Como está sendo feita (15/10)
+
+- **Base `2dbb699`:** a 04 (com `e031e31`) mais o merge, nesta ordem, da
+  14, da 15 e das áreas 05 a 12.
+  - Cada merge é um commit `chore(TS-5370): junta a NN (...)`.
+  - A 08 entra já com a master (`dabea02`).
+  - O conflito conhecido da 11 com a 10 usa a resolução de sempre.
+- **Números da base:**
+  - build ok, com bundle inicial de 587,87 kB (156,06 kB na rede);
+  - lint com 20 erros e 166 avisos;
+  - 1.822 testes, com 1 falha ("App should render title").
+- **Duas metades em paralelo, com fronteira de arquivos:**
+  - **13a**, na própria branch: tira o Material e as bibliotecas, migra ou
+    apaga as sobras de `components/`, `interfaces/` e `constants/`, cuida
+    da configuração, das variáveis antigas, do seletor de tema, do A13, do
+    A18, do lint e da documentação no repo;
+  - **13b**, em `wip/TS-5370-consistencia`: faz a passada de consistência,
+    com `app-kpi`, `app-card`, `app-code-block`, id do tooltip, A19,
+    `app-search-field`, `kpi-grid`, Formalização, Report Transfer, A14, A15
+    e o "baixar imagem" no `app-chart`.
+  - Cada ajuste em peça comum fica num commit isolado.
+  - No fim, os commits da 13b entram por cima da 13a.
 
 ## Escopo
 

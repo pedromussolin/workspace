@@ -51,14 +51,14 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5367 |
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5369 |
-| 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12 | a iniciar | TS-5370 |
+| 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12, 14, 15 | **em andamento** (5ª leva) | TS-5370 |
 | 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5371 |
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
-| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | a iniciar (5ª leva) | TS-5387 |
+| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | **em andamento** (5ª leva) | TS-5387 |
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
-| 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | a iniciar (5ª leva) | TS-5386 |
+| 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **em andamento** (5ª leva) | TS-5386 |
 
 ## Situação em 15/10
 
@@ -109,10 +109,9 @@ ordem.
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura. A 17 e a 19 ficam para depois da 5ª leva.
 - **Master andou depois do rebase:** o `e4e13a5` (PR #224, responsividade
-  da Formalização) entrou na `master` e na `sandbox`. A 08 recebe um merge
-  da `master` com a mudança levada para os arquivos refatorados; sem isso,
-  o merge da 08 na `sandbox` dá conflito (arquivo movido × arquivo
-  alterado).
+  da Formalização) entrou na `master` e na `sandbox`. A 08 ganhou o merge
+  da `master` (`7d2cad1`) e a mudança levada para os filtros novos
+  (`dabea02`), sem push. Ver a tarefa 08.
 - **Pendências do Pietro:**
   - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
   - antes do deploy de tudo: criar as app roles (`api-docs:read`,
@@ -120,6 +119,8 @@ ordem.
     front em cada ambiente (`sandbox`, `production`…), que vai para o
     `env.js`;
   - publicar de novo a 04, que ganhou a correção de contraste (`e031e31`);
+  - publicar de novo a 08, que ganhou o merge da master e o porte da
+    responsividade (`7d2cad1`, `dabea02`);
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:** nenhuma para a 5ª leva. Em 15/10 o Pietro aprovou
   todas as recomendadas (D13, A13, D20, D21, "baixar imagem" no
