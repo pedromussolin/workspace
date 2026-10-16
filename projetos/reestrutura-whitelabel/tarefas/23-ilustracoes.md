@@ -18,7 +18,7 @@ seguem a marca nem o esquema escuro: a 13 só clareou a do 404 com filtro.
 
 | Arquivo | Onde | Fica? |
 |---|---|---|
-| `general/not-found.svg` | página 404 | troca |
+| `general/not-found.svg` | página 404 | **sai**: a 404 fica sem ilustração (D48) |
 | `general/unauthorized.svg` | acesso negado | troca |
 | `general/error.svg` | `shared/ui/error` (falha ao carregar) | troca |
 | `general/empty_state.svg` | estado vazio das tabelas antigas (`config-table`) | troca |
@@ -38,8 +38,9 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
    - lista vazia;
    - busca sem resultado;
    - erro ao carregar;
-   - página não encontrada;
    - acesso negado.
+
+   A 404 fica de fora (D48).
 
    O Pietro escolhe a direção, como fez com os ícones. Fonte em
    `anexos/ilustracoes/`.
@@ -59,9 +60,9 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
      por input;
    - spec e página na vitrine (15), com todas as ilustrações nas quatro
      marcas e nos dois esquemas.
-4. **Troca nas telas:** 404, acesso negado, erro, estado vazio (o
+4. **Troca nas telas:** acesso negado, erro, estado vazio (o
    `app-empty-state` e as tabelas antigas), upload do chat e o visual do
-   login. Os três arquivos sem uso saem, e os assets antigos também, depois
+   login. A 404 vira uma página simples, sem desenho (D48). Os três arquivos sem uso saem, e os assets antigos também, depois
    da troca.
 5. **Regra nova na `.ai/`:**
    - ilustração nova nasce no conjunto e no `app-illustration`;
@@ -72,7 +73,8 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
-| D44 | Estado vazio comum | (a) o `app-empty-state` ganha a ilustração no lugar do ícone; (b) a ilustração só nas páginas inteiras (404, acesso negado e erro geral), e o vazio de lista continua com o ícone | (b): lista vazia aparece muito, e o ícone é mais discreto. A ilustração entra onde a tela inteira é o estado |
+| D44 | Estado vazio comum | (a) o `app-empty-state` ganha a ilustração no lugar do ícone; (b) a ilustração só nas páginas inteiras (acesso negado e erro geral), e o vazio de lista continua com o ícone | (b): lista vazia aparece muito, e o ícone é mais discreto. A ilustração entra onde a tela inteira é o estado (acesso negado e erro geral) |
 | D45 | Login | (a) uma composição própria de fundo (formas da marca, sutil); (b) fundo liso com o logo | (a) |
 | D46 | Robô do Poli | (a) fica como está; (b) redesenhar no mesmo estilo | (a) nesta tarefa: é a identidade do assistente |
 | D47 | Direção visual | escolher na página de comparação | — |
+| D48 | Página 404 | **Decidida em 16/10:** simples e sem ilustração, só com o código, o título "Página não encontrada", uma frase e o botão "Voltar para a Home" | Pietro: "a página 404 pode ser mais simples e não precisaria usar ilustração" |
