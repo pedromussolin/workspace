@@ -110,5 +110,20 @@ levar a mudança para a 08, o merge dela na `sandbox` daria conflito
 A master fazia isso com um `select` nativo e com um painel próprio de duas
 datas. Aqui são as peças de `shared/ui`, que têm o mesmo efeito no celular.
 
-**Situação:** 2 commits a mais, sem push. Os specs da Formalização passam
-(150 de 150).
+Depois dos prints, um ajuste: o campo de período deixou de esticar na
+linha inteira, e o rótulo "Coobrigação" ganhou o mesmo estilo dos campos ao
+lado (`fix(TS-5365): período sem esticar e rótulo da coobrigação
+padronizado`).
+
+**Situação:** 3 commits a mais, sem push.
+- Os specs da Formalização passam (150 de 150).
+- O `validar-leva.sh` passa:
+  - build ok;
+  - lint 58/279;
+  - 818 testes, nenhuma falha nova e 22 da base corrigidas;
+  - smoke sem erro em claro, escuro, Dots e celular.
+- As duas "pendências" que o script aponta são os commits da própria
+  master (`e4e13a5`, `576957c`), que não compilam os specs (A21). Não são da
+  08.
+- Em 1440 px a tabela ainda corta a coluna Status. Isso já vinha da 08, e
+  a 13b ficou com o ajuste.
