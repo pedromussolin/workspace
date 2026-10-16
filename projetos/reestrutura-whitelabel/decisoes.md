@@ -15,6 +15,9 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 15/10/2026 | Contraste dos tokens comuns (A20): quando um token de texto fica abaixo de AA, vale a cor mais próxima que atende 4,5:1, mudando só a luminosidade. Aplicado ao `--text-faint` e ao `--st-pendente` na 04 | Pietro: "escolha a cor mais próxima que atenda a regra" |
+| 15/10/2026 | O ambiente da página de docs da API vem de um campo `ENVIRONMENT` no `env.js`, gerado pelo `entrypoint.sh` (production, sandbox, staging ou local). Sem ele, a página deduz pelo endereço | Pietro concordou. A sandbox sobe com `production: true`, então só a flag não basta |
+| 15/10/2026 | As app roles novas (`api-docs:read`, `design-system:read` e as que vierem) são criadas pelo Pietro antes do deploy de tudo | Pietro |
 | 15/10/2026 | D14: a página de docs da API (14) abre com o escopo novo `api-docs:read` ou com o `admin:read`. A rota `GET /api-docs/openapi` do BFF tem a mesma proteção | Pietro escolheu a recomendada: hoje só os admins veem, e para abrir a outras pessoas basta criar o papel no Azure, sem mexer no código |
 | 15/10/2026 | D15: a vitrine do design system (15) abre com o escopo novo `design-system:read` ou com o `admin:read` | Pietro escolheu a recomendada, no mesmo padrão da D14 |
 | 15/10/2026 | D12: fatia de segurança ([18](tarefas/18-seguranca.md)), nascendo da `master`: bibliotecas sem falha conhecida, cabeçalhos do nginx em todas as respostas (com CSP), `iamGuard` no `/pdd` e auditoria das bibliotecas no `validar.sh`. No pitch para a diretoria, entra como parte do plano e aparece só pelo resultado ("zero falhas conhecidas"), sem o número de hoje | Pietro. No mesmo pitch, o multimarca saiu como argumento, porque já era promessa desde o início ("seria um tiro no pé"). Fica só a vitrine do design system. Os outros destaques são desempenho e menos dependência de terceiros |

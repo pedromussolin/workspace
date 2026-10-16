@@ -73,6 +73,7 @@ tabela de semânticos abaixo é a proposta inicial; vale o arquivo.
 | `--text-secondary` | `#475569` | `#b4c2cc` |
 | `--text-muted` | `#64748b` | `#93a3b0` |
 | `--text-disabled` | `#94a3b8` | `#5f707c` |
+| `--text-faint` (15/10, AA) | `#667488` | `#798c99` |
 | `--success` / `--success-soft` | `#15803d` / `#dcfce7` | `#5cc98f` / `#16301f` |
 | `--warning` / `--warning-soft` | `#b45309` / `#fef3c7` | `#f0a648` / `#33250f` |
 | `--danger` / `--danger-soft` | `#b91c1c` / `#fee2e2` | `#f07a7a` / `#3a1a1a` |

@@ -80,7 +80,7 @@ visíveis para a PR e a validação.
 | 01 | `refact/TS-5358-estrutura-base-front` | `master` (`3f5ea96`) | 13 | publicada |
 | 02 | `feature/TS-5359-temas-claro-escuro` | 01 | 5 | publicada |
 | 03 | `feature/TS-5360-componentes-formulario` | 02 | 22 | publicada |
-| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 29 | publicada, com as 3 correções |
+| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 30 | publicada com as 3 correções; a correção de contraste (`e031e31`) está sem push |
 | 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 | publicada |
 | 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 | publicada |
 | 07 | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 corrigida | 14 | publicada |
@@ -89,7 +89,7 @@ visíveis para a PR e a validação.
 | 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | commits feitos, sem push. No merge com a 11, conflito em 3 imports, com o passo a passo na tarefa |
 | 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | commits feitos, sem push |
 | 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | commits feitos, sem push |
-| 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 17 + 3 | commits feitos, sem push |
+| 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 18 + 3 | commits feitos, sem push |
 | 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | commits feitos, sem push |
 
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
@@ -108,7 +108,11 @@ ordem.
   infraestrutura.
 - **Pendências do Pietro:**
   - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
-  - pedir à infraestrutura as app roles `api-docs:read` e `design-system:read`;
+  - antes do deploy de tudo: criar as app roles (`api-docs:read`,
+    `design-system:read` e as que vierem) e a variável `ENVIRONMENT` do
+    front em cada ambiente (`sandbox`, `production`…), que vai para o
+    `env.js`;
+  - publicar de novo a 04, que ganhou a correção de contraste (`e031e31`);
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:**
   - D13: ícone `more-vertical` novo (conjunto vai a 149);
@@ -117,8 +121,8 @@ ordem.
   - 12: envio à base de conhecimento com só "Poliedro - Geral" manda
     `department=all`; confirmar com o BFF;
   - commit `129bee4` da 05;
-  - A13 e A20: contraste da Dots e da Cerys no tema claro, e de
-    `--text-faint` e `--st-pendente`;
+  - A13: contraste da Dots e da Cerys no tema claro (o A20, dos tokens
+    comuns, foi resolvido na 04);
   - A15: títulos fora do padrão;
   - fluxo de commit: eu commito e o Pietro revisa antes de publicar, ou não
     commito antes da revisão.

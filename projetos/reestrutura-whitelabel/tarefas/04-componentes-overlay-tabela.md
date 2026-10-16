@@ -134,3 +134,16 @@ teste que falha sem ela. Os três commits foram publicados em 15/10.
 O controle segmentado veio da 03, mas a correção entrou na 04 para não
 mexer em duas branches publicadas. As áreas 07, 08 e 11 nascem desta 04
 nova.
+
+### Correção de contraste (15/10, sem push)
+
+| Commit | O quê |
+|---|---|
+| `e031e31` | **Texto discreto e status "pendente" com contraste AA** (A20; Pietro: "escolha a cor mais próxima que atenda a regra"). Cada cor foi escurecida (no claro) ou clareada (no escuro) só na luminosidade, mantendo o tom, até 4,5:1 sobre a superfície e o fundo: `--text-faint` `#94a3b8` → `#667488` e `#6b7d8a` → `#798c99`; `--st-pendente` `#f57c00` → `#c55000` e `#c76a0a` → `#ca6c10`. O desabilitado fica fora da regra e mantém o cinza de antes. Spec novo `core/theme/tokens-contrast.spec.ts` mede os tokens de texto nos dois esquemas e falha sem a correção |
+
+- **Visível:** placeholders, ícones discretos e textos de apoio "faint"
+  ficam mais escuros no claro. No claro, o `--text-faint` fica quase igual
+  ao `--text-muted` (`#64748b`). O laranja do status "pendente" fica mais
+  fechado.
+- **Para publicar:** a 04 ganha esse commit. As áreas não precisam ser
+  refeitas: elas recebem a correção quando a 04 entra na `sandbox`.
