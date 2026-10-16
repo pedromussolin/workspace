@@ -1,7 +1,7 @@
 # 19 — Controle de acesso pelo portal
 
-- **TS:** a criar · **Branch:** `feature/TS-?-controle-de-acesso` (front e BFF)
-- **Status:** a planejar. Fica para depois do épico (pedido de 15/10).
+- **TS:** TS-5390 · **Branch:** `feature/TS-5390-controle-de-acesso` (front da 13; BFF da `origin/master`)
+- **Status:** em andamento (6ª leva, 16/10)
 - **Depende de:** 04 (componentes). Não depende da 13.
 
 ## Por quê
@@ -113,3 +113,104 @@ Ela tem quatro abas.
   - a prévia do lote (diferença entre o pedido e o estado atual);
   - a confirmação;
   - o resultado item a item.
+
+## Contrato da API (16/10, para a 6ª leva)
+
+Front e BFF trabalham em paralelo sobre este contrato. O que precisar
+mudar passa pelo `main`, que avisa o outro lado.
+
+**Permissão (D16):**
+- escopo `access-control`, com as ações `read` e `write`, ou seja, as
+  roles `access-control:read` e `access-control:write`;
+- **sem** o override do `admin:*`;
+- a rota `/access-control` fica no `FRONTEND_ROUTE_PERMISSIONS` com
+  `access-control:read`;
+- o front usa o `iamGuard` na rota e libera os botões de escrita pelo
+  `authorizeActions({ scope: 'access-control' })`.
+
+**Rotas do BFF** (JSON em camelCase, como os outros módulos):
+
+| Rota | Escopo | Resposta |
+|---|---|---|
+| `GET access-control/settings` | read | `{ canWrite, groupAssignmentEnabled, appDisplayName }` |
+| `GET access-control/roles` | read | `{ roles: Role[] }` |
+| `GET access-control/people?search=&limit=` | read | `{ people: Person[] }` |
+| `GET access-control/people/{id}` | read | `{ person: Person, roles: PersonRole[] }` |
+| `GET access-control/groups?search=` | read | `{ groups: Group[] }` |
+| `GET access-control/groups/{id}` | read | `{ group: Group, members: Person[] }` |
+| `POST access-control/batch/preview` | write | `{ items: PlanItem[], summary }`, para o corpo `{ operations: Operation[] }` |
+| `POST access-control/batch/apply` | write | `{ items: ResultItem[], summary }`, para o corpo `{ operations, confirm? }` |
+
+**Tipos:**
+- `Role`:
+  - `{ value, displayName, description, appRoleId | null, isEnabled }`;
+  - `inAzure` (existe no app registration) e `usedInCode` (aparece em
+    `check_authorized_roles` ou no `FRONTEND_ROUTE_PERMISSIONS`);
+  - `codeRefs: string[]` (ex.: "tela /pre-trade", "GET /operations/...");
+  - `userCount`, `groupCount`;
+  - `deletable` e `notDeletableReason`.
+- `Person`: `{ id, displayName, mail, userPrincipalName }`.
+- `PersonRole`: `{ value, via: 'direct' | 'group', groupId?, groupName?,
+  assignmentId? }`.
+- `Group`: `{ id, displayName, description, memberCount, roles: string[],
+  ownedByApp, deletable, notDeletableReason }`.
+- `Operation`, com o campo `type`:
+  - `create_role { value, displayName, description }`;
+  - `create_group { displayName, description }`;
+  - `assign_role { role, principal: { kind: 'user' | 'group', id? | email?
+    | name? } }`. O `name` aponta para um grupo criado no mesmo lote;
+  - `add_member { group: { id? | name? }, user: { id? | email? } }`;
+  - `remove_assignment { role, principal: { kind, id } }`;
+  - `remove_member { groupId, userId }`;
+  - `delete_role { value }`;
+  - `delete_group { groupId }`.
+- `PlanItem`: `{ index, type, label, action, reason | null }`.
+  - `label` é o texto em PT-BR do que vai acontecer.
+  - `action` é um de `create`, `assign`, `add`, `remove`, `delete`, `skip`
+    e `blocked`.
+- `ResultItem`: o `PlanItem` mais `{ status: 'ok' | 'skipped' | 'failed',
+  error | null }`.
+- `summary`: as contagens por `action` (ou por `status`, no resultado).
+
+**Regras do lote:**
+- **Execução:** o `apply` recalcula o plano e nunca confia na prévia. Pode
+  ser repetido sem duplicar nada: o que já existe vira `skip`.
+- **Ordem:** criar roles e grupos → membros → atribuições → remoções →
+  exclusões.
+- **E-mail:** é resolvido para o id na prévia. Se não achar, o item fica
+  `blocked`.
+- **Grupo (D17):** com `groupAssignmentEnabled` desligado, atribuir a grupo
+  fica `blocked`, com o motivo.
+- **Apagar role (D19):**
+  - só app role do app registration do BFF;
+  - `blocked` se a role ainda é usada no código;
+  - as atribuições dela entram na prévia como itens de remoção antes da
+    exclusão;
+  - no Graph, a role é desabilitada antes de sair.
+- **Apagar grupo (D19):**
+  - só grupo de que o app é dono e sem atribuição em outro app. Senão, o
+    item fica `blocked`, com o motivo;
+  - a exclusão no Azure é recuperável por 30 dias. A tela avisa.
+- **Confirmação reforçada:** lote com remoção ou exclusão só roda com
+  `confirm: "REMOVER"`. Na tela, a pessoa digita a palavra.
+- **Concorrência:** no máximo 4 chamadas ao Graph ao mesmo tempo. No 429,
+  repete respeitando o `Retry-After`, até 3 vezes.
+- **Auditoria:** um evento INFO por lote aplicado, com mensagem fixa e no
+  `extra` quem fez e a lista de itens (tipo, alvo, role e resultado). Item
+  que falha vai como WARNING. Segue o padrão de logs como eventos.
+
+**Graph (D18):** o agente do BFF confere na documentação da Microsoft o
+menor conjunto de permissões que limita a escrita ao próprio app e aos
+grupos de que ele é dono, por exemplo `Application.ReadWrite.OwnedBy` e
+`Group.Create` no lugar de `Group.ReadWrite.All`, se cobrirem os membros.
+A lista final vai para o Pietro pedir à infraestrutura.
+
+**Tela `/access-control`:**
+- **Abas:** Permissões, Pessoas, Grupos e Em lote.
+- **Peças:** as de `shared/ui` (tabela, `app-search-field`,
+  `app-kpi-grid`, pílulas, diálogo e confirmação).
+- **Avisos:**
+  - a role nova só chega no token no próximo login;
+  - os membros de um grupo herdam as roles dele;
+  - grupo apagado é recuperável por 30 dias no Azure.
+

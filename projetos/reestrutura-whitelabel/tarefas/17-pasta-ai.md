@@ -1,7 +1,7 @@
 # 17 — Pasta `.ai`: repositório pronto para desenvolver com IA
 
-- **TS:** a criar · **Branch:** `chore/TS-?-pasta-ai` (da 04)
-- **Status:** a iniciar
+- **TS:** TS-5389 · **Branch:** `chore/TS-5389-pasta-ai` (da 13)
+- **Status:** em andamento (6ª leva, 16/10)
 - **Depende de:** 04. Pode começar já e fecha depois da 13, quando as regras
   de lint que garantem as fronteiras existirem.
 
