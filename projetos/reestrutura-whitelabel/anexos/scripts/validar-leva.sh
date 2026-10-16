@@ -6,6 +6,8 @@
 #   FIXTURES=<json>       dados fictícios do BFF falso no smoke
 #   SKIP_TESTS=1          pula build/lint/testes (só commits e smoke)
 #   BASE=<branch>         base da comparação (padrão: a 04)
+#   BASE_FALHAS=<arquivo> falhas de teste da base (padrão: base-04-falhas.txt; da master: base-master-falhas.txt)
+#   BASE_LINT=<e/a>       erros/avisos de lint da base, só para o texto (padrão: 59/281, da 04)
 # Arquivos locais, fora do repositório (PRIV): o lock comum, as listas de falhas da base, os logs
 # e o playwright-core, e o `tema-secundario` (a chave real da marca Dots, usada no terceiro smoke).
 # A lista de falhas e os logs são de código da empresa e não entram aqui.
@@ -15,6 +17,8 @@ ROUTES=("$@")
 BASE=${BASE:-feature/TS-5361-componentes-overlay-tabela}
 PRIV=${PRIV:-$HOME/repos/.reestrutura_whitelabel}
 LOCK=$PRIV/ng.lock
+BASE_FALHAS=${BASE_FALHAS:-$PRIV/base-04-falhas.txt}
+BASE_LINT=${BASE_LINT:-59/281}
 CHROME=${CHROME_BIN:-$HOME/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome}
 SMOKE=$(dirname "$(realpath "$0")")/smoke.mjs
 NAME=$(git -C "$WT" rev-parse --abbrev-ref HEAD | tr '/' '_')
@@ -47,11 +51,11 @@ if [ -z "${SKIP_TESTS:-}" ]; then
   [ "$(cat "$LOG/build.rc")" = 0 ] && echo "- build: ok" || { echo "- build: FALHOU (ver $LOG/build.log)"; ok=0; }
   initial=$(strip < "$LOG/build.log" | grep -m1 "Initial total" | awk -F'|' '{gsub(/ /,"",$3); gsub(/ /,"",$4); print $3" ("$4" na rede)"}')
   [ -n "$initial" ] && echo "- bundle inicial: $initial"
-  echo "- lint: $(grep -cE '^\s+[0-9]+:[0-9]+\s+error' "$LOG/lint.log") erros / $(grep -cE '^\s+[0-9]+:[0-9]+\s+warning' "$LOG/lint.log") avisos (base 59/281)"
+  echo "- lint: $(grep -cE '^\s+[0-9]+:[0-9]+\s+error' "$LOG/lint.log") erros / $(grep -cE '^\s+[0-9]+:[0-9]+\s+warning' "$LOG/lint.log") avisos (base $BASE_LINT)"
   echo "- testes: $(strip < "$LOG/test.log" | grep -E '^TOTAL' || echo 'sem TOTAL, ver o log')"
   strip < "$LOG/test.log" | sed -E 's/^Chrome Headless [^)]*\) //' | grep -E " FAILED$" | sort -u > "$LOG/falhas.txt"
-  new=$(comm -13 "$PRIV/base-04-falhas.txt" "$LOG/falhas.txt")
-  fixed=$(comm -23 "$PRIV/base-04-falhas.txt" "$LOG/falhas.txt" | wc -l)
+  new=$(comm -13 "$BASE_FALHAS" "$LOG/falhas.txt")
+  fixed=$(comm -23 "$BASE_FALHAS" "$LOG/falhas.txt" | wc -l)
   if [ -n "$new" ]; then
     # Falha nova pode ser spec instável (depende da ordem aleatória do Jasmine): roda a suíte de novo
     # e só conta como real o que falhar nas duas vezes.
