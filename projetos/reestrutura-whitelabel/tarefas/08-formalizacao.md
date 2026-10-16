@@ -88,3 +88,27 @@ duas correções de 15/10. São 7 commits:
 Não deu para exercitar com dados, porque o mock não tem condomínios:
 cadastro, edição, ações em lote e exportação. Esses fluxos ficam cobertos
 pelos specs e precisam ser conferidos na sandbox.
+
+## Merge da master (15/10/2026, noite)
+
+Depois da publicação, a `master` recebeu o `e4e13a5` (PR #224,
+"improve responsiveness"), que mexe na tela antiga da Formalização. Sem
+levar a mudança para a 08, o merge dela na `sandbox` daria conflito
+(arquivo movido × arquivo alterado) e a melhoria se perderia.
+
+| Commit | O quê |
+|---|---|
+| `7d2cad1` | merge da `origin/master` (`576957c`). O conflito modify/delete fica com a versão refatorada |
+| `dabea02` | leva a mudança para os filtros novos: o status de cinco opções vira uma lista (`app-select`), e as duas datas viram um campo de período (`app-date-picker range`) |
+
+**Mudanças visíveis para listar na PR** (vêm da master):
+- o filtro de Status vira uma lista: Todos, Pendente Cerys, Pendente
+  Poliedro, Ativo e Inativo;
+- a Data de Cadastro vira um campo só de período, com um calendário que
+  escolhe início e fim.
+
+A master fazia isso com um `select` nativo e com um painel próprio de duas
+datas. Aqui são as peças de `shared/ui`, que têm o mesmo efeito no celular.
+
+**Situação:** 2 commits a mais, sem push. Os specs da Formalização passam
+(150 de 150).
