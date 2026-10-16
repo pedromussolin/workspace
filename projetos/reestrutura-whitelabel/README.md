@@ -225,7 +225,11 @@ gravam nada:
 
 - Abra http://localhost:4300. No Windows, também funciona pelo WSL.
 - `BUILD=1` refaz o build antes; sem build, o script faz um.
-- O segundo argumento troca os dados (padrão: `todas-acesso-21.json`).
+- O segundo argumento troca os dados (padrão: `todas-acesso-21.json`). O
+  padrão já tem dados para o controle de acesso, os Lotes de Liquidação (lotes
+  fake e reais em vários status, detalhe com pagamentos e saldo) e o
+  Pré-Trade (uma solicitação por etapa, com aprovações, histórico e anexos).
+  Os geradores ficam em `$PRIV/geradores/`.
 - `THEME_KEY=<chave>` troca a marca (chaves no `privado.md`).
 - Pare com Ctrl+C.
 
