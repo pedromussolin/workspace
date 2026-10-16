@@ -61,7 +61,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5386 |
 | 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-?-permissoes-por-acao` (front e BFF) | 19 | a planejar (decidir D27–D33) | — |
 | 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-?-observabilidade` (BFF e front) | 13 / `origin/master` | a planejar (decidir D34–D39) | — |
-| 23 | [Deploy da reestruturação](tarefas/23-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a planejar (decidir D40–D43). É a última | — |
+| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-?-ilustracoes` | 13 | a planejar (proposta visual; decidir D44–D47) | — |
+| 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a planejar (decidir D40–D43). É a última | — |
 
 ## Situação em 16/10
 
@@ -116,7 +117,7 @@ visíveis para a PR e a validação.
    spec de rotas com os imports de `@core` e as rotas públicas lazy. O
    passo a passo está na tarefa 18.
 
-**Faltam: 5** (17 e 19 em andamento; 21, 22 e 23 a planejar).
+**Faltam: 6** (17 e 19 em andamento; 21 a 24 a planejar).
 
 | # | O quê | Como vai |
 |---|---|---|

@@ -1,7 +1,7 @@
 # 22 — Observabilidade: logs estruturados no BFF e visibilidade no front
 
 - **TS:** a criar · **Branch:** `feature/TS-?-observabilidade` (BFF e front)
-- **Status:** a planejar (pedido de 16/10). Vem antes do deploy (23).
+- **Status:** a planejar (pedido de 16/10). Vem antes do deploy (24).
 - **Depende de:** 13 (front) e da `origin/master` (BFF). Usa o lote da 19 só
   como exemplo de evento de auditoria.
 - **Referência:** o guia de logging da empresa, guardado fora do repo em
@@ -97,7 +97,7 @@ próprio além do nginx:
     - privacidade com `mask-user-input`, sem Session Replay e `usr.id` sem
       e-mail;
     - configuração pelo `env.js` (aplicação, client token, `env`, versão e
-      amostragem), que vai para a 23;
+      amostragem), que vai para a 24;
     - a CSP da 18 libera o intake do Datadog no `connect-src`.
 12. **nginx:**
     - log de acesso em JSON, com o `$request_id` repassado ao BFF como
