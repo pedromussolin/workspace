@@ -83,7 +83,7 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
 
 ## O que foi feito (16/10/2026)
 
-Branch `feature/TS-5393-ilustracoes`, criada da 13 (`fd987f8c`). São 12
+Branch `feature/TS-5393-ilustracoes`, criada da 13 (`fd987f8c`). São 10
 commits e 2 merges da 13, sem push:
 
 | Commit | O quê |

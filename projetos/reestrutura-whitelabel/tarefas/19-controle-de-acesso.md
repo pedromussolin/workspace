@@ -324,7 +324,7 @@ consentimento de admin:
 ## O que foi feito: front (16/10/2026)
 
 Branch `feature/TS-5390-controle-de-acesso`, criada da 13 (`4bd8380f`). São
-17 commits e 1 merge da 17, sem push:
+16 commits e 1 merge da 17, sem push:
 
 | Commit | O quê |
 |---|---|
