@@ -50,7 +50,7 @@ Duas branches, as duas sem push:
 
 | Commits | O quê |
 |---|---|
-| 19 primeiros (`46d906b` … `4b21556`) | cópias (cherry-pick) das peças comuns das áreas, com conteúdo idêntico: select e multiselect (05), pílula/KPI/estado vazio (05), combobox com "Adicionar" (07), `app-switch` (10), tabela com rodapé e cabeçalho agrupado, `app-chart` e as peças de gráfico, aviso, botão com menu e cartão (09), ícone `more-vertical` (12). Assim a vitrine mostra o `shared/ui` inteiro |
+| 19 primeiros (`23ff388` … `4b21556`) | cópias (cherry-pick) das peças comuns das áreas, com conteúdo idêntico: select e multiselect (05), pílula/KPI/estado vazio (05), combobox com "Adicionar" (07), `app-switch` (10), tabela com rodapé e cabeçalho agrupado, `app-chart` e as peças de gráfico, aviso, botão com menu e cartão (09), ícone `more-vertical` (12). Assim a vitrine mostra o `shared/ui` inteiro |
 | `57a5c1c`, `a12e9de` | rodapé da sidebar com os atalhos "Docs da API" e "Design system" (selo "Nova", só para quem tem o caminho, também recolhida e na gaveta) e trilha no cabeçalho das páginas dos atalhos. Os dois commits também estão na 14, idênticos |
 | `064de1b`, `c5a634c`, `19f08f8` | valor vazio (cópia da 05); a conta de contraste WCAG sai do `themes.spec.ts` para `shared/utils/contrast.ts`; `app-code-block` copiado da 14 |
 | `538cb1d` | escopo de tema em `core/theme`: marca e esquema trocam só dentro de um contêiner, inclusive nos diálogos, menus, tooltips e toasts abertos de dentro dele. O `_tokens.scss` foi dividido: o que muda por marca e esquema vale para `:root, [data-theme-scope]`; o resto continua só no `:root` |
