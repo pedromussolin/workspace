@@ -52,8 +52,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5369 |
 | 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12 | a iniciar | TS-5370 |
-| 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | em andamento (15/10, 4ª leva) | TS-5371 |
-| 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | em andamento (15/10, 4ª leva) | TS-5372 |
+| 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5371 |
+| 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
@@ -61,13 +61,14 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 ## Situação em 15/10
 
-**Prontas: 12 de 17** (a 16 está adiada e fica fora da conta).
+**Prontas: 14 de 18** (a 16 está adiada e fica fora da conta).
 - 01 a 08 e 11 publicadas em 15/10, sem merge em nenhum ambiente.
-- 09, 10 e 12 (3ª leva) com commits feitos, sem push, esperando o Pietro
-  publicar.
-- Merge de teste das oito áreas juntas sobre a 04: compila e passa nos
-  testes (1.627, só 1 falha, que já é da base). O único conflito é o da 10
-  com a 11, com o passo a passo na tarefa 10.
+- 09, 10 e 12 (3ª leva) e 14 e 15 (4ª leva, front e BFF) com commits
+  feitos, sem push, esperando o Pietro publicar.
+- Merge de teste das dez branches juntas sobre a 04 (`merge-teste.sh`):
+  compila e passa nos testes (1.817, só 1 falha, que já é da base). O único
+  conflito é o da 10 com a 11, com o passo a passo na tarefa 10. No BFF, a
+  14 e a 15 juntas passam (531 testes, as mesmas 8 falhas da base).
 - A 07, a 08 e a 11 nascem da 04 com as três correções de 15/10, que também
   já estão publicadas.
 
@@ -88,16 +89,17 @@ visíveis para a PR e a validação.
 | 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | commits feitos, sem push. No merge com a 11, conflito em 3 imports, com o passo a passo na tarefa |
 | 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | commits feitos, sem push |
 | 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | commits feitos, sem push |
+| 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 17 + 3 | commits feitos, sem push |
+| 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | commits feitos, sem push |
 
 Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
 ordem.
 
-**Faltam: 6.**
+**Faltam: 4.**
 
 | # | O quê | Como vai |
 |---|---|---|
 | 13 | Remove o Angular Material e liga o seletor de tema | depois de todas as áreas, porque junta tudo |
-| 14, 15 | Docs da API e vitrine do design system, com a parte de cada uma no BFF | 4ª leva, em andamento desde 15/10, agentes Opus em xhigh. Escopos novos `api-docs:read` e `design-system:read` (D14 e D15). A 15 traz as 19 peças comuns das áreas e cria o rodapé da sidebar com os dois atalhos |
 | 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
 | 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
 | 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | da `master`, a qualquer momento. Não depende do épico |
@@ -105,7 +107,8 @@ ordem.
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
   infraestrutura.
 - **Pendências do Pietro:**
-  - publicar as branches 09, 10 e 12 e abrir as PRs;
+  - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
+  - pedir à infraestrutura as app roles `api-docs:read` e `design-system:read`;
   - testar o login real e os fluxos na sandbox.
 - **Decisões abertas:**
   - D13: ícone `more-vertical` novo (conjunto vai a 149);
@@ -114,7 +117,8 @@ ordem.
   - 12: envio à base de conhecimento com só "Poliedro - Geral" manda
     `department=all`; confirmar com o BFF;
   - commit `129bee4` da 05;
-  - A13: contraste da Dots e da Cerys no tema claro;
+  - A13 e A20: contraste da Dots e da Cerys no tema claro, e de
+    `--text-faint` e `--st-pendente`;
   - A15: títulos fora do padrão;
   - fluxo de commit: eu commito e o Pietro revisa antes de publicar, ou não
     commito antes da revisão.
@@ -124,7 +128,10 @@ ordem.
   - a Formalização usar o `app-split-button` no Exportar;
   - a `kpi-grid` da 09 subir para `shared/ui` e servir às outras grades de
     KPI;
-  - D11: a 07 e a 08 passarem ao `app-switch`.
+  - D11: a 07 e a 08 passarem ao `app-switch`;
+  - ajustes sugeridos pela 14 e pela 15 (`app-kpi`, `app-card`,
+    `app-code-block`, id do tooltip, `app-search-field`), listados nas
+    tarefas.
 - **Esforço:** cada leva de três áreas, em modo completo, consome perto de
   uma sessão inteira.
 

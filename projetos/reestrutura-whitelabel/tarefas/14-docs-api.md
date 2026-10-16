@@ -1,7 +1,7 @@
 # 14 — Docs da API autenticada
 
 - **TS:** TS-5371 · **Branch:** `feature/TS-5371-docs-api-autenticada` (da 04)
-- **Status:** em andamento (15/10, 4ª leva)
+- **Status:** commits feitos, sem push (15/10)
 - **Depende de:** 04 (componentes). Decisão D8.
 
 ## Objetivo
@@ -46,3 +46,72 @@ portal, com a própria sessão, e pode executar qualquer chamada.
   de request.
 - Spec da confirmação para métodos que alteram dados.
 - BFF: teste da rota nova com e sem permissão.
+
+## O que foi feito (15/10/2026)
+
+Duas branches, as duas sem push:
+- **front:** `feature/TS-5371-docs-api-autenticada`, criada da 04 com as
+  três correções de 15/10 (`779aa13`), com 17 commits;
+- **BFF:** `feature/TS-5371-docs-api-autenticada`, criada da
+  `origin/master` (`946dce3`), com 3 commits.
+
+**BFF**
+
+| Commit | O quê |
+|---|---|
+| `2f307cf` | módulo `api_docs` com `GET /api-docs/openapi`, que devolve o `app.openapi()` mesmo com o `expose_docs` desligado. Pede sessão e `check_authorized_roles(["api-docs:read", "admin:read"])` (D14). `/docs`, `/redoc` e `/openapi.json` continuam presos ao `expose_docs` |
+| `e80631b` | `/api-docs` no fim do `FRONTEND_ROUTE_PERMISSIONS` |
+| `0dbb0ab` | testes com o middleware real: 200 com o escopo e com o admin, 401 sem sessão, 403 sem o escopo, 404 nas docs públicas desligadas e o caminho no `iam/paths` só para quem pode |
+
+**Front**
+
+| Commits | O quê |
+|---|---|
+| `c31647c`, `4f12702`, `5ba38d2` | cópias (cherry-pick) da 05 e da 09, com conteúdo idêntico: pílula/KPI/estado vazio, aviso em faixa e cartão |
+| `336db24` | `app-code-block` em `shared/ui`: bloco de código com título, copiar, quebra opcional e altura máxima. É a versão única; a 15 usa a mesma, copiada |
+| `5f20362`, `c17f5c5`, `cdd6995`, `91739ce` | funções puras com spec: leitura do OpenAPI (`$ref` resolvido, inclusive circular; `allOf`/`anyOf`; grupos por tag; busca sem acento), montador de request (path, query, headers, JSON, urlencoded e multipart) e aviso do ambiente; serviço que lê o OpenAPI e executa com a sessão |
+| `711afbe`, `969ec00`, `1b7d36e` | a página: lista com busca à esquerda, detalhe com parâmetros, corpo e respostas (schema em árvore ou exemplo), e o painel "Executar" com confirmação no diálogo para POST, PUT, PATCH e DELETE. A rota aberta fica na URL (`?operation=`) |
+| `7fc8c03`, `6ca728c`, `08a948e`, `3ef9b14` | ajustes vistos nos prints: caminho quebra nas barras; schema grande começa fechado; pílula do método não encolhe; no celular, rota aberta mostra o detalhe primeiro, com "Todas as rotas" |
+| `916a25a`, `211275a` | cópia dos commits da 15: atalhos "Docs da API" e "Design system" no rodapé da sidebar, com selo "Nova" e só para quem tem o caminho; trilha no cabeçalho das páginas dos atalhos |
+
+**Mudanças visíveis para listar na PR:**
+- página nova "Docs da API" (`/api-docs`), para quem tem `api-docs:read`
+  ou `admin:read`;
+- rodapé da sidebar com os atalhos "Docs da API" e "Design system", cada
+  um só para quem tem acesso;
+- nenhuma tela existente mudou.
+
+**Para a infraestrutura:** criar a app role `api-docs:read` no app
+registration do BFF. Até lá, só quem tem `admin:read` vê a página.
+
+**Pontos abertos:**
+- **Ambiente:** a sandbox sobe com `production: true` no `env.js`, então a
+  página decide o ambiente pelo endereço (`sandbox`, `staging`, local ou
+  produção). O ideal é um campo `ENVIRONMENT` no `env.js` gerado pelo
+  `entrypoint.sh`.
+- **Comentários:** no front ficaram em PT-BR, como o resto do repo e as
+  peças da 04; no BFF, em inglês. O padrão anotado na memória é inglês.
+  Decidir na passada de consistência.
+- **Contagem:** a página diz "127 rotas", contando método + caminho (o
+  OpenAPI tem 106 caminhos). Dá para trocar por "operações".
+- **Para unificar depois** (passada de consistência): o `json-payload` da 11
+  e o botão de copiar do markdown da 12 podem usar o `app-code-block`; a
+  busca com ícone se repete em 4 telas e é candidata a `app-search-field`;
+  o editor JSON é um `appInput` com fonte mono, que caberia como variante.
+
+**Validação** (base da 04: 678 testes, 77 falhando, lint 59/281; base do
+BFF: 512 testes, 8 falhando):
+
+| Item | 14 |
+|---|---|
+| Build | ok |
+| Lint | 59 erros / 281 avisos |
+| Testes | 802, com 77 falhando, nenhuma falha nova. Specs da feature: 96, mais 4 do `app-code-block` |
+| Commits | todos compilam sozinhos |
+| Smoke | com o OpenAPI real do BFF (106 caminhos, guardado fora do repo): lista e rota aberta, mais `/home` e `/pre-trade`, em claro, escuro, Dots e celular, sem erro de página, de console nem rolagem lateral |
+| Fluxo "Executar" | Playwright próprio com BFF falso: POST com confirmação e "201 Created", GET direto e GET com parâmetros |
+| BFF | 518 testes, com as mesmas 8 falhas da base; `ruff` e `black` sem nada novo |
+
+Não deu para exercitar com o BFF real: chamada executada com 401/403,
+upload multipart e download de binário. Ficam cobertos por specs e
+precisam ser conferidos na sandbox.
