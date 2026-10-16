@@ -1,8 +1,8 @@
-# 22 — Deploy da reestruturação
+# 23 — Deploy da reestruturação
 
 - **TS:** a criar · **Branch:** `release/AAAAMMDD` (front e BFF)
 - **Status:** a planejar (pedido de 16/10). É a última tarefa do épico.
-- **Depende de:** todas as outras (01 a 21, menos a 16)
+- **Depende de:** todas as outras (01 a 22, menos a 16)
 
 ## O que é
 
@@ -16,6 +16,8 @@
      a origem do BFF do `API_URL`) e `THEME_KEY`;
    - **BFF:** a configuração da atribuição a grupo (19) e as do Graph, se a
      escrita entrar;
+   - **observabilidade (22):** as chaves do RUM no `env.js` do front
+     (aplicação, client token, `env`, versão e amostragem);
    - inventário dos **nomes** que o código lê × os que cada ambiente tem.
 3. **Normalizar roles e grupos do Azure**, a partir do catálogo do BFF
    (19/21):
@@ -52,7 +54,7 @@ ver valor nenhum:
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
-| D34 | Ambientes | (a) sandbox, validação com login real e, depois, produção com GMUD; (b) só sandbox agora | (a), em duas etapas |
-| D35 | Valores visíveis | (a) nenhum; (b) só a lista aprovada de chaves que não são segredo | (b) |
-| D36 | Trava com hook | (a) sim; (b) só o wrapper | (a) |
-| D37 | Normalização no Azure | (a) pela tela da 19, se as permissões do Graph (D18) já tiverem saído; (b) pela CLI do Azure, com o login do Pietro | (a), com (b) como plano B |
+| D40 | Ambientes | (a) sandbox, validação com login real e, depois, produção com GMUD; (b) só sandbox agora | (a), em duas etapas |
+| D41 | Valores visíveis | (a) nenhum; (b) só a lista aprovada de chaves que não são segredo | (b) |
+| D42 | Trava com hook | (a) sim; (b) só o wrapper | (a) |
+| D43 | Normalização no Azure | (a) pela tela da 19, se as permissões do Graph (D18) já tiverem saído; (b) pela CLI do Azure, com o login do Pietro | (a), com (b) como plano B |
