@@ -135,7 +135,7 @@ editar fluxos e também para o dry run. A ideia:
 | `pdd` | ver o PDD | menu `pdd:read`, API `valid:read` | `pdd:read` | `valid:read` |
 | `contract-details` | abrir o detalhe do contrato | rota `contract-details:read`, API `assignment-batches:read` | `contract-details:read` | `assignment-batches:read` |
 | `cash-consolidation` | analítico do fundo | rota sem entrada (nega todos) | `cash-consolidation:read` em `/cash-consolidation/{fund}/analytic` | — |
-| `all-pre-trade` | bypass de aprovação | o header apaga | `approve-bypass` nas `Policies` e no header | — |
+| `all-pre-trade` | bypass de aprovação | **sai do mapa (16/10):** o serviço compartilhado removeu a permissão de propósito (TS-5270); o bypass agora é aprovado por um usuário "Sistema". O inventário estava desatualizado | — |
 
 **Migração** (D32, pela tela da 19 com `copy_assignments`; espelha quem tem
 hoje, sem tirar nada):
@@ -186,4 +186,46 @@ BFF, branch `fix/TS-5391-brechas-de-permissao`, criada da `origin/master`
 segredo novo, e a decisão está com o Pietro.
 
 **Para a parte do front da 21:** a exclusão passa a mandar o `department`.
+
+## O que foi feito: BFF (16/10/2026)
+
+Branch `feature/TS-5391-permissoes-por-acao`, criada da 19 (`bc7187f`). São
+12 commits, sem push.
+
+**O que entrou:**
+- **Catálogo único** em `src/shared/utils/permissions.py`: escopo, ações,
+  nome e descrição. As `Policies` ganham `run` e `test`.
+- **O catálogo alimenta** o `FRONTEND_ROUTE_PERMISSIONS` (igual ao antigo,
+  mais a entrada do analítico), o `iam/actions` e a tela da 19.
+- **`require(escopo, ação)` e `require_any`:** aceitam `admin:{ação}`, menos
+  no `access-control`, e recusam na subida do app uma ação que não está no
+  catálogo. Aceitam também uma condição (`when`), ex.: só quando o corpo
+  muda o status. Saem o `check_authorized_roles` e o `check_scope_actions`.
+- **O mapa inteiro**, menos o `approve-bypass`. O Pré-Trade passa a aceitar o
+  `admin` de qualquer ação dele (D28).
+- **`CFG_PERMISSIONS_LEGACY_ROLES`**, ligada por padrão. Ela vale nas rotas e
+  no `iam/actions`.
+- **`GET access-control/migrations`:** devolve o plano e o lote pronto, com
+  um `create_role` para cada role que falta e um `copy_assignments` por
+  linha.
+- **`copy_assignments`:** um item por pessoa ou grupo que tem a `from`. Quem
+  já tem a `to` é pulado, e o item fica bloqueado se a `to` não existe.
+- **Validação:** 809 testes, com as mesmas 8 falhas da base. Cada commit
+  testado isolado.
+
+**Riscos para desligar a transição (vão para a 24):**
+- **Admins:** `admin:test` e `admin:run` ainda não existem no Azure.
+  Decisão pendente: como migrar os `admin:*`.
+- **Grupos:** quem recebe a role antiga só pelo grupo perde acesso enquanto a
+  atribuição a grupo estiver desligada (D17).
+- **Token:** a role copiada só chega à sessão no próximo refresh do token
+  (cerca de 1 h). Desligar só depois de um ciclo.
+- **Formalização:** a edição com `status` no corpo pede `approve`. O front da
+  21 passa a mandar o status só quando ele muda.
+
+**Ajustes pedidos ao agente:**
+- a migração de `assignment-batches:read` para `contract-details:read`;
+- `whitelists:create` aceito na transição para cadastrar como ativo;
+- a exclusão de role pelo catálogo, para que as roles antigas fiquem
+  apagáveis depois da transição.
 
