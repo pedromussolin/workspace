@@ -150,7 +150,7 @@ O que a junção do BFF pediu além do conflito de texto (scripts
 **Refinamento:** `refact/TS-5395-refinamento-visual`, criada da release do
 front.
 
-**Subir na sandbox:** pelo fluxo da empresa, uma cópia da release junta a
+**Subir na sandbox (só depois da validação local, D58):** pelo fluxo da empresa, uma cópia da release junta a
 `origin/sandbox`. O teste (16/10) mostrou:
 - **front:** conflito em 5 arquivos do fechamento de lotes. É a TS-5377
   (fechamento assíncrono do lote fake, 2 commits) e a TS-5211 (1 commit),

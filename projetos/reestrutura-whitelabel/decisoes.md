@@ -56,6 +56,7 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | 16/10/2026 | O gráfico do CERC fica com o "baixar imagem", como a Performance | Pietro: "Sim" |
 | 16/10/2026 | O proxy do BFF da sandbox vai para `scripts/bff-sandbox-proxy.mjs` do repo da empresa (`npm run bff:sandbox`), na 20 | Pietro: "Sim" |
 | 16/10/2026 | O `docker-compose.yml` da raiz fica só com a imagem de produção (`angular-prod`, sem profile). Sai o `angular-dev`, que repetia o devcontainer com o Node 20 e um polling sem efeito | Pietro: "faça o que for melhor". Serve para conferir nginx, `env.js` e cabeçalhos na máquina |
+| 16/10/2026 | D58: a release (`release/20261016`) só sobe para a sandbox depois de validado localmente tudo o que for possível; o refinamento visual (25) roda em cima dela, no portal local | Pietro: "só quero subir pro ambiente depois de validar tudo possível localmente" |
 | 15/10/2026 | D13: o ícone `more-vertical` entra no conjunto, que vai a 149 (a 12 já usa) | Pietro: "todas as recomendadas" |
 | 15/10/2026 | A13, ajuste mínimo no tema claro. Dots: a primária segue a regra do A20 (`#e04508` → `#d64208`). Cerys: a laranja (`#ff8f1c`) continua nos fundos e destaques, o texto sobre ela fica escuro (`#1e1e1e`, 7,3:1) e, onde a primária vira texto, entra um tom só para texto (`#b95e00`). Feito na 13 | Pietro: "todas as recomendadas" |
 | 15/10/2026 | D20: o devcontainer passa ao Node 22 (LTS, suportado pelo Angular 20) | Pietro: "todas as recomendadas" |
