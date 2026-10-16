@@ -223,9 +223,16 @@ Branch `feature/TS-5391-permissoes-por-acao`, criada da 19 (`bc7187f`). São
 - **Formalização:** a edição com `status` no corpo pede `approve`. O front da
   21 passa a mandar o status só quando ele muda.
 
-**Ajustes pedidos ao agente:**
-- a migração de `assignment-batches:read` para `contract-details:read`;
-- `whitelists:create` aceito na transição para cadastrar como ativo;
-- a exclusão de role pelo catálogo, para que as roles antigas fiquem
-  apagáveis depois da transição.
+**Ajustes feitos** (3 commits, 15 no total, 828 testes, com as mesmas 8
+falhas da base):
+- **`ff0a35f`:** a migração copia `assignment-batches:read` para
+  `contract-details:read`. O plano fica com 13 linhas.
+- **`e4c6806`:** a role antiga passa a valer só nas rotas que a aceitavam.
+  Na transição, cadastrar como ativo aceita também `whitelists:create`.
+- **`4617037`:** a exclusão de role na tela da 19 passa a ser protegida pelo
+  catálogo. Com a transição desligada, as roles antigas ficam apagáveis
+  (`report-transfer:reprocess`, `onboarding-bgt:update`,
+  `liquidation-fake-batches:update`, `poli-chat` e `valid:read`).
+
+**Pendente:** a migração dos `admin:*` (D56, decisão do Pietro).
 
