@@ -138,3 +138,66 @@ código de infraestrutura):
 | D37 | Requisição | (a) um evento por requisição; (b) manter início e fim | (a): metade do volume e agrupável |
 | D38 | Quem fez a chamada | (a) `usr.id` com o `oid` do Azure; (b) e-mail; (c) nada | (a): identifica sem dado pessoal |
 | D39 | Alcance | (a) só o portal (BFF e front) agora, com o padrão anotado para levar ao serviço compartilhado depois; (b) já o serviço compartilhado também | (a) |
+
+## O que foi feito: BFF (16/10/2026)
+
+Branch `feature/TS-5392-observabilidade`, criada da `origin/master`
+(`946dce3`). São 14 commits, sem push. Cada um foi testado isolado: 549
+testes, com as mesmas 8 falhas da base.
+
+**O que entrou:**
+- **Esquema do log** (`src/services/logging/formatters.py`):
+  - no topo: `timestamp` (UTC, ms, `Z`), `status`, `message`,
+    `logger.name`, `service`, `env` e `version`;
+  - correlação: `dd.trace_id`, `dd.span_id`, `http.request_id` e `usr.id`
+    (o `oid`);
+  - as dimensões aninhadas, sem `extras`, `asctime` nem `levelname`;
+  - `duration` em nanossegundos (o padrão do Datadog).
+- **Requisição:** um evento por requisição, com a rota template e o
+  `X-Request-ID` propagado e devolvido. O nível segue o status; o 499 (o
+  cliente desistiu) fica em INFO.
+- **Chamadas de saída:** passam por um `ObservedTransport`, com
+  `peer.service` (13 serviços). Uma falha gera um WARNING, e os logs
+  duplicados e os que traziam o corpo da resposta saíram.
+- **Exceções:** o handler não loga mais. A falha aparece uma vez só, no
+  evento da requisição, com `error.*` e o stack.
+- **Arquivos e streaming:** eventos de início, fim e falha, com bytes,
+  duração, provedor e operação, sem log por chunk.
+- **Sanitização:** mascara e-mail, CPF/CNPJ, JWT, `Bearer`, `token=`,
+  `Authorization` e `Cookie`, inclusive em `error.*`, e tira a query
+  string das URLs.
+- **Eventos de negócio** (`shared/utils/business_events.py` e um `events.py`
+  por módulo):
+  - fechamento do lote fake;
+  - pré-trade enviado e decidido;
+  - status das whitelists em lote;
+  - reprocessar o onboarding;
+  - envio de relatórios (executar, testar conexão e testar fluxo).
+- **ruff:** regras `G001` a `G004`, `G010`, `G101`, `G201` e `G202`, com as
+  violações de 73 para 0. As chamadas de log no código foram de 135 para 36.
+- **Entrypoint:** `curl -fsSL`.
+
+**Volume:**
+- uma requisição comum passa de 2 logs para 1;
+- o timeout da Plataforma de Cessão passa de 4 para 2, com 1 ERROR;
+- a exceção não tratada passa de 3 para 1;
+- o 4xx deixa de contar como erro.
+
+**Ajustes pedidos ao agente:**
+- as mensagens em PT-BR (as chaves continuam em inglês) e um `evt.name`
+  estável nos eventos técnicos, para os monitores filtrarem por ele;
+- `UtcDatetime` nas datas sem fuso (D51 revista). Ele também achou que o
+  `createdAtFormatted` da Formalização mostra a hora UTC, 3 h à frente.
+
+**Achado à parte:** o path `/real-batches//statement` tem barra dupla
+(`viewer.py:444`).
+
+**Para fazer no Datadog, pela UI** (lista completa no relatório do agente):
+- conferir o pré-processamento de JSON;
+- facets de `http.route`, `peer.service`, `evt.*`, `transfer.*` e
+  `error.upstream_*`;
+- visão salva "Portal";
+- monitores de taxa de 5xx, timeouts da cessão e falha no fechamento de
+  lote;
+- dashboard "Portal: saúde".
+
