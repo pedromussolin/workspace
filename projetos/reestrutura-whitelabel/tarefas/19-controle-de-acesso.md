@@ -243,3 +243,80 @@ A lista final vai para o Pietro pedir à infraestrutura.
   - os membros de um grupo herdam as roles dele;
   - grupo apagado é recuperável por 30 dias no Azure.
 
+## O que foi feito: BFF (16/10/2026)
+
+Branch `feature/TS-5390-controle-de-acesso`, criada da `origin/master`
+(`946dce3`). São 6 commits, sem push:
+
+| Commit | O quê |
+|---|---|
+| `31034cc` | escopo `access-control` (`read`/`write`) sem o override do admin, inclusive no `iam/actions`; ação `write` no enum; `/access-control` no `FRONTEND_ROUTE_PERMISSIONS` |
+| `f32210c` | catálogo das roles exigidas pelo código: o `check_authorized_roles` marca a dependência, e `collect_code_role_refs` percorre as rotas e o `FRONTEND_ROUTE_PERMISSIONS` |
+| `44454bd` | escrita no Graph, com no máximo 4 chamadas simultâneas e repetição no 429 (`Retry-After` até 30 s; sem ele, 1, 2 e 4 s) |
+| `4e9fa2a` | módulo `access_control`: catálogo, pessoas e grupos |
+| `2a62a1c` | lote: prévia, `apply` e auditoria (um INFO por lote, um WARNING por item que falha no Graph) |
+| `bc7187f` | testes de acesso montam o app uma vez só |
+
+**Validação:**
+- 619 testes, com as mesmas 8 falhas da base;
+- `ruff` e `black` sem nada novo;
+- os testes rodam contra um Graph falso (`tests/unit/services/fake_graph.py`);
+- **nada rodou contra o Graph real.**
+
+**Além do contrato:**
+- **`allowedMemberTypes`:** a role nova sai com `["User"]`, que já vale
+  para pessoas e grupos. O Graph não aceita `Group`.
+- **Proteção extra:**
+  - role sem uso no código também fica bloqueada para exclusão quando o
+    escopo dela é usado no código (ex.: as roles por departamento da Base
+    de Conhecimento, que o front confere pelo `iam/actions`);
+  - `delete_role` de role criada no mesmo lote fica bloqueado;
+  - `create_group` com o nome de um grupo que não é do app fica bloqueado.
+- **Pessoa:** traz só as roles habilitadas e os grupos de que ela é membro
+  direto, porque grupo dentro de grupo não leva a role ao token.
+- **Validação (422):**
+  - ids só no formato `^[A-Za-z0-9-]{1,64}$`, porque vão no caminho da URL
+    do Graph;
+  - o `value` da role não aceita espaço;
+  - o lote vai de 1 a 500 operações.
+- **Variável nova:** `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED`, desligada
+  por padrão (D17).
+
+**Permissões do Graph para pedir à infraestrutura (D18),** todas com
+consentimento de admin:
+- **Já existem:** `Application.Read.All`, `User.Read.All` e
+  `GroupMember.Read.All`.
+- **Novas:**
+  1. `Application.ReadWrite.OwnedBy`, para criar, desabilitar e remover app
+     role. A infraestrutura põe o service principal do BFF como dono do
+     próprio app registration.
+  2. `AppRoleAssignment.ReadWrite.All`, para atribuir e remover. Não há
+     opção menor. **Risco:** ela deixa o app dar privilégio a si mesmo em
+     qualquer API. Proteger a credencial (de preferência, um certificado) e
+     monitorar.
+  3. `Group.Create`, para criar o grupo com o app como dono.
+  4. `GroupMember.ReadWrite.All`, para os membros. Vale para o tenant
+     inteiro, e o limite aos grupos do app fica no código.
+  5. `Group.ReadWrite.All` (só se a tela for apagar grupo; vale para o
+     tenant inteiro). Pedir de 1 a 4 primeiro e testar se, como dono, o app
+     apaga sem ela.
+
+**Riscos e pendências:**
+- **Graph real, a conferir na sandbox:**
+  - as buscas `$search`/`$filter` com `ConsistencyLevel: eventual`;
+  - o `@odata.type` do `ownedObjects`;
+  - o "já existe" lido do texto do 400;
+  - o tempo de replicação.
+- **Atualização perdida:** o PATCH troca a lista inteira de app roles, sem
+  trava entre pods. A janela é curta.
+- **Lote longo:** a requisição fica aberta até o fim (até 500 operações) e
+  pode estourar o tempo do gateway.
+- **Primeiro acesso:** as roles `access-control:read` e `:write` precisam
+  existir e estar atribuídas no Azure antes do deploy. O primeiro acesso não
+  sai da própria tela.
+- **Conflito com a 14:** trivial, no fim de `src/delivery/api/__init__.py` e
+  de `src/shared/utils/fastapi_tags.py`.
+- **Spec frágil da master:**
+  `tests/unit/modules/pre_trade/test_repository.py::test_token_do_login_vai_para_o_cache_ate_perto_de_expirar`
+  calcula o horário na coleta e só tolera 10 s.
+
