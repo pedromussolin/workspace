@@ -204,6 +204,16 @@ testes, com as mesmas 8 falhas da base.
   `2026-08-10T13:05:00.123456` vira `2026-08-10T13:05:00.123Z`, e o
   `createdAtFormatted`, `10/08/2026 13:05`, vira `10/08/2026 10:05`.
 
+**Para o RUM do front** (2 commits, 18 no total, 569 testes, com as mesmas 8
+falhas da base):
+- **`1e70452`:** o `iam/profile` devolve também o `azureId`, que é o `oid` do
+  Azure e o mesmo `usr.id` dos logs do BFF. Ele liga a sessão do RUM aos logs
+  sem mandar nome nem e-mail (D38). Vem nulo nas sessões gravadas antes do
+  campo, até o próximo refresh.
+- **`62993e9`:** o CORS expõe o `X-Request-ID`. Só importa quando o front
+  chama o BFF por URL absoluta (local); nos deploys, o `/api` é da mesma
+  origem.
+
 **Achado à parte:** o path `/real-batches//statement` tem barra dupla
 (`viewer.py:444`).
 
