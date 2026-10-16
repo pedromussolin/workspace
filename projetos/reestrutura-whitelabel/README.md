@@ -61,7 +61,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5386 |
 | 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) | 19 | a planejar (decidir D27–D33) | TS-5391 |
 | 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 13 / `origin/master` | a planejar (decidir D34–D39) | TS-5392 |
-| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | a planejar (proposta visual; decidir D44–D47) | TS-5393 |
+| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | a planejar (direção A escolhida; decidir D44–D46) | TS-5393 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a planejar (decidir D40–D43). É a última | TS-5394 |
 
 ## Situação em 16/10

@@ -13,6 +13,7 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 16/10/2026 | D47: as ilustrações seguem a direção A, "interface em camadas": pedaços do próprio portal em planos tom sobre tom da marca, com o motivo da cena grande na frente, no traço dos ícones | Pietro: "Quero seguir com a opção A", depois de ver a proposta publicada (https://claude.ai/artifact/6yYiWAnpGjYuJ5pumuCPZ9) |
 | 16/10/2026 | D48: a página 404 fica simples e sem ilustração: o código, o título "Página não encontrada", uma frase e o botão "Voltar para a Home" | Pietro: "a página 404 pode ser mais simples e não precisaria usar ilustração" |
 | 16/10/2026 | D26: a `.ai/` usa nomes padrão de mercado, em inglês: `rules/`, `context/`, `skills/` (formato Agent Skills, uma pasta com `SKILL.md` por skill), `scripts/` e `boundaries.md`. O conteúdo continua em PT-BR (D25). `.claude/skills` é um symlink para `.ai/skills`; outras ferramentas, só nos caminhos documentados | Pietro: "queria que fosse algo com uma nomenclatura mais padrão de mercado, como: skills, scripts..." |
 | 16/10/2026 | D16: a tela de acesso tem escopo próprio (`access-control:read` e `access-control:write`), sem o override do `admin:*` | Pietro: "todas as recomendadas". Quem administra acesso é um grupo menor que os admins de dados |

@@ -1,8 +1,8 @@
 # 23 — Ilustrações próprias
 
 - **TS:** TS-5393 · **Branch:** `feature/TS-5393-ilustracoes` (da 13)
-- **Status:** a planejar (pedido de 16/10). Primeiro passo: a proposta visual,
-  para escolher a direção.
+- **Status:** a planejar (pedido de 16/10). Direção escolhida: A (D47). Falta
+  decidir D44 a D46.
 - **Depende de:** 13 (tokens finais, tema claro/escuro e `shared/ui`)
 
 ## Por quê
@@ -79,5 +79,5 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
 | D44 | Estado vazio comum | (a) o `app-empty-state` ganha a ilustração no lugar do ícone; (b) a ilustração só nas páginas inteiras (acesso negado e erro geral), e o vazio de lista continua com o ícone | (b): lista vazia aparece muito, e o ícone é mais discreto. A ilustração entra onde a tela inteira é o estado (acesso negado e erro geral) |
 | D45 | Login | (a) uma composição própria de fundo (formas da marca, sutil); (b) fundo liso com o logo | (a) |
 | D46 | Robô do Poli | (a) fica como está; (b) redesenhar no mesmo estilo | (a) nesta tarefa: é a identidade do assistente |
-| D47 | Direção visual | escolher na página de comparação | — |
+| D47 | Direção visual | **Decidida em 16/10: A, interface em camadas** | O conjunto final completa a A com as cenas que faltam: upload de arquivos e o visual do login |
 | D48 | Página 404 | **Decidida em 16/10:** simples e sem ilustração, só com o código, o título "Página não encontrada", uma frase e o botão "Voltar para a Home" | Pietro: "a página 404 pode ser mais simples e não precisaria usar ilustração" |
