@@ -199,6 +199,35 @@ mudar passa pelo `main`, que avisa o outro lado.
   `extra` quem fez e a lista de itens (tipo, alvo, role e resultado). Item
   que falha vai como WARNING. Segue o padrão de logs como eventos.
 
+**Regras definidas na implementação** (16/10, BFF, aprovadas pelo `main`):
+- **Membros:** `add_member` e `remove_member` só valem em grupo de que o app
+  é dono. Nos outros (ex.: grupos corporativos), o item fica `blocked`.
+  Atribuir role a qualquer grupo continua valendo, porque só afeta o nosso
+  app registration.
+- **Ordem dos itens:** saem na ordem de execução, e o `index` é a posição
+  da operação no pedido.
+  - O `index` pode se repetir: as remoções geradas por um `delete_role`
+    saem como `remove_assignment`, com o `index` dele.
+- **Confirmação:**
+  - um pedido com remoção ou exclusão, sem `confirm: "REMOVER"`, responde
+    400 no `apply` e não executa nada;
+  - a prévia não pede confirmação.
+- **Bloqueados no `apply`:** voltam com `action: blocked`,
+  `status: failed` e o motivo em `error`.
+- **`GET access-control/groups`:**
+  - sem busca, devolve os grupos que interessam ao app: os que têm alguma
+    role dele e os de que ele é dono;
+  - com busca, procura grupos de segurança no diretório (até 50).
+- **`summary`:** sempre com todas as chaves, mesmo zeradas. Na prévia são
+  7 (`create`, `assign`, `add`, `remove`, `delete`, `skip`, `blocked`), e
+  no `apply`, 3 (`ok`, `skipped`, `failed`).
+- **Role só de aplicativo:** `assign_role` de role cujo
+  `allowedMemberTypes` não tem `User` fica `blocked`.
+- **Menu:** é montado no front (`layouts/app-shell/navigation.ts`), e o
+  BFF só põe `/access-control` no `FRONTEND_ROUTE_PERMISSIONS`.
+- **Ação de escrita:** o `authorizeActions` devolve `read` e/ou `write`. O
+  override do `admin:*` sai só no escopo `access-control`.
+
 **Graph (D18):** o agente do BFF confere na documentação da Microsoft o
 menor conjunto de permissões que limita a escrita ao próprio app e aos
 grupos de que ele é dono, por exemplo `Application.ReadWrite.OwnedBy` e
