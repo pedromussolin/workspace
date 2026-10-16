@@ -195,3 +195,16 @@ resolução de `$PRIV/resolucoes/`):
 - O spec de rotas da 18 confirma que toda rota autenticada do épico tem
   `iamGuard`, e que o `/pdd` sem permissão vai para `/unauthorized`.
 
+### Depois da revisão (16/10)
+
+- `4bd8380f`: a margem lateral das páginas passa a 26 px no desktop, sem os
+  2,5% extras.
+  - Com isso, a tabela inteira da Formalização cabe em 1440 px com a
+    sidebar aberta.
+  - **O Pietro pode querer voltar atrás:** `git revert 4bd8380f`. Ver
+    `decisoes.md`.
+  - **Mudança visível para a PR:** no desktop, as páginas ficam um pouco
+    mais largas.
+- O smoke continua sem erro (Formalização, Pré-Trade, Lotes de Liquidação,
+  Report Transfer e CERC).
+

@@ -99,7 +99,7 @@ visíveis para a PR e a validação.
 | 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | sem push |
 | 13 | `chore/TS-5370-remove-angular-material` | 04 + merge de todas as áreas (`2dbb699`) | 53 + merges | sem push. Vai por último |
 | 18 | `fix/TS-5386-seguranca-front` | `origin/master` (`576957c`) | 6 | sem push |
-| 20 | `chore/TS-5387-devcontainer` | `origin/master` (`576957c`) | 8 | sem push |
+| 20 | `chore/TS-5387-devcontainer` | `origin/master` (`576957c`) | 10 | sem push |
 
 **Ordem para abrir as PRs na `sandbox`:**
 1. 01 → 02 → 03 → 04.
@@ -133,13 +133,11 @@ visíveis para a PR e a validação.
   - testar o login real e os fluxos na sandbox;
   - depois de um ciclo na sandbox sem violação, trocar a CSP de report-only
     para valendo.
-- **Perguntas pequenas da 5ª leva:**
-  - CERC com o "baixar imagem" no gráfico (antes a barra estava escondida
-    lá)?
-  - Tirar os 2,5% extras da margem do shell? Sem eles, a tabela inteira da
-    Formalização cabe em 1440 px com a sidebar aberta.
-  - Trazer o proxy da sandbox para `scripts/` do repo da empresa?
-  - Apagar ou alinhar o `docker-compose.yml` da raiz (Node 20)?
+- **Perguntas da 5ª leva:** respondidas em 16/10 (ver `decisoes.md`):
+  - o CERC fica com o "baixar imagem";
+  - a margem sem os 2,5% extras, num commit que pode ser revertido;
+  - o proxy da sandbox vai para `scripts/` (20);
+  - o compose da raiz fica só com a imagem de produção (20).
 - **Achados novos:** A23 a A25 (tooltip de ação desabilitada, login apaga
   a preferência do menu e ícones com a secundária crua na Dots).
 

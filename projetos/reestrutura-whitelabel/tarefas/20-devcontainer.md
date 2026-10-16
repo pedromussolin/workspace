@@ -193,9 +193,17 @@ Branch `chore/TS-5387-devcontainer`, criada da `origin/master`
 - `/mnt/c` com polling;
 - o BFF subido junto.
 
-**Para decidir depois:**
-- trazer o proxy da sandbox para `scripts/` do repo da empresa (hoje ele
-  vive só no workspace);
-- o `docker-compose.yml` da raiz (`angular-dev` com `node:20-alpine`) ficou
-  como está: apagar ou alinhar.
+**Depois da revisão (16/10)**, dois commits a mais (total: 10):
+
+| Commit | O quê |
+|---|---|
+| `d8cc3d60` | o proxy da sandbox vai para `scripts/bff-sandbox-proxy.mjs` (`npm run bff:sandbox`), com o passo a passo no README. Os comentários estão em inglês, e a URL da sandbox vem do `TARGET`, sem ficar no código |
+| `4a3e9bdd` | o `docker-compose.yml` da raiz fica só com o `angular-prod` (imagem de produção, sem profile, com `THEME_KEY` e `API_URL` por variável). Sai o `angular-dev` |
+
+**Conferido:**
+- o proxy avisa e sai sem `TARGET`;
+- o `/__sessao` grava o cookie e redireciona para o front;
+- quando a sandbox não responde, o proxy devolve 502 com a mensagem;
+- `docker compose up --build` sobe a imagem: o `/health` responde 200 e o
+  `env.js` sai com a API e a marca.
 
