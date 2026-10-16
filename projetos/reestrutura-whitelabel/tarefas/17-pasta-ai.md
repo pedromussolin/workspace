@@ -1,7 +1,7 @@
 # 17 — Pasta `.ai`: repositório pronto para desenvolver com IA
 
 - **TS:** TS-5389 · **Branch:** `chore/TS-5389-pasta-ai` (da 13)
-- **Status:** **commits feitos, sem push** (16/10). Falta o critério de aceite do agente sem contexto, em andamento
+- **Status:** **commits feitos, sem push** (16/10). Critério de aceite cumprido; ajustes da documentação em andamento
 - **Depende de:** 04. Pode começar já e fecha depois da 13, quando as regras
   de lint que garantem as fronteiras existirem.
 
@@ -158,4 +158,39 @@ sem push. A estrutura usa nomes padrão (D26):
 - `smoke.mjs --all`: 29 rotas, 116 páginas, sem erro.
 
 **Pedidos de ajuste em peças comuns** (não feitos aqui): ver A27 e A28.
+
+## Critério de aceite (16/10)
+
+Um agente novo, com acesso só ao repositório (worktree descartável
+`$PRIV/aceite-17`), recebeu o pedido de uma tela "Contratos de exemplo":
+- lista vinda do BFF, com busca por cliente e filtro por status;
+- linha que abre e mostra as parcelas.
+
+**Resultado:** ele usou o `scaffold.mjs` da skill `new-page`. A conferência
+rodei eu, sem corrigir nada:
+
+| Item | Resultado |
+|---|---|
+| `check-patterns.mjs` | nada a apontar (15 verificações, 1.133 arquivos) |
+| `validate.sh` (`SKIP_AUDIT=1`) | build ok, lint ok, 1.841 testes passando (21 novos) |
+| Smoke | claro, celular, escuro e outra marca, sem erro |
+
+**Lacunas que ele achou na `.ai/`.** Vão para a 17 em commits pequenos:
+- **Formato da resposta do BFF:** o repo mistura lista solta, `{items}` e
+  `{records, pagination}`. A `.ai/` passa a dizer como descobrir o formato.
+- **Idioma:**
+  - a rota fica em inglês, como as que já existem;
+  - os comentários do scaffold passam para o inglês.
+- **Dados de teste:** o scaffold passa a usar `features/<área>/testing/`.
+- **Permissões de tela só de leitura:** o `iamGuard` mais a entrada
+  `{escopo}:read` no BFF.
+- **Passo no BFF** na skill `new-page`, para a rota de dados e a
+  permissão.
+- **Menu:** critério de seção.
+- **Textos da auditoria:** dizem o que já existe e o que chega com a 18.
+- **Smoke:** ganha a opção de abrir uma linha antes do print.
+- **Feature nova:** atualiza as tabelas de `bff.md` e `domain.md`.
+- **Datas:** não havia utilitário comum para data sem hora. Fica com a
+  camada de formatação da 13, e a regra de datas da `.ai/` é atualizada na
+  junção.
 
