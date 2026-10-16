@@ -123,6 +123,6 @@ o `bff-sandbox-proxy` do workspace) e como medir os tempos.
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
-| D20 | Versão do Node | (a) 22 LTS; (b) continuar na 20 | (a). O Angular 20 suporta a 22, que tem suporte por mais tempo. Conferir se a imagem de produção (`Dockerfile` da raiz) também sobe |
-| D21 | Ferramentas de IA no contêiner (Copilot, ChatGPT, Codex, chave do Azure OpenAI) | (a) saem do projeto e cada um configura as suas; (b) ficam como opcionais | (a). Deixa o contêiner menor e não força ferramenta nem chave em ninguém |
+| D20 | Versão do Node | **Decidida em 15/10: (a) 22 LTS** | Conferir se a imagem de produção (`Dockerfile` da raiz) também sobe |
+| D21 | Ferramentas de IA no contêiner (Copilot, ChatGPT, Codex, chave do Azure OpenAI) | **Decidida em 15/10: (a) saem do projeto** | — |
 | D22 | O BFF entra na mesma tarefa | **Decidida em 15/10: (b), o BFF fica para outra tarefa** | — |

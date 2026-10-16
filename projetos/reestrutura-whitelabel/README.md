@@ -121,19 +121,10 @@ ordem.
     `env.js`;
   - publicar de novo a 04, que ganhou a correção de contraste (`e031e31`);
   - testar o login real e os fluxos na sandbox.
-- **Decisões abertas:**
-  - D13: ícone `more-vertical` novo (conjunto vai a 149);
-  - D20 (Node 22 ou 20) e D21 (ferramentas de IA fora do contêiner);
-  - 09: a barra de ferramentas do ApexCharts (zoom e baixar imagem) saiu
-    da Performance. Repor o "baixar imagem" no `app-chart`?
-  - 12: envio à base de conhecimento com só "Poliedro - Geral" manda
-    `department=all`; confirmar com o BFF;
-  - commit `129bee4` da 05;
-  - A13: contraste da Dots e da Cerys no tema claro (o A20, dos tokens
-    comuns, foi resolvido na 04);
-  - A15: títulos fora do padrão;
-  - fluxo de commit: eu commito e o Pietro revisa antes de publicar, ou não
-    commito antes da revisão.
+- **Decisões abertas:** nenhuma para a 5ª leva. Em 15/10 o Pietro aprovou
+  todas as recomendadas (D13, A13, D20, D21, "baixar imagem" no
+  `app-chart`, A15, HSTS, `129bee4`, `department=all` e fluxo de commit),
+  registradas em [decisoes.md](decisoes.md). Ficam D16–D19 (19) e D9 (16).
 - **Passada de consistência no fim:**
   - A14: margem do contêiner das páginas;
   - a Formalização trocar o `.search-box` local pelo `.app-input-icon`;
@@ -143,7 +134,9 @@ ordem.
   - D11: a 07 e a 08 passarem ao `app-switch`;
   - ajustes sugeridos pela 14 e pela 15 (`app-kpi`, `app-card`,
     `app-code-block`, id do tooltip, `app-search-field`), listados nas
-    tarefas.
+    tarefas;
+  - A13 (contraste das marcas), A15 (títulos), A18 (logos no escuro), A19
+    (spec instável) e o "baixar imagem" no `app-chart`.
 - **Esforço:** cada leva de três áreas, em modo completo, consome perto de
   uma sessão inteira.
 

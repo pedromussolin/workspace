@@ -8,14 +8,22 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
 | D9 | Onde rodam o E2E e a cobertura | (a) job novo no `workflow.yml` do front; (b) mudar o `build.yml` compartilhado de `Capitalis/actions` | (a). Não mexe no pipeline dos outros repos | Pietro, com o time de infraestrutura (adiada em 11/10: tarefa 16 fica para depois) | [16](tarefas/16-testes-e2e-cobertura.md) |
-| D13 | Ícone `more-vertical` (três pontinhos do menu de cada conversa do Poli Chat) | (a) entra no conjunto, que vai a 149; (b) usar outro ícone do conjunto | (a). O inventário não pegou o `more_vert` (estava numa linha separada da tag) e o conjunto não tem equivalente: `menu` é o hambúrguer e `grip-vertical` é a alça de arrastar | Pietro | 12 |
 | D16–D19 | Controle de acesso pelo portal: quem usa a tela, atribuir a grupos (licença P1/P2), permissões de escrita no Graph e o que dá para remover | ver a tarefa | ver a tarefa | Pietro (D17 e D18 com a infraestrutura) | [19](tarefas/19-controle-de-acesso.md) |
-| D20–D21 | Devcontainer: versão do Node e ferramentas de IA no contêiner | ver a tarefa | ver a tarefa | Pietro | [20](tarefas/20-devcontainer.md) |
 
 ## Tomadas
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 15/10/2026 | D13: o ícone `more-vertical` entra no conjunto, que vai a 149 (a 12 já usa) | Pietro: "todas as recomendadas" |
+| 15/10/2026 | A13, ajuste mínimo no tema claro. Dots: a primária segue a regra do A20 (`#e04508` → `#d64208`). Cerys: a laranja (`#ff8f1c`) continua nos fundos e destaques, o texto sobre ela fica escuro (`#1e1e1e`, 7,3:1) e, onde a primária vira texto, entra um tom só para texto (`#b95e00`). Feito na 13 | Pietro: "todas as recomendadas" |
+| 15/10/2026 | D20: o devcontainer passa ao Node 22 (LTS, suportado pelo Angular 20) | Pietro: "todas as recomendadas" |
+| 15/10/2026 | D21: as ferramentas de IA (Copilot, ChatGPT, Codex, chave do Azure OpenAI) saem do devcontainer; cada um configura as suas | Pietro: "todas as recomendadas" |
+| 15/10/2026 | Gráfico da Performance (09): o `app-chart` ganha o "baixar imagem" que a barra do ApexCharts tinha. O zoom não volta. Feito na 13 | Pietro: "todas as recomendadas" |
+| 15/10/2026 | A15: títulos padronizados na 13, listados na PR: "Acompanhamento de clientes" e "Simular proposta", com descrição de verdade no lugar de "Teste" | Pietro: "todas as recomendadas" |
+| 15/10/2026 | 18: o nginx manda os cabeçalhos de segurança em todo `location`; o HSTS só entra depois de confirmar com a infraestrutura o que o gateway já manda | Pietro: "todas as recomendadas" |
+| 15/10/2026 | Commit `129bee4` da 05 mantido (celebração fecha por Enter/Esc; o fade vale com movimento reduzido), listado na PR | Pietro: "todas as recomendadas" |
+| 15/10/2026 | Envio à base de conhecimento só com "Poliedro - Geral" mantido com `department=all`: é o comportamento de hoje, e o BFF só confere se o usuário está no grupo e repassa ao serviço de IA | Pietro: "todas as recomendadas" |
+| 15/10/2026 | Fluxo de commit do épico: eu commito sem push, e o Pietro revisa antes de publicar | Pietro: "todas as recomendadas" |
 | 15/10/2026 | D22: o BFF não entra na 20. O devcontainer do BFF fica para outra tarefa | Pietro: "O BFF não entra na 20" |
 | 15/10/2026 | Contraste dos tokens comuns (A20): quando um token de texto fica abaixo de AA, vale a cor mais próxima que atende 4,5:1, mudando só a luminosidade. Aplicado ao `--text-faint` e ao `--st-pendente` na 04 | Pietro: "escolha a cor mais próxima que atenda a regra" |
 | 15/10/2026 | O ambiente da página de docs da API vem de um campo `ENVIRONMENT` no `env.js`, gerado pelo `entrypoint.sh` (production, sandbox, staging ou local). Sem ele, a página deduz pelo endereço | Pietro concordou. A sandbox sobe com `production: true`, então só a flag não basta |
