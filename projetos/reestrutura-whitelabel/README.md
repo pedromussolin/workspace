@@ -51,7 +51,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5367 |
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
 | 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5369 |
-| 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12, 14, 15 | **em andamento** (5ª leva) | TS-5370 |
+| 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12, 14, 15 | **commits feitos, sem push** (16/10) | TS-5370 |
 | 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5371 |
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
@@ -60,18 +60,23 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5386 |
 
-## Situação em 15/10
+## Situação em 16/10
 
-**Prontas: 14 de 19** (a 16 está adiada e fica fora da conta).
-- 01 a 08 e 11 publicadas em 15/10, sem merge em nenhum ambiente.
-- 09, 10 e 12 (3ª leva) e 14 e 15 (4ª leva, front e BFF) com commits
-  feitos, sem push, esperando o Pietro publicar.
-- Merge de teste das dez branches juntas sobre a 04 (`merge-teste.sh`):
-  compila e passa nos testes (1.817, só 1 falha, que já é da base). O único
-  conflito é o da 10 com a 11, com o passo a passo na tarefa 10. No BFF, a
-  14 e a 15 juntas passam (531 testes, as mesmas 8 falhas da base).
-- A 07, a 08 e a 11 nascem da 04 com as três correções de 15/10, que também
-  já estão publicadas.
+**Prontas: 17 de 19** (a 16 está adiada e fica fora da conta). Faltam a 17
+e a 19.
+- **Publicadas em 15/10:** 01 a 08 e 11, sem merge em nenhum ambiente.
+- **Commits feitos, sem push:** 09, 10 e 12 (3ª leva), 14 e 15 (4ª leva,
+  front e BFF), e 13, 18 e 20 (5ª leva).
+- **Branches publicadas que ganharam commits:** a 04 (`e031e31`, contraste)
+  e a 08 (merge da master e porte da responsividade, 3 commits).
+- **A 13 já junta tudo:** ela nasce do merge de todas as áreas (05 a 12, 14
+  e 15) sobre a 04. Por isso entra na `sandbox` por último.
+- **Junção da 5ª leva** (13 + 18 + 20, numa worktree descartável):
+  - a 18 conflita com a 13 em 10 arquivos, e a 20 em 6;
+  - os scripts `$PRIV/resolucoes/fix_TS-5386-seguranca-front.sh` e
+    `chore_TS-5387-devcontainer.sh` resolvem tudo sozinhos;
+  - resultado: build ok, bundle inicial de 497 kB, lint 20/163, 1.823
+    testes com só a falha da base, e `npm audit --omit=dev` com 0 falhas.
 
 Cada tarefa tem a seção "O que foi feito", com os commits, as mudanças
 visíveis para a PR e a validação.
@@ -81,92 +86,62 @@ visíveis para a PR e a validação.
 | 01 | `refact/TS-5358-estrutura-base-front` | `master` (`3f5ea96`) | 13 | publicada |
 | 02 | `feature/TS-5359-temas-claro-escuro` | 01 | 5 | publicada |
 | 03 | `feature/TS-5360-componentes-formulario` | 02 | 22 | publicada |
-| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 30 | publicada com as 3 correções; a correção de contraste (`e031e31`) está sem push |
+| 04 | `feature/TS-5361-componentes-overlay-tabela` | 03 | 31 | publicada; **publicar de novo** (`e031e31`) |
 | 05 | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | 15 | publicada |
 | 06 | `refact/TS-5363-lotes-nova-arquitetura` | 04 | 18 | publicada |
 | 07 | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 corrigida | 14 | publicada |
-| 08 | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 corrigida | 7 | publicada |
+| 08 | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 corrigida | 7 + 3 | publicada; **publicar de novo** (merge da master, porte e ajuste dos filtros) |
 | 11 | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 corrigida | 24 | publicada |
-| 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | commits feitos, sem push. No merge com a 11, conflito em 3 imports, com o passo a passo na tarefa |
-| 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | commits feitos, sem push |
-| 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | commits feitos, sem push |
-| 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 18 + 3 | commits feitos, sem push |
-| 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | commits feitos, sem push |
+| 09 | `refact/TS-5366-controladoria-nova-arquitetura` | 04 corrigida | 34 | sem push |
+| 10 | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 corrigida | 18 | sem push. Conflito conhecido com a 11 (3 imports) |
+| 12 | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 corrigida | 24 | sem push |
+| 14 | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 corrigida / `origin/master` | 18 + 3 | sem push |
+| 15 | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 corrigida / `origin/master` | 31 + 1 | sem push |
+| 13 | `chore/TS-5370-remove-angular-material` | 04 + merge de todas as áreas (`2dbb699`) | 53 + merges | sem push. Vai por último |
+| 18 | `fix/TS-5386-seguranca-front` | `origin/master` (`576957c`) | 6 | sem push |
+| 20 | `chore/TS-5387-devcontainer` | `origin/master` (`576957c`) | 8 | sem push |
 
-Abrir as PRs nesta ordem: 01 → 02 → 03 → 04. Depois as áreas, em qualquer
-ordem.
+**Ordem para abrir as PRs na `sandbox`:**
+1. 01 → 02 → 03 → 04.
+2. As áreas (05 a 12, 14 e 15), em qualquer ordem. Na 11 depois da 10,
+   aplicar a resolução da tarefa 10.
+3. A 13, por último.
+4. A 18 e a 20 podem ir a qualquer momento. Quem entrar depois resolve os
+   conflitos como os scripts: specs do `9bcf7b7` ficam na versão do épico;
+   `package.json` do épico com as versões da 18; lock refeito sem as
+   entradas `@angular/*`; guard do `/pdd` em `controllership.routes.ts`;
+   spec de rotas com os imports de `@core` e as rotas públicas lazy. O
+   passo a passo está na tarefa 18.
 
-**Faltam: 5.**
+**Faltam: 2.**
 
 | # | O quê | Como vai |
 |---|---|---|
-| 13 | Remove o Angular Material e liga o seletor de tema | 5ª leva. Nasce do merge de teste local (`merge-teste.sh`), porque nenhuma branch do épico está na `sandbox` |
+| 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | pode começar: a 13 já criou as regras de lint e o `AGENTS.md`. Leva também as regras de segurança da 18 |
 | 19 | Controle de acesso pelo portal: permissões, grupos e atribuição em lote no Azure | depois do épico. Antes, decidir D16–D19 |
-| 20 | Devcontainer do front mais leve: subida rápida, sem erro no Angular, extensões certas | 5ª leva, da `master`. Só o front (D22). Antes, decidir D20 e D21 |
-| 17 | Pasta `.ai`: regras, referências, receitas, scripts e fronteiras para desenvolver com IA | começa quando quiser (depende da 04); fecha depois da 13, que cria as regras de lint das fronteiras |
-| 18 | Segurança: bibliotecas sem falha conhecida, cabeçalhos do nginx com CSP, `iamGuard` no `/pdd` e auditoria no `validar.sh` | 5ª leva, da `master`. Não depende do épico |
 
 - **Adiada:** a 16 e a D9, que o Pietro faz depois com o time de
-  infraestrutura. A 17 e a 19 ficam para depois da 5ª leva.
-- **Master andou depois do rebase:** o `e4e13a5` (PR #224, responsividade
-  da Formalização) entrou na `master` e na `sandbox`. A 08 ganhou o merge
-  da `master` (`7d2cad1`) e a mudança levada para os filtros novos
-  (`dabea02`), sem push. Ver a tarefa 08.
+  infraestrutura.
 - **Pendências do Pietro:**
-  - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
-  - antes do deploy de tudo: criar as app roles (`api-docs:read`,
-    `design-system:read` e as que vierem) e a variável `ENVIRONMENT` do
-    front em cada ambiente (`sandbox`, `production`…), que vai para o
-    `env.js`;
-  - publicar de novo a 04, que ganhou a correção de contraste (`e031e31`);
-  - publicar de novo a 08, que ganhou o merge da master e o porte da
-    responsividade (`7d2cad1`, `dabea02`);
-  - testar o login real e os fluxos na sandbox.
-- **Decisões abertas:** nenhuma para a 5ª leva. Em 15/10 o Pietro aprovou
-  todas as recomendadas (D13, A13, D20, D21, "baixar imagem" no
-  `app-chart`, A15, HSTS, `129bee4`, `department=all` e fluxo de commit),
-  registradas em [decisoes.md](decisoes.md). Ficam D16–D19 (19) e D9 (16).
-- **Passada de consistência no fim:**
-  - A14: margem do contêiner das páginas;
-  - a Formalização trocar o `.search-box` local pelo `.app-input-icon`;
-  - a Formalização usar o `app-split-button` no Exportar;
-  - a `kpi-grid` da 09 subir para `shared/ui` e servir às outras grades de
-    KPI;
-  - D11: a 07 e a 08 passarem ao `app-switch`;
-  - ajustes sugeridos pela 14 e pela 15 (`app-kpi`, `app-card`,
-    `app-code-block`, id do tooltip, `app-search-field`), listados nas
-    tarefas;
-  - A13 (contraste das marcas), A15 (títulos), A18 (logos no escuro), A19
-    (spec instável) e o "baixar imagem" no `app-chart`.
-- **Esforço:** cada leva de três áreas, em modo completo, consome perto de
-  uma sessão inteira.
-
-## Retomar a 5ª leva (pausa de 16/10 por limite de uso)
-
-- **Prontas, sem push:** 18 (`fix/TS-5386-seguranca-front`), 20
-  (`chore/TS-5387-devcontainer`) e o ajuste da 08 (3 commits a mais).
-- **Em andamento:**
-  - 13a, na worktree `apl-credit-whitelabel-wt/13`
-    (`chore/TS-5370-remove-angular-material`);
-  - 13b, na worktree `apl-credit-whitelabel-wt/13b`
-    (`wip/TS-5370-consistencia`).
-- Os dois agentes foram pausados com commit do que fizeram. Um commit
-  `wip` descreve o que falta.
-- **Para retomar:**
-  1. Ler o `git log` das duas worktrees.
-  2. Disparar agentes novos com o pedido da tarefa 13 (seção "Como está
-     sendo feita"), para terminar e validar com
-     `BASE=2dbb699 BASE_LINT=20/166`.
-  3. Depois, juntar a 13b por cima da 13a.
-  4. Rodar o `merge-teste.sh` com `FULL=1` e olhar os prints.
-  5. Fazer merge da 08 nova na 13.
-- **Itens extras passados à 13a:**
-  - script inline do esquema de cor vai para `assets/` (CSP da 18);
-  - A13 com a regra do A20: Dots `#d34108`, texto da Cerys `#b65c00` e
-    tokens só de texto para a secundária da Dots.
-- **Itens extras passados à 13b:**
-  - tabela da Formalização sem rolagem a partir de ~1280 px;
-  - `.container-centered` no `styles.scss` (A14).
+  - publicar as branches sem push (09, 10, 12, 14 e 15 no front e no BFF;
+    13, 18 e 20) e de novo a 04 e a 08, e abrir as PRs;
+  - antes do deploy de tudo:
+    - criar as app roles (`api-docs:read`, `design-system:read`);
+    - criar a variável `ENVIRONMENT` do front em cada ambiente;
+  - confirmar com a infraestrutura o que o gateway envia (HSTS e outros
+    cabeçalhos) antes de ligar o HSTS da 18;
+  - testar o login real e os fluxos na sandbox;
+  - depois de um ciclo na sandbox sem violação, trocar a CSP de report-only
+    para valendo.
+- **Perguntas pequenas da 5ª leva:**
+  - CERC com o "baixar imagem" no gráfico (antes a barra estava escondida
+    lá)?
+  - Tirar os 2,5% extras da margem do shell? Sem eles, a tabela inteira da
+    Formalização cabe em 1440 px com a sidebar aberta.
+  - Trazer o proxy da sandbox para `scripts/` do repo da empresa?
+  - Apagar ou alinhar o `docker-compose.yml` da raiz (Node 20)?
+- **Achados novos:** A23 a A25 (tooltip de ação desabilitada, login apaga
+  a preferência do menu e ícones com a secundária crua na Dots).
 
 ## Ordem e branches
 
