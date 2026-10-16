@@ -147,8 +147,14 @@ O que a junção do BFF pediu além do conflito de texto (scripts
 - **Resultado:** 955 testes, com as mesmas 8 falhas da base; ruff igual à
   master (9 avisos antigos).
 
+**21 sem a transição (D59):** juntada de novo nas duas releases.
+- **Front:** `082111a5`, sem conflito.
+- **BFF:** `ad5b142`, com os imports dos dois lados. Os testes do fix usam
+  `poli-chat:read`, e sai a configuração que eles ligavam.
+- **Resultado no BFF:** 927 testes, com as mesmas 8 falhas da base.
+
 **Refinamento:** `refact/TS-5395-refinamento-visual`, criada da release do
-front.
+front e atualizada com ela.
 
 **Subir na sandbox (só depois da validação local, D58):** pelo fluxo da empresa, uma cópia da release junta a
 `origin/sandbox`. O teste (16/10) mostrou:

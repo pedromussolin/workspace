@@ -299,3 +299,38 @@ na lista da 24.
 
 **Achados:** A32 (o erro "ResizeObserver loop" da tabela comum) e A33 (o
 `contract-details` na transição).
+
+## O que foi feito: sem a transição (D59, 16/10/2026)
+
+A transição das roles legadas saiu. O BFF aceita só as roles novas, e a
+migração (`PERMISSION_MIGRATIONS`, a rota de migrações e o
+`copy_assignments`) fica como ferramenta de uso único, logo depois do deploy.
+
+**BFF** (9 commits, `136dba9`..`80701fb`):
+- **O que saiu:**
+  - `CFG_PERMISSIONS_LEGACY_ROLES`, o `legacy` do catálogo, `transition_roles`,
+    `with_old_admin` e `legacy_targets`;
+  - o `legacy` do `require` e o `whitelists:create` no cadastro já ativo;
+  - do contrato, `legacyRolesEnabled` e `legacyFor`.
+- **Roles antigas:** as que só eram antigas (`report-transfer:reprocess`,
+  `onboarding-bgt:update`, `liquidation-fake-batches:update`, `poli-chat` e
+  `valid:read`) aparecem como sem uso no código e podem ser apagadas pela
+  tela.
+- **Testes:** 800, com as mesmas 8 falhas da base. Os 22 casos novos falham
+  no código antigo.
+
+**Front** (5 commits, `ebcb664f`..`907c364f`):
+- **Aba Permissões:** sem os rótulos e o aviso da transição.
+- **Aba Migração:** explica o uso único: logo depois do deploy, quem recebe
+  entra de novo no portal, e depois as roles antigas são apagadas.
+- **Validação:** `validate.sh` ok, com 2.114 testes, e smoke ok em outras
+  portas.
+
+**Quem perde acesso até a migração rodar:** quem só tem a role antiga, ação
+por ação (lista no relatório do agente e na 24). A migração não cobre:
+- **os admins (D56):** o `admin:{ação antiga}` não abre a ação nova;
+- **quem tem só `whitelists:create`:** perde o cadastro já ativo;
+- **quem tem a role antiga só pelo grupo:** fica sem ela enquanto a
+  atribuição a grupo estiver desligada (D17).
+
+**Ordem:** aplicar a migração antes de apagar as roles antigas.
