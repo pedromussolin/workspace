@@ -141,6 +141,33 @@ ordem.
 - **Esforço:** cada leva de três áreas, em modo completo, consome perto de
   uma sessão inteira.
 
+## Retomar a 5ª leva (pausa de 16/10 por limite de uso)
+
+- **Prontas, sem push:** 18 (`fix/TS-5386-seguranca-front`), 20
+  (`chore/TS-5387-devcontainer`) e o ajuste da 08 (3 commits a mais).
+- **Em andamento:**
+  - 13a, na worktree `apl-credit-whitelabel-wt/13`
+    (`chore/TS-5370-remove-angular-material`);
+  - 13b, na worktree `apl-credit-whitelabel-wt/13b`
+    (`wip/TS-5370-consistencia`).
+- Os dois agentes foram pausados com commit do que fizeram. Um commit
+  `wip` descreve o que falta.
+- **Para retomar:**
+  1. Ler o `git log` das duas worktrees.
+  2. Disparar agentes novos com o pedido da tarefa 13 (seção "Como está
+     sendo feita"), para terminar e validar com
+     `BASE=2dbb699 BASE_LINT=20/166`.
+  3. Depois, juntar a 13b por cima da 13a.
+  4. Rodar o `merge-teste.sh` com `FULL=1` e olhar os prints.
+  5. Fazer merge da 08 nova na 13.
+- **Itens extras passados à 13a:**
+  - script inline do esquema de cor vai para `assets/` (CSP da 18);
+  - A13 com a regra do A20: Dots `#d34108`, texto da Cerys `#b65c00` e
+    tokens só de texto para a secundária da Dots.
+- **Itens extras passados à 13b:**
+  - tabela da Formalização sem rolagem a partir de ~1280 px;
+  - `.container-centered` no `styles.scss` (A14).
+
 ## Ordem e branches
 
 ```
