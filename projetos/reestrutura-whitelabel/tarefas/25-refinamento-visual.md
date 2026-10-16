@@ -110,6 +110,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R19 | Envio de relatórios, detalhe da execução | Pastas coladas, sem separador | `features/report-transfer` | feito |
 | R20 | Tabela comum | Filtro de coluna (botão no cabeçalho e popover) ainda mora no `config-table` e cada tela repete o estilo: levar para `shared/ui/table` | `shared/ui/table` | a decidir |
 | R21 | Lotes de Cessão | Status como pílula exige um enum de status no BFF (hoje `estado_atual` livre) | BFF + tela | a decidir |
+| R22 | Accordion | Itens colados: o `:host + :host` do espaço não compila no Angular (vira seletor inválido). O espaço vai para o `app-accordion`; lista numerada ganha o número num quadrado (`marker`), usado no analítico do Consolidado | `shared/ui/accordion`, `features/cash-consolidation` | feito |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
