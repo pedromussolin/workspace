@@ -51,8 +51,23 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
-  res.end(JSON.stringify(key in IAM ? IAM[key] : key in FIXTURES ? FIXTURES[key] : []));
+  res.end(JSON.stringify(key in IAM ? IAM[key] : key in FIXTURES ? paged(FIXTURES[key], url.searchParams) : []));
 });
+
+// Resposta paginada (`pagination` com `per_page` + `records`): devolve só a página pedida, como o
+// BFF real. Sem isso, a tela mostra todos os registros do arquivo, com o tamanho de página dele.
+function paged(body, query) {
+  const perPage = Number(query.get('per_page'));
+  if (!perPage || !Array.isArray(body?.records) || body.pagination?.per_page === undefined) return body;
+  const page = Math.max(1, Number(query.get('page')) || 1);
+  const all = body.records;
+  const pages = Math.max(1, Math.ceil(all.length / perPage));
+  return {
+    ...body,
+    records: all.slice((page - 1) * perPage, page * perPage),
+    pagination: { ...body.pagination, page, per_page: perPage, page_count: pages, total_count: all.length, has_next: page < pages },
+  };
+}
 
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.mp4': 'video/mp4' };
 const web = http.createServer((req, res) => {
