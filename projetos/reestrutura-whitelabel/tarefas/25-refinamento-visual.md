@@ -1,7 +1,7 @@
 # 25 — Refinamento visual e de design
 
 - **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)
-- **Status:** **branch criada** (16/10), esperando a primeira rodada de revisão
+- **Status:** **rodada 1 em andamento** (16/10): itens R1 a R12 em correção, auditoria em paralelo
 - **Depende de:** todas as branches do front (a junção: 13, 17, 18, 19, 20,
   21, 22 e 23, com as áreas dentro da 13)
 - **Vai antes da 24:** o deploy leva o refinamento junto.
@@ -75,7 +75,24 @@ branch:
 
 ## Itens
 
+Decisões da rodada 1 (16/10, Pietro):
+- **Alinhamento das colunas, em todas as tabelas:** texto, nomes e datas à esquerda; valores,
+  quantidades e percentuais à direita; status e etapa no centro; ações à direita, com a ação
+  mais comum por último. O `align` padrão do `appColumn` passa a ser `start`.
+- **Paginador:** fica como está (a caixa de tamanho só aparece onde a tela oferece mais de um).
+- **Seletor de visão:** dentro do cartão de filtros, com o rótulo "Visualização".
+
 | # | Tela ou peça | O que muda | Onde | Situação |
 |---|---|---|---|---|
-| R1 | Pré-Trade, lista | A 1440 px, Status e Ações ficam fora da tela (A34) | `features/pre-trade`, `shared/ui/table` | a decidir |
-| R2 | Tabela comum | Erro "ResizeObserver loop" no console ao mudar a largura (A32) | `shared/ui/table` | a decidir |
+| R1 | Pré-Trade, lista | A 1440 px, Status e Ações ficam fora da tela (A34): nomes longos em uma linha, com reticências e dica | `features/pre-trade` | em correção |
+| R2 | Tabela comum | Erro "ResizeObserver loop" (A32): a largura passa a ser gravada no quadro seguinte | `shared/ui/table` | em correção |
+| R3 | Sidebar e áreas que rolam | Barra do Windows, com setas: `scrollbar-width` desligava o estilo do portal. Mixin `ui.scrollbar-discreet` (fina, sem trilha) na sidebar, no segmentado, na lista da docs da API e na tabela | `styles/_mixins.scss`, `.ai` | feito (tabela: em correção) |
+| R4 | Formalização e Pré-Trade | Margem branca de 16 px em volta da tabela: `.card` global antigo com `padding: 1rem`, somado ao recuo de dentro. Regra removida | `src/styles.scss` | feito |
+| R5 | Lotes de Liquidação | Segmentado sem rótulo ao lado dos filtros: ganha "Visualização" | `features/liquidation-batches` | em correção |
+| R6 | Lotes de Liquidação | Tabela diferente da Formalização: ainda era o `config-table` legado. Migra para `app-table` | `features/liquidation-batches` | em correção |
+| R7 | Segmentado | Esticado num campo, as opções ficavam do tamanho do texto e sobrava espaço: agora dividem a largura igualmente | `shared/ui/toggle-group` | feito |
+| R8 | Desempenho da Carteira | Filtros sem o cartão branco | `features/controllership/portfolio-performance` | feito |
+| R9 | PDD | Abas fora do cartão de filtros: viram o campo "Visualização" dentro dele | `features/controllership/pdd` | feito |
+| R10 | Tabela comum | Primeira e última coluna a 10 px da borda, e o título do cartão a 20 px: recuo `--app-table-edge` | `shared/ui/table` | em correção |
+| R11 | Todas as tabelas | Alinhamento por tipo de dado (ver decisões); no Pré-Trade, ações à direita com o "ver" por último | `shared/ui/table`, telas | em correção |
+| R12 | Lotes de Cessão | Filtros e tabela sem cartão, filtros sem ocupar a largura, `config-table` legado | `features/assignment-batches` | em correção |
