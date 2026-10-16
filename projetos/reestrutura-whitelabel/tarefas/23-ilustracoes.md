@@ -43,7 +43,10 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
    A 404 fica de fora (D48).
 
    O Pietro escolhe a direção, como fez com os ícones. Fonte em
-   `anexos/ilustracoes/`.
+   `anexos/ilustracoes/` (`node build.mjs`).
+
+   Proposta publicada em 16/10: https://claude.ai/artifact/6yYiWAnpGjYuJ5pumuCPZ9.
+   Para republicar, publique o `proposta.html` gerado no mesmo artifact.
 2. **Regras do conjunto:**
    - **Sem personagens:** nenhuma pessoa, mascote ou rosto.
    - **Formas da interface:** cartões, linhas de tabela, filtros, cadeado,
