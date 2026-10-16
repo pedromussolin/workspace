@@ -1,6 +1,6 @@
 # 20 — Devcontainer do front mais leve e confiável
 
-- **TS:** a criar · **Branch:** `chore/TS-?-devcontainer` (da `origin/master`, com `--no-track`)
+- **TS:** a criar (nome: "Devcontainer mais leve") · **Branch:** `chore/TS-?-devcontainer` (da `origin/master`, com `--no-track`)
 - **Status:** a planejar (pedido de 15/10)
 - **Depende de:** nada. Não depende do épico e pode andar a qualquer momento.
 
@@ -125,4 +125,4 @@ o `bff-sandbox-proxy` do workspace) e como medir os tempos.
 |---|---|---|---|
 | D20 | Versão do Node | (a) 22 LTS; (b) continuar na 20 | (a). O Angular 20 suporta a 22, que tem suporte por mais tempo. Conferir se a imagem de produção (`Dockerfile` da raiz) também sobe |
 | D21 | Ferramentas de IA no contêiner (Copilot, ChatGPT, Codex, chave do Azure OpenAI) | (a) saem do projeto e cada um configura as suas; (b) ficam como opcionais | (a). Deixa o contêiner menor e não força ferramenta nem chave em ninguém |
-| D22 | O BFF entra na mesma tarefa | (a) sim, no mesmo padrão (ele tem os mesmos arquivos e o mesmo `safe.directory`); (b) depois | (a), numa branch própria no BFF, porque o padrão é o mesmo |
+| D22 | O BFF entra na mesma tarefa | **Decidida em 15/10: (b), o BFF fica para outra tarefa** | — |
