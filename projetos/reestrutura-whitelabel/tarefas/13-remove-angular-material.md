@@ -220,7 +220,7 @@ resolução de `$PRIV/resolucoes/`):
   um dia.
 - Os specs falhavam antes da correção, num fuso -03.
 
-**Camada de formatação (D49 a D53, em andamento):**
+**Camada de formatação (D49 a D53, feita em 16/10):**
 - um formatador por tipo de dado em `shared/utils/format/`, com um
   catálogo fechado de formatos;
 - pipes por tipo;
@@ -244,4 +244,59 @@ resolução de `$PRIV/resolucoes/`):
 | Sim/Não | `Sim/Não` |
 | Tamanho de arquivo | `automático` |
 | Duração | `curta`, `relógio` |
+
+### Camada de formatação: o que foi feito (16/10)
+
+São 31 commits sobre `fd987f8c`, sem push.
+
+**O que entrou:**
+- **`shared/utils/format/`:** um arquivo por tipo, cada um com spec. Os
+  formatos estão no catálogo acima.
+  - Vazio ou inválido vira `—`. Em desenvolvimento, o inválido gera um aviso
+    no console.
+  - O dia do calendário não muda de dia, conferido nos fusos `Asia/Tokyo` e
+    `Pacific/Kiritimati`.
+  - Instante aparece no horário de Brasília.
+- **Pipes** em `shared/pipes/format.pipes.ts` e a **seção "Formatos"** na
+  vitrine.
+- **Migração de todas as telas.** Saíram os formatadores locais, o
+  `DatePipe` e todos os `toLocale*` e `Intl.*Format`.
+- **Trava:**
+  - ESLint (`no-restricted-properties` e `no-restricted-imports`);
+  - `scripts/check-template-pipes.mjs` no `npm run lint`;
+  - exceção só para os rótulos do calendário do date-picker.
+- **Achados:**
+  - A23: a ação desabilitada mostra o motivo;
+  - A24: o login mantém o menu recolhido;
+  - A25: `--brand-icon`. Na Dots, no claro, o ícone passa de `#ee7342` para
+    `#e75115`, com 3,76:1 sobre a superfície;
+  - A27: spec do acordeão;
+  - A28: sai o `provideAnimations`. O pacote `@angular/animations` sai na
+    junção, quando o lock for refeito.
+- **Defeitos corrigidos no caminho:**
+  - o Envio de Relatórios quebrava com resposta sem a lista;
+  - o nome do Excel da Formalização saía com o dia seguinte depois das 21h.
+
+**Validação:**
+- build ok; bundle inicial de 418,65 kB (117,22 kB na rede);
+- lint 20/163;
+- 1.918 testes, só com a falha da base;
+- smoke sem erro;
+- nenhum aviso de formatação nas 13 rotas, com dados fictícios.
+
+**Mudanças visíveis principais** (lista completa no relatório do agente):
+- **Data e hora:** sem vírgula e sempre no horário de Brasília, no lugar do
+  fuso do navegador.
+- **Ano com 4 dígitos:** `mar/27` vira `mar/2027`, e `15/09/26` vira
+  `15/09/2026`.
+- **Valor vazio:** `—` no lugar de `-` ou de vazio.
+- **Negativo:** com o menos tipográfico.
+- **Telas técnicas:** o Envio de Relatórios mostra as execuções com segundos.
+- **PDD:** datas como `30/09/2026`, e não mais por extenso.
+- **Telefone:** sempre com hífen.
+
+**Ajustes pedidos depois:**
+- `'0,000'` e `'0,##'` no catálogo, para manter as três casas do R$ mm no
+  Caixa e o "100 mm" do Pré-Trade;
+- o `app-kpi` formata número.
 
