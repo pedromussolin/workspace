@@ -56,9 +56,9 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **commits feitos, sem push** (15/10) | TS-5372 |
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-?-pasta-ai` | 04 (fecha depois da 13) | a iniciar | — |
-| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-?-devcontainer` | `master` (independente do épico) | a planejar | — |
+| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | a iniciar (5ª leva) | TS-5387 |
 | 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-?-controle-de-acesso` (front e BFF) | 04 | a planejar (depois do épico) | — |
-| 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-?-seguranca-front` | `master` (independente do épico) | a iniciar | — |
+| 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | a iniciar (5ª leva) | TS-5386 |
 
 ## Situação em 15/10
 
@@ -114,8 +114,6 @@ ordem.
   o merge da 08 na `sandbox` dá conflito (arquivo movido × arquivo
   alterado).
 - **Pendências do Pietro:**
-  - criar as tarefas da 18 ("Segurança do front") e da 20 ("Devcontainer
-    mais leve") e passar os TS;
   - publicar as branches 09, 10, 12, 14 e 15 (front e BFF) e abrir as PRs;
   - antes do deploy de tudo: criar as app roles (`api-docs:read`,
     `design-system:read` e as que vierem) e a variável `ENVIRONMENT` do

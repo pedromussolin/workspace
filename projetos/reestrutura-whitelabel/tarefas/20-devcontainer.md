@@ -1,6 +1,6 @@
 # 20 — Devcontainer do front mais leve e confiável
 
-- **TS:** a criar (nome: "Devcontainer mais leve") · **Branch:** `chore/TS-?-devcontainer` (da `origin/master`, com `--no-track`)
+- **TS:** TS-5387 · **Branch:** `chore/TS-5387-devcontainer` (da `origin/master`, com `--no-track`)
 - **Status:** a planejar (pedido de 15/10)
 - **Depende de:** nada. Não depende do épico e pode andar a qualquer momento.
 

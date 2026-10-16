@@ -1,6 +1,6 @@
 # 18 — Segurança do front
 
-- **TS:** a criar (nome: "Segurança do front") · **Branch:** `fix/TS-?-seguranca-front` (da `master`, com
+- **TS:** TS-5386 · **Branch:** `fix/TS-5386-seguranca-front` (da `master`, com
   `--no-track`)
 - **Status:** a iniciar
 - **Depende de:** nada. Nasce da `master` e entra direto, sem esperar o
