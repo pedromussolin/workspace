@@ -71,6 +71,11 @@ editar fluxos e também para o dry run. A ideia:
    ele aceita, o nome e a descrição em PT-BR.
    - As rotas passam a declarar `require(escopo, ação)`, no lugar de listas
      soltas de strings.
+   - O `require` acrescenta sozinho o `admin:{ação}`, exceto nos escopos de
+     `SCOPES_WITHOUT_ADMIN_OVERRIDE` (hoje só o `access-control`). Hoje,
+     cada lista inclui o admin à mão, ou esquece (D28 e D55).
+   - Toda página tem um escopo próprio, e cada contexto dentro dela com
+     permissão diferente também (D55).
    - O `FRONTEND_ROUTE_PERMISSIONS`, o `iam/actions` e o catálogo da 19 leem
      dele. A tela de acesso mostra o nome e a descrição de cada permissão.
 2. **Vocabulário fixo de ações**, cada uma com significado (D27): `read`,
@@ -104,7 +109,7 @@ editar fluxos e também para o dry run. A ideia:
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
 | D27 | Vocabulário de ações | (a) `read`, `create`, `update`, `delete`, `approve`, `review`, `reprocess`, `run` e `test`, com exportar dentro de `read`; (b) idem mais `export` | (a): exportar quase sempre acompanha a leitura |
-| D28 | Override do `admin:*` | (a) como hoje, em tudo; (b) só para `read`, e as outras ações exigem a role do escopo; os admins atuais ganham as roles explícitas na migração; (c) acabar com o admin | (b): o admin de hoje aprova lote e decide o Pré-Trade sem ninguém ver |
+| D28 | Override do `admin:*` | **Decidida em 16/10:** o `admin:{ação}` vale em todas as telas, escopos e ações, exceto no `access-control` (D16 e D55) | O `require(escopo, ação)` do catálogo acrescenta o `admin:{ação}` sozinho, menos nos escopos de `SCOPES_WITHOUT_ADMIN_OVERRIDE` |
 | D29 | Aprovação na Formalização | (a) `approve` para status e ativação, separado de `update`; (b) como hoje | (a) |
 | D30 | Envio de Relatórios | (a) `test` e `run` separados, e ativar/desativar continua `update`; (b) também separar o liga/desliga | (a) |
 | D31 | Transição | (a) período com role antiga ou nova, migração espelhando quem tem hoje e remoção das antigas depois; (b) troca direta num deploy | (a): ninguém perde acesso no dia |
