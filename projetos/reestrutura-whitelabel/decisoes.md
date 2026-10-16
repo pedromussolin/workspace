@@ -13,6 +13,7 @@ para "Tomadas" com o motivo. Isso evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 16/10/2026 | D26: a `.ai/` usa nomes padrão de mercado, em inglês: `rules/`, `context/`, `skills/` (formato Agent Skills, uma pasta com `SKILL.md` por skill), `scripts/` e `boundaries.md`. O conteúdo continua em PT-BR (D25). `.claude/skills` é um symlink para `.ai/skills`; outras ferramentas, só nos caminhos documentados | Pietro: "queria que fosse algo com uma nomenclatura mais padrão de mercado, como: skills, scripts..." |
 | 16/10/2026 | D16: a tela de acesso tem escopo próprio (`access-control:read` e `access-control:write`), sem o override do `admin:*` | Pietro: "todas as recomendadas". Quem administra acesso é um grupo menor que os admins de dados |
 | 16/10/2026 | D17: o código atribui permissões a pessoas e a grupos. A atribuição a grupo fica atrás de uma configuração do BFF até a infraestrutura confirmar a licença Entra ID P1/P2 | Pietro: "todas as recomendadas" |
 | 16/10/2026 | D18: o Pietro pede à infraestrutura, já, as permissões do Graph para o app do BFF, com consentimento de admin | Pietro: "todas as recomendadas". O consentimento costuma demorar |

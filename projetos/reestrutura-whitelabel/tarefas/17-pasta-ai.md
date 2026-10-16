@@ -17,33 +17,37 @@ No pitch para a diretoria, é o "nível 3 · IA nativa": o padrão do nível 2
 
 ## Estrutura
 
+Nomes padrão de mercado, em inglês (D26). O conteúdo fica em PT-BR (D25).
+
 ```text
 .ai/
 ├── README.md              porta de entrada: ordem de leitura e como validar
-├── regras/
-│   ├── arquitetura.md     core/shared/layouts/features e direções de import
-│   ├── estilo.md          só tokens, tom sobre tom, nada de cor solta
-│   ├── componentes.md     sempre shared/ui; padrão novo nasce lá, com spec e vitrine
+├── rules/                 regras sempre válidas
+│   ├── architecture.md    core/shared/layouts/features e direções de import
+│   ├── styling.md         só tokens, tom sobre tom, nada de cor solta
+│   ├── components.md      sempre shared/ui; padrão novo nasce lá, com spec e vitrine
 │   ├── angular.md         signals, input/output, inject, @if/@for; nada depreciado
-│   ├── testes.md          spec de comportamento; nenhuma falha nova
-│   ├── responsivo.md      até ~400 px; Chrome, Edge e Safari
-│   ├── permissoes.md      o front só conhece o escopo; roles ficam no BFF
+│   ├── testing.md         spec de comportamento; nenhuma falha nova
+│   ├── responsive.md      até ~400 px; Chrome, Edge e Safari
+│   ├── permissions.md     o front só conhece o escopo; roles ficam no BFF
+│   ├── security.md        CSP, DOMPurify, bypassSecurityTrust, audit
 │   └── git.md             branch e commit com TS, commits atômicos, PT-BR, 72 caracteres
-├── referencias/
+├── context/               conhecimento de referência
 │   ├── design-system.md   tokens, marcas, claro/escuro e ícones (aponta para a vitrine, 15)
-│   ├── telas-modelo.md    Pré-Trade e Lotes como exemplo, com os caminhos
-│   ├── dominio.md         glossário dos módulos (lote, cessão, formalização...)
+│   ├── reference-screens.md  Pré-Trade e Lotes como exemplo, com os caminhos
+│   ├── domain.md          glossário dos módulos (lote, cessão, formalização...)
 │   └── bff.md             onde achar o contrato (docs da API, 14) e o data-access de cada feature
-├── receitas/
-│   ├── nova-tela.md
-│   ├── novo-componente.md
-│   ├── nova-marca.md
-│   └── corrigir-bug.md    teste que falha antes da correção
+├── skills/                passo a passo no formato Agent Skills (SKILL.md com name e description)
+│   ├── new-page/
+│   ├── new-component/
+│   ├── new-brand/
+│   ├── fix-bug/           teste que falha antes da correção
+│   └── validate-change/
 ├── scripts/
-│   ├── validar.sh         build, lint e testes, comparando as falhas com a base
+│   ├── validate.sh        build, lint, testes e audit, com a lista de falhas conhecidas
 │   ├── smoke.mjs          abre as rotas com BFF falso, no desktop e a ~400 px, e tira prints
-│   └── checar-padrao.mjs  acusa cor solta, ::ng-deep e import do Material
-└── fronteiras.md          o que não se toca sem pedido explícito
+│   └── check-patterns.mjs acusa o que o lint não pega
+└── boundaries.md          o que não se toca sem pedido explícito
 ```
 
 Na raiz, adaptadores finos que só apontam para a `.ai/`, sem repetir
