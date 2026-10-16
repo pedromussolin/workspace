@@ -1,7 +1,7 @@
 # 17 — Pasta `.ai`: repositório pronto para desenvolver com IA
 
 - **TS:** TS-5389 · **Branch:** `chore/TS-5389-pasta-ai` (da 13)
-- **Status:** **commits feitos, sem push** (16/10). Critério de aceite cumprido; ajustes da documentação em andamento
+- **Status:** **commits feitos, sem push** (16/10). Aceite cumprido e lacunas corrigidas. Na junção com a 13, a regra de datas aponta para a camada de formatação
 - **Depende de:** 04. Pode começar já e fecha depois da 13, quando as regras
   de lint que garantem as fronteiras existirem.
 
@@ -193,4 +193,26 @@ rodei eu, sem corrigir nada:
 - **Datas:** não havia utilitário comum para data sem hora. Fica com a
   camada de formatação da 13, e a regra de datas da `.ai/` é atualizada na
   junção.
+
+**Lacunas corrigidas** (12 commits a mais, 33 no total):
+- **`bff.md`:** a tabela dos formatos de resposta e como descobrir o de um
+  endpoint. No scaffold, o envelope fica só no `data-access`.
+- **Idioma:** pasta, classe e rota em inglês, e texto de tela em PT-BR. Os
+  comentários dos modelos estão em inglês, e o legado não se traduz.
+- **Dados de teste:** em `testing/<área>.fixtures.ts`.
+- **Tela só de leitura:** o `iamGuard` mais
+  `FRONTEND_ROUTE_PERMISSIONS` com `admin:read` e `{escopo}:read`.
+- **Skill `new-page`:** ganhou o passo "No BFF" e manda atualizar as tabelas
+  de `bff.md` e `domain.md`.
+- **Menu:** seções e critério em `architecture.md#menu`.
+- **`security.md`:** mostra o que existe hoje e o que chega com a 18.
+- **Smoke:** o `SCENES` abre uma linha da tabela antes do print.
+- **Regra D55:** escopo por página e por contexto, com `admin:{ação}` em
+  tudo menos no `access-control`.
+
+**Validação:**
+- `check-patterns` limpo;
+- `validate.sh` (`SKIP_AUDIT=1`) ok, com 1.820 testes;
+- o scaffold gera uma tela que passa em tipos, Prettier, lint,
+  `check-patterns` e specs.
 
