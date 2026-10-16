@@ -1,7 +1,7 @@
 # 20 — Devcontainer do front mais leve e confiável
 
 - **TS:** TS-5387 · **Branch:** `chore/TS-5387-devcontainer` (da `origin/master`, com `--no-track`)
-- **Status:** a planejar (pedido de 15/10)
+- **Status:** **commits feitos, sem push** (15/10)
 - **Depende de:** nada. Não depende do épico e pode andar a qualquer momento.
 
 ## Por quê
@@ -126,3 +126,76 @@ o `bff-sandbox-proxy` do workspace) e como medir os tempos.
 | D20 | Versão do Node | **Decidida em 15/10: (a) 22 LTS** | Conferir se a imagem de produção (`Dockerfile` da raiz) também sobe |
 | D21 | Ferramentas de IA no contêiner (Copilot, ChatGPT, Codex, chave do Azure OpenAI) | **Decidida em 15/10: (a) saem do projeto** | — |
 | D22 | O BFF entra na mesma tarefa | **Decidida em 15/10: (b), o BFF fica para outra tarefa** | — |
+
+## O que foi feito (15/10/2026)
+
+Branch `chore/TS-5387-devcontainer`, criada da `origin/master`
+(`576957c`). São 8 commits, sem push. Só o front entrou (D22).
+
+| Commit | O quê |
+|---|---|
+| `5c6b615` | cherry-pick do `9bcf7b7` da 01 (A21), para o `ng test` compilar |
+| `bb9b878` | imagem `node:22.23.3-bookworm-slim`, igual no `.nvmrc` e no `engines`. Sem CLI global, com o `node_modules/.bin` no PATH. Entram o `chromium-headless-shell` e as fontes, com `CHROME_BIN`, o `safe.directory` no gitconfig do sistema e o `openssh-client` |
+| `427236f` | um contêiner só, sem compose. A rede compartilhada com o BFF entra por `runArgs`, com o mesmo `initializeCommand`. `node_modules` num volume por workspace e cache do npm num volume próprio. A porta 4200 só no `forwardPorts`, e `init: true`. Saem o compose, o `.env`, o healthcheck e o `restart` |
+| `b4f542e` | saem as ferramentas de IA pessoais (D21) |
+| `13de9e1` | `install-dependencies.sh` no `postStartCommand`: o `npm ci --prefer-offline` só roda quando muda o hash do lock mais a versão do Node. Sem mudança, leva menos de 0,2 s. Sai o `post_start.sh` |
+| `8313707` | Dockerfile de produção no Node 22.23.3. O build e o `/health` respondem |
+| `3a7e22d` | `.vscode/`: ESLint e Prettier ao salvar; tarefas `ng serve`, `ng serve (polling)`, `ng test`, `ng build` e `lint`; debug do Chrome; extensões |
+| `b8b9f15` | README do devcontainer. Na revisão, saiu o trecho que citava o proxy da sandbox, que não existe no repo da empresa |
+
+**Tempos** (CLI do Dev Containers, WSL):
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Primeira criação | 92,6 s | 112,6 s (o Chromium do `ng test` pesa) |
+| Recriação ("Rebuild Container") | 39,0 s | **8,1 a 8,8 s** |
+| Reabertura | 4,6 s | **1,9 s** |
+| Primeira compilação do `ng serve` | 14,9 s | 14,7 s |
+| Recompilação ao salvar | 0,53 a 0,55 s | 0,52 a 0,54 s |
+| Imagem | 683 MB | 1,25 GB (Chromium) |
+
+- O ganho está na recriação, na reabertura e em não ter erro no log. A
+  primeira criação ficou mais lenta por causa do Chromium que o `ng test`
+  exige. O `headless-shell` economiza 200 MB e uns 35 s em relação ao
+  `chromium` completo.
+- O diagnóstico de polling não se confirmou. O Angular 20 vigia os arquivos
+  com o watchpack, que não lê o `CHOKIDAR_USEPOLLING`. A variável não tinha
+  efeito nenhum.
+
+**Validação dentro do contêiner novo:**
+- `ng test`: 250 testes, com as mesmas 96 falhas da master no host;
+- `ng lint`: 73/288, igual;
+- `ng serve` responde em 4200;
+- nenhum erro no log de criação, recriação e reabertura.
+
+**Mudanças visíveis para listar na PR** (só no ambiente de desenvolvimento):
+- o `ng test` roda dentro do contêiner;
+- some o erro do `.gitconfig` a cada subida;
+- o contêiner deixa de ficar "unhealthy";
+- a porta 4200 deixa de ser publicada no host;
+- as extensões são outras;
+- as tarefas do VS Code foram corrigidas (chamavam um `build-env.js` que
+  não existe);
+- o `ng` passa a ser o do projeto.
+
+**Primeira vez depois do merge:**
+1. `Dev Containers: Rebuild Container`.
+2. Apagar o contêiner, o volume e as imagens do compose antigo.
+3. Ferramentas de IA pessoais vão em `dev.containers.defaultExtensions` e
+   nos dotfiles.
+4. `THEME_KEY=<marca> npm start` (o `.env` saiu).
+5. No host, `nvm use` lê o `.nvmrc`.
+
+**Não exercitado:** só houve CLI, sem VS Code. Ficaram sem testar:
+- instalação das extensões e formatar ao salvar;
+- Angular Language Service;
+- F5 e encaminhamento da porta;
+- `/mnt/c` com polling;
+- o BFF subido junto.
+
+**Para decidir depois:**
+- trazer o proxy da sandbox para `scripts/` do repo da empresa (hoje ele
+  vive só no workspace);
+- o `docker-compose.yml` da raiz (`angular-dev` com `node:20-alpine`) ficou
+  como está: apagar ou alinhar.
+
