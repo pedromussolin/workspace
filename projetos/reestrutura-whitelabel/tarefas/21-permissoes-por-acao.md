@@ -236,3 +236,66 @@ falhas da base):
 
 **Pendente:** a migração dos `admin:*` (D56, decisão do Pietro).
 
+
+## O que foi feito: front (16/10/2026)
+
+Branch `feature/TS-5391-permissoes-por-acao` do front, criada da 19 depois
+do merge da 17 (`3400422a`). São 18 commits, sem push:
+
+| Commit | O quê |
+|---|---|
+| `a0e438e9` | ações `run` e `test` no enum de permissões do IAM |
+| `cf937dd3` | Envio de Relatórios: `test` no dry run e no testar conexão, `run` no "Enviar agora" |
+| `6425bce3` | Formalização: `approve` para mudar status; o PATCH só manda `status`/`pendingWith` quando mudam |
+| `91830191` | "Excluir lote" dos lotes reais confere `approve`, como o BFF exige |
+| `6ccef607` | fechar lote fake confere `run` |
+| `606437ea` | Onboarding: reprocessar e reenviar webhook com `reprocess` |
+| `727c0193` | contrato do catálogo e da migração no `data-access` |
+| `b4bd1752` | Orquestrador: re-executar com `reprocess` |
+| `6b146ec0` | Produtos: `create` para criar, `update` para salvar |
+| `93235261` | aba Permissões: nome e descrição do catálogo do BFF e a transição nos dois sentidos |
+| `30a7fa03` | Base de Conhecimento: a exclusão manda o `department`; mensagens próprias para 409, 404, 403 e 400 |
+| `5e3394ce` | a confirmação do lote vira um serviço, para a migração reaproveitar |
+| `418bffb1` | aba Migração: plano, prévia, confirmação e resultado |
+| `1c09df39` | vocabulário das 9 ações na `.ai`; `run` e `test` no BFF falso do smoke |
+| `6ce610e2` | specs dos lotes sem `any` |
+| `f2fef248`, `b16297d3`, `065017b3` | ajustes da migração: texto da dica, prévia só quando a pessoa pede e resumo em uma coluna no celular |
+
+**O que o usuário vê:**
+
+| Tela | Antes | Depois |
+|---|---|---|
+| Envio de Relatórios | dry run com `create`/`update`; "Enviar agora" com `reprocess`; testar conexão com `-manage:read` | `test`, `run` e `-manage:test`; sem a ação, o botão some |
+| Formalização | `update` editava e mudava o status | editar pede `update`; status em lote, ativar e inativar pedem `approve`. Sem `approve`, o status fica travado na edição, com aviso, e o cadastro novo só oferece "pendente" |
+| Lote fake | fechar com `update` | `run` |
+| Conciliação manual | "Excluir lote" com `delete` | `approve` |
+| Onboarding | `update` | `reprocess` |
+| Orquestrador | "Re-run" sem checagem | `reprocess` |
+| Produtos | sem checagem | `create` para "Novo" e cadastros; `update` para salvar, com aviso de só leitura |
+| Base de Conhecimento | `create`/`delete` do departamento | igual, e a exclusão manda o `department` |
+| Poli Chat, PDD, detalhe do contrato, analítico | — | nada muda: telas só de leitura, a rota com `iamGuard` basta |
+| `/access-control`, Permissões | nome e descrição vinham do Azure | vêm do catálogo do BFF. Na role antiga, "Na transição, também libera: …"; na nova, "Na transição, também liberada por: …", sem os `admin:*`. Os rótulos somem quando a transição desliga |
+| `/access-control`, Migração | — | aba própria (`?tab=migration`), só com `access-control:write`: o plano de 13 linhas, quem tem a role antiga, a prévia sob pedido com quantos recebem, pulados e bloqueados, e "Aplicar migração" |
+
+**Contrato:** a exclusão na Base de Conhecimento leva `department`, e a
+Formalização só manda `status`/`pendingWith` quando mudam. O resto o BFF da
+21 já expõe: `legacyRolesEnabled`, `permission` e `legacyFor` em cada role,
+`access-control/migrations` e `copy_assignments`.
+
+**Quem fica mais restrito na transição:** quem tem `whitelists:create` sem
+`whitelists:update` perde, no front, o cadastro já ativo ou inativo. O BFF
+ainda aceitaria, mas o `iam/actions` não devolve `approve` para essas
+pessoas, e a migração só copia a partir do `update`. Aceito em 16/10; entra
+na lista da 24.
+
+**Validação:**
+- `check-patterns` limpo;
+- `validar-leva.sh` ok: os 18 commits compilam sozinhos, build ok, lint
+  20/163, 2.117 testes sem falha nova, smoke de 8 rotas no claro, no escuro
+  e na Dots;
+- prints da página inteira (Permissões com o detalhe aberto, plano e prévia
+  da Migração) no claro, no escuro e no celular. O gerador e os dados
+  fictícios ficam na pasta privada.
+
+**Achados:** A32 (o erro "ResizeObserver loop" da tabela comum) e A33 (o
+`contract-details` na transição).
