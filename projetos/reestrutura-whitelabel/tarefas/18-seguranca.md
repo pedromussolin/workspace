@@ -2,7 +2,7 @@
 
 - **TS:** TS-5386 · **Branch:** `fix/TS-5386-seguranca-front` (da `master`, com
   `--no-track`)
-- **Status:** a iniciar
+- **Status:** **commits feitos, sem push** (15/10)
 - **Depende de:** nada. Nasce da `master` e entra direto, sem esperar o
   épico. As branches do épico pegam a mudança no próximo rebase.
 
@@ -79,3 +79,78 @@ resultado (D12).
 ## Fora do escopo
 
 Sessão, cookie e CORS do BFF: ficam no apl-credit-whitelabel-api.
+
+## O que foi feito (15/10/2026)
+
+Branch `fix/TS-5386-seguranca-front`, criada da `origin/master`
+(`576957c`). São 6 commits, sem push:
+
+| Commit | O quê |
+|---|---|
+| `45f2d2a` | cherry-pick do `9bcf7b7` da 01 (specs que não compilavam, A21), com o conteúdo idêntico |
+| `9ed89a3` | bibliotecas sem versão major: Angular 20.3.11 → 20.3.34 (CLI e build 20.3.40; `cdk` e `material` 20.2.14, que é a linha deles), `dompurify` 3.4.17, `markdown-it` 14.3.2 (`linkify-it` 5.0.2) e `moment` 2.31.0 |
+| `b257967` | cabeçalhos em `nginx-security-headers.conf`, incluído no `server` e em todo `location` com `add_header` próprio; `X-XSS-Protection: 0`; HSTS pronto e comentado |
+| `4e2a013` | CSP em `Content-Security-Policy-Report-Only`. A origem do BFF vem do `entrypoint.sh`, a partir do `API_URL`, quando ele é absoluto |
+| `85a5abd` | `iamGuard` no `/pdd` e o `app.routes.spec.ts`, que falha se uma rota autenticada ficar sem guard |
+| `d88c896` | `npm run audit:prod` e uma seção no README |
+
+**Mudanças visíveis para listar na PR:**
+- `/pdd` sem permissão vai para `/unauthorized`. Antes, a tela abria e só
+  o BFF barrava as chamadas.
+- As respostas do nginx (`/`, `/index.html`, rotas profundas, `env.js` e
+  estáticos) saem com os 4 cabeçalhos e a CSP em report-only. Antes, não
+  saía nenhum.
+- Nas telas, nada muda.
+
+**CSP:**
+- **O que libera:**
+  - `script-src 'self'` mais o hash do `onload` do CSS crítico, que o build
+    do Angular põe;
+  - `style-src` com `'unsafe-inline'` e o Google Fonts;
+  - `img-src 'self' data:`;
+  - `connect-src`/`frame-src 'self'` mais a origem do BFF.
+- **Por que não o `autoCsp` do Angular:**
+  - ele gera um `<meta>`, e o navegador ignora report-only em meta;
+  - ele quebraria o `env.js`, que o `entrypoint.sh` reescreve com
+    `?v=<ts>`.
+- **Script inline do esquema de cor (da 02):** seria acusado depois da
+  junção com o épico. A 13 o leva para um arquivo em `assets/`.
+
+**Validação:**
+
+| Item | Resultado |
+|---|---|
+| `npm audit --omit=dev` | 12 falhas (9 altas e 3 moderadas) → **0** |
+| Build e lint | build ok; lint 73/288, igual à master |
+| Testes | 253, com as 96 falhas da base e nenhuma nova. O spec das rotas falha sem o guard no `/pdd` |
+| `curl -I` na imagem de produção | os 4 cabeçalhos e a CSP em `/`, `/index.html`, `/pre-trade`, `/assets/env.js`, `/api/...`, `/main-*.js` e `/health` |
+| CSP no navegador | nenhuma violação nas 31 rotas, com os eventos `securitypolicyviolation` escutados |
+| Smoke | igual à master. Sem dados, a master já tem erros de console no `/pdd` e na Formalização; e a home no celular rola de lado (137 px), também na master |
+
+**Falta confirmar com a infraestrutura:**
+- o que o gateway já envia (HSTS, `X-Frame-Options`, CSP), para não
+  duplicar;
+- onde termina o TLS e qual valor de HSTS usar;
+- se o gateway repassa os cabeçalhos do nginx;
+- se haverá endpoint de relatório da CSP (`report-to`).
+
+**Antes de trocar para CSP que bloqueia** (depois de um ciclo na sandbox):
+- o download do chat por iframe com link pré-assinado do S3 vai violar o
+  `frame-src`;
+- imagens externas no markdown da IA vão violar o `img-src`;
+- os dois só aparecem com dados reais.
+
+**Regras para a `.ai/fronteiras.md` (17):**
+- `bypassSecurityTrust*` só com conteúdo estático do código;
+- HTML de fora passa pelo DOMPurify;
+- script inline novo no `index.html` não pode, vai para `assets/`;
+- origem externa nova entra na CSP no mesmo PR;
+- rota autenticada tem `iamGuard`;
+- cabeçalho novo vai no `nginx-security-headers.conf`;
+- `npm run audit:prod` sem falha antes do PR.
+
+**Conflitos esperados:**
+- `package-lock.json` com o épico: refazer a partir do `package.json`
+  resolvido. A 13 tira o Material, que a 18 atualiza;
+- o guard do `/pdd` quando a 09 mover a rota.
+
