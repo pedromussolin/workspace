@@ -40,3 +40,14 @@ portal) liga cada uma a um token.
 
 Em C, o degradê de tom vem de opacidades da marca, e não de `<linearGradient>`: o gradiente
 precisa de `id`, e o `id` se repete quando a mesma ilustração aparece duas vezes na tela.
+
+## Conjunto do portal (tarefa 23)
+
+`cenas-portal.mjs` gera as 6 cenas que estão no `app-illustration`:
+- as 4 da direção A, idênticas à proposta;
+- `file-upload`, o envio de arquivo do chat;
+- `login-backdrop`, o fundo do login, com `viewBox` 1440×900 em `slice`.
+
+Rode `node cenas-portal.mjs`. Ele confere as regras do conjunto e escreve
+`scenes.json` e `preview.html`, que não são versionados.
+

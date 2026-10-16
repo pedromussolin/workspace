@@ -1,7 +1,7 @@
 # 23 — Ilustrações próprias
 
 - **TS:** TS-5393 · **Branch:** `feature/TS-5393-ilustracoes` (da 13)
-- **Status:** a iniciar (direção A e D44 a D46 decididas em 16/10)
+- **Status:** **commits feitos, sem push** (16/10)
 - **Depende de:** 13 (tokens finais, tema claro/escuro e `shared/ui`)
 
 ## Por quê
@@ -80,3 +80,64 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
 | D46 | Robô do Poli | (a) fica como está; (b) redesenhar no mesmo estilo | (a) nesta tarefa: é a identidade do assistente |
 | D47 | Direção visual | **Decidida em 16/10: A, interface em camadas** | O conjunto final completa a A com as cenas que faltam: upload de arquivos e o visual do login |
 | D48 | Página 404 | **Decidida em 16/10:** simples e sem ilustração, só com o código, o título "Página não encontrada", uma frase e o botão "Voltar para a Home" | Pietro: "a página 404 pode ser mais simples e não precisaria usar ilustração" |
+
+## O que foi feito (16/10/2026)
+
+Branch `feature/TS-5393-ilustracoes`, criada da 13 (`fd987f8c`). São 10
+commits, sem push:
+
+| Commit | O quê |
+|---|---|
+| `ced90fe6` | token `--brand-accent`, a cor de destaque da marca (a secundária; na Cerys, a primária), num commit isolado |
+| `11eacae5` | o `app-illustration` em `shared/ui/illustration/`: `name` tipado, `size` e `--illustration-size`, SVG inline com `aria-hidden` e as `--illu-*` ligadas aos tokens. Specs do componente e das regras do conjunto |
+| `db1cba2c` | acesso negado com a ilustração; a 404 simples (D48) |
+| `bb55f3a4` | erro de página inteira com a ilustração |
+| `8bd258e1` | as tabelas antigas mostram o vazio no `app-empty-state`, com ícone |
+| `668fca97` | upload do chat com a cena de envio de arquivo |
+| `9cf19bfa` | login com a composição de fundo própria, nos dois esquemas |
+| `6d5abe04` | aba "Ilustrações" na vitrine, nas 4 marcas e nos 2 esquemas |
+| `7532528a` | apaga 9 ilustrações de banco sem uso (cerca de 94 KB) |
+| `7ab840fc` | regra no `AGENTS.md` |
+
+**Cenas:**
+
+| Cena | Tamanho |
+|---|---|
+| `empty-list` | 1.688 B |
+| `search-no-results` | 1.758 B |
+| `load-error` | 1.891 B |
+| `access-denied` | 1.699 B |
+| `file-upload` (nova) | 2.106 B |
+| `login-backdrop` (nova, 1440×900) | 2.509 B |
+
+O gerador está em `anexos/ilustracoes/cenas-portal.mjs`.
+
+**Mudanças visíveis para a PR:**
+- **Acesso negado:** a cena nas cores da marca, e o título passa a
+  "Acesso negado".
+- **404:**
+  - sem desenho, com o código grande na cor da marca;
+  - "Página não encontrada" e uma frase só;
+  - o botão "Voltar", que voltava no histórico, vira "Voltar para a Home",
+    que vai para `/home`.
+- **Erro de página:** a cena de erro e o título menor.
+- **Tabelas antigas:** o vazio passa ao `app-empty-state` ("Nenhum
+  resultado para sua busca.").
+- **Upload do chat:** a cena de envio de arquivo.
+- **Login:** composição de fundo própria, nas cores da marca, no claro e no
+  escuro.
+
+**Validação:**
+- `validar-leva.sh` ok: build ok, lint 20/163, 1.876 testes, sem falha nova
+  (o acordeão instável é o A27, que a 13 corrige);
+- smoke sem sessão do login, claro e escuro, sem erro;
+- prints conferidos nas 4 marcas.
+
+**Para decidir (D57):** o login sempre mostra o logo da Poliedro, mas o fundo
+segue a marca do deploy. Num deploy da Dots, o fundo fica laranja atrás do
+logo da Poliedro.
+
+**Na junção com a 17:**
+- a regra das ilustrações vai para a `.ai/` e o `check-patterns`;
+- o `--brand-accent` encontra o `--brand-icon` da 13 nos mesmos arquivos.
+
