@@ -110,3 +110,50 @@ Decisões da rodada 1 (16/10, Pietro):
 | R19 | Envio de relatórios, detalhe da execução | Pastas coladas, sem separador | `features/report-transfer` | em correção |
 | R20 | Tabela comum | Filtro de coluna (botão no cabeçalho e popover) ainda mora no `config-table` e cada tela repete o estilo: levar para `shared/ui/table` | `shared/ui/table` | a decidir |
 | R21 | Lotes de Cessão | Status como pílula exige um enum de status no BFF (hoje `estado_atual` livre) | BFF + tela | a decidir |
+
+## Auditoria da rodada 1 (V3 a V41)
+
+345 prints (marca padrão em claro, escuro, 1440 e 390 px; as outras três marcas num recorte),
+feitos no build de 16/10, antes das correções. Detalhe, medidas e prints na pasta privada
+(`evidencias/25-rodada1/achados.md`). Sem rolagem lateral, sem cor fixa e sem erro de
+ResizeObserver nos prints.
+
+**Já cobertos pelos itens R:** V8 (R18), V9 alinhamento (R11; falta `tabular-nums`, ver V9b),
+V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da V30 (R18).
+
+| # | Onde | O que | Proposta | Grav. | Situação |
+|---|---|---|---|---|---|
+| V3 | Tokens | Tom sobre tom de sucesso e atenção abaixo de AA no claro (4,17 e 4,08:1), em pílulas, avisos e toasts | `--tonal-fg` de 78% para 70% (4,8 e 4,7:1) | alta | a decidir |
+| V24 | Marca Cerys | Tons de marca saem da secundária, quase preta: botão principal, segmentado ativo e ícones ficam cinza | Tons de marca pelo `accent` laranja que o tema já declara | alta | a decidir |
+| V7 | Campos, checkbox, radio | Contorno de 1,23:1 (claro) e 1,43:1 (escuro); o mínimo para contorno é 3:1 | Token `--control-border` só para controles | média | a decidir |
+| V4 | Sidebar | Rótulos de seção e e-mail a 4,43:1 (3,99 com hover) | `--text-secondary` | média | a decidir |
+| V5 | Superfície rebaixada ou tingida | Texto apagado a 4,19–4,40:1 (trilha do Pré-Trade, linha aberta em três marcas) | Texto mais escuro nessas superfícies | média | a decidir |
+| V6 | Pílula de status de lote | No escuro, três status abaixo de AA; na Dots, "Concluído" a 3,82:1 | Clarear os status no escuro; "Concluído" sem a cor da marca | média | a decidir |
+| V9b | Tabela comum | Números sem algarismos de largura fixa | `tabular-nums` nas colunas `end` | média | a decidir |
+| V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | a decidir |
+| V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | a decidir |
+| V15 | KPI | Rótulo cortado sem dica ("Operações em andam…") | Dica no rótulo cortado ou 2 linhas | média | a decidir |
+| V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | a decidir |
+| V17 | Select | Valor cortado sem dica; lista aberta estreita corta opções | Dica no valor; lista com largura mínima maior | média | a decidir |
+| V18 | Campo de data | Placeholder e período cortados em campo estreito | Largura mínima que caiba a data; placeholder "dd/mm/aaaa" | média | a decidir |
+| V19 | "Limpar filtros" | Três tamanhos e ausente em 7 telas | Uma peça só, no fim de toda toolbar | média | a decidir |
+| V20 | Cartão de filtros | Cada tela com a própria classe e recuo (16/16, 16/20, 20/20) | Uma toolbar de filtros comum | média | a decidir |
+| V25 | Logo Cerys | PNG com margem transparente: o desenho fica com ~50×10 px | Logo recortado | média | a decidir |
+| V31 | Usuários | "APPROVED" cru numa pílula neutra; vazio dentro de pílula | Mapa de status em PT-BR; vazio sem pílula | média | a decidir |
+| V11 | Seta de ordenar | Inativa a 2,13:1 | Inativa em `--text-faint` | baixa | a decidir |
+| V21 | Raios | Checkbox 5 px, menu e anexo 12 px, fora da escala | Raios da escala | baixa | a decidir |
+| V22 | Mensagem do campo | Texto longo sem quebra vaza do campo (docs da API) | `overflow-wrap: anywhere` | baixa | a decidir |
+| V23 | Gráfico no celular | Último rótulo do eixo X cortado | Último rótulo alinhado pelo fim | baixa | a decidir |
+| V26 | Logo Dots | Fundo branco opaco vira um retângulo na sidebar clara | PNG transparente | baixa | a decidir |
+| V27 | Login | "Entrar com Microsoft" sólido, fora do tom sobre tom | Tom sobre tom ou registrar a exceção | baixa | a decidir |
+| V30 | Formalização | KPI com percentual ("18 · 37,5%"), fora da regra de KPI simples | Percentual fora do valor | baixa | a decidir |
+| V32 | Usuários e Produtos | Busca com 36 px e "Buscar" em tamanhos diferentes | 40 px e md nos dois | baixa | a decidir |
+| V33 | Onboarding BGT | Atalhos de período com 34 px ao lado do campo de 40 | Mesmo tamanho | baixa | a decidir |
+| V34 | Onboarding BGT, Simular, Clientes | Cabeçalho sem trilha | Trilha na rota | baixa | a decidir |
+| V35 | PDD, composição | Nome do fundo cortado e colunas de valor largas | Largura pelo conteúdo | baixa | a decidir |
+| V36 | Detalhes do contrato | Título "- undefined" sem parâmetro; sombra diferente; acordeão em cartão dentro de cartão | Vazio padrão, `--shadow-card`, acordeão sem moldura | baixa | a decidir |
+| V37 | Detalhes do usuário | Cartão repete o título; descrição da lista; vazio próprio | Título com o nome, vazio padrão | baixa | a decidir |
+| V38 | Trilha de etapas do Pré-Trade | Animação de 600 e 2.400 ms | Registrar a exceção (é progresso) | baixa | a decidir |
+| V39 | Poli Chat | Conversa sem estado inicial; vazio em texto solto | Estado inicial e vazio padrão | baixa | a decidir |
+| V40 | Monitoramento BGT | Com dado incompleto, fica carregando para sempre | Estado de erro ou vazio; completar o dado fictício | baixa | a decidir |
+| V41 | Vitrine | Marca "viva" em minúsculo no seletor | Nome com maiúscula | baixa | a decidir |
