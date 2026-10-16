@@ -213,7 +213,37 @@ master ── 01 ── 02 ── 03 ── 04 ──┬── 05 Pré-Trade
 - O **botão de dark mode** fica escondido até a 13. Sem isso, a produção
   mostraria telas meio claras e meio escuras durante a migração.
 
+## Rodar local com dados fictícios
+
+Abre qualquer worktree do front (ou a junção) com um BFF falso, que tem
+todas as telas liberadas e os dados de `$PRIV/smoke-dados/`. As ações não
+gravam nada:
+
+```bash
+~/repos/whitelabel-workspace/anexos/scripts/portal-local.sh ~/repos/.reestrutura_whitelabel/junta-front
+```
+
+- Abra http://localhost:4300. No Windows, também funciona pelo WSL.
+- `BUILD=1` refaz o build antes; sem build, o script faz um.
+- O segundo argumento troca os dados (padrão: `todas-acesso-21.json`).
+- `THEME_KEY=<chave>` troca a marca (chaves no `privado.md`).
+- Pare com Ctrl+C.
+
+Serve para ver todas as telas, os temas, o celular, a tela de acesso da 19
+e a migração da 21. O BFF não é testado aqui: ele tem os próprios testes
+(`pytest`) e é validado na sandbox.
+
 ## Rodar local contra o BFF da sandbox
+
+Dados reais, mas o BFF da sandbox é o da master. Com as branches da 19, da
+21 e da 22 do front, ficam de fora:
+- a tela de acesso, que dá erro;
+- os botões que pedem as ações novas (`test`, `run`, `reprocess`,
+  `approve`), que somem;
+- o `usr.id` do RUM.
+
+Use para as áreas e a 13, ou para a junção sem a 21.
+
 
 1. Na branch que for testar: `cd apl-credit-whitelabel && npm start` (front
    em http://localhost:4200, chamando a API em http://localhost:8000).
