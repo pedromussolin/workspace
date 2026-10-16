@@ -92,3 +92,70 @@ ver valor nenhum:
 | D41 | Valores visíveis | (a) nenhum; (b) só a lista aprovada de chaves que não são segredo | (b) |
 | D42 | Trava com hook | (a) sim; (b) só o wrapper | (a) |
 | D43 | Normalização no Azure | (a) pela tela da 19, depois do passo 3, que libera as permissões do Graph; (b) pela CLI do Azure, com o login do Pietro | (a), com (b) como plano B, se o consentimento atrasar |
+
+## O que foi feito: release (16/10/2026)
+
+Decisão do Pietro em 16/10: juntar tudo numa release agora, criar o
+refinamento visual (25) a partir dela e subir no ambiente. A master não
+andou desde a base do épico (front `576957c`, BFF `946dce3`).
+
+**Front: `release/20261016`**, da `origin/master`, com um merge por tarefa,
+sem push:
+
+| Merge | Tarefa |
+|---|---|
+| `21bbe3c5` | 13 (com as áreas 01 a 15) |
+| `78265657` | 17 |
+| `a5d19b60` | 23 |
+| `40deaff0` | 19 |
+| `5a6f36dc` | 21 |
+| `0005b5eb` | 18 (script de resolução) |
+| `5bb1d0e9` | 20 (script) |
+| `9f08ddb2` | 22 (script) |
+
+- A árvore é igual à da junção validada (`f32dce27`). Só muda uma linha:
+  o spec do erro sai da lista de legado do `check-patterns`.
+- A validação completa da junção vale para ela: 2.213 testes, audit 0 e
+  smoke em 9 rotas.
+- `check-patterns` limpo e `tsc` 0.
+
+**BFF: `release/20261016`**, da `origin/master`, sem push:
+
+| Merge | Tarefa |
+|---|---|
+| `0368282` | 14 |
+| `9f827bc` | 15 |
+| `6669c9e` | 19 (script) |
+| `f62ed98` | fix da 21 |
+| `082f47d` | 21: a 14 e a 15 entram no catálogo |
+| `65d07de` | 22 |
+
+O que a junção do BFF pediu além do conflito de texto (scripts
+`bff_feature_TS-5391-…` e `bff_feature_TS-5392-…` em `$PRIV/resolucoes/`):
+- **21 × 14 e 15:**
+  - a 21 tirou o `check_authorized_roles`, que a rota do OpenAPI da 14 usa,
+    e ela quebraria na importação. Passou ao `require("api-docs", read)`;
+  - os escopos `api-docs` e `design-system` entraram no catálogo, e as
+    telas `/api-docs` e `/design-system` entraram na lista de rotas da 21;
+  - os testes do fix da 21 ganharam a configuração que o `require` lê.
+- **22 × 21 e fix:**
+  - imports dos dois lados;
+  - a indexação na Base de Conhecimento fica com a medição da 22 e o
+    usuário que o fix passa;
+  - o log de sucesso do PATCH sai;
+  - os testes do fix trocam o transport observado da 22.
+- **Resultado:** 955 testes, com as mesmas 8 falhas da base; ruff igual à
+  master (9 avisos antigos).
+
+**Refinamento:** `refact/TS-5395-refinamento-visual`, criada da release do
+front.
+
+**Subir na sandbox:** pelo fluxo da empresa, uma cópia da release junta a
+`origin/sandbox`. O teste (16/10) mostrou:
+- **front:** conflito em 5 arquivos do fechamento de lotes. É a TS-5377
+  (fechamento assíncrono do lote fake, 2 commits) e a TS-5211 (1 commit),
+  que estão na sandbox e não na master. Elas foram escritas na estrutura
+  antiga e precisam ser levadas à `features/liquidation-batches`, como a 08
+  fez com o `e4e13a5`;
+- **BFF:** conflito em 2 arquivos (`exceptions_handlers.py` e o viewer do
+  pré-trade), da TS-5377 e da TS-5228.

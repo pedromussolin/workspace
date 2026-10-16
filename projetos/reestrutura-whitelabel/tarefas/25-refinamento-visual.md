@@ -1,7 +1,7 @@
 # 25 — Refinamento visual e de design
 
-- **TS:** a criar · **Branch:** `refact/TS-<id>-refinamento-visual` (da junção do front)
-- **Status:** **a iniciar** (16/10); falta o TS e a confirmação da base
+- **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)
+- **Status:** **branch criada** (16/10), esperando a primeira rodada de revisão
 - **Depende de:** todas as branches do front (a junção: 13, 17, 18, 19, 20,
   21, 22 e 23, com as áreas dentro da 13)
 - **Vai antes da 24:** o deploy leva o refinamento junto.
@@ -11,28 +11,24 @@
 Pedido do Pietro em 16/10: revisar tudo o que o épico fez em estilo e design
 e ajustar, em rodadas. Ele aponta, a tarefa corrige, e ele revisa de novo.
 
-## Base: por que a junção e não branch por branch
+## Base: a release
 
-O que a pessoa vê só existe junto:
-- a 13 tirou o Material;
-- a 23 pôs as ilustrações;
-- a 19 e a 21 criaram a tela de acesso;
-- e as peças comuns (`shared/ui`, tokens) vêm da 03 e da 04, alteradas pela
-  13.
-
-Corrigir branch por branch obrigaria a mexer em branches já publicadas e a
-propagar cada ajuste por merge até as de cima. Já se viu que essa cadeia dá
-conflito a cada rodada.
+Decidido em 16/10 (Pietro): juntar tudo numa release, criar o refinamento a
+partir dela e subir no ambiente. A release é a da 24 (`release/20261016`),
+com todas as branches do front juntas, uma por merge. Por que não branch por
+branch:
+- o que a pessoa vê só existe junto: a 13 tirou o Material, a 23 pôs as
+  ilustrações, e a 19 e a 21 fizeram a tela de acesso;
+- as peças comuns (`shared/ui`, tokens) vêm da 03 e da 04, alteradas pela 13;
+- corrigir na origem obrigaria a propagar cada ajuste por merge em cadeia.
 
 **Como fica:**
-1. A branch nasce do último commit da junção (`$PRIV/junta-front`).
-2. Os commits do refinamento ficam por cima, atômicos, um por peça ou tela.
-3. **Não é publicada** enquanto as outras não estiverem na `sandbox`.
-4. Quando estiverem, transplantar só os commits do refinamento:
-   `git rebase --onto origin/sandbox <commit-da-junção>`. Depois publicar e
-   abrir a PR, que fica só com o refinamento.
-5. **Ajuste que vier da revisão de uma PR** (ex.: na 04) entra na branch
-   dela. A junção é refeita, e o refinamento faz merge da junção nova.
+- os commits do refinamento ficam na `refact/TS-5395-refinamento-visual`,
+  atômicos, um por peça ou tela;
+- cada rodada volta para a release por PR (ou merge), e a release segue
+  para a sandbox;
+- ajuste que vier da revisão de uma tarefa entra na branch dela, e a release
+  faz merge de novo.
 
 ## Como funciona a rodada
 
