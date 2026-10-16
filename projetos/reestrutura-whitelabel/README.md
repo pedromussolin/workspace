@@ -39,14 +39,14 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 | # | Tarefa | Branch | Depende de | Status | TS |
 |---|---|---|---|---|---|
-| 01 | [Estrutura base](tarefas/01-estrutura-base.md) | `refact/TS-5358-estrutura-base-front` | — | **commits feitos, sem push** (10/10) | TS-5358 |
-| 02 | [Temas claro e escuro](tarefas/02-temas-claro-escuro.md) | `feature/TS-5359-temas-claro-escuro` | 01 | **commits feitos, sem push** (10/10) | TS-5359 |
-| 03 | [Componentes: ícones, botões e formulário](tarefas/03-componentes-formulario.md) | `feature/TS-5360-componentes-formulario` | 02 | **commits feitos, sem push** (11/10) | TS-5360 |
-| 04 | [Componentes: overlay, tabela e shell novo](tarefas/04-componentes-overlay-tabela.md) | `feature/TS-5361-componentes-overlay-tabela` | 03 | **commits feitos, sem push** (11/10) | TS-5361 |
-| 05 | [Pré-Trade](tarefas/05-pre-trade.md) | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5362 |
-| 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **commits feitos, sem push** (13/10) | TS-5363 |
+| 01 | [Estrutura base](tarefas/01-estrutura-base.md) | `refact/TS-5358-estrutura-base-front` | — | **publicada** (15/10) | TS-5358 |
+| 02 | [Temas claro e escuro](tarefas/02-temas-claro-escuro.md) | `feature/TS-5359-temas-claro-escuro` | 01 | **publicada** (15/10) | TS-5359 |
+| 03 | [Componentes: ícones, botões e formulário](tarefas/03-componentes-formulario.md) | `feature/TS-5360-componentes-formulario` | 02 | **publicada** (15/10) | TS-5360 |
+| 04 | [Componentes: overlay, tabela e shell novo](tarefas/04-componentes-overlay-tabela.md) | `feature/TS-5361-componentes-overlay-tabela` | 03 | **publicada** (15/10); publicar de novo | TS-5361 |
+| 05 | [Pré-Trade](tarefas/05-pre-trade.md) | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5362 |
+| 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5363 |
 | 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5364 |
-| 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5365 |
+| 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10); publicar de novo | TS-5365 |
 | 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5366 |
 | 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **commits feitos, sem push** (15/10) | TS-5367 |
 | 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
@@ -57,11 +57,11 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
 | 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-5389-pasta-ai` | 13 | **commits feitos, sem push** (16/10); aceite cumprido | TS-5389 |
 | 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5387 |
-| 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 / `origin/master` | **em andamento** (6ª leva) | TS-5390 |
+| 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 / `origin/master` | **commits feitos, sem push** (16/10) | TS-5390 |
 | 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **commits feitos, sem push** (15/10) | TS-5386 |
-| 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) | 19 | a iniciar (D27–D33 decididas) | TS-5391 |
-| 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 13 / `origin/master` | a iniciar (D34–D39 decididas) | TS-5392 |
-| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | a iniciar (direção A; D44–D46 decididas) | TS-5393 |
+| 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) e `fix/TS-5391-brechas-de-permissao` (BFF) | 19 / `origin/master` | **commits feitos, sem push** (16/10) | TS-5391 |
+| 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **commits feitos, sem push** (16/10) | TS-5392 |
+| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | **commits feitos, sem push** (16/10) | TS-5393 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a iniciar depois das outras (D40–D43 decididas). É a última | TS-5394 |
 
 ## Situação em 16/10
