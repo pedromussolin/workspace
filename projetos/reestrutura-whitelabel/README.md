@@ -62,6 +62,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) e `fix/TS-5391-brechas-de-permissao` (BFF) | 19 / `origin/master` | **commits feitos, sem push** (16/10) | TS-5391 |
 | 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **commits feitos, sem push** (16/10) | TS-5392 |
 | 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | **commits feitos, sem push** (16/10) | TS-5393 |
+| 25 | [Refinamento visual e de design](tarefas/25-refinamento-visual.md) | `refact/TS-?-refinamento-visual` | junção do front (todas) | **a iniciar** (16/10); vai antes da 24 | — |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a iniciar depois das outras (D40–D43 decididas). É a última | TS-5394 |
 
 ## Situação em 16/10
@@ -133,7 +134,8 @@ numa worktree descartável, em 16/10):
   - smoke de 9 rotas no claro (desktop e celular), no escuro e na Dots, sem
     erro.
 
-**Falta: a 24 (deploy).**
+**Faltam: a 25 (refinamento visual, em rodadas com o Pietro) e a 24
+(deploy), nessa ordem.**
 - **Atualizar com a master:** todas as branches, no front e no BFF.
 - **Variáveis:**
   - BFF: `CFG_PERMISSIONS_LEGACY_ROLES` e
