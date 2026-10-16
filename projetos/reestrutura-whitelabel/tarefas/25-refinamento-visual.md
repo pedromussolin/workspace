@@ -99,10 +99,12 @@ Decisões da rodada 1 (16/10, Pietro):
 | R8 | Desempenho da Carteira | Filtros sem o cartão branco | `features/controllership/portfolio-performance` | feito |
 | R9 | PDD | Abas fora do cartão de filtros: viram o campo "Visualização" dentro dele | `features/controllership/pdd` | feito |
 | R10 | Tabela comum | Primeira e última coluna a 10 px da borda, e o título do cartão a 20 px: recuo `--app-table-edge` | `shared/ui/table` | em correção |
-| R11 | Todas as tabelas | Alinhamento por tipo de dado (ver decisões); no Pré-Trade, ações à direita com o "ver" por último | `shared/ui/table`, telas | em correção |
+| R11 | Todas as tabelas | Alinhamento por tipo de dado (ver decisões); no Pré-Trade, ações à direita com o "ver" por último. Fluxos, Conexões e Unidades: "Excluir" ficou colado em "Editar" (a revisar) | `shared/ui/table`, telas | telas feitas; Pré-Trade e padrão em correção |
 | R12 | Lotes de Cessão | Filtros e tabela sem cartão, filtros sem ocupar a largura, `config-table` legado | `features/assignment-batches` | em correção |
 | R13 | Tabelas dentro da linha que abre | Padrão de 5 linhas por página. O exemplo dos Lotes já pedia 5; o BFF falso do portal local ignorava `per_page` (corrigido no `smoke.mjs`). Faltam as que não paginam (grupos, pessoas, execuções) | `shared/utils/local-pagination.ts`, telas | parcial: peça comum feita |
 | R14 | Seletor de período | "Data inicial – Data final" desalinhado: as duas datas dividem a caixa ao meio, centradas | `shared/ui/date-picker` | feito |
 | R15 | Cabeçalho da página | Botões (Exportar, Cadastrar) na linha da trilha, longe do título: vão para a linha do título | `shared/ui/page-header` | feito |
 | R16 | Accordion | Conteúdo a 4 px do cabeçalho: passa a 16 px | `shared/ui/accordion` | feito |
 | R17 | Accordion e linha que abre | Ao abrir pelo clique, rola até o começo se não couber | `shared/utils/reveal.ts`, accordion, tabela | accordion feito; tabela depois da R1/R2 |
+| R18 | Formalização, Onboarding BGT, Caixa | A 1440 px a tabela passa da tela e Ações fica fora de vista (como o R1) | telas | a fazer |
+| R19 | Envio de relatórios, detalhe da execução | Pastas coladas, sem separador | `features/report-transfer` | a fazer |
