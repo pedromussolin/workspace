@@ -154,3 +154,26 @@ Branch `fix/TS-5386-seguranca-front`, criada da `origin/master`
   resolvido. A 13 tira o Material, que a 18 atualiza;
 - o guard do `/pdd` quando a 09 mover a rota.
 
+### Junção com o épico (16/10)
+
+Ensaiada sobre a 13, que já junta todas as áreas. São 10 conflitos, e o
+script `$PRIV/resolucoes/fix_TS-5386-seguranca-front.sh` resolve todos:
+1. **Specs do `9bcf7b7`** (cherry-pick com o conteúdo igual ao da 01):
+   ficam na versão do épico. Os caminhos antigos saem.
+2. **`package.json`:** é o do épico (sem Material nem `moment`), com as
+   versões da 18 e o script `audit:prod`.
+3. **`package-lock.json`:**
+   - o lock do épico prende o Angular velho (ERESOLVE);
+   - tirar as entradas `node_modules/@angular/*` e rodar
+     `npm install --package-lock-only`.
+4. **`app.routes.ts`:** fica o do épico, e o `iamGuard` do `/pdd` vai para
+   o `PDD_ROUTES` de `features/controllership/controllership.routes.ts`.
+5. **`entrypoint.sh`:** ficam as duas linhas de debug (`ENVIRONMENT` da 14 e
+   `CSP_BFF_ORIGIN` da 18).
+6. **`app.routes.spec.ts`:**
+   - imports de `@core/auth/iam` e `ToastService` no lugar do Material;
+   - o teste das rotas públicas percorre as filhas lazy, porque no épico o
+     login e as páginas de erro ficam em `features/general`.
+
+Resultado: os 3 testes de rotas passam e o audit fica em 0.
+
