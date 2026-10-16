@@ -36,7 +36,12 @@ git -C "$WT" log --format=%B "$BASE..HEAD" | grep -qiE "co-authored-by|generated
 
 # tsc de app e specs em cada commit, numa worktree separada para não mexer na do agente.
 TSC=$PRIV/tsc-$NAME
-[ -d "$TSC" ] || { git -C "$WT" worktree add -q --detach "$TSC" HEAD && cp -al "$WT/node_modules" "$TSC/node_modules"; }
+[ -d "$TSC" ] || git -C "$WT" worktree add -q --detach "$TSC" HEAD
+# node_modules da worktree do agente, copiado de novo quando o lock muda (dependência nova).
+lock=$(sha1sum < "$WT/package-lock.json")
+if [ "$(cat "$TSC/.lock-sha" 2>/dev/null)" != "$lock" ]; then
+  rm -rf "$TSC/node_modules" && cp -al "$WT/node_modules" "$TSC/node_modules" && echo "$lock" > "$TSC/.lock-sha"
+fi
 broken=""
 for c in $(git -C "$WT" rev-list --reverse "$BASE..HEAD"); do
   git -C "$TSC" checkout -q --detach "$c"
