@@ -138,7 +138,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R47 | Logos da Dots e da Cerys | Grandes demais na sidebar aberta: ajuste óptico no padrão (as marcas parecem do mesmo tamanho; referência Poliedro). No trilho, a Poliedro mostra o favicon da aba | `.ai/scripts/brand-logo`, `assets`, `core/theme` | feito: tamanho óptico no script (Poliedro 32 px, Viva 25, Cerys 23, Dots 23); `railMark` no tema |
 | R48 | Seletor de marca | No menu do usuário, abaixo de Aparência, só fora de produção: variável nova `BRAND_SWITCHER` (desligada por padrão; ligada no local; sandbox e staging ligam no repo de deploy, na tarefa 24). Hoje nenhum ambiente define `PRODUCTION`: o `env.js` diz `production: false` até em produção | `core/theme`, sidebar, `generate-env.js`, `entrypoint.sh` | feito: `ThemeService.start/select`, escolha em `portal.brand` (ignorada sem a variável); segmentado no menu |
 | R49 | Docs da API | Tabela de parâmetros com o conteúdo no centro: a Descrição também (nota curta numa largura limitada; texto corrido de várias linhas segue à esquerda) | `features/api-docs`, `.ai/rules/components.md` | feito |
-| R50 | Docs da API | Valores do enum duas vezes: o BFF põe "Opções: ..." na descrição e o front repete em "Valores", cortado em 12 e sem os nomes. Decisão: descrição só diz o que o campo é; o BFF publica o nome de cada valor em `x-enum-labels` (valor → nome) no schema do enum; o front mostra todos, "valor · nome", até 6 e "ver mais N" | BFF: `shared` (enum com rótulo) e `liquidation_batches/viewer.py`, branch `refact/TS-5395-opcoes-na-docs-da-api` (da master); front: `features/api-docs` | em correção (pacotes K no BFF e L no front) |
+| R50 | Docs da API | Valores do enum duas vezes: o BFF põe "Opções: ..." na descrição e o front repete em "Valores", cortado em 12 e sem os nomes. Decisão: descrição só diz o que o campo é; o BFF publica o nome de cada valor em `x-enum-labels` (valor → nome) no schema do enum; o front mostra todos, "valor · nome", até 6 e "ver mais N" | BFF: `shared` (enum com rótulo) e `liquidation_batches/viewer.py`, branch `refact/TS-5395-opcoes-na-docs-da-api` (da master); front: `features/api-docs` | feito: `LabeledEnum` no BFF (4 enums); no front, `app-api-enum-values` na tabela, nos cartões e na árvore, e o nome nas opções do Testar a chamada. Junto: tipo com o nome da classe (sem o caminho do módulo que o FastAPI põe), tipo quebra no espaço e a célula Descrição é um bloco no centro com as linhas alinhadas; a tabela cabe a 1440 sem rolagem lateral |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
@@ -210,3 +210,12 @@ depois, `.ai` no fim. O `validar-leva.sh` confere a compilação de cada commit.
 | 26 | `chore(TS-5395): .ai com os padrões da rodada 1 do refinamento` | `.ai/` (regras, contexto, scripts, skills; inclui o `brand-logo` com o tamanho óptico) | R47, R49 |
 
 Se algum commit não compilar sozinho, ele se junta ao seguinte, e o relatório diz qual.
+
+**BFF** (worktree `apl-credit-whitelabel-api-wt/25`, branch `refact/TS-5395-opcoes-na-docs-da-api`, da master, sem upstream; R50). Depois dos commits, o merge na `-sdbx`, se ela existir:
+
+| # | Commit | Arquivos |
+|---|---|---|
+| 1 | `refact(TS-5395): cria LabeledEnum com rótulos no schema do enum` | `src/shared/utils/schemas.py`, `tests/unit/shared/utils/test_schemas.py` |
+| 2 | `refact(TS-5395): enums com rótulo herdam de LabeledEnum` | `schemas.py` de `assignment_batches`, `formalization` e `liquidation_batches` |
+| 3 | `refact(TS-5395): filtro statuses descreve só o campo, sem opções` | `liquidation_batches/viewer.py` |
+| 4 | `test(TS-5395): cobre x-enum-labels e descrição no OpenAPI` | `tests/unit/delivery/api/test_openapi.py` |
