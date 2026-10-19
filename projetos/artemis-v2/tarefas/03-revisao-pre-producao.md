@@ -36,6 +36,12 @@ perdido sem aviso. A GMUD tinha três afirmações erradas (corrigidas em
 | R14 | **Trava perdida passa sem log e um job sem trava sobrescreve o resultado de outro** **[C]** | `refact.py:62-71, 283-292` | renovação que falha → warning e checar posse antes do UPDATE; não gravar "nada a fechar" sobre um `closed` mais novo |
 | R15 | **Observabilidade** **[C]**: `job_id` não vira `task_id` no Celery; o BFF loga a mesma mensagem sem `job_id` (contagem dobra); 409/400 sem log na cessão; falha do Redis no fim apaga o log de conclusão; não há quem fechou | `refact.py:329, 385-405`; BFF `business.py:385-388` | `apply_async(..., task_id=job_id)`; logar antes de gravar; `user_email` no BFF; painel com solicitados, concluídos por status e tamanho da fila |
 
+## Achado na implantação (19/10)
+
+| # | Achado | Evidência | Correção |
+|---|---|---|---|
+| R16 | **Worker de produção subiu com concorrência 16, não 2** **[C efeito, H causa]** | pod `platform-cessao-fake-batch-closing-worker-9464c4dd7-2hzkq`, 19/10 21:45 UTC, `prod-f19ef2c`: `CELERY_WORKER_CONCURRENCY=16` e `concurrency: 16 (prefork)`; no sandbox o mesmo values sobe com 2. O `entrypoint.sh` termina com `eval $(guardian bootApp -a platform-cessao) start`, que exporta as variáveis do Parameter Store por cima das do pod | confirmar se o Parameter Store de produção define `CELERY_WORKER_CONCURRENCY`; se sim, removê-la (o padrão do entrypoint já é 16 para os demais workers) ou usar no worker dedicado uma variável que o Parameter Store não define. Até lá, o limite de 2 fechamentos simultâneos não vale e 16 processos dividem 3 GiB |
+
 ## Baixos
 
 - Chave com número em formato estranho (`07`, `+7`, `7_0`) fecha o mesmo grupo
