@@ -40,7 +40,7 @@ perdido sem aviso. A GMUD tinha três afirmações erradas (corrigidas em
 
 | # | Achado | Evidência | Correção |
 |---|---|---|---|
-| R16 | **Worker de produção subiu com concorrência 16, não 2** **[C efeito, H causa]** | pod `platform-cessao-fake-batch-closing-worker-9464c4dd7-2hzkq`, 19/10 21:45 UTC, `prod-f19ef2c`: `CELERY_WORKER_CONCURRENCY=16` e `concurrency: 16 (prefork)`; no sandbox o mesmo values sobe com 2. O `entrypoint.sh` termina com `eval $(guardian bootApp -a platform-cessao) start`, que exporta as variáveis do Parameter Store por cima das do pod | confirmar se o Parameter Store de produção define `CELERY_WORKER_CONCURRENCY`; se sim, removê-la (o padrão do entrypoint já é 16 para os demais workers) ou usar no worker dedicado uma variável que o Parameter Store não define. Até lá, o limite de 2 fechamentos simultâneos não vale e 16 processos dividem 3 GiB |
+| R16 | **Worker de produção subiu com concorrência 16, não 2** **[C efeito, H causa]** | pod `platform-cessao-fake-batch-closing-worker-9464c4dd7-2hzkq`, 19/10 21:45 UTC, `prod-f19ef2c`: `CELERY_WORKER_CONCURRENCY=16` e `concurrency: 16 (prefork)`; no sandbox o mesmo values sobe com 2. A última linha do `entrypoint.sh` (`entrypoint.sh:60`, na `master`) carrega a configuração da aplicação e exporta as variáveis do Parameter Store por cima das do pod | confirmar se o Parameter Store de produção define `CELERY_WORKER_CONCURRENCY`; se sim, removê-la (o padrão do entrypoint já é 16 para os demais workers) ou usar no worker dedicado uma variável que o Parameter Store não define. Até lá, o limite de 2 fechamentos simultâneos não vale e 16 processos dividem 3 GiB |
 
 ## Baixos
 

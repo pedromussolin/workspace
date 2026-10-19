@@ -32,6 +32,47 @@
 - **Implantação (19/10):** cessão em produção (`prod-f19ef2c`); worker de
   produção no argocd em `feature/TS-5377-worker-fechamento-lote-producao`
   (`61ecc97`, só asgard-production); faltam BFF e front.
+- **Pendências depois da implantação (19/10)** — retomar por aqui:
+  1. **R16, concorrência 16 no worker de produção.** O values pede 2; o pod
+     (`platform-cessao-fake-batch-closing-worker`, 19/10 21:45 UTC,
+     `prod-f19ef2c`) subiu com 16. Causa provável: a carga da configuração
+     no fim do `entrypoint.sh` (`entrypoint.sh:60`) exporta as variáveis do
+     Parameter Store por cima das do pod; no sandbox o mesmo values sobe com
+     2. **Confirmar** se o Parameter Store de produção da cessão define
+     `CELERY_WORKER_CONCURRENCY`. **Corrigir:** remover a variável de lá (os
+     outros workers ficam em 16, o padrão do entrypoint) ou ler a
+     concorrência do worker dedicado de uma variável que o Parameter Store
+     não define. **Por que importa:**
+     - banco: o limite de 2 fechamentos simultâneos (decisão de 13/10) é o
+       que protege o primário; com 16 o paralelismo volta perto do de antes
+       (em 08/10, ~20 fechamentos em paralelo deixaram consultas presas
+       umas nas outras). Cada fechamento é mais barato agora (UPDATE único);
+     - memória: 16 processos dividem 3 GiB (os workers de produção usam
+       12 GiB para 16). Parados, compartilham memória e o pod fica estável;
+       com vários fechamentos juntos pode estourar, o pod é morto e os
+       fechamentos em andamento somem sem aviso (R8).
+     - **Risco prático hoje:** baixo, ~49 fechamentos por dia pela tela,
+       quase nunca simultâneos. Pesa se vários operadores fecharem juntos ou
+       se a varredura passar para a rota nova.
+  2. **Limites de tempo nas três pontas** (decisão de 19/10): timeout curto
+     no cliente Redis (R13), `statement_timeout` configurável no fechamento
+     (R4) e limite do Celery acima dele. Hoje a task tem 540/600 s fixos no
+     decorator (`cessao/tasks/fake_batch_closing.py:4`), não configuráveis.
+  3. **R7 a R15** da revisão (listagem sem a regra da cessão, descarte
+     silencioso, vigente fechado e não despachado, estado da linha no front,
+     excluir habilitado, índice da origem, trava perdida, observabilidade).
+  4. **Desligamento dos workers (R3, rebaixado):** o Celery não recebe o
+     sinal de desligamento no deploy; comportamento antigo de todos os
+     workers da cessão, sem perda de dado (o fechamento é desfeito). Corrigir
+     com `exec`/init e prazo de desligamento, numa tarefa própria.
+  5. **Fora da TS-5377:** "Erro na esteira 'NoneType' object is not
+     iterable" em `estados_cessao.py:82` (`_existe_callback`), logo após
+     lote criado pela varredura; apareceu em 13, 15, 16 e 19/10. Verificar
+     se impede o lote de seguir.
+  6. **Implantação:** cessão e worker em produção; faltam BFF e front (front
+     por último). Conferência do front sem clicar: procurar
+     `fake-batches/close` no JS publicado do Portal; no Datadog do BFF,
+     chamadas a `close/status`. vivo-production sem worker (sem Portal lá).
 - **Revisão antes de produção (15/10):** [03-revisao-pre-producao.md](03-revisao-pre-producao.md).
   Bloqueios R1–R6 (worker de produção, ordem de deploy, deploy que mata o
   fechamento em andamento, limites de tempo em grupos grandes, fundo da
