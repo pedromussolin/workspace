@@ -1,7 +1,7 @@
 # 25 — Refinamento visual e de design
 
 - **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)
-- **Status:** **rodada 1 em andamento** (16/10): itens R1 a R12 em correção, auditoria em paralelo
+- **Status:** **rodada 1 quase fechada** (19/10): validação completa ok (build, lint igual à base, 2.606 testes, smoke em claro, escuro, celular e Dots); falta o pacote J (R44–R47) e a revisão para os commits
 - **Depende de:** todas as branches do front (a junção: 13, 17, 18, 19, 20,
   21, 22 e 23, com as áreas dentro da 13)
 - **Vai antes da 24:** o deploy leva o refinamento junto.
@@ -131,6 +131,11 @@ Decisões da rodada 1 (16/10, Pietro):
 | R40 | Consolidado de Caixa, analítico | A tabela dentro do accordion ficava com margem e faixa cinza solta: `contentFlush` no `app-accordion-item`, tabela de borda a borda | `shared/ui/accordion`, `features/cash-consolidation` | feito |
 | R41 | Detalhes do contrato | "Grosseira": topo com os fatos principais, dados gerais em grupos numa grade de rótulo e valor, mesmo estilo nos acordeões; dados fictícios para validar | `features/assignment-batches/contract-details` | feito (pacote H: resumo no topo, grupos em app-detail-list, mesmo estilo nos acordeões; dados fictícios) |
 | R42 | Usuários | Rodapé da paginação mais alto e em outro formato: paginador padrão, mesma altura em todas as tabelas | `shared/ui/table`, `features/users` | feito (rodapé de paginação com 52 px no desktop e 88 px no celular em todas as tabelas) |
+| R43 | Portal local | Escolher a marca sem reiniciar: `http://localhost:4300/__marcas` (cookie; as marcas vêm do `themes.ts` da worktree) | `anexos/scripts/smoke.mjs` | feito |
+| R44 | Segmentado | Barra de rolagem aparecia ao ativar uma opção (o negrito alargava o texto) | `shared/ui/toggle-group` | em correção (pacote J) |
+| R45 | Multiselect | Lista aberta mais estreita que o campo | `shared/ui/select` | em correção (pacote J) |
+| R46 | Docs da API | Conteúdo centralizado e mais largo, com margem igual dos dois lados | `features/api-docs` | em correção (pacote J) |
+| R47 | Logo da Dots | Grande demais na sidebar: ajuste óptico no padrão das logos | `.ai/scripts/brand-logo`, `assets` | em correção (pacote J) |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
