@@ -146,7 +146,7 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | em correção (pacote E) |
 | V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | feito (grade de 2 colunas quando não cabe) |
 | V15 | KPI | Rótulo cortado sem dica ("Operações em andam…") | Dica no rótulo cortado ou 2 linhas | média | feito (título em até 2 linhas) |
-| V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | celular feito (2 por linha, compacto); regra do desktop a decidir |
+| V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | feito: celular 2 por linha; desktop com 240 px em toda tela (4 por linha, inclusive a controladoria), forma curta com o valor inteiro no tooltip (decisão de 19/10) |
 | V17 | Select | Valor cortado sem dica; lista aberta estreita corta opções | Dica no valor; lista com largura mínima maior | média | feito |
 | V18 | Campo de data | Placeholder e período cortados em campo estreito | Largura mínima que caiba a data; placeholder "dd/mm/aaaa" | média | feito (largura mínima da data) |
 | V19 | "Limpar filtros" | Três tamanhos e ausente em 7 telas | Uma peça só, no fim de toda toolbar | média | em correção (pacote D) |
