@@ -127,6 +127,10 @@ Decisões da rodada 1 (16/10, Pietro):
 | R36 | Barra de filtros | Distribuição equilibrada em qualquer zoom: linhas = ceil(n / cabem), colunas = ceil(n / linhas) (5 campos → 3 + 2), cada linha ocupando a largura toda; campo de status com o mesmo tamanho dos outros | `shared/ui/filter-bar` | em correção (pacote D) |
 | R37 | Paginador | "Itens por página" abria a lista nativa do navegador: passa a usar o select do portal | `shared/ui/table/paginator` | em correção (pacote F) |
 | R38 | Gráficos | Exportar em PNG (imagem), Excel e JSON (dados brutos), num menu "Exportar"; o .xlsx é gerado sem dependência nova | `shared/ui/charts`, `shared/utils` | em correção (pacote G) |
+| R39 | Formulários | Mesma distribuição equilibrada dos filtros nas seções de formulário (Editar Produto do Orquestrador ficava 6 + 1, com espaço vazio): a regra vira peça comum de grade de campos | `shared/ui`, `features/orchestrator` | em correção (pacote D) |
+| R40 | Consolidado de Caixa, analítico | A tabela dentro do accordion ficava com margem e faixa cinza solta: `contentFlush` no `app-accordion-item`, tabela de borda a borda | `shared/ui/accordion`, `features/cash-consolidation` | feito |
+| R41 | Detalhes do contrato | "Grosseira": topo com os fatos principais, dados gerais em grupos numa grade de rótulo e valor, mesmo estilo nos acordeões; dados fictícios para validar | `features/assignment-batches/contract-details` | em correção (pacote H) |
+| R42 | Usuários | Rodapé da paginação mais alto e em outro formato: paginador padrão, mesma altura em todas as tabelas | `shared/ui/table`, `features/users` | em correção (pacote F) |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
