@@ -4,6 +4,7 @@
 #   Sem dados, usa $PRIV/smoke-dados/todas-acesso-21.json (todas as telas, com o controle de acesso).
 #   BUILD=1 refaz o build antes. THEME_KEY troca a marca (chave real em privado.md).
 #   ORG troca a organização: plgn (padrão) é a visão interna; outro valor (ex.: ORG=parceiro) é a de parceiro.
+#   Com o portal no ar, http://localhost:4300/__marcas troca a marca (cookie), sem reiniciar.
 # Abra http://localhost:4300 (no Windows também, pelo WSL). As ações não gravam nada.
 set -e
 PRIV=${PRIV:-$HOME/repos/.reestrutura_whitelabel}

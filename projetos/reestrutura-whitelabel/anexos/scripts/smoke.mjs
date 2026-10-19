@@ -1,7 +1,7 @@
 // Smoke test visual do front sem BFF real: serve o dist e um BFF falso (sessão válida, todas as
 // rotas liberadas, dados vazios) e tira prints de cada rota em desktop e celular.
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
-// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); FIXTURES=<arquivo.json> dá dados
+// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); /__marcas escolhe a marca com o portal no ar; FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
@@ -69,12 +69,38 @@ function paged(body, query) {
   };
 }
 
+// Marcas do front servido, lidas do themes.ts da worktree (os nomes reais não ficam neste repo).
+// /__marcas lista; /__marca/<chave> grava a escolha num cookie e volta ao portal, sem reiniciar.
+const THEMES_TS = path.resolve(dist, '../../../src/app/core/theme/themes.ts');
+function brands() {
+  if (!fs.existsSync(THEMES_TS)) return [];
+  const source = fs.readFileSync(THEMES_TS, 'utf8');
+  return [...source.matchAll(/^ {2}(\w+): \{\s*\n\s*name: '([^']+)'/gm)].map(([, key, name]) => ({ key, name }));
+}
+function chosenBrand(req) {
+  const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith('portal-marca='));
+  const key = cookie ? decodeURIComponent(cookie.slice('portal-marca='.length)) : '';
+  return brands().some((b) => b.key === key) ? key : process.env.THEME_KEY || 'default';
+}
+
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.mp4': 'video/mp4' };
 const web = http.createServer((req, res) => {
   const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p === '/assets/env.js') {
     res.setHeader('Content-Type', 'text/javascript');
-    return res.end(`window.__CONFIG__ = { apiUrl: "http://localhost:8765", themeKey: "${process.env.THEME_KEY || 'default'}", authLoginPath: "/auth/login", authCallbackPath: "/auth/callback", production: false };`);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end(`window.__CONFIG__ = { apiUrl: "http://localhost:8765", themeKey: "${chosenBrand(req)}", authLoginPath: "/auth/login", authCallbackPath: "/auth/callback", production: false };`);
+  }
+  const pick = p.match(/^\/__marca\/(\w+)$/);
+  if (pick) {
+    res.writeHead(302, { 'Set-Cookie': `portal-marca=${pick[1]}; Path=/; SameSite=Lax`, Location: '/' });
+    return res.end();
+  }
+  if (p === '/__marcas' || p === '/__marca') {
+    const current = chosenBrand(req);
+    const items = brands().map((b) => `<li><a href="/__marca/${b.key}">${b.name}</a>${b.key === current ? ' (atual)' : ''}</li>`).join('');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.end(`<!doctype html><meta charset="utf-8"><title>Marca do portal local</title><body style="font: 15px system-ui; margin: 32px"><h1 style="font-size: 20px">Marca do portal local</h1><ul style="line-height: 2">${items || '<li>themes.ts não encontrado</li>'}</ul><p>A escolha fica num cookie; o portal abre já com a marca.</p></body>`);
   }
   let f = path.join(dist, p);
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(dist, 'index.html');
