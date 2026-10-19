@@ -49,7 +49,8 @@ const FIXTURES = () => {
 
 const bff = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
-  const key = url.pathname.replace(/^\//, '');
+  // Decodificada: o front codifica o `:` das permissões (`roles/all-pre-trade%3Aread/holders`).
+  const key = decodeURIComponent(url.pathname).replace(/^\//, '');
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4300');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   // Com credenciais, o '*' não vale como curinga: devolve os cabeçalhos e métodos que o preflight pediu.
@@ -59,11 +60,30 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
   const data = FIXTURES();
-  res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? paged(data[key], url.searchParams) : []));
+  res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? peoplePage(paged(data[key], url.searchParams), url.searchParams) : []));
 });
 
 // Resposta paginada (`pagination` com `per_page` + `records`): devolve só a página pedida, como o
 // BFF real. Sem isso, a tela mostra todos os registros do arquivo, com o tamanho de página dele.
+// Pessoas do controle de acesso (`{ people, total, page, perPage }`): busca sem acento, situação,
+// ordem e página, como o BFF faz em memória sobre o grupo do portal.
+const fold = (text) => (text ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function peoplePage(body, query) {
+  if (!Array.isArray(body?.people) || body.total === undefined || body.source === undefined) return body;
+  const search = fold(query.get('search')).trim();
+  const status = query.get('status') || 'all';
+  const sort = query.get('sort') || 'name';
+  const perPage = Number(query.get('perPage')) || body.perPage;
+  const page = Math.max(1, Number(query.get('page')) || 1);
+  let all = body.people.filter((p) => !search || [p.displayName, p.mail, p.userPrincipalName].some((v) => fold(v).includes(search)));
+  if (status === 'with-roles') all = all.filter((p) => p.roleCount > 0);
+  if (status === 'without-roles') all = all.filter((p) => p.roleCount === 0);
+  const byName = (a, b) => fold(a.displayName).localeCompare(fold(b.displayName));
+  const field = sort.replace(/^-/, '');
+  all = [...all].sort((a, b) => (field === 'roles' ? a.roleCount - b.roleCount || byName(a, b) : byName(a, b)) * (sort.startsWith('-') ? -1 : 1));
+  return { ...body, people: all.slice((page - 1) * perPage, page * perPage), total: all.length, page, perPage };
+}
+
 function paged(body, query) {
   const perPage = Number(query.get('per_page'));
   if (!perPage || !Array.isArray(body?.records) || body.pagination?.per_page === undefined) return body;
