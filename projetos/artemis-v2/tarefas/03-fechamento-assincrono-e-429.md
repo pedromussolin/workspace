@@ -29,6 +29,9 @@
     limpo sem commit; UPDATE refeito via ORM; D9 exige cessão
     `cadastrado` (revista em 14/10); BFF confere o produto da chave e valida tamanho das
     chaves. Bugs de código antigo do BFF viraram B9 a B11.
+- **Implantação (19/10):** cessão em produção (`prod-f19ef2c`); worker de
+  produção no argocd em `feature/TS-5377-worker-fechamento-lote-producao`
+  (`61ecc97`, só asgard-production); faltam BFF e front.
 - **Revisão antes de produção (15/10):** [03-revisao-pre-producao.md](03-revisao-pre-producao.md).
   Bloqueios R1–R6 (worker de produção, ordem de deploy, deploy que mata o
   fechamento em andamento, limites de tempo em grupos grandes, fundo da
