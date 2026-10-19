@@ -114,6 +114,8 @@ Decisões da rodada 1 (16/10, Pietro):
 | R23 | Docs da API | Layout novo no estilo do exemplo de 16/10: um painel com navegação (combobox da documentação, busca, grupos com método + nome) e conteúdo (barra do endpoint com copiar, parâmetros em tabela, corpo com Exemplo/Esquema/cURL, respostas por status, "Testar chamada"). Só o BFF por enquanto, pronto para outros serviços. Proposta: artifact "Docs da API: proposta" | `features/api-docs` | proposta em revisão |
 | R24 | Onboarding BGT, lista | Filtros com largura fixa e linhas pela metade; atalhos de período menores que os campos (V33) | `features/onboarding-bgt` | leva dos filtros |
 | R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | leva dos filtros |
+| R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | decidido; a fazer |
+| R27 | Home | Conteúdo no topo, não centrado: a área do shell (`.shell__content`) virou coluna com a altura da tela, e a Home ocupa e se centra nela. Portal local ganhou `ORG` para ver a home de parceiro | `layouts/app-shell`, `features/general/home`, `smoke.mjs` | feito |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
