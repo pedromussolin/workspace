@@ -132,11 +132,12 @@ Decisões da rodada 1 (16/10, Pietro):
 | R41 | Detalhes do contrato | "Grosseira": topo com os fatos principais, dados gerais em grupos numa grade de rótulo e valor, mesmo estilo nos acordeões; dados fictícios para validar | `features/assignment-batches/contract-details` | feito (pacote H: resumo no topo, grupos em app-detail-list, mesmo estilo nos acordeões; dados fictícios) |
 | R42 | Usuários | Rodapé da paginação mais alto e em outro formato: paginador padrão, mesma altura em todas as tabelas | `shared/ui/table`, `features/users` | feito (rodapé de paginação com 52 px no desktop e 88 px no celular em todas as tabelas) |
 | R43 | Portal local | Escolher a marca sem reiniciar: `http://localhost:4300/__marcas` (cookie; as marcas vêm do `themes.ts` da worktree) | `anexos/scripts/smoke.mjs` | feito |
-| R44 | Segmentado | Barra de rolagem aparecia ao ativar uma opção (o negrito alargava o texto) | `shared/ui/toggle-group` | em correção (pacote J) |
-| R45 | Multiselect | Lista aberta mais estreita que o campo | `shared/ui/select` | em correção (pacote J) |
-| R46 | Docs da API | Conteúdo centralizado e mais largo, com margem igual dos dois lados | `features/api-docs` | em correção (pacote J) |
-| R47 | Logos da Dots e da Cerys | Grandes demais na sidebar aberta: ajuste óptico no padrão (as marcas parecem do mesmo tamanho; referência Poliedro). No trilho, a Poliedro mostra o favicon da aba | `.ai/scripts/brand-logo`, `assets`, `core/theme` | em correção (pacote J) |
-| R48 | Seletor de marca | No menu do usuário, abaixo de Aparência, só fora de produção: variável nova `BRAND_SWITCHER` (desligada por padrão; ligada no local; sandbox e staging ligam no repo de deploy, na tarefa 24). Hoje nenhum ambiente define `PRODUCTION`: o `env.js` diz `production: false` até em produção | `core/theme`, sidebar, `generate-env.js`, `entrypoint.sh` | em correção (pacote J) |
+| R44 | Segmentado | Barra de rolagem aparecia ao ativar uma opção (o negrito alargava o texto) | `shared/ui/toggle-group` | feito |
+| R45 | Multiselect | Lista aberta mais estreita que o campo | `shared/ui/select` | feito |
+| R46 | Docs da API | Conteúdo centralizado e mais largo, com margem igual dos dois lados | `features/api-docs` | feito |
+| R47 | Logos da Dots e da Cerys | Grandes demais na sidebar aberta: ajuste óptico no padrão (as marcas parecem do mesmo tamanho; referência Poliedro). No trilho, a Poliedro mostra o favicon da aba | `.ai/scripts/brand-logo`, `assets`, `core/theme` | feito: tamanho óptico no script (Poliedro 32 px, Viva 25, Cerys 23, Dots 23); `railMark` no tema |
+| R48 | Seletor de marca | No menu do usuário, abaixo de Aparência, só fora de produção: variável nova `BRAND_SWITCHER` (desligada por padrão; ligada no local; sandbox e staging ligam no repo de deploy, na tarefa 24). Hoje nenhum ambiente define `PRODUCTION`: o `env.js` diz `production: false` até em produção | `core/theme`, sidebar, `generate-env.js`, `entrypoint.sh` | feito: `ThemeService.start/select`, escolha em `portal.brand` (ignorada sem a variável); segmentado no menu |
+| R49 | Docs da API | Tabela de parâmetros com o conteúdo no centro: a Descrição também (nota curta numa largura limitada; texto corrido de várias linhas segue à esquerda) | `features/api-docs`, `.ai/rules/components.md` | feito |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
@@ -196,15 +197,15 @@ depois, `.ai` no fim. O `validar-leva.sh` confere a compilação de cada commit.
 |---|---|---|---|
 | 1 | `feat(TS-5395): utilitários de rolagem, paginação local e planilha` | `shared/utils` (reveal, local-pagination, xlsx), `shared/testing` | R13, R17, R38 |
 | 2 | `refact(TS-5395): tokens de contraste, código e do botão Microsoft` | `styles/` (tokens, base, mixins, `styles.scss`) | R3, R4, V3–V6, R23, R32 |
-| 3 | `feat(TS-5395): marcas em SVG com escuro gerado e favicon único` | `core/theme`, `assets/{default,dots,cerys,vivo,general}`, `src/favicon.ico` | R29, R31, V24–V26, V41 |
+| 3 | `feat(TS-5395): marcas em SVG, favicon único e seletor de marca` | `core/theme`, `assets/{default,dots,cerys,viva,general}`, `src/favicon.ico`, `environments/`, `app.config.ts`, `entrypoint.sh`, `scripts/generate-env.js`, `README.md` | R29, R31, R47, R48, V24–V26, V41 |
 | 4 | `refact(TS-5395): shell em coluna, sidebar e cabeçalho da página` | `layouts/`, `shared/ui/page-header` | R3, R15, R27, R28 |
 | 5 | `refact(TS-5395): tabela comum no centro, com recuo e mesma altura` | `shared/ui/table`, specs do `config-table` | R2, R10, R11, R17, R26, R35, R37, V9–V11 |
-| 6 | `refact(TS-5395): campos, segmentado, KPI e indicadores revistos` | `shared/ui/{toggle-group,select,date-picker,kpi,checkbox,radio,switch,textbox,field,menu}` | R7, R14, R28, V14–V18, V21–V22 |
+| 6 | `refact(TS-5395): campos, segmentado, KPI e indicadores revistos` | `shared/ui/{toggle-group,select,date-picker,kpi,checkbox,radio,switch,textbox,field,menu}` | R7, R14, R28, R44, R45, V14–V18, V21–V22 |
 | 7 | `feat(TS-5395): acordeão, vazio compacto e lista de detalhes` | `shared/ui/{accordion,empty-state,detail-list}` | R16, R17, R22, R33, R34, R40, R41 |
 | 8 | `feat(TS-5395): barra de filtros e grade de campos comuns` | `shared/ui/{filter-bar,field-grid}` | R36, R39, V19, V20 |
 | 9 | `feat(TS-5395): code-block com abas e gráfico com menu Exportar` | `shared/ui/{code-block,charts}` | R23, R38, V23 |
 | 10–24 | `refact(TS-5395): <tela> no padrão do refinamento` | uma por tela: Pré-Trade, Formalização, Lotes de Liquidação, Lotes de Cessão e contrato, Controladoria, Consolidado de Caixa, Envio de Relatórios, Controle de acesso, Onboarding BGT, Usuários, Orquestrador, Docs da API, Poli Chat, Home e login, Simular e Clientes | por tela |
 | 25 | `refact(TS-5395): vitrine com as peças e padrões novos` | `features/design-system` | — |
-| 26 | `chore(TS-5395): .ai com os padrões da rodada 1 do refinamento` | `.ai/` (regras, contexto, scripts, skills) | — |
+| 26 | `chore(TS-5395): .ai com os padrões da rodada 1 do refinamento` | `.ai/` (regras, contexto, scripts, skills; inclui o `brand-logo` com o tamanho óptico) | R47, R49 |
 
 Se algum commit não compilar sozinho, ele se junta ao seguinte, e o relatório diz qual.
