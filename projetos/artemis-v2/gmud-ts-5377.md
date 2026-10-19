@@ -2,8 +2,8 @@
 
 > **Status (15/10/2026): não submeter ainda.** A revisão antes de produção
 > ([tarefas/03-revisao-pre-producao.md](tarefas/03-revisao-pre-producao.md))
-> achou bloqueios (R1 a R6). Este texto já está corrigido; falta o PR do
-> worker de produção e as correções.
+> achou bloqueios (R1 a R6). Este texto já está corrigido; faltam as
+> correções. O worker de produção é criado pela automação no deploy.
 
 Tipo: Mudança programada
 
@@ -98,9 +98,10 @@ Médio.
 
 1. Merge e deploy da platform-cessao em produção. Conferir pods na nova
    versão e healthcheck ok.
-2. Só depois que o tag de produção apontar para a imagem nova: merge e sync do
-   PR do platform-cessao-argocd que cria o worker. (Worker antes da imagem
-   nova roda o código antigo e sobe o consumer do RabbitMQ.)
+2. O worker dedicado é criado pela automação durante o deploy, com a imagem
+   nova. Conferir que ele subiu com `INICIAR_CONSUMER=0` e só a fila
+   dedicada (worker com imagem antiga roda o código antigo e sobe o consumer
+   do RabbitMQ).
 3. Conferir que a fila `fake_batch_closing_celery` tem 1 consumidor (painel
    do RabbitMQ ou `celery -A cessao.app.celery inspect active_queues` no pod
    do worker).
