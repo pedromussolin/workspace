@@ -114,15 +114,15 @@ Decisões da rodada 1 (16/10, Pietro):
 | R23 | Docs da API | Layout novo no estilo do exemplo de 16/10: um painel com navegação (combobox da documentação, busca, grupos com método + nome) e conteúdo (barra do endpoint com copiar, parâmetros em tabela, corpo com Exemplo/Esquema/cURL, respostas por status, "Testar chamada"). Só o BFF por enquanto, pronto para outros serviços. Proposta: artifact "Docs da API: proposta" | `features/api-docs` | em correção (pacote B) |
 | R24 | Onboarding BGT, lista | Filtros com largura fixa e linhas pela metade; atalhos de período menores que os campos (V33) | `features/onboarding-bgt` | em correção (pacote D) |
 | R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | em correção (pacote D) |
-| R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | em correção (pacote E) |
+| R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | feito (classe app-table__destructive-action; também na vitrine) |
 | R27 | Home | Conteúdo no topo, não centrado: a área do shell (`.shell__content`) virou coluna com a altura da tela, e a Home ocupa e se centra nela. Portal local ganhou `ORG` para ver a home de parceiro | `layouts/app-shell`, `features/general/home`, `smoke.mjs` | feito |
 | R28 | Indicadores na cor da marca | Com a secundária laranja da Cerys (V24), checkbox, rádio, switch, borda de foco, dia de hoje e área de soltar arquivo ficavam a 2,28:1 (a Dots já ficava a 2,93). Passam a `--brand-icon` (3:1 garantido); nas outras marcas, a cor não muda. Falta o paginador | `shared/ui`, `styles/_mixins.scss`, `.ai` | feito |
 | R29 | Marca Dots | `ink` a 4,25 no hover do botão principal e 4,29–4,34 no avatar e no fundo suave forte; logo ainda com margem (~42×14 px; recortado daria ~92×30) | `core/theme/themes.ts`, `assets/dots` | em correção (pacote C) |
 | R30 | Pré-Trade | Chip "xlsx" do anexo a 4,27 | `features/pre-trade` | feito |
 | R31 | Logos e favicons | Padrão: qualquer logo vira SVG sem fundo, recortado e normalizado (caixa de 180×32), com versão escura gerada; símbolo e favicon em SVG com reserva PNG. Script em `.ai/scripts/brand-logo` (Python, vtracer e Pillow) e passo a passo na skill `new-brand`. Aplicado às 4 marcas. Favicon único para todas as marcas (o `.ico` de 32×32 entregue em 19/10); o trilho da sidebar usa o símbolo de cada marca. Recebidos em 19/10: símbolo da Dots (68 px) e logo longa da Cerys (2000 px, fundo preto; o símbolo sai dela). Faltam: logo longa da Dots (chegou toda preta) e, se houver, a da Cerys com fundo transparente ou em SVG | `.ai`, `assets`, `core/theme` | em correção (pacote C) |
 | R32 | Login | "Entrar com Microsoft" segue as diretrizes da Microsoft (claro e escuro, logo oficial) | `features/general/login`, tokens | em correção (pacote C) |
-| R33 | Accordion | Variação sem moldura para dentro de cartão (detalhes do contrato) | `shared/ui/accordion` | em correção (pacote E) |
-| R34 | Estado vazio | Variação compacta para vazio dentro de cartão (detalhe do usuário e outros) | `shared/ui/empty-state` | em correção (pacote E) |
+| R33 | Accordion | Variação sem moldura para dentro de cartão (detalhes do contrato) | `shared/ui/accordion` | feito (accordion flush nos detalhes do contrato) |
+| R34 | Estado vazio | Variação compacta para vazio dentro de cartão (detalhe do usuário e outros) | `shared/ui/empty-state` | feito (vazio compacto no detalhe do usuário, Pré-Trade e controle de acesso) |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
@@ -142,8 +142,8 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V4 | Sidebar | Rótulos de seção e e-mail a 4,43:1 (3,99 com hover) | `--text-secondary` | média | feito |
 | V5 | Superfície rebaixada ou tingida | Texto apagado a 4,19–4,40:1 (trilha do Pré-Trade, linha aberta em três marcas) | Texto mais escuro nessas superfícies | média | feito |
 | V6 | Pílula de status de lote | No escuro, três status abaixo de AA; na Dots, "Concluído" a 3,82:1 | Clarear os status no escuro; "Concluído" sem a cor da marca | média | feito |
-| V9b | Tabela comum | Números sem algarismos de largura fixa | `tabular-nums` nas colunas `end` | média | em correção (pacote E) |
-| V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | em correção (pacote E) |
+| V9b | Tabela comum | Números sem algarismos de largura fixa | `tabular-nums` nas colunas `end` | média | feito |
+| V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | feito (célula com --space-3; chevron não aumenta a linha) |
 | V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | feito (grade de 2 colunas quando não cabe) |
 | V15 | KPI | Rótulo cortado sem dica ("Operações em andam…") | Dica no rótulo cortado ou 2 linhas | média | feito (título em até 2 linhas) |
 | V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | feito: celular 2 por linha; desktop com 240 px em toda tela (4 por linha, inclusive a controladoria), forma curta com o valor inteiro no tooltip (decisão de 19/10) |
@@ -153,18 +153,18 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V20 | Cartão de filtros | Cada tela com a própria classe e recuo (16/16, 16/20, 20/20) | Uma toolbar de filtros comum | média | em correção (pacote D) |
 | V25 | Logo Cerys | PNG com margem transparente: o desenho fica com ~50×10 px | Logo recortado | média | feito |
 | V31 | Usuários | "APPROVED" cru numa pílula neutra; vazio dentro de pílula | Mapa de status em PT-BR; vazio sem pílula | média | feito |
-| V11 | Seta de ordenar | Inativa a 2,13:1 | Inativa em `--text-faint` | baixa | em correção (pacote E) |
+| V11 | Seta de ordenar | Inativa a 2,13:1 | Inativa em `--text-faint` | baixa | feito |
 | V21 | Raios | Checkbox 5 px, menu e anexo 12 px, fora da escala | Raios da escala | baixa | feito |
 | V22 | Mensagem do campo | Texto longo sem quebra vaza do campo (docs da API) | `overflow-wrap: anywhere` | baixa | feito |
 | V23 | Gráfico no celular | Último rótulo do eixo X cortado | Último rótulo alinhado pelo fim | baixa | feito |
 | V26 | Logo Dots | Fundo branco opaco vira um retângulo na sidebar clara | PNG transparente | baixa | feito |
 | V27 | Login | "Entrar com Microsoft" sólido, fora do tom sobre tom | Tom sobre tom ou registrar a exceção | baixa | em correção (pacote C, botão nas diretrizes da Microsoft) |
-| V30 | Formalização | KPI com percentual ("18 · 37,5%"), fora da regra de KPI simples | Percentual fora do valor | baixa | em correção (pacote E) |
+| V30 | Formalização | KPI com percentual ("18 · 37,5%"), fora da regra de KPI simples | Percentual fora do valor | baixa | feito (percentual no caption do KPI: "37,5% do total") |
 | V32 | Usuários e Produtos | Busca com 36 px e "Buscar" em tamanhos diferentes | 40 px e md nos dois | baixa | em correção (pacote D) |
 | V33 | Onboarding BGT | Atalhos de período com 34 px ao lado do campo de 40 | Mesmo tamanho | baixa | em correção (pacote D) |
 | V34 | Onboarding BGT, Simular, Clientes | Cabeçalho sem trilha | Trilha na rota | baixa | Simular e Clientes feitos; Onboarding em correção (pacote D) |
 | V35 | PDD, composição | Nome do fundo cortado e colunas de valor largas | Largura pelo conteúdo | baixa | feito |
-| V36 | Detalhes do contrato | Título "- undefined" sem parâmetro; sombra diferente; acordeão em cartão dentro de cartão | Vazio padrão, `--shadow-card`, acordeão sem moldura | baixa | em parte; acordeão sem moldura em correção (pacote E) |
+| V36 | Detalhes do contrato | Título "- undefined" sem parâmetro; sombra diferente; acordeão em cartão dentro de cartão | Vazio padrão, `--shadow-card`, acordeão sem moldura | baixa | feito |
 | V37 | Detalhes do usuário | Cartão repete o título; descrição da lista; vazio próprio | Título com o nome, vazio padrão | baixa | feito |
 | V38 | Trilha de etapas do Pré-Trade | Animação de 600 e 2.400 ms | Registrar a exceção (é progresso) | baixa | feito (exceção na .ai) |
 | V39 | Poli Chat | Conversa sem estado inicial; vazio em texto solto | Estado inicial e vazio padrão | baixa | feito |
