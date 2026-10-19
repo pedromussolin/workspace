@@ -116,6 +116,9 @@ Decisões da rodada 1 (16/10, Pietro):
 | R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | leva dos filtros |
 | R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | decidido; a fazer |
 | R27 | Home | Conteúdo no topo, não centrado: a área do shell (`.shell__content`) virou coluna com a altura da tela, e a Home ocupa e se centra nela. Portal local ganhou `ORG` para ver a home de parceiro | `layouts/app-shell`, `features/general/home`, `smoke.mjs` | feito |
+| R28 | Indicadores na cor da marca | Com a secundária laranja da Cerys (V24), checkbox, rádio, switch, borda de foco, dia de hoje e área de soltar arquivo ficavam a 2,28:1 (a Dots já ficava a 2,93). Passam a `--brand-icon` (3:1 garantido); nas outras marcas, a cor não muda. Falta o paginador | `shared/ui`, `styles/_mixins.scss`, `.ai` | feito, menos o paginador |
+| R29 | Marca Dots | `ink` a 4,25 no hover do botão principal e 4,29–4,34 no avatar e no fundo suave forte; logo ainda com margem (~42×14 px; recortado daria ~92×30) | `core/theme/themes.ts`, `assets/dots` | a decidir |
+| R30 | Pré-Trade | Chip "xlsx" do anexo a 4,27 | `features/pre-trade` | a fazer |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
@@ -129,12 +132,12 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 
 | # | Onde | O que | Proposta | Grav. | Situação |
 |---|---|---|---|---|---|
-| V3 | Tokens | Tom sobre tom de sucesso e atenção abaixo de AA no claro (4,17 e 4,08:1), em pílulas, avisos e toasts | `--tonal-fg` de 78% para 70% (4,8 e 4,7:1) | alta | em correção |
-| V24 | Marca Cerys | Tons de marca saem da secundária, quase preta: botão principal, segmentado ativo e ícones ficam cinza | Tons de marca pelo `accent` laranja que o tema já declara | alta | em correção |
+| V3 | Tokens | Tom sobre tom de sucesso e atenção abaixo de AA no claro (4,17 e 4,08:1), em pílulas, avisos e toasts | `--tonal-fg` de 78% para 70% (4,8 e 4,7:1) | alta | feito |
+| V24 | Marca Cerys | Tons de marca saem da secundária, quase preta: botão principal, segmentado ativo e ícones ficam cinza | Tons de marca pelo `accent` laranja que o tema já declara | alta | feito |
 | V7 | Campos, checkbox, radio | Contorno de 1,23:1 (claro) e 1,43:1 (escuro); o mínimo para contorno é 3:1 | Token `--control-border` só para controles | média | fica (decisão de 16/10) |
-| V4 | Sidebar | Rótulos de seção e e-mail a 4,43:1 (3,99 com hover) | `--text-secondary` | média | em correção |
-| V5 | Superfície rebaixada ou tingida | Texto apagado a 4,19–4,40:1 (trilha do Pré-Trade, linha aberta em três marcas) | Texto mais escuro nessas superfícies | média | em correção |
-| V6 | Pílula de status de lote | No escuro, três status abaixo de AA; na Dots, "Concluído" a 3,82:1 | Clarear os status no escuro; "Concluído" sem a cor da marca | média | em correção |
+| V4 | Sidebar | Rótulos de seção e e-mail a 4,43:1 (3,99 com hover) | `--text-secondary` | média | feito |
+| V5 | Superfície rebaixada ou tingida | Texto apagado a 4,19–4,40:1 (trilha do Pré-Trade, linha aberta em três marcas) | Texto mais escuro nessas superfícies | média | feito |
+| V6 | Pílula de status de lote | No escuro, três status abaixo de AA; na Dots, "Concluído" a 3,82:1 | Clarear os status no escuro; "Concluído" sem a cor da marca | média | feito |
 | V9b | Tabela comum | Números sem algarismos de largura fixa | `tabular-nums` nas colunas `end` | média | aprovado; próxima leva |
 | V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | aprovado; próxima leva |
 | V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | em correção |
@@ -144,13 +147,13 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V18 | Campo de data | Placeholder e período cortados em campo estreito | Largura mínima que caiba a data; placeholder "dd/mm/aaaa" | média | em correção |
 | V19 | "Limpar filtros" | Três tamanhos e ausente em 7 telas | Uma peça só, no fim de toda toolbar | média | aprovado; próxima leva |
 | V20 | Cartão de filtros | Cada tela com a própria classe e recuo (16/16, 16/20, 20/20) | Uma toolbar de filtros comum | média | aprovado; próxima leva |
-| V25 | Logo Cerys | PNG com margem transparente: o desenho fica com ~50×10 px | Logo recortado | média | em correção |
+| V25 | Logo Cerys | PNG com margem transparente: o desenho fica com ~50×10 px | Logo recortado | média | feito |
 | V31 | Usuários | "APPROVED" cru numa pílula neutra; vazio dentro de pílula | Mapa de status em PT-BR; vazio sem pílula | média | em correção |
 | V11 | Seta de ordenar | Inativa a 2,13:1 | Inativa em `--text-faint` | baixa | aprovado; próxima leva |
 | V21 | Raios | Checkbox 5 px, menu e anexo 12 px, fora da escala | Raios da escala | baixa | em correção |
 | V22 | Mensagem do campo | Texto longo sem quebra vaza do campo (docs da API) | `overflow-wrap: anywhere` | baixa | em correção |
 | V23 | Gráfico no celular | Último rótulo do eixo X cortado | Último rótulo alinhado pelo fim | baixa | em correção |
-| V26 | Logo Dots | Fundo branco opaco vira um retângulo na sidebar clara | PNG transparente | baixa | em correção |
+| V26 | Logo Dots | Fundo branco opaco vira um retângulo na sidebar clara | PNG transparente | baixa | feito |
 | V27 | Login | "Entrar com Microsoft" sólido, fora do tom sobre tom | Tom sobre tom ou registrar a exceção | baixa | em correção |
 | V30 | Formalização | KPI com percentual ("18 · 37,5%"), fora da regra de KPI simples | Percentual fora do valor | baixa | aprovado; próxima leva |
 | V32 | Usuários e Produtos | Busca com 36 px e "Buscar" em tamanhos diferentes | 40 px e md nos dois | baixa | aprovado; próxima leva |
@@ -162,4 +165,4 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V38 | Trilha de etapas do Pré-Trade | Animação de 600 e 2.400 ms | Registrar a exceção (é progresso) | baixa | em correção |
 | V39 | Poli Chat | Conversa sem estado inicial; vazio em texto solto | Estado inicial e vazio padrão | baixa | em correção |
 | V40 | Monitoramento BGT | Com dado incompleto, fica carregando para sempre | Estado de erro ou vazio; completar o dado fictício | baixa | aprovado; próxima leva |
-| V41 | Vitrine | Marca "viva" em minúsculo no seletor | Nome com maiúscula | baixa | em correção |
+| V41 | Vitrine | Marca "viva" em minúsculo no seletor | Nome com maiúscula | baixa | feito |
