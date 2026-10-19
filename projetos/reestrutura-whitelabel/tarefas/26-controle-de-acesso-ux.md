@@ -1,7 +1,7 @@
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)
-- **Status:** spec aprovada (19/10); [plano de implementação](26-controle-de-acesso-ux-plano.md) em revisão
+- **Status:** em execução (19/10): [plano](26-controle-de-acesso-ux-plano.md) aprovado; leva 1 (BFF B1–B5 e base do front F1–F4) com dois agentes
 - **Depende de:**
   - **front:** os commits da 25 (TS-5395). A branch nasce da `refact/TS-5395-refinamento-visual` depois
     deles, porque usa a barra de filtros, a grade de campos e a tabela do refinamento;
