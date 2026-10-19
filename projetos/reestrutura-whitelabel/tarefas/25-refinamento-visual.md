@@ -118,7 +118,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R27 | Home | Conteúdo no topo, não centrado: a área do shell (`.shell__content`) virou coluna com a altura da tela, e a Home ocupa e se centra nela. Portal local ganhou `ORG` para ver a home de parceiro | `layouts/app-shell`, `features/general/home`, `smoke.mjs` | feito |
 | R28 | Indicadores na cor da marca | Com a secundária laranja da Cerys (V24), checkbox, rádio, switch, borda de foco, dia de hoje e área de soltar arquivo ficavam a 2,28:1 (a Dots já ficava a 2,93). Passam a `--brand-icon` (3:1 garantido); nas outras marcas, a cor não muda. Falta o paginador | `shared/ui`, `styles/_mixins.scss`, `.ai` | feito |
 | R29 | Marca Dots | `ink` a 4,25 no hover do botão principal e 4,29–4,34 no avatar e no fundo suave forte; logo ainda com margem (~42×14 px; recortado daria ~92×30) | `core/theme/themes.ts`, `assets/dots` | em correção (pacote C) |
-| R30 | Pré-Trade | Chip "xlsx" do anexo a 4,27 | `features/pre-trade` | em correção (pacote A) |
+| R30 | Pré-Trade | Chip "xlsx" do anexo a 4,27 | `features/pre-trade` | feito |
 | R31 | Logos e favicons | Padrão: qualquer logo vira SVG sem fundo, recortado e normalizado (caixa de 180×32), com versão escura gerada; símbolo e favicon em SVG com reserva PNG. Script em `.ai/scripts/brand-logo` (Python, vtracer e Pillow) e passo a passo na skill `new-brand`. Aplicado às 4 marcas. Favicon único para todas as marcas (o `.ico` de 32×32 entregue em 19/10); o trilho da sidebar usa o símbolo de cada marca | `.ai`, `assets`, `core/theme` | em correção (pacote C) |
 | R32 | Login | "Entrar com Microsoft" segue as diretrizes da Microsoft (claro e escuro, logo oficial) | `features/general/login`, tokens | em correção (pacote C) |
 | R33 | Accordion | Variação sem moldura para dentro de cartão (detalhes do contrato) | `shared/ui/accordion` | em correção (pacote E) |
@@ -144,19 +144,19 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V6 | Pílula de status de lote | No escuro, três status abaixo de AA; na Dots, "Concluído" a 3,82:1 | Clarear os status no escuro; "Concluído" sem a cor da marca | média | feito |
 | V9b | Tabela comum | Números sem algarismos de largura fixa | `tabular-nums` nas colunas `end` | média | em correção (pacote E) |
 | V10 | Tabela comum | Altura da linha de 47 a 67 px entre telas | Espaçamento vertical único na célula | média | em correção (pacote E) |
-| V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | em correção |
-| V15 | KPI | Rótulo cortado sem dica ("Operações em andam…") | Dica no rótulo cortado ou 2 linhas | média | em correção |
-| V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | em correção |
-| V17 | Select | Valor cortado sem dica; lista aberta estreita corta opções | Dica no valor; lista com largura mínima maior | média | em correção |
-| V18 | Campo de data | Placeholder e período cortados em campo estreito | Largura mínima que caiba a data; placeholder "dd/mm/aaaa" | média | em correção |
+| V14 | Segmentado no celular | Com 4 ou 5 opções, rola sem indicação e corta opções (PDD, Envio) | Abaixo de 600 px, grade de 2 colunas ou fade na borda | média | feito (grade de 2 colunas quando não cabe) |
+| V15 | KPI | Rótulo cortado sem dica ("Operações em andam…") | Dica no rótulo cortado ou 2 linhas | média | feito (título em até 2 linhas) |
+| V16 | Grade de KPIs | Celular: um por linha (até 475 px antes da lista); desktop: 2 ou 4 colunas conforme a tela | Celular em 2 colunas; regra única no desktop | média | celular feito (2 por linha, compacto); regra do desktop a decidir |
+| V17 | Select | Valor cortado sem dica; lista aberta estreita corta opções | Dica no valor; lista com largura mínima maior | média | feito |
+| V18 | Campo de data | Placeholder e período cortados em campo estreito | Largura mínima que caiba a data; placeholder "dd/mm/aaaa" | média | feito (largura mínima da data) |
 | V19 | "Limpar filtros" | Três tamanhos e ausente em 7 telas | Uma peça só, no fim de toda toolbar | média | em correção (pacote D) |
 | V20 | Cartão de filtros | Cada tela com a própria classe e recuo (16/16, 16/20, 20/20) | Uma toolbar de filtros comum | média | em correção (pacote D) |
 | V25 | Logo Cerys | PNG com margem transparente: o desenho fica com ~50×10 px | Logo recortado | média | feito |
 | V31 | Usuários | "APPROVED" cru numa pílula neutra; vazio dentro de pílula | Mapa de status em PT-BR; vazio sem pílula | média | feito |
 | V11 | Seta de ordenar | Inativa a 2,13:1 | Inativa em `--text-faint` | baixa | em correção (pacote E) |
-| V21 | Raios | Checkbox 5 px, menu e anexo 12 px, fora da escala | Raios da escala | baixa | em correção |
-| V22 | Mensagem do campo | Texto longo sem quebra vaza do campo (docs da API) | `overflow-wrap: anywhere` | baixa | em correção |
-| V23 | Gráfico no celular | Último rótulo do eixo X cortado | Último rótulo alinhado pelo fim | baixa | em correção |
+| V21 | Raios | Checkbox 5 px, menu e anexo 12 px, fora da escala | Raios da escala | baixa | feito |
+| V22 | Mensagem do campo | Texto longo sem quebra vaza do campo (docs da API) | `overflow-wrap: anywhere` | baixa | feito |
+| V23 | Gráfico no celular | Último rótulo do eixo X cortado | Último rótulo alinhado pelo fim | baixa | feito |
 | V26 | Logo Dots | Fundo branco opaco vira um retângulo na sidebar clara | PNG transparente | baixa | feito |
 | V27 | Login | "Entrar com Microsoft" sólido, fora do tom sobre tom | Tom sobre tom ou registrar a exceção | baixa | em correção (pacote C, botão nas diretrizes da Microsoft) |
 | V30 | Formalização | KPI com percentual ("18 · 37,5%"), fora da regra de KPI simples | Percentual fora do valor | baixa | em correção (pacote E) |
