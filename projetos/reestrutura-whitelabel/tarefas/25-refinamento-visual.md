@@ -1,7 +1,7 @@
 # 25 — Refinamento visual e de design
 
 - **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)
-- **Status:** **rodada 1 quase fechada** (19/10): validação completa ok (build, lint igual à base, 2.606 testes, smoke em claro, escuro, celular e Dots); falta o pacote J (R44–R47) e a revisão para os commits
+- **Status:** **rodada 1 commitada e publicada** (19/10): 26 commits no front (`refact/TS-5395-refinamento-visual`) e 4 no BFF (`refact/TS-5395-opcoes-na-docs-da-api`), cada um compila sozinho; validada pelo Pietro
 - **Depende de:** todas as branches do front (a junção: 13, 17, 18, 19, 20,
   21, 22 e 23, com as áreas dentro da 13)
 - **Vai antes da 24:** o deploy leva o refinamento junto.
