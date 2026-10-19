@@ -38,7 +38,14 @@ const IAM = {
   'iam/organization': process.env.ORG || 'plgn',
   'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com', azureId: '00000000-0000-4000-8000-000000000001' },
 };
-const FIXTURES = process.env.FIXTURES ? JSON.parse(fs.readFileSync(process.env.FIXTURES, 'utf8')) : {};
+// Relido quando o arquivo muda: dado novo vale sem reiniciar o portal.
+let fixtures = { mtime: 0, data: {} };
+const FIXTURES = () => {
+  if (!process.env.FIXTURES) return {};
+  const mtime = fs.statSync(process.env.FIXTURES).mtimeMs;
+  if (mtime !== fixtures.mtime) fixtures = { mtime, data: JSON.parse(fs.readFileSync(process.env.FIXTURES, 'utf8')) };
+  return fixtures.data;
+};
 
 const bff = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -51,7 +58,8 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
-  res.end(JSON.stringify(key in IAM ? IAM[key] : key in FIXTURES ? paged(FIXTURES[key], url.searchParams) : []));
+  const data = FIXTURES();
+  res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? paged(data[key], url.searchParams) : []));
 });
 
 // Resposta paginada (`pagination` com `per_page` + `records`): devolve só a página pedida, como o
