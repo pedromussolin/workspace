@@ -183,3 +183,11 @@ Sem a transição, a ordem no deploy é:
   do orquestrador. A migração precisa dar `admin:test`, `admin:run`,
   `admin:approve` e `admin:reprocess` a quem for decidido;
 - avisar as áreas da janela sem acesso entre os passos 1 e 3.
+
+## Pendência vinda da 25 (19/10)
+
+- **Seletor de marca:** pôr `BRAND_SWITCHER: "true"` nos `values.yaml` do sandbox e do staging do
+  front, no repo de deploy. Em produção, a variável não entra.
+- **`PRODUCTION`:** nenhum ambiente define essa variável hoje, e o `env.js` diz `production: false`
+  até em produção. Vale decidir se ela entra nos três `values.yaml` de produção.
+

@@ -135,7 +135,8 @@ Decisões da rodada 1 (16/10, Pietro):
 | R44 | Segmentado | Barra de rolagem aparecia ao ativar uma opção (o negrito alargava o texto) | `shared/ui/toggle-group` | em correção (pacote J) |
 | R45 | Multiselect | Lista aberta mais estreita que o campo | `shared/ui/select` | em correção (pacote J) |
 | R46 | Docs da API | Conteúdo centralizado e mais largo, com margem igual dos dois lados | `features/api-docs` | em correção (pacote J) |
-| R47 | Logo da Dots | Grande demais na sidebar: ajuste óptico no padrão das logos | `.ai/scripts/brand-logo`, `assets` | em correção (pacote J) |
+| R47 | Logos da Dots e da Cerys | Grandes demais na sidebar aberta: ajuste óptico no padrão (as marcas parecem do mesmo tamanho; referência Poliedro). No trilho, a Poliedro mostra o favicon da aba | `.ai/scripts/brand-logo`, `assets`, `core/theme` | em correção (pacote J) |
+| R48 | Seletor de marca | No menu do usuário, abaixo de Aparência, só fora de produção: variável nova `BRAND_SWITCHER` (desligada por padrão; ligada no local; sandbox e staging ligam no repo de deploy, na tarefa 24). Hoje nenhum ambiente define `PRODUCTION`: o `env.js` diz `production: false` até em produção | `core/theme`, sidebar, `generate-env.js`, `entrypoint.sh` | em correção (pacote J) |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
