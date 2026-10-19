@@ -76,9 +76,9 @@ branch:
 ## Itens
 
 Decisões da rodada 1 (16/10, Pietro):
-- **Alinhamento das colunas, em todas as tabelas:** texto, nomes e datas à esquerda; valores,
-  quantidades e percentuais à direita; status e etapa no centro; ações à direita, com a ação
-  mais comum por último. O `align` padrão do `appColumn` passa a ser `start`.
+- **Alinhamento das colunas, em todas as tabelas:** por tipo de dado (16/10), **revisto em 19/10**:
+  colunas de dados centralizadas; ações à direita, com o excluir isolado na ponta; texto corrido de
+  várias linhas à esquerda. O `align` padrão do `appColumn` volta a ser `center`.
 - **Paginador:** fica como está (a caixa de tamanho só aparece onde a tela oferece mais de um).
 - **Seletor de visão:** dentro do cartão de filtros, com o rótulo "Visualização".
 - **Tabela dentro da linha que abre:** até 5 linhas por página por padrão
@@ -111,7 +111,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R20 | Tabela comum | Filtro de coluna (botão no cabeçalho e popover) ainda mora no `config-table` e cada tela repete o estilo: levar para `shared/ui/table` | `shared/ui/table` | a decidir |
 | R21 | Lotes de Cessão | Status como pílula exige um enum de status no BFF (hoje `estado_atual` livre) | BFF + tela | a decidir |
 | R22 | Accordion | Itens colados: o `:host + :host` do espaço não compila no Angular (vira seletor inválido). O espaço vai para o `app-accordion`; lista numerada ganha o número num quadrado (`marker`), usado no analítico do Consolidado | `shared/ui/accordion`, `features/cash-consolidation` | feito |
-| R23 | Docs da API | Layout novo no estilo do exemplo de 16/10: um painel com navegação (combobox da documentação, busca, grupos com método + nome) e conteúdo (barra do endpoint com copiar, parâmetros em tabela, corpo com Exemplo/Esquema/cURL, respostas por status, "Testar chamada"). Só o BFF por enquanto, pronto para outros serviços. Proposta: artifact "Docs da API: proposta" | `features/api-docs` | em correção (pacote B) |
+| R23 | Docs da API | Layout novo no estilo do exemplo de 16/10: um painel com navegação (combobox da documentação, busca, grupos com método + nome) e conteúdo (barra do endpoint com copiar, parâmetros em tabela, corpo com Exemplo/Esquema/cURL, respostas por status, "Testar chamada"). Só o BFF por enquanto, pronto para outros serviços. Proposta: artifact "Docs da API: proposta" | `features/api-docs` | feito (pacote B; 207 specs) |
 | R24 | Onboarding BGT, lista | Filtros com largura fixa e linhas pela metade; atalhos de período menores que os campos (V33) | `features/onboarding-bgt` | em correção (pacote D) |
 | R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | em correção (pacote D) |
 | R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | feito (classe app-table__destructive-action; também na vitrine) |
@@ -123,6 +123,9 @@ Decisões da rodada 1 (16/10, Pietro):
 | R32 | Login | "Entrar com Microsoft" segue as diretrizes da Microsoft (claro e escuro, logo oficial) | `features/general/login`, tokens | em correção (pacote C) |
 | R33 | Accordion | Variação sem moldura para dentro de cartão (detalhes do contrato) | `shared/ui/accordion` | feito (accordion flush nos detalhes do contrato) |
 | R34 | Estado vazio | Variação compacta para vazio dentro de cartão (detalhe do usuário e outros) | `shared/ui/empty-state` | feito (vazio compacto no detalhe do usuário, Pré-Trade e controle de acesso) |
+| R35 | Tabelas | Colunas de volta ao centro (ações à direita, texto longo à esquerda) e cabeçalhos de uma linha com a mesma altura (o funil de filtro e o botão de ordenar não aumentam a linha) | `shared/ui/table`, telas, `.ai` | em correção (pacote F) |
+| R36 | Barra de filtros | Distribuição equilibrada em qualquer zoom: linhas = ceil(n / cabem), colunas = ceil(n / linhas) (5 campos → 3 + 2), cada linha ocupando a largura toda; campo de status com o mesmo tamanho dos outros | `shared/ui/filter-bar` | em correção (pacote D) |
+| R37 | Paginador | "Itens por página" abria a lista nativa do navegador: passa a usar o select do portal | `shared/ui/table/paginator` | em correção (pacote F) |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
