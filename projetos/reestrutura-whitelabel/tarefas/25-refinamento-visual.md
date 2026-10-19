@@ -105,8 +105,8 @@ Decisões da rodada 1 (16/10, Pietro):
 | R14 | Seletor de período | "Data inicial – Data final" desalinhado: as duas datas dividem a caixa ao meio, centradas | `shared/ui/date-picker` | feito |
 | R15 | Cabeçalho da página | Botões (Exportar, Cadastrar) na linha da trilha, longe do título: vão para a linha do título | `shared/ui/page-header` | feito |
 | R16 | Accordion | Conteúdo a 4 px do cabeçalho: passa a 16 px | `shared/ui/accordion` | feito |
-| R17 | Accordion e linha que abre | Ao abrir pelo clique, rola até o começo se não couber | `shared/utils/reveal.ts`, accordion, tabela | accordion feito; tabela em correção |
-| R18 | Formalização, Onboarding BGT, Caixa | A 1440 px a tabela passa da tela e Ações fica fora de vista (como o R1) | telas | em correção |
+| R17 | Accordion e linha que abre | Ao abrir pelo clique, rola até o começo se não couber | `shared/utils/reveal.ts`, accordion, tabela | feito (tabela confere de novo enquanto o detalhe carrega dados, até 2 s) |
+| R18 | Formalização, Onboarding BGT, Caixa | A 1440 px a tabela passa da tela e Ações fica fora de vista (como o R1) | telas | Formalização e Caixa cabem a 1440; lista do Onboarding (13 colunas) só cabe a partir de ~1500 px: a decidir |
 | R19 | Envio de relatórios, detalhe da execução | Pastas coladas, sem separador | `features/report-transfer` | feito |
 | R20 | Tabela comum | Filtro de coluna (botão no cabeçalho e popover) ainda mora no `config-table` e cada tela repete o estilo: levar para `shared/ui/table` | `shared/ui/table` | a decidir |
 | R21 | Lotes de Cessão | Status como pílula exige um enum de status no BFF (hoje `estado_atual` livre) | BFF + tela | a decidir |
@@ -116,7 +116,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R25 | Onboarding BGT, monitoramento | Filtros desencontrados (período à esquerda, produto na ponta); sem dados: o BFF falso não tem o monitoramento, e a tela fica carregando para sempre (V40) | `features/onboarding-bgt`, dados fictícios | leva dos filtros |
 | R26 | Ações da linha | Excluir colado em Editar (Fluxos, Conexões, Unidades): a ação destrutiva fica sempre por último, isolada na ponta direita (exceção à "mais usada por último"), em todas as tabelas | telas com excluir, `.ai` | decidido; a fazer |
 | R27 | Home | Conteúdo no topo, não centrado: a área do shell (`.shell__content`) virou coluna com a altura da tela, e a Home ocupa e se centra nela. Portal local ganhou `ORG` para ver a home de parceiro | `layouts/app-shell`, `features/general/home`, `smoke.mjs` | feito |
-| R28 | Indicadores na cor da marca | Com a secundária laranja da Cerys (V24), checkbox, rádio, switch, borda de foco, dia de hoje e área de soltar arquivo ficavam a 2,28:1 (a Dots já ficava a 2,93). Passam a `--brand-icon` (3:1 garantido); nas outras marcas, a cor não muda. Falta o paginador | `shared/ui`, `styles/_mixins.scss`, `.ai` | feito, menos o paginador |
+| R28 | Indicadores na cor da marca | Com a secundária laranja da Cerys (V24), checkbox, rádio, switch, borda de foco, dia de hoje e área de soltar arquivo ficavam a 2,28:1 (a Dots já ficava a 2,93). Passam a `--brand-icon` (3:1 garantido); nas outras marcas, a cor não muda. Falta o paginador | `shared/ui`, `styles/_mixins.scss`, `.ai` | feito |
 | R29 | Marca Dots | `ink` a 4,25 no hover do botão principal e 4,29–4,34 no avatar e no fundo suave forte; logo ainda com margem (~42×14 px; recortado daria ~92×30) | `core/theme/themes.ts`, `assets/dots` | a decidir |
 | R30 | Pré-Trade | Chip "xlsx" do anexo a 4,27 | `features/pre-trade` | a fazer |
 
