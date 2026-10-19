@@ -71,11 +71,11 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 **Prontas: 22 de 23** (a 16 está adiada e fica fora da conta). Falta a 24,
 o deploy, que é a última.
 - **Publicadas em 15/10:** 01 a 08 e 11, sem merge em nenhum ambiente.
-- **Publicadas que ganharam commits:** a 04 (`e031e31`, contraste) e a 08
-  (merge da master, porte da responsividade e ajuste dos filtros).
-- **Commits feitos, sem push:** 09, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21,
-  22 e 23. A 14, a 15, a 19, a 21 e a 22 têm branch no front e no BFF; a 21
-  tem ainda o fix das brechas, só no BFF.
+- **Publicadas em 19/10:** 09, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22,
+  23 e a rodada 1 da 25, e de novo a 04 e a 08 com os commits novos. A 14, a
+  15, a 19, a 21, a 22 e a 25 têm branch no front e no BFF; a 21 tem ainda o
+  fix das brechas, só no BFF. Nenhuma em ambiente: as `release/20261016` e as
+  `backup/*` e `wip/*` ficaram locais.
 
 Cada tarefa tem a seção "O que foi feito", com os commits, as mudanças
 visíveis para a PR e a validação.
@@ -157,7 +157,7 @@ numa worktree descartável, em 16/10):
   com GMUD (D40).
 
 **Pendências do Pietro:**
-- publicar as branches sem push e de novo a 04 e a 08, e abrir as PRs;
+- abrir as PRs (as branches estão publicadas desde 19/10);
 - **decisões:**
   - **D56:** como migrar os `admin:*`;
   - **D57:** o logo do login;
