@@ -1,7 +1,7 @@
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)
-- **Status:** spec escrita (19/10), esperando a revisão do Pietro
+- **Status:** spec aprovada (19/10); [plano de implementação](26-controle-de-acesso-ux-plano.md) em revisão
 - **Depende de:**
   - **front:** os commits da 25 (TS-5395). A branch nasce da `refact/TS-5395-refinamento-visual` depois
     deles, porque usa a barra de filtros, a grade de campos e a tabela do refinamento;
@@ -111,7 +111,7 @@ Pedido do Pietro em 19/10, revisando a tela `/access-control` (tarefas 19 e 21):
 - **Modal:**
   - topo: código, nome, descrição, pílulas; "Atribuir" (pessoas e grupos), "Criar no Azure" (se
     falta; "Atribuir" fica desabilitado com o motivo até lá) e "Excluir";
-  - **Pessoas · N:** nome, e-mail, origem ("Direta" / "Pelo grupo X"); remover só a direta; a
+  - **Pessoas · N:** uma linha por pessoa: nome, e-mail, origens ("Direta", "Pelo grupo X"); remover só a direta; a
     herdada fica desabilitada com "vem do grupo X: tire a pessoa do grupo ou a permissão do grupo";
   - **Grupos · N:** grupo, membros, remover;
   - **No código · N:** onde o código exige (tela ou rota).
@@ -184,9 +184,9 @@ Pedido do Pietro em 19/10, revisando a tela `/access-control` (tarefas 19 e 21):
 
 | Rota | Mudança |
 |---|---|
-| `GET access-control/settings` | `+ portalUsersGroupConfigured` |
+| `GET access-control/settings` | `+ portalUsersGroup`: `not-configured`, `ok` ou `not-found` (o BFF confere se o grupo existe) |
 | `GET access-control/roles` | `+ peopleCount` por permissão (direto ou por grupo, sem repetir) |
-| `GET access-control/roles/{value}/holders` | **nova:** `{ people: [{ id, displayName, mail, via, groupId?, groupName?, assignmentId? }], groups: [{ id, displayName, memberCount, assignmentId }] }` |
+| `GET access-control/roles/{value}/holders` | **nova:** `{ people: [{ id, displayName, mail, origins: [{ via, groupId, groupName, assignmentId }] }], groups: [{ id, displayName, memberCount, assignmentId }] }`, uma linha por pessoa com todas as origens |
 | `GET access-control/people` | com o grupo configurado: membros do grupo dinâmico, `search`, `status` (`all`, `with-roles`, `without-roles`), `sort`, `page`, `perPage`; cada pessoa com `roleCount` e `groupCount`; resposta com o total. Sem o grupo: a busca de hoje |
 | `GET access-control/people/{id}` | `+ groups` (os do portal de que a pessoa é membro direto, com quantas permissões cada um dá) |
 | `POST access-control/batch/apply` | apaga o cache do controle de acesso no fim |
