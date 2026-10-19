@@ -178,3 +178,27 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 | V39 | Poli Chat | Conversa sem estado inicial; vazio em texto solto | Estado inicial e vazio padrão | baixa | feito |
 | V40 | Monitoramento BGT | Com dado incompleto, fica carregando para sempre | Estado de erro ou vazio; completar o dado fictício | baixa | feito |
 | V41 | Vitrine | Marca "viva" em minúsculo no seletor | Nome com maiúscula | baixa | feito |
+
+## Commits da rodada 1 (plano para revisão)
+
+455 arquivos. Vários arquivos misturam itens (o mesmo `table.component.scss` tem centro, recuo,
+densidade, cabeçalho e barra de rolagem), e o `git add -p` interativo não roda aqui. Por isso o
+plano agrupa por arquivo, na ordem em que cada commit compila sozinho: peças comuns primeiro, telas
+depois, `.ai` no fim. O `validar-leva.sh` confere a compilação de cada commit.
+
+| # | Commit | Arquivos | Itens |
+|---|---|---|---|
+| 1 | `feat(TS-5395): utilitários de rolagem, paginação local e planilha` | `shared/utils` (reveal, local-pagination, xlsx), `shared/testing` | R13, R17, R38 |
+| 2 | `refact(TS-5395): tokens de contraste, código e do botão Microsoft` | `styles/` (tokens, base, mixins, `styles.scss`) | R3, R4, V3–V6, R23, R32 |
+| 3 | `feat(TS-5395): marcas em SVG com escuro gerado e favicon único` | `core/theme`, `assets/{default,dots,cerys,vivo,general}`, `src/favicon.ico` | R29, R31, V24–V26, V41 |
+| 4 | `refact(TS-5395): shell em coluna, sidebar e cabeçalho da página` | `layouts/`, `shared/ui/page-header` | R3, R15, R27, R28 |
+| 5 | `refact(TS-5395): tabela comum no centro, com recuo e mesma altura` | `shared/ui/table`, specs do `config-table` | R2, R10, R11, R17, R26, R35, R37, V9–V11 |
+| 6 | `refact(TS-5395): campos, segmentado, KPI e indicadores revistos` | `shared/ui/{toggle-group,select,date-picker,kpi,checkbox,radio,switch,textbox,field,menu}` | R7, R14, R28, V14–V18, V21–V22 |
+| 7 | `feat(TS-5395): acordeão, vazio compacto e lista de detalhes` | `shared/ui/{accordion,empty-state,detail-list}` | R16, R17, R22, R33, R34, R40, R41 |
+| 8 | `feat(TS-5395): barra de filtros e grade de campos comuns` | `shared/ui/{filter-bar,field-grid}` | R36, R39, V19, V20 |
+| 9 | `feat(TS-5395): code-block com abas e gráfico com menu Exportar` | `shared/ui/{code-block,charts}` | R23, R38, V23 |
+| 10–24 | `refact(TS-5395): <tela> no padrão do refinamento` | uma por tela: Pré-Trade, Formalização, Lotes de Liquidação, Lotes de Cessão e contrato, Controladoria, Consolidado de Caixa, Envio de Relatórios, Controle de acesso, Onboarding BGT, Usuários, Orquestrador, Docs da API, Poli Chat, Home e login, Simular e Clientes | por tela |
+| 25 | `refact(TS-5395): vitrine com as peças e padrões novos` | `features/design-system` | — |
+| 26 | `chore(TS-5395): .ai com os padrões da rodada 1 do refinamento` | `.ai/` (regras, contexto, scripts, skills) | — |
+
+Se algum commit não compilar sozinho, ele se junta ao seguinte, e o relatório diz qual.
