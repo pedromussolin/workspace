@@ -89,7 +89,7 @@ const web = http.createServer((req, res) => {
   if (p === '/assets/env.js') {
     res.setHeader('Content-Type', 'text/javascript');
     res.setHeader('Cache-Control', 'no-store');
-    return res.end(`window.__CONFIG__ = { apiUrl: "http://localhost:8765", themeKey: "${chosenBrand(req)}", authLoginPath: "/auth/login", authCallbackPath: "/auth/callback", production: false };`);
+    return res.end(`window.__CONFIG__ = { apiUrl: "http://localhost:8765", themeKey: "${chosenBrand(req)}", authLoginPath: "/auth/login", authCallbackPath: "/auth/callback", production: false, brandSwitcher: true };`);
   }
   const pick = p.match(/^\/__marca\/(\w+)$/);
   if (pick) {
