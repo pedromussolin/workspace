@@ -17,6 +17,13 @@ responde por **81%**, fica igual. E, para a página, troca o problema por um
 piorar o caso que hoje funciona. Duas peças pequenas valem aproveitar, com
 `EXPLAIN` que comprove.
 
+**Réplica, 20/10:** com os parâmetros de uma chamada que falhou hoje
+(fundo 209, um dia, sem produto), a versão do PR (`EXISTS` com `OFFSET 0`)
+também passou de 60 s; a do fundo pelo 1º pagamento levou 0,1 s. O
+`OFFSET 0` faz o que promete, mas os lotes de outros fundos do dia somam
+~340 mil pagamentos lidos um a um. **[C]** Ver
+[evidência](../evidencias/lotes-reais-replica-2026-10-20.md).
+
 ## O que o PR muda
 
 | # | Mudança | Onde |
