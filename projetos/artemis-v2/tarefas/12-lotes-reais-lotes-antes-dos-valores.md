@@ -188,7 +188,7 @@ A DBA mandou duas consultas:
 
 | A tela usa | Proposta | Situação |
 |---|---|---|
-| Fundo obrigatório | sim | ok (D11 confirmada em 20/10) |
+| Fundo obrigatório | sim | ok, mas a D11 foi revista em 20/10: há lote multifundo (D21) |
 | Vários produtos | um produto, comentado | trocar por `IN` |
 | Vários status | não tem | falta |
 | Período | sim | ok |
@@ -228,8 +228,8 @@ Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
 - **Contraexemplo da D11:** o lote 1836143 (produto 1637, por proc_id,
   15/10) tem 78 pagamentos do fundo 836 e 1 do fundo 869. É o único entre
   os 215 lotes por proc_id de 30 dias. Com o atalho, ele some da listagem
-  do fundo 869. A D11 foi registrada hoje como confirmada; **reabrir ou
-  aceitar a exceção é decisão do Pietro**. **[C]**
+  do fundo 869. **D11 revista em 20/10** (lote pode ter mais de um fundo);
+  o tratamento na listagem está na **D21**. **[C]**
 - **Dois mundos de remessa:** em 7 dos 14 fundos do dia (~296 mil dos ~345
   mil pagamentos), cada pagamento tem a sua remessa. Ali os irmãos são o
   próprio lote, e a página carrega um `proc_id` por pagamento (211 mil no
@@ -239,6 +239,28 @@ Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
   `proc_id` de cada pagamento leva 11,8 s, e o soft delete leva os valores
   e os irmãos a mais de 120 s. O custo é por pagamento, não por lote: é a
   pergunta em aberto acima (somar na hora × gravar no lote). **[C]**
+
+## Próximos passos (20/10)
+
+1. **D21 (Pietro):** como a listagem trata lote multifundo. Recomendação:
+   fundo pelo 1º pagamento, mais checagem exata só nos lotes por proc_id.
+2. **Conferir a premissa da D21 (a)** na réplica: lote por chave não mistura
+   fundos (fundos distintos lendo todos os pagamentos de um dia, por fundo,
+   para caber no limite de tempo).
+3. **TS-5383** (branch `refact/TS-5383-melhora-consulta-lotes-reais`):
+   página com o fundo pelo 1º pagamento e a checagem da D21; irmãos em duas
+   etapas, sem parcela e sem soft delete. Mesmo contrato. Testes de
+   repositório, validação local e depois `EXPLAIN` na réplica com os fundos
+   209 (remessa por pagamento) e 26 (remessa de arquivo).
+4. **De onde vêm os 500 dos irmãos:** fundo de cada chamada que falhou (log
+   "Buscando lotes reais..." pelo trace). Diz quanto a TS-5383 resolve
+   sozinha.
+5. **Lotes gigantes (fundos 36 e 3), tarefa nova:** o custo é por
+   pagamento. Decidir (i) buscar os pagamentos do lote pelo `lote_id` e
+   parar de mandar um `proc_id` por pagamento (muda BFF e front); (ii) valor
+   e quantidade somados na hora sem soft delete, ou gravados no lote.
+6. **Responder ao autor do PR** com os números: não resolve a chamada de
+   hoje; o diagnóstico do semi-join estava certo.
 
 ## Fora do escopo
 
