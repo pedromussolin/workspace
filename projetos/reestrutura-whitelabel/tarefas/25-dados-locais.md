@@ -1,6 +1,6 @@
 # 25 / R61 — Teste local que guarda as mudanças (BFF falso e navegador)
 
-- **TS:** TS-5395 · **Status:** **em implementação** (20/10), desenho aprovado no chat
+- **TS:** TS-5395 · **Status:** parte 1 (BFF falso) **feita e publicada** neste repo (20/10); parte 2 (navegador) em implementação
 - **Pedido do Pietro (20/10):** rodando local, dá para sair e ver o login (feito no portal local:
   "Sair" encerra a sessão, "Entrar com Microsoft" volta logado sem Azure); e o que se muda nos testes
   locais tem que ficar guardado. **Padrão: o BFF falso** (testes com a integração); **reserva: o
@@ -65,3 +65,18 @@ Specs das regras (funções puras, as mesmas tabelas acima), do interceptor (res
 guardada, reset, sessão) e do `generate-env`; o build de produção não leva o interceptor ativo nem
 os JSON; smoke do portal local fazendo uma mudança no controle de acesso, recarregando e vendo a
 mudança, e o `__reset` voltando.
+
+## O que foi feito
+
+**Parte 1 (20/10):** regras em `anexos/scripts/smoke-escrita.mjs` (funções puras e o `createDataStore`),
+usadas pelo `smoke.mjs`; 30 testes em `smoke-escrita.test.mjs` (`node --test`). Prévia e aplicar usam
+as mesmas regras sobre uma cópia, então `create_role` seguido de `assign_role` no mesmo lote funciona.
+Os contadores, as permissões herdadas e os `holders` são derivados a cada escrita (rodar a derivação
+sobre os dados atuais não muda nenhuma das 135 chaves). No aplicar, `blocked` vira `failed` com o
+motivo. Decisões fora da tabela: textos "Já existe um grupo com esse nome.", "Não tem.", "Não é
+membro.", "Permissão não encontrada.", "Pessoa não encontrada.", "Grupo não encontrado."; atribuir
+permissão que não existe no Azure bloqueia; buscas por POST (`pre-trade/investor-vehicles`,
+`pre-trade/assets`) ficam sem regra (`SEARCH_POSTS`); fora da prévia e do aplicar, escrever em
+`access-control/` fica sem regra. Limites: não confere o `confirm: 'REMOVER'`; não bloqueia o que o
+BFF real bloqueia por configuração (`deletable`, `groupAssignmentEnabled`, `canEditPartner`); o POST
+genérico não cria o detalhe; o DELETE genérico não apaga subcaminhos.
