@@ -242,12 +242,11 @@ Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
 
 ## Próximos passos (20/10)
 
-1. **D21 (Pietro):** como a listagem trata lote multifundo. Recomendação:
-   fundo pelo 1º pagamento, mais checagem exata só nos lotes por proc_id.
-2. **Conferir a premissa da D21 (a)** na réplica: lote por chave não mistura
+1. ~~**D21 (Pietro)**~~ decidida em 20/10: opção (a).
+2. ~~**Conferir a premissa da D21 (a)**~~ feito em 20/10: 85 lotes por chave, nenhum multifundo. Era: lote por chave não mistura
    fundos (fundos distintos lendo todos os pagamentos de um dia, por fundo,
    para caber no limite de tempo).
-3. **TS-5383** (branch `refact/TS-5383-melhora-consulta-lotes-reais`):
+3. **TS-5383** (branch `refact/TS-5383-melhora-consulta-lotes-reais`), **implementada e testada em 20/10, aguardando revisão para commit** (números na evidência):
    página com o fundo pelo 1º pagamento e a checagem da D21; irmãos em duas
    etapas, sem parcela e sem soft delete. Mesmo contrato. Testes de
    repositório, validação local e depois `EXPLAIN` na réplica com os fundos

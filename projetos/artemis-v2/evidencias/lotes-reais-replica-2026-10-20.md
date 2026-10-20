@@ -103,3 +103,31 @@ e a busca do `proc_id`, cerca de quatro acessos aleatórios para cada um dos
 `proc_id`; `contrato_parcela` em `fundo_id`. Não há índice composto
 `(liquidacao_processo_uuid, liquidacao_lote_id)`, e ele não ajudaria: cada
 `liquidacao_processo` tem um pagamento. **[C]**
+
+## Premissa da D21 (20/10)
+
+Lotes fechados por chave criados em 20/10, todos os pagamentos lidos: 85
+lotes com pagamento (46 dos fundos menores, 28 do fundo 3, 11 do fundo 36,
+um a um), **nenhum com mais de um fundo**. **[C]** para esse dia; para o
+histórico, **[H]**.
+
+## SQL da TS-5383 na réplica (20/10)
+
+SQL gerado pelo código da branch `refact/TS-5383-melhora-consulta-lotes-reais`
+(ainda sem commit), página de 5 lotes como a tela.
+
+| Caso | Página | Irmãos |
+|---|---|---|
+| Fundo 209, 20/10 (2.711 remessas na página) | 0,4 s | 0,1 s |
+| Fundo 26, 20/10 (remessa de arquivo, lotes de 30 e 13 mil) | 0,8 s quente; 33 s frio, nos valores | 0,24 s |
+| Fundo 836, 15/10 | 0,5 s | 2 ms |
+| Fundo 869, 15/10 | 2 s | 1 ms |
+
+- O lote multifundo 1836143 aparece nas listagens dos fundos 836 e 869.
+- Na primeira versão dos irmãos, com a lista inteira num `IN`, o Postgres
+  estimou ~13 mil linhas por `proc_id` (35 milhões no total) e varreu
+  `liquidacao_pagamento` e `liquidacao_processo` inteiras: mais de 60 s. A
+  versão final lê uma remessa por vez (`LATERAL`) e checa o fundo numa
+  segunda consulta, só com os lotes achados. **[C]**
+- Fundo 36 continua fora: a soma dos valores e a busca dos irmãos crescem
+  com os 211 mil pagamentos (passo 5 da tarefa 12).
