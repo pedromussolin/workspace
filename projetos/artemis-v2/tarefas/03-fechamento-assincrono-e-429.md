@@ -33,6 +33,36 @@
   produção no argocd em `feature/TS-5377-worker-fechamento-lote-producao`
   (`61ecc97`, só asgard-production). BFF (`prod-fe2bee2`) e front em
   produção em 20/10, ~12:26 UTC.
+- **Fase 1 de robustez (20/10), implementada e aguardando revisão:** branches
+  `fix/TS-5377-robustez-fechamento-lote` na cessão e no BFF, sem commit.
+  - **Cessão (`refact.py`, task, schema, viewer):**
+    - `SET LOCAL statement_timeout` (480 s) e `lock_timeout` (60 s),
+      configuráveis por `FAKE_BATCH_CLOSING_STATEMENT_TIMEOUT_MS` e
+      `FAKE_BATCH_CLOSING_LOCK_TIMEOUT_MS`;
+    - motivos claros para tempo, trava, parcial e interrupção;
+    - vigente e lote novo vão para a esteira logo após o próprio commit
+      (R9);
+    - pedido gravado na rota, e o status devolve "interrompido" quando a
+      trava some sem resultado (R8, R18);
+    - sem `expires`; `acks_late` e `reject_on_worker_lost`, com no máximo 2
+      tentativas (R19);
+    - resultado gravado só pelo dono do pedido e, para a mensagem atrasada,
+      só sobre pedido pendente (R14);
+    - cliente Redis com timeout de 2 s; renovação que perde a trava liga um
+      aviso e o job desiste antes do commit (R13, R23);
+    - `task_id = job_id`; o log de conclusão traz `attempt`,
+      `queue_wait_ms` e `requested_by` (R28).
+  - **BFF:** manda `requested_by` (oid do Azure AD, não o e-mail) e loga o
+    `job_id` devolvido pela cessão.
+  - **Validação:**
+    - suíte completa da cessão com 4.803 testes, zero falhas (`master`:
+      4.782);
+    - BFF com 114 testes do módulo;
+    - scripts Lua em Redis 6.2 real (18 cenários);
+    - limites de banco em Postgres 13 real (trava, tempo e `SET LOCAL` sem
+      vazar).
+  - **Ordem de deploy:** cessão (API e worker juntos), depois o BFF. O
+    resultado no formato antigo, sem `job_id`, não bloqueia o novo.
 - **Casos depois da implantação (20/10):** [03-casos-pos-producao.md](03-casos-pos-producao.md)
   — revisão de todos os caminhos (tempo, fechamento perdido, corridas com o
   legado, tela) e plano em fases; acompanhamento em
