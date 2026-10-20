@@ -26,6 +26,12 @@ seguem, ambas por causa do **fundo** (o lote não tem fundo próprio, quem tem
    da página, por causa da contagem total). Sem filtro de produto, p50 de
    4,4 s e p95 de 94 s. **[C]**
 
+## PR alternativo
+
+O PR `feature/ajuste-rota-liquidacao-lote-real` mexe só na página (19% dos
+500) e não nos irmãos (81%). Análise e recomendação em
+[12-analise-pr-lotes-reais.md](12-analise-pr-lotes-reais.md).
+
 ## Evidência
 
 Detalhe e consultas para repetir em
