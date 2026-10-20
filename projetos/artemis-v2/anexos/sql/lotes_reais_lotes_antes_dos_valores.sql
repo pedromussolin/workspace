@@ -275,3 +275,71 @@ WHERE (
     WHERE lp.liquidacao_lote_id = l.lote_id
     LIMIT 1
 ) = :fundo_id;
+
+
+-- 7. Tamanho da janela: quantos lotes a página nova testa (um pagamento por
+-- lote) e quantos são do fundo. É o custo do filtro de fundo e da contagem
+-- total na versão em etapas. Rodar sem produto, com a janela da tela.
+SELECT count(*)                                  AS lotes_na_janela,
+       count(*) FILTER (WHERE fundo = :fundo_id) AS lotes_do_fundo
+FROM (
+    SELECT (
+        SELECT cp.fundo_id
+        FROM liquidacao_pagamento lp
+        JOIN contrato_parcela cp ON cp.id = lp.parcela_id
+        WHERE lp.liquidacao_lote_id = llp.id
+        LIMIT 1
+    ) AS fundo
+    FROM liquidacao_lote_processo llp
+    WHERE llp.data_criacao >= CAST(:inicio AS date)
+      AND llp.data_criacao < CAST(:fim AS date) + 1
+) x;
+
+
+-- 8. Por remessa: pagamentos x lotes distintos. A razão entre os dois é o
+-- ganho do salto de lote em lote (passo 9) sobre ler todos os pagamentos.
+SELECT pr.proc_id,
+       count(*)                              AS pagamentos,
+       count(DISTINCT lp.liquidacao_lote_id) AS lotes
+FROM liquidacao_processo pr
+JOIN liquidacao_pagamento lp ON lp.liquidacao_processo_uuid = pr.uuid
+WHERE pr.proc_id = ANY(CAST(:proc_ids AS uuid[]))
+  AND lp.liquidacao_lote_id IS NOT NULL
+GROUP BY pr.proc_id;
+
+
+-- 9. Lotes de cada remessa saltando de lote em lote (loose index scan).
+-- NÃO rodar antes de existir o índice abaixo: sem ele, cada volta lê todos
+-- os pagamentos da remessa e fica pior que a consulta atual. O índice é
+-- criado pela DBA no primário e chega à réplica sozinho:
+--   CREATE INDEX CONCURRENTLY ix_liquidacao_pagamento_processo_lote
+--       ON liquidacao_pagamento (liquidacao_processo_uuid, liquidacao_lote_id);
+-- Cada volta do WITH RECURSIVE pede ao índice "o menor lote desta remessa
+-- maior que o último achado": o custo vira o número de lotes da remessa,
+-- não o de pagamentos. min() já ignora pagamento sem lote.
+EXPLAIN (ANALYZE, BUFFERS)
+WITH RECURSIVE processos AS (
+    SELECT pr.uuid, pr.proc_id
+    FROM liquidacao_processo pr
+    WHERE pr.proc_id = ANY(CAST(:proc_ids AS uuid[]))
+),
+lotes AS (
+    SELECT p.uuid,
+           p.proc_id,
+           (SELECT min(lp.liquidacao_lote_id)
+            FROM liquidacao_pagamento lp
+            WHERE lp.liquidacao_processo_uuid = p.uuid) AS lote_id
+    FROM processos p
+    UNION ALL
+    SELECT l.uuid,
+           l.proc_id,
+           (SELECT min(lp.liquidacao_lote_id)
+            FROM liquidacao_pagamento lp
+            WHERE lp.liquidacao_processo_uuid = l.uuid
+              AND lp.liquidacao_lote_id > l.lote_id)
+    FROM lotes l
+    WHERE l.lote_id IS NOT NULL
+)
+SELECT DISTINCT proc_id::text AS proc_id, lote_id
+FROM lotes
+WHERE lote_id IS NOT NULL;
