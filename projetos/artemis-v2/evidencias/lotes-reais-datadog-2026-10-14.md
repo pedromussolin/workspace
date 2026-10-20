@@ -55,3 +55,22 @@ fazem a mesma checagem (parcela → contrato → processo deletado).
   resource_name:*DISTINCT*liquidacao_lote_id*)`, SUM/COUNT/P95 de
   `@duration` agrupado por `resource_hash` e `status`. Depois do deploy as
   consultas mudam de texto e ganham `resource_hash` novos.
+
+## Atualização de 20/10/2026
+
+Mesmas consultas, de 14/10 19h40 a 20/10 18h50 UTC. Usada na
+[análise do PR de lotes reais](../tarefas/12-analise-pr-lotes-reais.md).
+
+| Status da rota | Chamadas | p50 | p95 | Máximo |
+|---|---|---|---|---|
+| 200 | 473 | 0,36 s | 35,4 s | 2,9 min |
+| 500 | **124 (20,8%)** | 120 s | 150 s | 3,3 min |
+
+| Consulta | Execuções | Canceladas em 120 s | p95 (ok) | Tempo total |
+|---|---|---|---|---|
+| `lotes_das_remessas` (`3afbd330f1bd4d7f`) | 267 | **100** | 17,2 s | **3,5 h** |
+| página sem produto (`44a7a7211a2af67b`) | 103 | 23 | 92,5 s | 1,3 h |
+| página com produto (`35a91cd19cdc2168`) | 265 | 0 | 16,6 s | 0,3 h |
+
+Dos 124 erros, 100 (81%) são dos irmãos e 23 (19%) da página sem produto.
+Os irmãos seguem com ~70% do tempo de banco da listagem.
