@@ -4,14 +4,16 @@
   (front), as duas da `master` (`--no-track`), worktrees `apl-credit-whitelabel-api-wt/5411` e
   `apl-credit-whitelabel-wt/5411`
 - **Status:** leva do deploy **commitada e publicada** (20/10):
-  - `fix/TS-5411-seguranca-bff`: 11 commits, ponta `50167bf`; cada commit testado sozinho (589 testes no fim, só as 8 falhas da `master`);
+  - `fix/TS-5411-seguranca-bff`: 18 commits, ponta `61178ba`; os 11 da leva do deploy e os 7 do escopo do parceiro (D99 a D101), cada um testado sozinho (719 testes no fim, só as 8 falhas da `master`);
   - `fix/TS-5411-seguranca-front` (da `master`): 2 commits, ponta `034fda89`;
   - `fix/TS-5411-seguranca-front-epico` (da 27): 6 commits, ponta `652a0ede`; cada um compila sozinho, 3.315 testes, lint igual à base.
-  - TSE `fix/TS-5411-whitelists-por-parceiro` (da `master`): 4 commits, ponta `9d70e70`; cada um testado
-    sozinho, 860 testes. As rotas de whitelist filtram pelo `X-Identificador-Interno` quando ele vem
-    (o BFF manda só para parceiro; o gateway sempre manda, e com `X-Org-Type: plgn` nada é filtrado).
-    Sem o cabeçalho, nada muda; a elegibilidade não passa pelo filtro.
-  Em andamento: o escopo do parceiro como padrão no BFF (D99) e o levantamento da cessão.
+  - TSE `fix/TS-5411-whitelists-por-parceiro` (da `master`): 6 commits, ponta `cb13d55`, 894 testes. As
+    rotas de whitelist filtram pelo `X-Identificador-Interno` quando ele vem, com um ou mais `internal_id`;
+    sem ele, nada muda; a elegibilidade não passa pelo filtro. **Não sobe** enquanto o BFF chamar o TSE pelo
+    ingress (o Heimdall injeta lá o produto da conta de serviço do BFF): depende da troca para o FQDN (D102).
+  Adiado pelo Pietro (20/10): a troca para o FQDN (D102) e, com ela, a correção da exclusão na cessão e o
+  deploy do TSE. Levantamentos prontos na pasta privada (`agentes/seguranca/cessao-padrao.md` e
+  `fqdn-servicos.md`).
 - **Origem:** revisão de segurança de 20/10, antes do deploy (5 revisores, só leitura). O relatório
   com os achados fica na pasta privada (`agentes/seguranca/consolidado.md`), porque descreve falhas
   abertas. Aqui só o plano e o andamento.
