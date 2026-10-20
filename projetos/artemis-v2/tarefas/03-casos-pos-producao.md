@@ -39,8 +39,10 @@ Datadog; **[H]** = hipótese, com o jeito de validar.
 - **Implantação** [C, Datadog]:
   - cessão e worker em produção desde 19/10 21:45 UTC (`prod-f19ef2c`);
   - BFF (`prod-fe2bee2`) e front desde ~12:26 UTC de 20/10.
-- **Uso até 12:45 UTC:** nenhum fechamento pelo fluxo novo, uma consulta de
-  status.
+- **Primeiro dia:** 25 pedidos e 25 fechados (52.139 pagamentos), sem falha.
+  Onze fechamentos do fundo 209 esperaram até 25 s por uma trava de outra
+  transação. Ver a
+  [evidência de 20/10](../evidencias/fechamento-assincrono-datadog-2026-10-20.md).
 - **R16 continua.** O pod do worker (sem reinício desde 19/10 21:45) imprime
   `CELERY_WORKER_CONCURRENCY=16` dentro do `start` do `entrypoint.sh`, que
   roda depois da carga da configuração (`entrypoint.sh:60`). O values
