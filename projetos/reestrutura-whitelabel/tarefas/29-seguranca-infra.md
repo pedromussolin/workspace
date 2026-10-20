@@ -7,8 +7,11 @@
   - `fix/TS-5411-seguranca-bff`: 11 commits, ponta `50167bf`; cada commit testado sozinho (589 testes no fim, só as 8 falhas da `master`);
   - `fix/TS-5411-seguranca-front` (da `master`): 2 commits, ponta `034fda89`;
   - `fix/TS-5411-seguranca-front-epico` (da 27): 6 commits, ponta `652a0ede`; cada um compila sozinho, 3.315 testes, lint igual à base.
-  Em andamento: o escopo do parceiro como padrão no BFF (D99), o filtro das whitelists no TSE
-  (`fix/TS-5411-whitelists-por-parceiro`, opção 2) e o levantamento da cessão.
+  - TSE `fix/TS-5411-whitelists-por-parceiro` (da `master`): 4 commits, ponta `9d70e70`; cada um testado
+    sozinho, 860 testes. As rotas de whitelist filtram pelo `X-Identificador-Interno` quando ele vem
+    (o BFF manda só para parceiro; o gateway sempre manda, e com `X-Org-Type: plgn` nada é filtrado).
+    Sem o cabeçalho, nada muda; a elegibilidade não passa pelo filtro.
+  Em andamento: o escopo do parceiro como padrão no BFF (D99) e o levantamento da cessão.
 - **Origem:** revisão de segurança de 20/10, antes do deploy (5 revisores, só leitura). O relatório
   com os achados fica na pasta privada (`agentes/seguranca/consolidado.md`), porque descreve falhas
   abertas. Aqui só o plano e o andamento.
