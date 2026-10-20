@@ -16,7 +16,8 @@ mascotes em pixel art andam sobre a barra de digitar da POLI e da Home, reagindo
 
 **Stack:** Angular 20 (signals, OnPush, zone.js com `eventCoalescing`: o intervalo do mascote roda fora da zona), Karma/Jasmine, `shared/ui`.
 
-**Spec:** [28-poli-mascote.md](28-poli-mascote.md) (D80–D85). Leia antes.
+**Spec:** [28-poli-mascote.md](28-poli-mascote.md) (D80–D88). Leia antes. Ajustes da revisão de
+20/10 (tamanho dos mascotes e troca como botão de configuração): D87 e D88, na spec.
 
 ## Restrições globais
 

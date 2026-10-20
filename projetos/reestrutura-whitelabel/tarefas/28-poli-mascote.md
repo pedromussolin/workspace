@@ -48,6 +48,8 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 | D84 | Os mascotes são portados para TypeScript em `shared/ui/mascot/`, desenhados em SVG por código, sem imagem. As matrizes e as fases das ações ficam idênticas às do artefato | Pietro, 19/10: abordagem recomendada |
 | D85 | O vídeo do robô e o `poli.svg` saem do repositório. Revoga a D46 (o robô ficava como identidade do assistente) | consequência da D80 e da D82 |
 | D86 | As cores fixas do pixel art ficam num arquivo só, `shared/ui/mascot/mascot-palettes.ts`, que entra no `ALLOWED` da regra `cor-fora-do-scss` do `check-patterns`. O Cofre e os destaques seguem a cor da marca por token | Pietro, 19/10: aprovou a exceção, que é arte fixa, como as cores das marcas em `themes.ts` |
+| D87 | Mascotes menores e do mesmo tamanho: cada pixel do desenho vale 2 px de tela no Cofre, na Moeda e na Nota (44 px de altura) e 1,5 px na Poli, cujo desenho é maior (51 px), em todas as telas | Pietro, 20/10: "tem que ser menores, para não atrapalharem" e "o boneco da POLI tá maior que os outros"; escolhida a opção C de uma comparação lado a lado |
+| D88 | A troca de mascote vira um botão de configuração (engrenagem) ao lado do título da coluna, com um menu (os quatro com miniatura e o "Animação"); na coluna recolhida, o mesmo botão. Sai a lista do rodapé | Pietro, 20/10: "é só um adereço da página, então devia ser uma config", sem ocupar a listagem |
 
 ## Escopo
 
@@ -58,8 +60,9 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
   toda.
 - A coluna de histórico ganha:
   - no topo, o título do departamento (o mesmo texto de hoje), acima do "Novo chat";
-  - no rodapé, a troca de mascote (os quatro, com miniatura) e o "Animação: ligada/desligada";
-  - recolhida, um botão com menu para as duas escolhas.
+  - ao lado do título, um botão de configuração (engrenagem) com o menu de mascote e animação
+    (D88);
+  - recolhida, o mesmo botão.
 - O chat vazio mostra a frase no lugar do vídeo, da saudação e do texto sobre a POLI.
 - O aviso do modelo, embaixo da caixa, continua.
 
@@ -68,8 +71,8 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 - **Palco:** uma faixa sobre a barra de digitar, da largura dela, com os pés na borda de cima. A
   faixa fica por cima do fim das mensagens e não bloqueia clique, a não ser no próprio mascote.
   As mensagens ganham um espaço embaixo para a última linha não ficar atrás dele.
-- **Tamanho:** cada pixel do desenho vale 3 px de tela no computador (a Poli fica com 102 px) e
-  2 px no celular (até 760 px de largura). Sempre múltiplos inteiros.
+- **Tamanho (D87):** cada pixel do desenho vale 2 px de tela no Cofre, na Moeda e na Nota (44 px
+  de altura) e 1,5 px na Poli, cujo desenho é maior (51 px). Igual no computador e no celular.
 - **Personagens:** Poli, Cofre, Moeda e Nota. O Cofre e os destaques dos itens (contrato, gráfico e
   escudo) usam a cor primária da marca. A Poli, a Moeda e a Nota têm as cores próprias.
 - **Sem balão e sem texto de status.** O mascote é decorativo: fica fora do leitor de tela e da
@@ -178,9 +181,8 @@ Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa c�
   - no clique, reage.
 - **Animação:** com *reduced motion* o mascote fica parado à direita e só troca de pose. A troca de
   mascote tem o switch "Animação".
-- **Troca de mascote:**
-  - no rodapé da coluna de histórico;
-  - com a coluna recolhida, botão com menu.
+- **Troca de mascote:** um botão de configuração (engrenagem) ao lado do título da coluna, com o
+  menu dos quatro mascotes e do "Animação"; na coluna recolhida, o mesmo botão.
 - **Home:** o mascote escolhido fica sobre a caixa da POLI, com a frase, no lugar do vídeo e da
   saudação.
 - **Cores:** o Cofre e os destaques dos itens seguem a cor primária da marca.

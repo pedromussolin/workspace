@@ -22,8 +22,8 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
 
-**Em andamento neste chat (20/10): R60, a home nova** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
-na worktree 25, sem commit. A home passa a ser uma só para todos: a saudação no topo, para a
+**Publicada em 20/10: R60, a home nova** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
+na `refact/TS-5395-refinamento-visual` (`aae6a159`), e por merge na 26 e na 27. A home passa a ser uma só para todos: a saudação no topo, para a
 organização interna a **seção da POLI compacta logo abaixo** (não ocupa mais a altura da tela) e,
 para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido, recentes).
 
@@ -38,6 +38,8 @@ para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido
   `core/navigation/`, `eslint.config.js`, `shared/ui/detail-list` (opção `emphasis`),
   `shared/utils/module-summary.ts` e os `home-summary/` de Lotes de Liquidação, Lotes de Cessão e
   Formalização. A 28 recebe tudo por merge da `refact/TS-5395-refinamento-visual`.
+
+**Prévia junta (20/10):** `~/repos/apl-credit-whitelabel-wt/previa` (sem branch, sem commit) = a 27 com a fotografia das mudanças não commitadas da 28, aplicadas por cima, e o mascote dentro da seção compacta. É só para o Pietro ver o resultado; pode ser apagada (`git worktree remove`). O portal local está servindo ela.
 
 ## Como trabalhar ao mesmo tempo
 

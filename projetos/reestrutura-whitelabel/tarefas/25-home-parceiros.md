@@ -2,7 +2,7 @@
 
 - **TS:** TS-5395 (refinamento) · **Branch:** `refact/TS-5395-refinamento-visual`, worktree
   `~/repos/apl-credit-whitelabel-wt/25`
-- **Status:** **feito, sem commit** (20/10): build ok, lint 20/162, 2.794 testes; claro, escuro e celular (interna e parceiro) sem erro e sem rolagem lateral. Esperando a revisão
+- **Status:** **publicado** (20/10): `11d4b9ad`, `0ec34255` e `aae6a159` na TS-5395; na 26 (`1fec4372`) e na 27 (`1a06e926`) por merge. 2.794 testes na 25, 3.050 na 26, 3.179 na 27
 - **Convive com a 28** (TS-5406, outro chat): ela muda a home interna (POLI e mascotes) em
   `features/general/home/home.page.*`. Aqui a home dos parceiros vira um componente próprio, e o
   `home.page.html` só troca o bloco dos parceiros por ele. A 28 recebe isto por merge.
