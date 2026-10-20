@@ -63,7 +63,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **publicada** (19/10) | TS-5392 |
 | 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | **publicada** (19/10) | TS-5393 |
 | 25 | [Refinamento visual e de design](tarefas/25-refinamento-visual.md) | `refact/TS-5395-refinamento-visual` | `release/20261016` | **publicada** (19/10): rodada 1 (26 commits) e revisão de 19/10 (8 commits, R51–R58) | TS-5395 |
-| 26 | [Controle de acesso: organização e UX/UI](tarefas/26-controle-de-acesso-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **commitada** (19/10), sem push: 2 commits no front, 3 no BFF | TS-5405 |
+| 26 | [Controle de acesso: organização e UX/UI](tarefas/26-controle-de-acesso-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **publicada** (19/10): 2 commits no front, 3 no BFF | TS-5405 |
+| 27 | [Organização e cliente da pessoa no controle de acesso](tarefas/27-organizacao-e-cliente.md) | `feature/TS-5407-organizacao-e-cliente` (front e BFF) | 26 | **spec em revisão** (19/10) | TS-5407 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a iniciar depois das outras (D40–D43 decididas). É a última | TS-5394 |
 
 ## Situação em 16/10

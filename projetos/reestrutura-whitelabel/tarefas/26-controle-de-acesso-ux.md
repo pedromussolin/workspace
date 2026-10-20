@@ -1,7 +1,7 @@
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)
-- **Status:** **commitada** (19/10), sem push: front com 2 commits (`9f382381`, `6303b2e5`) sobre a TS-5395 (`17335cb2`); BFF com 3 (`edb7cc8`, `06fbae3`, `0446d9b`). Cada commit compila e passa nos testes sozinho
+- **Status:** **commitada e publicada** (19/10): front com 2 commits (`9f382381`, `6303b2e5`) sobre a TS-5395 (`17335cb2`); BFF com 3 (`edb7cc8`, `06fbae3`, `0446d9b`). Cada commit compila e passa nos testes sozinho
 - **Depende de:**
   - **front:** os commits da 25 (TS-5395). A branch nasce da `refact/TS-5395-refinamento-visual` depois
     deles, porque usa a barra de filtros, a grade de campos e a tabela do refinamento;

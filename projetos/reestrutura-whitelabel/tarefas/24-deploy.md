@@ -202,3 +202,14 @@ Sem a transição, a ordem no deploy é:
     staging e produção). Sem a variável, a aba Pessoas cai na busca no diretório, como hoje.
 - O BFF passa a usar o Redis que já tem para o cache do controle de acesso (5 min); nada novo a
   configurar.
+- **Licença:** a infraestrutura confirmou a Entra ID P1 (19/10). O grupo dinâmico (D60) e a
+  atribuição de permissão a grupo (D17) estão liberados pela licença.
+
+## Pendência vinda da 27 (19/10)
+
+- **Perguntas à infraestrutura** (lista completa em [27](27-organizacao-e-cliente.md#perguntas-para-a-infraestrutura)):
+  como o `org_type` e o `internal_client_id` são gravados no usuário e como chegam ao token, e se o
+  app do BFF pode receber `User.ReadWrite.All`.
+- **Variáveis novas do BFF** (sandbox, staging e produção): `CFG_ACCESS_CONTROL_ORGANIZATION_ATTRIBUTE`
+  e `CFG_ACCESS_CONTROL_CLIENT_ATTRIBUTE` (nomes dos atributos); `CFG_ACCESS_CONTROL_REQUIRE_PARTNER_SCOPE`
+  só depois de acertar quem está sem organização ou cliente (D67).
