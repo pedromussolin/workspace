@@ -317,6 +317,8 @@ junta com o seguinte):
 | 12 | `refact(TS-5405): seletor de visão fora da barra de filtros` | as 6 telas, `.ai/rules/components.md`, `check-patterns.mjs`, `.ai/README.md`, `filter-bar.component.ts`, vitrine |
 | 13 | `fix(TS-5405): coluna do fundo à esquerda no Consolidado de Caixa` | `cash-section-table` |
 
-Os commits 10 a 13 vieram da revisão e não são do controle de acesso: a decisão de deixá-los nesta
-branch ou numa tarefa própria é do usuário.
+Os commits 10 a 13 vieram da revisão e não são do controle de acesso: por decisão do usuário (19/10)
+foram para a TS-5395 (tarefa 25, R51–R55), e esta branch foi para cima deles (`17e9d6e3`). A coluna
+que identifica a linha à esquerda (R56) entra aqui só nas tabelas do controle de acesso (Permissão,
+Grupo, Pessoa, Permissão antiga e nova), junto dos commits das abas.
 
