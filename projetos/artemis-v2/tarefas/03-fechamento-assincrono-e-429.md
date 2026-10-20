@@ -61,6 +61,12 @@
     - scripts Lua em Redis 6.2 real (18 cenários);
     - limites de banco em Postgres 13 real (trava, tempo e `SET LOCAL` sem
       vazar).
+  - **Estresse (20/10):** [evidencias/estresse-fechamento-2026-10-20.md](../evidencias/estresse-fechamento-2026-10-20.md).
+    Com falha (trava externa, worker parado ou morto) a `master` perdeu
+    pedidos sem aviso e a branch nenhum. O teste achou trava órfã com o Redis
+    lento (E1), corrigida na branch com trava e pedido num script Lua só.
+    Propostas: espera por trava de ~30 s (E3) e "linha já fechada" no clique
+    que chega logo depois de um fechamento (E2).
   - **Ordem de deploy:** cessão (API e worker juntos), depois o BFF. O
     resultado no formato antigo, sem `job_id`, não bloqueia o novo.
 - **Casos depois da implantação (20/10):** [03-casos-pos-producao.md](03-casos-pos-producao.md)
