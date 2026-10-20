@@ -1,7 +1,7 @@
 # 28 — POLI dentro do portal, com mascotes animados
 
 - **TS:** TS-5406 · **Branch:** `feature/TS-5406-poli-mascote` (só front)
-- **Status:** **em implementação** (19/10): desenho aprovado no chat; plano em
+- **Status:** **implementada e validada** (20/10), sem commit: falta a revisão. Plano em
   [28-poli-mascote-plano.md](28-poli-mascote-plano.md)
 - **Depende de:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux`
   (`6303b2e5`), na worktree `apl-credit-whitelabel-wt/28`. Quando a R59 da 25 for publicada, entra
@@ -145,4 +145,69 @@ Fora estas, as matrizes de pixels e as fases das ações ficam iguais às do art
 
 ## O que foi feito
 
-(preencher ao fim)
+Implementada e validada em 19–20/10, no working tree da worktree 28. **Sem commit:** falta a revisão
+do Pietro.
+
+### Commits planejados
+
+Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa cópia limpa da base.
+
+| # | Commit | O que entra |
+|---|---|---|
+| 1 | `feat(TS-5406): motor de pixel art dos mascotes em shared/ui` | sprites, itens, paletas, quadro e controlador; fixture de fidelidade; a exceção do `check-patterns` (D86) |
+| 2 | `feat(TS-5406): app-mascot e troca de mascote, com exemplo na vitrine` | serviço, componente, cena, troca de mascote, vitrine e `.ai/` |
+| 3 | `refact(TS-5406): POLI dentro do shell, sem cabeçalho próprio` | rotas, shell (`data.shellContent`), título na coluna, `poli-header` apagado |
+| 4 | `feat(TS-5406): chat vazio com frase e mascote sobre a barra da POLI` | frase, palco do mascote, espaço reservado, troca na coluna |
+| 5 | `feat(TS-5406): mascote reage ao chat da POLI` | pensando, comemorar, contrato, erro |
+| 6 | `feat(TS-5406): mascote na Home no lugar do vídeo do robô` | Home da organização interna |
+| 7 | `chore(TS-5406): remove vídeo e ícone do robô da POLI` | `poli-animation.webm` (7,3 MB) e `poli.svg` |
+
+### Mudanças visíveis para a PR
+
+- **POLI dentro do portal:**
+  - as 11 rotas abrem com a sidebar do portal;
+  - sem o cabeçalho próprio (voltar, robô, usuário e sair);
+  - o título do departamento fica no topo da coluna de histórico.
+- **Chat vazio:** só "Escreva algo para iniciar um chat", no lugar do vídeo, da saudação e do texto
+  sobre a POLI.
+- **Mascote sobre a barra de digitar:**
+  - Poli, Cofre, Moeda ou Nota;
+  - anda e faz as ações do pacote;
+  - pensa enquanto a POLI responde e comemora no fim;
+  - faz o "Assinar cessão" quando a resposta traz arquivo;
+  - no clique, reage.
+- **Animação:** com *reduced motion* o mascote fica parado à direita e só troca de pose. A troca de
+  mascote tem o switch "Animação".
+- **Troca de mascote:**
+  - no rodapé da coluna de histórico;
+  - com a coluna recolhida, botão com menu.
+- **Home:** o mascote escolhido fica sobre a caixa da POLI, com a frase, no lugar do vídeo e da
+  saudação.
+- **Cores:** o Cofre e os destaques dos itens seguem a cor primária da marca.
+
+### Validação
+
+- **Fidelidade:**
+  - o porte bate caractere a caractere com o código original (fixture com 4.564 quadros, poses e
+    itens);
+  - a folha renderizada do original e a do porte têm 0 pixel diferente;
+  - as 9 poses da Poli e os 6 itens batem 100% com o `spritesheet.png`.
+- **Specs, build e lint:**
+  - suíte inteira: 3.101 de 3.101 passando;
+  - build ok, bundle inicial de 430 kB, igual ao da base;
+  - lint com 20 erros e 162 avisos, iguais aos da base;
+  - `tsc` sem erro; `check-patterns` sem achado.
+- **Prints:** em claro, escuro e Dots, desktop e celular, animado e com *reduced motion*. As
+  verificações conferem que:
+  - o mascote anda (e fica parado com *reduced motion*);
+  - reage ao clique, ao pensar, à resposta e ao arquivo;
+  - os quatro personagens aparecem;
+  - a escolha fica salva e vale na Home;
+  - não há rolagem da página nem lateral.
+
+### Observações
+
+- Com anexos na caixa, o mascote pisa nos chips de anexo, que ficam dentro do componente da caixa.
+- O fixture tem 212 kB (dados de teste).
+- O intervalo do mascote roda fora da zona do Angular e depende do agendador híbrido do Angular 20.
+  Se o app ligar `ignoreChangesOutsideZone`, o mascote para.
