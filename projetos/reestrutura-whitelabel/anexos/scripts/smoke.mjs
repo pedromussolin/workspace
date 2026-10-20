@@ -1,7 +1,7 @@
 // Smoke test visual do front sem BFF real: serve o dist e um BFF falso (sessão válida, todas as
 // rotas liberadas, dados vazios) e tira prints de cada rota em desktop e celular.
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
-// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); /__marcas escolhe a marca com o portal no ar; FIXTURES=<arquivo.json> dá dados
+// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); /__marcas escolhe a marca e a visão (parceiro ou interna) com o portal no ar; FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
@@ -35,7 +35,6 @@ const IAM = {
   'iam/status': !process.env.NO_SESSION,
   'iam/navigation': true,
   'iam/paths': PATHS,
-  'iam/organization': process.env.ORG || 'plgn',
   'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com', azureId: '00000000-0000-4000-8000-000000000001' },
 };
 // Relido quando o arquivo muda: dado novo vale sem reiniciar o portal.
@@ -59,6 +58,7 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
+  if (key === 'iam/organization') return res.end(JSON.stringify(chosenOrg(req)));
   const data = FIXTURES();
   res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? peoplePage(paged(data[key], url.searchParams), url.searchParams) : []));
 });
@@ -105,10 +105,19 @@ function brands() {
   const source = fs.readFileSync(THEMES_TS, 'utf8');
   return [...source.matchAll(/^ {2}(\w+): \{\s*\n\s*name: '([^']+)'/gm)].map(([, key, name]) => ({ key, name }));
 }
+function cookieValue(req, name) {
+  const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : '';
+}
 function chosenBrand(req) {
-  const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith('portal-marca='));
-  const key = cookie ? decodeURIComponent(cookie.slice('portal-marca='.length)) : '';
+  const key = cookieValue(req, 'portal-marca');
   return brands().some((b) => b.key === key) ? key : process.env.THEME_KEY || 'default';
+}
+// A organização decide a home (a interna tem a assistente; a de parceiro, os cartões de boas-vindas),
+// como o org_type do token faz em produção. Sem ORG nem escolha, segue a marca: a padrão é a interna.
+function chosenOrg(req) {
+  const brand = chosenBrand(req);
+  return process.env.ORG || cookieValue(req, 'portal-org') || (brand === 'default' ? 'plgn' : brand);
 }
 
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.mp4': 'video/mp4' };
@@ -121,14 +130,28 @@ const web = http.createServer((req, res) => {
   }
   const pick = p.match(/^\/__marca\/(\w+)$/);
   if (pick) {
-    res.writeHead(302, { 'Set-Cookie': `portal-marca=${pick[1]}; Path=/; SameSite=Lax`, Location: '/' });
-    return res.end();
+    // ?org=plgn: a marca vista por alguém de dentro. Sem ele, a organização segue a marca.
+    const org = new URL(req.url, 'http://x').searchParams.get('org');
+    res.writeHead(200, {
+      'Set-Cookie': [`portal-marca=${pick[1]}; Path=/; SameSite=Lax`, org ? `portal-org=${org}; Path=/; SameSite=Lax` : 'portal-org=; Path=/; Max-Age=0'],
+      'Content-Type': 'text/html; charset=utf-8',
+    });
+    // A marca escolhida no menu do portal (localStorage) venceria o env.js: sai junto.
+    return res.end(`<!doctype html><script>localStorage.removeItem('portal.brand'); location.replace('/');</script>`);
   }
   if (p === '/__marcas' || p === '/__marca') {
-    const current = chosenBrand(req);
-    const items = brands().map((b) => `<li><a href="/__marca/${b.key}">${b.name}</a>${b.key === current ? ' (atual)' : ''}</li>`).join('');
+    const brand = chosenBrand(req);
+    const org = chosenOrg(req);
+    const items = brands()
+      .map((b) =>
+        b.key === 'default'
+          ? `<li><a href="/__marca/default">${b.name}</a>${b.key === brand ? ' (atual)' : ''}</li>`
+          : `<li><a href="/__marca/${b.key}">${b.name}, visão do parceiro</a>${b.key === brand && org !== 'plgn' ? ' (atual)' : ''}` +
+            ` · <a href="/__marca/${b.key}?org=plgn">visão interna</a>${b.key === brand && org === 'plgn' ? ' (atual)' : ''}</li>`
+      )
+      .join('');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.end(`<!doctype html><meta charset="utf-8"><title>Marca do portal local</title><body style="font: 15px system-ui; margin: 32px"><h1 style="font-size: 20px">Marca do portal local</h1><ul style="line-height: 2">${items || '<li>themes.ts não encontrado</li>'}</ul><p>A escolha fica num cookie; o portal abre já com a marca.</p></body>`);
+    return res.end(`<!doctype html><meta charset="utf-8"><title>Marca do portal local</title><body style="font: 15px system-ui; margin: 32px"><h1 style="font-size: 20px">Marca do portal local</h1><ul style="line-height: 2">${items || '<li>themes.ts não encontrado</li>'}</ul><p>A marca muda cores e logo. A organização muda a home: a visão do parceiro mostra os cartões de boas-vindas; a interna, a assistente. A escolha fica em cookies e o portal abre já com ela.</p></body>`);
   }
   let f = path.join(dist, p);
   if (!f.startsWith(dist) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(dist, 'index.html');
