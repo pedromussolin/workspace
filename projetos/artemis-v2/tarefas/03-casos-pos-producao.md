@@ -189,8 +189,8 @@ O que muda se a varredura, o Atlas e o automático passarem por esta rota:
    (`Cache.retrieve_client_controle()`); `join` com prazo (R14, R23, R13).
 7. `task_id=job_id`, log de início com `queue_wait_ms` e `requested_by`
    (R28).
-8. R16 corrigido. Duas réplicas do worker, com probes que testam o Celery de
-   verdade.
+8. ~~R16 corrigido~~ (20/10: concorrência 16 é o padrão, por enquanto). Duas
+   réplicas do worker, com probes que testam o Celery de verdade.
 
 **Fase 2 — front e BFF:** R8, R24, R25, R27, R11, R7 (botão), aviso com
 contagem e R26.

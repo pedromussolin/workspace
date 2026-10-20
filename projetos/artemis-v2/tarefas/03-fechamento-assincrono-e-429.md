@@ -68,7 +68,8 @@
   legado, tela) e plano em fases; acompanhamento em
   [evidencias/acompanhamento-fechamento-assincrono.md](../evidencias/acompanhamento-fechamento-assincrono.md).
 - **Pendências depois da implantação (19/10)** — retomar por aqui:
-  1. **R16, concorrência 16 no worker de produção.** O values pede 2; o pod
+  1. ~~**R16**~~ — **20/10: 16 virou o padrão, por enquanto** (decisão do Pietro).
+     Histórico: **R16, concorrência 16 no worker de produção.** O values pede 2; o pod
      (`platform-cessao-fake-batch-closing-worker`, 19/10 21:45 UTC,
      `prod-f19ef2c`) subiu com 16. Causa provável: a carga da configuração
      no fim do `entrypoint.sh` (`entrypoint.sh:60`) exporta as variáveis do

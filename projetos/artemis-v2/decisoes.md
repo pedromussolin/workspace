@@ -25,6 +25,7 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 20/10/2026 | Concorrência 16 no worker de fechamento passa a ser o padrão, por enquanto; o R16 deixa de ser defeito a corrigir | Pietro. Contrapartida: a proteção do primário passa a vir dos limites de tempo e de espera por trava da fase 1, não do número de vagas |
 | 20/10/2026 | D11: lote real tem um fundo só; o fundo do lote é o de qualquer pagamento dele (opção (a)). Libera o atalho de "um pagamento por lote" na listagem de lotes reais (TS-5383) | Confirmado pela DBA (informado pelo Pietro em 20/10), que montou a consulta da página com esse atalho |
 | 20/10/2026 | Fase 1 de robustez do fechamento (TS-5377, branch `fix/TS-5377-robustez-fechamento-lote`): limites de banco, pedido que não se perde, trava com dono e Redis com timeout, e observabilidade, numa rodada só | Pietro; a espera de 25 s por trava em 20/10 mostrou o risco em produção |
 | 19/10/2026 | TS-5377 sobe para produção como está; os limites de tempo entram no dia seguinte, nas três pontas e coerentes entre si: timeout curto no cliente Redis da trava e do status (~2 s), `statement_timeout` configurável na transação do fechamento (ex.: 30 min) e limite da task no Celery acima dele, só como rede de segurança. Estourar o limite do banco grava "falhou: tempo excedido" e libera a trava | Pietro. Ver R4 e R13 em [03-revisao-pre-producao.md](tarefas/03-revisao-pre-producao.md) |
