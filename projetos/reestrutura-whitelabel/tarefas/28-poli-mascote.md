@@ -50,6 +50,7 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 | D86 | As cores fixas do pixel art ficam num arquivo só, `shared/ui/mascot/mascot-palettes.ts`, que entra no `ALLOWED` da regra `cor-fora-do-scss` do `check-patterns`. O Cofre e os destaques seguem a cor da marca por token | Pietro, 19/10: aprovou a exceção, que é arte fixa, como as cores das marcas em `themes.ts` |
 | D87 | Mascotes menores e do mesmo tamanho: cada pixel do desenho vale 2 px de tela no Cofre, na Moeda e na Nota (44 px de altura) e 1,5 px na Poli, cujo desenho é maior (51 px), em todas as telas | Pietro, 20/10: "tem que ser menores, para não atrapalharem" e "o boneco da POLI tá maior que os outros"; escolhida a opção C de uma comparação lado a lado |
 | D88 | A troca de mascote vira um botão de configuração (engrenagem) ao lado do título da coluna, com um menu (os quatro com miniatura e o "Animação"); na coluna recolhida, o mesmo botão. Sai a lista do rodapé | Pietro, 20/10: "é só um adereço da página, então devia ser uma config", sem ocupar a listagem |
+| D89 | Com anexos, o chão do mascote é a fileira de cima dos chips: ele só pisa e anda na largura que eles ocupam. Quando o chão muda com ele fora, pousa no ponto mais perto, sem atravessar o ar. Num chão curto, o gráfico e as moedas, que ficam no chão ao lado dele, saem do ciclo e do clique. A caixa de texto avisa essa largura (`topSpanChange`), sem saber do mascote | Pietro, 20/10: "o boneco só pode andar por cima de onde tem chão" |
 
 ## Escopo
 
@@ -75,6 +76,7 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
   de altura) e 1,5 px na Poli, cujo desenho é maior (51 px). Igual no computador e no celular.
 - **Personagens:** Poli, Cofre, Moeda e Nota. O Cofre e os destaques dos itens (contrato, gráfico e
   escudo) usam a cor primária da marca. A Poli, a Moeda e a Nota têm as cores próprias.
+- **Chão (D89):** com anexos, a fileira de cima dos chips; sem anexos, a caixa inteira.
 - **Sem balão e sem texto de status.** O mascote é decorativo: fica fora do leitor de tela e da
   navegação por Tab.
 - **Preferências** (no navegador, chave `portal.mascot`): o personagem (padrão Poli) e a animação
@@ -159,6 +161,7 @@ Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa c�
 |---|---|---|
 | 1 | `feat(TS-5406): motor de pixel art dos mascotes em shared/ui` | sprites, itens, paletas, quadro e controlador; fixture de fidelidade; a exceção do `check-patterns` (D86) |
 | 2 | `feat(TS-5406): app-mascot e troca de mascote, com exemplo na vitrine` | serviço, componente, cena, troca de mascote, vitrine e `.ai/` |
+| 2b | `feat(TS-5406): caixa de texto avisa a largura do que fica em cima` | `topSpanChange` do `app-textbox-component` (D89) e a linha da `.ai/` |
 | 3 | `refact(TS-5406): POLI dentro do shell, sem cabeçalho próprio` | rotas, shell (`data.shellContent`), título na coluna, `poli-header` apagado |
 | 4 | `feat(TS-5406): chat vazio com frase e mascote sobre a barra da POLI` | frase, palco do mascote, espaço reservado, troca na coluna |
 | 5 | `feat(TS-5406): mascote reage ao chat da POLI` | pensando, comemorar, contrato, erro |
@@ -178,7 +181,8 @@ Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa c�
   - anda e faz as ações do pacote;
   - pensa enquanto a POLI responde e comemora no fim;
   - faz o "Assinar cessão" quando a resposta traz arquivo;
-  - no clique, reage.
+  - no clique, reage;
+  - com anexos, anda só sobre os chips.
 - **Animação:** com *reduced motion* o mascote fica parado à direita e só troca de pose. A troca de
   mascote tem o switch "Animação".
 - **Troca de mascote:** um botão de configuração (engrenagem) ao lado do título da coluna, com o
