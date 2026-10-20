@@ -270,8 +270,19 @@ da página e a `.ai`):
 - título com faixa escura e linha embaixo (Unidades da Formalização e o aviso de falhas do
   Onboarding, apontado na revisão): vinha de uma regra global `.header` antiga no `styles.scss`, que
   pegava qualquer componente com essa classe. A regra saiu; nada mais a usava;
-- validação: build ok, lint 20/162 (igual à base), 2.924 testes passando; smoke das 5 abas e 3 modais
-  em claro (desktop e celular), escuro e Dots, sem erro e sem rolagem lateral.
+- **seletor de visão fora da barra de filtros** (pedido na revisão, vira padrão das telas): o
+  segmentado "Visualização" sai da `app-filter-bar` e fica solto logo abaixo do cabeçalho, na largura
+  natural, antes dos KPIs e da barra; trocar de visão não muda o lugar nem o tamanho dele, e a barra
+  some na visão sem filtro. Em Envio de Relatórios, Lotes de Liquidação, Orquestrador (sempre visível,
+  desabilitado sem produto), PDD, Conciliação CERC e Desempenho da carteira. Regra nova em
+  `.ai/rules/components.md` ("Seletor de visão"), check `visao-na-barra` no `check-patterns`, vitrine
+  e doc da `app-filter-bar` atualizadas. Antes: em Envio de Relatórios a barra mudava de altura a cada
+  clique e o segmentado esticava na largura toda quando ficava sozinho na linha;
+- coluna "Fundo" do Consolidado de Caixa à esquerda (`align="start"`): com o nome e a data embaixo,
+  centralizada, os ícones ficavam em zigue-zague;
+- validação: build ok, lint 20/162 (igual à base), 2.941 testes passando; smoke das 5 abas e 3 modais
+  em claro (desktop e celular), escuro e Dots, sem erro e sem rolagem lateral; smoke das 8 telas do
+  seletor de visão em claro (desktop e celular) e escuro, sem erro.
 
 **Fora, para depois:**
 - os três diálogos de "escolher e continuar" (atribuir a uma permissão, adicionar membros, atribuir a
@@ -303,4 +314,9 @@ junta com o seguinte):
 | 9 | `chore(TS-5405): .ai e smoke com o padrão do controle de acesso` | `.ai/` |
 | 10 | `fix(TS-5405): valor do KPI alinhado na grade` | `shared/ui/kpi` (fora da feature) |
 | 11 | `fix(TS-5405): título sem a faixa da regra global .header` | `styles.scss`, spec do `units-panel` |
+| 12 | `refact(TS-5405): seletor de visão fora da barra de filtros` | as 6 telas, `.ai/rules/components.md`, `check-patterns.mjs`, `.ai/README.md`, `filter-bar.component.ts`, vitrine |
+| 13 | `fix(TS-5405): coluna do fundo à esquerda no Consolidado de Caixa` | `cash-section-table` |
+
+Os commits 10 a 13 vieram da revisão e não são do controle de acesso: a decisão de deixá-los nesta
+branch ou numa tarefa própria é do usuário.
 
