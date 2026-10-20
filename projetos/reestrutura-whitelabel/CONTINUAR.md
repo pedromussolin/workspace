@@ -45,7 +45,7 @@ para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido
   `shared/utils/module-summary.ts` e os `home-summary/` de Lotes de Liquidação, Lotes de Cessão e
   Formalização. A 28 recebe tudo por merge da `refact/TS-5395-refinamento-visual`.
 
-**Prévia junta (20/10):** `~/repos/apl-credit-whitelabel-wt/previa` (sem branch, sem commit) = a 27 com a fotografia das mudanças não commitadas da 28, aplicadas por cima, e o mascote dentro da seção compacta. É só para o Pietro ver o resultado; pode ser apagada (`git worktree remove`). O portal local está servindo ela.
+**Prévia junta (20/10):** `~/repos/apl-credit-whitelabel-wt/previa` (sem branch; um commit local solto) = a 27 com o **merge da `feature/TS-5406-poli-mascote` (`91b75672`)** e a home compacta com o mascote: no `.textbox-stage`, `<app-mascot [floor]="mascotFloor()" />` e `(topSpanChange)="mascotFloor.set($event)"` na caixa. Sem essa ligação, o clique no mascote não faz nada (o `click()` só escolhe ação que cabe no chão). É só para o Pietro ver o resultado; pode ser apagada (`git worktree remove`). O portal local está servindo ela.
 
 ## Junção da 28 com a home nova da 25 (R59)
 
