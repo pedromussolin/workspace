@@ -1,7 +1,7 @@
 # 28 — POLI dentro do portal, com mascotes animados
 
 - **TS:** TS-5406 · **Branch:** `feature/TS-5406-poli-mascote` (só front)
-- **Status:** **implementada e validada** (20/10), sem commit: falta a revisão. Plano em
+- **Status:** **commitada** (20/10), 8 commits sobre a `6303b2e5`, ponta `91b75672`; falta publicar. Plano em
   [28-poli-mascote-plano.md](28-poli-mascote-plano.md)
 - **Depende de:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux`
   (`6303b2e5`), na worktree `apl-credit-whitelabel-wt/28`. Quando a R59 da 25 for publicada, entra
@@ -150,23 +150,23 @@ Fora estas, as matrizes de pixels e as fases das ações ficam iguais às do art
 
 ## O que foi feito
 
-Implementada e validada em 19–20/10, no working tree da worktree 28. **Sem commit:** falta a revisão
-do Pietro.
+Implementada e validada em 19–20/10 e commitada em 20/10, depois da revisão do Pietro, na worktree
+28. Falta publicar a branch.
 
-### Commits planejados
+### Commits
 
 Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa cópia limpa da base.
 
-| # | Commit | O que entra |
+| SHA | Commit | O que entra |
 |---|---|---|
-| 1 | `feat(TS-5406): motor de pixel art dos mascotes em shared/ui` | sprites, itens, paletas, quadro e controlador; fixture de fidelidade; a exceção do `check-patterns` (D86) |
-| 2 | `feat(TS-5406): app-mascot e troca de mascote, com exemplo na vitrine` | serviço, componente, cena, troca de mascote, vitrine e `.ai/` |
-| 2b | `feat(TS-5406): caixa de texto avisa a largura do que fica em cima` | `topSpanChange` do `app-textbox-component` (D89) e a linha da `.ai/` |
-| 3 | `refact(TS-5406): POLI dentro do shell, sem cabeçalho próprio` | rotas, shell (`data.shellContent`), título na coluna, `poli-header` apagado |
-| 4 | `feat(TS-5406): chat vazio com frase e mascote sobre a barra da POLI` | frase, palco do mascote, espaço reservado, troca na coluna |
-| 5 | `feat(TS-5406): mascote reage ao chat da POLI` | pensando, comemorar, contrato, erro |
-| 6 | `feat(TS-5406): mascote na Home no lugar do vídeo do robô` | Home da organização interna |
-| 7 | `chore(TS-5406): remove vídeo e ícone do robô da POLI` | `poli-animation.webm` (7,3 MB) e `poli.svg` |
+| `797602fc` | `feat(TS-5406): motor de pixel art dos mascotes em shared/ui` | sprites, itens, paletas, quadro, controlador e chão; fixture de fidelidade; a exceção do `check-patterns` (D86) |
+| `066d947d` | `feat(TS-5406): app-mascot e troca de mascote, com exemplo na vitrine` | serviço, componente, cena, troca de mascote (D88), vitrine e `.ai/` |
+| `f4927a83` | `feat(TS-5406): caixa de texto avisa a largura do que fica em cima` | `topSpanChange` do `app-textbox-component` (D89) e a linha da `.ai/` |
+| `a7ee4ee8` | `refact(TS-5406): POLI dentro do shell, sem cabeçalho próprio` | rotas, shell (`data.shellContent`), título na coluna, `poli-header` apagado |
+| `e343931e` | `feat(TS-5406): chat vazio com frase e mascote sobre a barra da POLI` | frase, palco do mascote, chão, espaço reservado, botão de configuração na coluna |
+| `2b3846df` | `feat(TS-5406): mascote reage ao chat da POLI` | pensando, comemorar, contrato, erro |
+| `f16f3a6d` | `feat(TS-5406): mascote na Home no lugar do vídeo do robô` | Home da organização interna, com o chão |
+| `91b75672` | `chore(TS-5406): remove vídeo e ícone do robô da POLI` | `poli-animation.webm` (7,3 MB) e `poli.svg` |
 
 ### Mudanças visíveis para a PR
 
@@ -199,7 +199,7 @@ Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa c�
   - a folha renderizada do original e a do porte têm 0 pixel diferente;
   - as 9 poses da Poli e os 6 itens batem 100% com o `spritesheet.png`.
 - **Specs, build e lint:**
-  - suíte inteira: 3.101 de 3.101 passando;
+  - suíte inteira: 3.106 de 3.106 passando;
   - build ok, bundle inicial de 430 kB, igual ao da base;
   - lint com 20 erros e 162 avisos, iguais aos da base;
   - `tsc` sem erro; `check-patterns` sem achado.
@@ -213,7 +213,6 @@ Cada um compila sozinho e passa nos specs das pastas que toca, conferido numa c�
 
 ### Observações
 
-- Com anexos na caixa, o mascote pisa nos chips de anexo, que ficam dentro do componente da caixa.
 - O fixture tem 212 kB (dados de teste).
 - O intervalo do mascote roda fora da zona do Angular e depende do agendador híbrido do Angular 20.
   Se o app ligar `ignoreChangesOutsideZone`, o mascote para.

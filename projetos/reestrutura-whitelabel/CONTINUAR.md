@@ -17,7 +17,7 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 | 26 | BFF | `~/repos/apl-credit-whitelabel-api-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `0446d9b` | publicada |
 | 27 | front | `~/repos/apl-credit-whitelabel-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `3e05c4f6` | publicada (com a 26 e a R59, por merge) |
 | 27 | BFF | `~/repos/apl-credit-whitelabel-api-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `fa7c287` | publicada |
-| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `6303b2e5` | **implementada e validada (20/10), sem commit: falta a revisão** (POLI no portal e mascotes; `tarefas/28-*`; portas 4600–4699) |
+| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `91b75672` | **commitada (20/10), falta publicar** (POLI no portal e mascotes; `tarefas/28-*`; portas 4600–4699) |
 
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
