@@ -246,7 +246,7 @@ Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
 2. ~~**Conferir a premissa da D21 (a)**~~ feito em 20/10: 85 lotes por chave, nenhum multifundo. Era: lote por chave não mistura
    fundos (fundos distintos lendo todos os pagamentos de um dia, por fundo,
    para caber no limite de tempo).
-3. **TS-5383** (branch `refact/TS-5383-melhora-consulta-lotes-reais`), **publicada em 20/10** (commits `61576d3` e `66318bc`; a `-sdbx` leva os dois por cherry-pick, porque o merge arrastava 18 commits da `master` que a `sandbox` não tem, com conflito no `entrypoint.sh`). Só código: sem migration, índice, variável ou mudança no BFF e no front; a rota já usa a réplica (números na evidência):
+3. **TS-5383** (branch `refact/TS-5383-melhora-consulta-lotes-reais`), **em produção desde a noite de 20/10; GMUD a criar em 21/10; medir em 22–23/10** (commits `61576d3` e `66318bc`; a `-sdbx` leva os dois por cherry-pick, porque o merge arrastava 18 commits da `master` que a `sandbox` não tem, com conflito no `entrypoint.sh`). Só código: sem migration, índice, variável ou mudança no BFF e no front; a rota já usa a réplica (números na evidência):
    página com o fundo pelo 1º pagamento e a checagem da D21; irmãos em duas
    etapas, sem parcela e sem soft delete. Mesmo contrato. Testes de
    repositório, validação local e depois `EXPLAIN` na réplica com os fundos

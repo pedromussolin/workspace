@@ -131,3 +131,13 @@ SQL gerado pelo código da branch `refact/TS-5383-melhora-consulta-lotes-reais`
   segunda consulta, só com os lotes achados. **[C]**
 - Fundo 36 continua fora: a soma dos valores e a busca dos irmãos crescem
   com os 211 mil pagamentos (passo 5 da tarefa 12).
+
+## Primeiras horas em produção (20/10, até ~23h20 UTC)
+
+TS-5383 em produção na noite de 20/10. Nas últimas 3 h: `GET
+/liquidacao/lotes/reais` com 15 chamadas, **todas 200**, p95 1,5 s e máximo
+4,6 s. As consultas novas aparecem com quatro `resource_hash` novos
+(`788d1d5df137d8b`, `db8a1f03fb515cca`, `4856ef7a427ac6f6`,
+`9cc782411e60f129`): 31 execuções, nenhuma cancelada, máximo 2,5 s. **[C]**
+Amostra pequena, fora do horário de uso; a medição que vale é a de dois dias
+úteis (passo 5 da validação da tarefa 12).
