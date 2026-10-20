@@ -42,7 +42,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 
 | # | Tarefa | Repos | Depende de | Status | TS |
 |---|---|---|---|---|---|
-| 12 | [Lotes reais: buscar os lotes antes dos valores](tarefas/12-lotes-reais-lotes-antes-dos-valores.md) | cessão | D11 | **prioridade máxima** (14/10); mapeada | a definir |
+| 12 | [Lotes reais: buscar os lotes antes dos valores](tarefas/12-lotes-reais-lotes-antes-dos-valores.md) | cessão | D21 | **prioridade máxima** (14/10); mapeada | a definir |
 | 01 | [Réplica de leitura no init do SQLAlchemy](tarefas/01-replica-de-leitura.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
 | 02 | [Dois modos de fechamento: chave ou proc_id](tarefas/02-fechar-lote-por-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
 | 03 | [Fechamento: mais rápido, sem espera e sem 429](tarefas/03-fechamento-assincrono-e-429.md) | cessão, BFF, front, argocd | — | em produção (cessão 19/10, BFF e front 20/10); [casos e plano de 20/10](tarefas/03-casos-pos-producao.md) | TS-5377 |
