@@ -1,8 +1,8 @@
-# 25 / R60 — Home dos parceiros com a operação do dia
+# 25 / R60 — Home com a operação do dia (para todos) e a POLI (interna)
 
 - **TS:** TS-5395 (refinamento) · **Branch:** `refact/TS-5395-refinamento-visual`, worktree
   `~/repos/apl-credit-whitelabel-wt/25`
-- **Status:** **feito, sem commit** (20/10): build ok, lint 20/162, 2.791 testes; claro, escuro e celular sem erro e sem rolagem lateral. Esperando a revisão
+- **Status:** **feito, sem commit** (20/10): build ok, lint 20/162, 2.794 testes; claro, escuro e celular (interna e parceiro) sem erro e sem rolagem lateral. Esperando a revisão
 - **Convive com a 28** (TS-5406, outro chat): ela muda a home interna (POLI e mascotes) em
   `features/general/home/home.page.*`. Aqui a home dos parceiros vira um componente próprio, e o
   `home.page.html` só troca o bloco dos parceiros por ele. A 28 recebe isto por merge.
@@ -99,3 +99,15 @@ dia`, `chore(TS-5395): .ai com a home dos parceiros`.
 - **Recentes:** sem repetir a página (a URL mais nova vale); o login limpa a lista junto com a
   sessão. Falha em `iam/paths` mostra "Não foi possível carregar." com "Tentar de novo".
 - **Limpeza:** saíram do `home.page.scss` os estilos da home antiga dos parceiros.
+
+## Revisão de 20/10
+
+Pedido do Pietro: mais espaço entre o topo e o título; para a organização interna, um trecho para
+puxar um chat novo com a POLI; e o painel novo logo abaixo, para internos e parceiros.
+
+- A home é uma só: `home-panel/` (renomeado de `partner-home/`) com a saudação e, logo abaixo, o que
+  a página projeta: para a interna, a seção da POLI, compacta (cartão com "Escreva algo para
+  iniciar um chat", a caixa que abre um chat novo com a pergunta, o aviso do modelo e o rodapé).
+  Para a interna, os números dos cartões são de todos os parceiros (o BFF não filtra a interna).
+- Sai o vídeo do robô e a saudação longa da POLI (a 28 põe o mascote sobre a caixa).
+- 32 px acima da saudação (`--space-8`).

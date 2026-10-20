@@ -22,11 +22,22 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
 
-**Em andamento neste chat (20/10): R60, home dos parceiros** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
-na worktree 25. Toca `features/general/home/` (componente novo `partner-home/`; no `home.page.html` só
-o bloco dos parceiros), `layouts/app-shell/app-shell.component.ts` (uma linha no `NavigationEnd`),
-`core/navigation/`, `eslint.config.js` e os `home-summary/` de Lotes de Liquidação, Lotes de Cessão
-e Formalização. A 28 recebe por merge.
+**Em andamento neste chat (20/10): R60, a home nova** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
+na worktree 25, sem commit. A home passa a ser uma só para todos: a saudação no topo, para a
+organização interna a **seção da POLI compacta logo abaixo** (não ocupa mais a altura da tela) e,
+para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido, recentes).
+
+- `home.page.html` virou: `<app-home-panel>` com a seção da POLI projetada dentro dele (só
+  `isPlgn()`), com a mesma estrutura interna da 28: `section.poli-welcome-component` >
+  `h2.poli-prompt` "Escreva algo para iniciar um chat", `.textbox-stage` > caixa,
+  `.poli-reminder` e `app-poli-footer`. **Não há mascote** aqui: no merge, a 28 só põe o
+  `<app-mascot />` dentro do `.textbox-stage`.
+- `home.page.ts` já não tem o vídeo do robô (como na 28) nem a saudação da POLI.
+- `home.page.scss` foi reescrito para a seção compacta (cartão com a caixa centralizada).
+- Também toca: `layouts/app-shell/app-shell.component.ts` (uma linha no `NavigationEnd`),
+  `core/navigation/`, `eslint.config.js`, `shared/ui/detail-list` (opção `emphasis`),
+  `shared/utils/module-summary.ts` e os `home-summary/` de Lotes de Liquidação, Lotes de Cessão e
+  Formalização. A 28 recebe tudo por merge da `refact/TS-5395-refinamento-visual`.
 
 ## Como trabalhar ao mesmo tempo
 
