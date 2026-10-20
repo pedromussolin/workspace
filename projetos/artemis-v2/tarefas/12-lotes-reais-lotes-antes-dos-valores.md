@@ -80,6 +80,38 @@ Onde está o custo:
 SQL de cada passo, com `EXPLAIN` e checagem de equivalência, em
 [anexos/sql/lotes_reais_lotes_antes_dos_valores.sql](../anexos/sql/lotes_reais_lotes_antes_dos_valores.sql).
 
+### Visão em etapas (20/10)
+
+O que deixa a listagem rápida não é quebrar em várias consultas: é cada
+etapa custar pelo número de **lotes**, não de **pagamentos**. Um lote pode
+ter dezenas de milhares de pagamentos; a janela tem bem menos lotes
+**[H]** (passo 7 do SQL mede).
+
+| Etapa | O que lê | Custo cresce com | Hoje |
+|---|---|---|---|
+| 1. Lotes da janela (data, produto, status) | só o lote | lotes da janela | já é assim |
+| 2. Fundo de cada lote | um pagamento e a parcela dele | lotes da janela | todos os pagamentos dos lotes de outros fundos |
+| 3. Filtro do fundo, ordem, total, `LIMIT` | resultado de 1 e 2 | lotes da janela | o total obriga a etapa 2 na janela inteira |
+| 4. Valores e `proc_ids` da página | pagamentos dos 20 lotes | pagamentos da página | já é assim (0,48 s) |
+| 5. Lotes de cada remessa (irmãos) | índice (remessa, lote), saltando de lote em lote | lotes da remessa | todos os pagamentos da remessa, com parcela e soft delete duas vezes |
+| 6. Fundo dos irmãos | como a etapa 2 | lotes irmãos | junto com a 5 |
+
+São três consultas: 1 a 3 numa só (o total e a ordem ficam no banco), 4 e
+5-6. Depende de três coisas:
+
+- **D11** para a etapa 2. Sem ela, a etapa 2 só fica barata com o fundo
+  gravado no lote (opção (b) abaixo).
+- **Índice composto** `liquidacao_pagamento (liquidacao_processo_uuid,
+  liquidacao_lote_id)` para a etapa 5 saltar de lote em lote (*loose index
+  scan*, passo 9 do SQL). Sem ele, a etapa 5 ainda lê os pagamentos da
+  remessa, mas sem parcela e sem soft delete. O passo 8 mede o ganho:
+  pagamentos × lotes distintos por remessa. Em dados sintéticos (Postgres
+  13 local, duas remessas com 64.500 pagamentos em 5 lotes), o salto leu 27
+  páginas contra 539 do `DISTINCT` atual, com o mesmo resultado. **[C]** para
+  o mecanismo; o ganho real depende do passo 8.
+- **Soft delete** só na etapa 4 (valores); fora das etapas que apenas
+  identificam lotes (ver "Efeito do soft delete").
+
 ### Premissa: o lote tem um fundo só (D11)
 
 Os dois atalhos abaixo valem se cada lote real tiver pagamentos de um único
@@ -104,9 +136,12 @@ e só nos poucos lotes encontrados.
 
 Ganho esperado **[H]**: a etapa A ainda lê os pagamentos da remessa, mas com
 uma fração dos acessos. Se o `EXPLAIN` mostrar que ela continua lenta, o
-próximo passo é um índice `liquidacao_pagamento (liquidacao_processo_uuid)
-INCLUDE (liquidacao_lote_id)`, que deixa a etapa A só no índice. Índice novo
-passa pela DBA.
+próximo passo é o índice composto `liquidacao_pagamento
+(liquidacao_processo_uuid, liquidacao_lote_id)`: deixa a etapa A só no
+índice e permite saltar de lote em lote (passo 9 do SQL), com custo pelo
+número de lotes da remessa. Preferível ao `INCLUDE (liquidacao_lote_id)`,
+que não ordena pelo lote e não permite o salto. Índice novo passa pela DBA
+(`CREATE INDEX CONCURRENTLY` no primário).
 
 ### 2. Fundo da página olhando um pagamento
 
