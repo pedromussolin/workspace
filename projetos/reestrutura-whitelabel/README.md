@@ -62,8 +62,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) e `fix/TS-5391-brechas-de-permissao` (BFF) | 19 / `origin/master` | **publicada** (19/10) | TS-5391 |
 | 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **publicada** (19/10) | TS-5392 |
 | 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | **publicada** (19/10) | TS-5393 |
-| 25 | [Refinamento visual e de design](tarefas/25-refinamento-visual.md) | `refact/TS-5395-refinamento-visual` | `release/20261016` | **publicada** (19/10): rodada 1 commitada (26 commits) | TS-5395 |
-| 26 | [Controle de acesso: organização e UX/UI](tarefas/26-controle-de-acesso-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **implementada e validada** (19/10); falta a revisão e os commits | TS-5405 |
+| 25 | [Refinamento visual e de design](tarefas/25-refinamento-visual.md) | `refact/TS-5395-refinamento-visual` | `release/20261016` | **publicada** (19/10): rodada 1 (26 commits) e revisão de 19/10 (8 commits, R51–R58) | TS-5395 |
+| 26 | [Controle de acesso: organização e UX/UI](tarefas/26-controle-de-acesso-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **commitada** (19/10), sem push: 2 commits no front, 3 no BFF | TS-5405 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a iniciar depois das outras (D40–D43 decididas). É a última | TS-5394 |
 
 ## Situação em 16/10
@@ -105,7 +105,7 @@ visíveis para a PR e a validação.
 | 21 | `fix/TS-5391-brechas-de-permissao` (só BFF) | `origin/master` (`946dce3`) | 5 | publicada (19/10) |
 | 22 | `feature/TS-5392-observabilidade` (front e BFF) | 17 + merge da 18 (`0ea7a527`) / `origin/master` (`946dce3`) | 13 / 18 | publicada (19/10) |
 | 23 | `feature/TS-5393-ilustracoes` | 13 (`fd987f8c`) | 10 + 2 merges da 13 | publicada (19/10) |
-| 25 | `refact/TS-5395-refinamento-visual` (front) e `refact/TS-5395-opcoes-na-docs-da-api` (BFF) | `release/20261016` / `origin/master` | 26 / 4 | publicada (19/10) |
+| 25 | `refact/TS-5395-refinamento-visual` (front) e `refact/TS-5395-opcoes-na-docs-da-api` (BFF) | `release/20261016` / `origin/master` | 34 / 4 | publicada (19/10) |
 
 **Ordem para abrir as PRs na `sandbox`:**
 1. 01 → 02 → 03 → 04.

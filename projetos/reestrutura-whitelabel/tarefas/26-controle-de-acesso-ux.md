@@ -1,7 +1,7 @@
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)
-- **Status:** **implementada e validada** (19/10), sem commit: esperando a revisão do Pietro no portal local para commitar
+- **Status:** **commitada** (19/10), sem push: front com 2 commits (`9f382381`, `6303b2e5`) sobre a TS-5395 (`17335cb2`); BFF com 3 (`edb7cc8`, `06fbae3`, `0446d9b`). Cada commit compila e passa nos testes sozinho
 - **Depende de:**
   - **front:** os commits da 25 (TS-5395). A branch nasce da `refact/TS-5395-refinamento-visual` depois
     deles, porque usa a barra de filtros, a grade de campos e a tabela do refinamento;
@@ -322,3 +322,8 @@ foram para a TS-5395 (tarefa 25, R51–R55), e esta branch foi para cima deles (
 que identifica a linha à esquerda (R56) entra aqui só nas tabelas do controle de acesso (Permissão,
 Grupo, Pessoa, Permissão antiga e nova), junto dos commits das abas.
 
+**Como ficou (19/10).** No front, os 8 commits por pasta do plano não compilavam sozinhos (o contrato
+e o estado novos tiram o que as abas antigas usavam; o "Em lote" antigo quebrava do 1º ao 7º), e pela
+regra do plano viraram um só, `feat(TS-5405): abas do acesso com modal de detalhe e mudança direta`,
+com as partes no corpo; o `.ai` ficou à parte. No BFF, os 3 do plano, com a fixture `redis` do
+`conftest.py` no commit do cache (sem ela, os testes do cache davam erro sozinhos).

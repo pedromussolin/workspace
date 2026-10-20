@@ -1,7 +1,7 @@
 # 25 — Refinamento visual e de design
 
 - **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)
-- **Status:** **rodada 1 commitada e publicada** (19/10): 26 commits no front (`refact/TS-5395-refinamento-visual`) e 4 no BFF (`refact/TS-5395-opcoes-na-docs-da-api`), cada um compila sozinho; validada pelo Pietro. **Revisão de 19/10 (R51–R58):** R51–R55 em 5 commits locais no front (`17e9d6e3`, sem push); R56–R58 implementados e validados, sem commit, esperando a revisão
+- **Status:** **rodada 1 commitada e publicada** (19/10): 26 commits no front (`refact/TS-5395-refinamento-visual`) e 4 no BFF (`refact/TS-5395-opcoes-na-docs-da-api`), cada um compila sozinho; validada pelo Pietro. **Revisão de 19/10 (R51–R58):** 8 commits no front, publicados (ponta `17335cb2`); cada um compila sozinho, 2.691 testes
 - **Depende de:** todas as branches do front (a junção: 13, 17, 18, 19, 20,
   21, 22 e 23, com as áreas dentro da 13)
 - **Vai antes da 24:** o deploy leva o refinamento junto.
@@ -139,14 +139,14 @@ Decisões da rodada 1 (16/10, Pietro):
 | R48 | Seletor de marca | No menu do usuário, abaixo de Aparência, só fora de produção: variável nova `BRAND_SWITCHER` (desligada por padrão; ligada no local; sandbox e staging ligam no repo de deploy, na tarefa 24). Hoje nenhum ambiente define `PRODUCTION`: o `env.js` diz `production: false` até em produção | `core/theme`, sidebar, `generate-env.js`, `entrypoint.sh` | feito: `ThemeService.start/select`, escolha em `portal.brand` (ignorada sem a variável); segmentado no menu |
 | R49 | Docs da API | Tabela de parâmetros com o conteúdo no centro: a Descrição também (nota curta numa largura limitada; texto corrido de várias linhas segue à esquerda) | `features/api-docs`, `.ai/rules/components.md` | feito |
 | R50 | Docs da API | Valores do enum duas vezes: o BFF põe "Opções: ..." na descrição e o front repete em "Valores", cortado em 12 e sem os nomes. Decisão: descrição só diz o que o campo é; o BFF publica o nome de cada valor em `x-enum-labels` (valor → nome) no schema do enum; o front mostra todos, "valor · nome", até 6 e "ver mais N" | BFF: `shared` (enum com rótulo) e `liquidation_batches/viewer.py`, branch `refact/TS-5395-opcoes-na-docs-da-api` (da master); front: `features/api-docs` | feito: `LabeledEnum` no BFF (4 enums); no front, `app-api-enum-values` na tabela, nos cartões e na árvore, e o nome nas opções do Testar a chamada. Junto: tipo com o nome da classe (sem o caminho do módulo que o FastAPI põe), tipo quebra no espaço e a célula Descrição é um bloco no centro com as linhas alinhadas; a tabela cabe a 1440 sem rolagem lateral |
-| R51 | KPI | Numa grade, o KPI que não filtra tinha o valor mais baixo que o vizinho que filtra (sem a linha "Clique para filtrar") | `shared/ui/kpi` | feito: o cartão guarda vazias as linhas que outro da grade tem embaixo do valor (`footLines`); commit local |
-| R52 | Títulos | "Unidades cadastradas"/"Nova Unidade" (Formalização) e o aviso de falhas do Onboarding com faixa escura e linha embaixo | `styles.scss` | feito: saiu a regra global `.header`, que pegava qualquer componente com essa classe; commit local |
-| R53 | Seletor de visão | Em Envio de Relatórios, cada clique mudava a altura da barra e o tamanho do segmentado (sozinho na linha, esticava). Vira padrão: a visão fica fora da `app-filter-bar`, logo abaixo do cabeçalho, na largura natural; a barra só com os filtros e some sem filtro | as 6 telas com "Visualização", `.ai/rules/components.md`, `check-patterns` (`visao-na-barra`), vitrine | feito: Envio de Relatórios, Lotes de Liquidação, Orquestrador (sempre visível, desabilitado sem produto), PDD, Conciliação CERC, Desempenho da carteira; 2 commits locais |
-| R54 | Consolidado de Caixa | Coluna "Fundo" (ícone, nome e data) centralizada, com os ícones em zigue-zague | `features/cash-consolidation` | feito: `align="start"`; commit local |
+| R51 | KPI | Numa grade, o KPI que não filtra tinha o valor mais baixo que o vizinho que filtra (sem a linha "Clique para filtrar") | `shared/ui/kpi` | feito: o cartão guarda vazias as linhas que outro da grade tem embaixo do valor (`footLines`) |
+| R52 | Títulos | "Unidades cadastradas"/"Nova Unidade" (Formalização) e o aviso de falhas do Onboarding com faixa escura e linha embaixo | `styles.scss` | feito: saiu a regra global `.header`, que pegava qualquer componente com essa classe |
+| R53 | Seletor de visão | Em Envio de Relatórios, cada clique mudava a altura da barra e o tamanho do segmentado (sozinho na linha, esticava). Vira padrão: a visão fica fora da `app-filter-bar`, logo abaixo do cabeçalho, na largura natural; a barra só com os filtros e some sem filtro | as 6 telas com "Visualização", `.ai/rules/components.md`, `check-patterns` (`visao-na-barra`), vitrine | feito: Envio de Relatórios, Lotes de Liquidação, Orquestrador (sempre visível, desabilitado sem produto), PDD, Conciliação CERC, Desempenho da carteira |
+| R54 | Consolidado de Caixa | Coluna "Fundo" (ícone, nome e data) centralizada, com os ícones em zigue-zague | `features/cash-consolidation` | feito: `align="start"` |
 | R55 | Commits | Os itens R51–R54 vieram da revisão do controle de acesso (26) e foram para esta branch | — | 5 commits locais sobre `cc9d92d0`; a 26 foi para cima deles |
-| R56 | Tabelas | A coluna que identifica a linha, quando é mais que um texto curto (ícone ao lado do nome, nome com segunda linha), fica à esquerda; o conteúdo da tela na célula segue a coluna pela `--app-table-cell-align` que a tabela publica | `shared/ui/table`, `.ai/rules/components.md`, Envio de Relatórios (Fluxo, Conexão), Base de conhecimento (Arquivo); no controle de acesso, na 26 | feito, sem commit |
-| R57 | Consolidado de Caixa, analítico | Uma tabela por acordeão: cada uma media as colunas pelo próprio conteúdo e elas não se alinhavam entre as seções | `features/cash-consolidation/analytic`, `.ai/rules/components.md` | feito: R$ mm e % PL com `width="25%"`, Descrição à esquerda; sem commit |
-| R58 | Menu | Envio de Relatórios (de Operações) e Monitoramento BGT (de Admin) num grupo novo, Produtos, em Módulos | `layouts/app-shell/navigation.ts`, `.ai/rules/architecture.md` | feito: rotas e permissões iguais; a trilha diz "Produtos"; sem commit |
+| R56 | Tabelas | A coluna que identifica a linha, quando é mais que um texto curto (ícone ao lado do nome, nome com segunda linha), fica à esquerda; o conteúdo da tela na célula segue a coluna pela `--app-table-cell-align` que a tabela publica | `shared/ui/table`, `.ai/rules/components.md`, Envio de Relatórios (Fluxo, Conexão), Base de conhecimento (Arquivo); no controle de acesso, na 26 | feito |
+| R57 | Consolidado de Caixa, analítico | Uma tabela por acordeão: cada uma media as colunas pelo próprio conteúdo e elas não se alinhavam entre as seções | `features/cash-consolidation/analytic`, `.ai/rules/components.md` | feito: R$ mm e % PL com `width="25%"`, Descrição à esquerda |
+| R58 | Menu | Envio de Relatórios (de Operações) e Monitoramento BGT (de Admin) num grupo novo, Produtos, em Módulos | `layouts/app-shell/navigation.ts`, `.ai/rules/architecture.md` | feito: rotas e permissões iguais; a trilha diz "Produtos" |
 
 ## Auditoria da rodada 1 (V3 a V41)
 
@@ -228,9 +228,7 @@ Se algum commit não compilar sozinho, ele se junta ao seguinte, e o relatório 
 | 3 | `refact(TS-5395): filtro statuses descreve só o campo, sem opções` | `liquidation_batches/viewer.py` |
 | 4 | `test(TS-5395): cobre x-enum-labels e descrição no OpenAPI` | `tests/unit/delivery/api/test_openapi.py` |
 
-**Revisão de 19/10.** Commits locais no front (sem push), sobre `cc9d92d0`:
+**Revisão de 19/10.** Commits no front, publicados, sobre `cc9d92d0`:
 `17610b08` KPI (R51), `611e5aa6` título (R52), `75456716` e `30eb9a81` seletor de visão (R53),
-`17e9d6e3` coluna do fundo (R54). Depois da revisão de R56–R58:
-`refact(TS-5395): coluna que identifica a linha à esquerda nas tabelas`,
-`fix(TS-5395): colunas alinhadas entre os acordeões do analítico` e
-`refact(TS-5395): grupo Produtos no menu com envio e monitoramento`.
+`17e9d6e3` coluna do fundo (R54), `3eea27cf` coluna que identifica a linha (R56), `360943db`
+acordeões do analítico (R57) e `17335cb2` grupo Produtos no menu (R58).
