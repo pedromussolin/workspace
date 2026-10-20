@@ -32,7 +32,7 @@ forem commitadas e publicadas.
   - o resto do front: saia da `feature/TS-5405-controle-de-acesso-ux` (já tem toda a 25) e, quando a
     R59 for publicada, faça merge da `refact/TS-5395-refinamento-visual`.
   - Branch publicada recebe o que veio de baixo por **merge**, nunca por rebase com force push.
-- **Portas:** 4300 e 8765 são do portal local do Pietro (hoje servindo a worktree 26). O outro chat
+- **Portas:** 4300 e 8765 são do portal local do Pietro (desde a noite de 19/10, servindo a worktree 25, com a R59). O outro chat
   usa 4510–4599 nos agentes e 4591/8791 no smoke. Use 4600–4699 e, no smoke, uma cópia com as
   portas trocadas: `sed 's/4300/46XX/g; s/8765/87XX/g' anexos/scripts/smoke.mjs > <cópia>`.
 - **Máquina:** comando pesado (`ng build`, `ng test`, `ng lint`, Playwright) passa pelo
