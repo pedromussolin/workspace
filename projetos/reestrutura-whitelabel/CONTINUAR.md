@@ -22,6 +22,12 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
 
+**Em andamento neste chat (20/10): R60, home dos parceiros** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
+na worktree 25. Toca `features/general/home/` (componente novo `partner-home/`; no `home.page.html` só
+o bloco dos parceiros), `layouts/app-shell/app-shell.component.ts` (uma linha no `NavigationEnd`),
+`core/navigation/`, `eslint.config.js` e os `home-summary/` de Lotes de Liquidação, Lotes de Cessão
+e Formalização. A 28 recebe por merge.
+
 ## Como trabalhar ao mesmo tempo
 
 - **Não mexa** nas worktrees 25 e 27 (front e BFF) nem nessas branches enquanto o outro chat estiver
