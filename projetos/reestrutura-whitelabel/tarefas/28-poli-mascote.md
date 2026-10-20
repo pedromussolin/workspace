@@ -1,7 +1,7 @@
 # 28 — POLI dentro do portal, com mascotes animados
 
 - **TS:** TS-5406 · **Branch:** `feature/TS-5406-poli-mascote` (só front)
-- **Status:** **commitada** (20/10), 8 commits sobre a `6303b2e5`, ponta `91b75672`; falta publicar. Plano em
+- **Status:** **publicada** (20/10), 8 commits sobre a `6303b2e5`, ponta `91b75672`. Plano em
   [28-poli-mascote-plano.md](28-poli-mascote-plano.md)
 - **Depende de:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux`
   (`6303b2e5`), na worktree `apl-credit-whitelabel-wt/28`. Quando a R59 da 25 for publicada, entra

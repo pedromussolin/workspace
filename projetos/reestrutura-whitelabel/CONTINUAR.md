@@ -17,7 +17,7 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 | 26 | BFF | `~/repos/apl-credit-whitelabel-api-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `0446d9b` | publicada |
 | 27 | front | `~/repos/apl-credit-whitelabel-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `3e05c4f6` | publicada (com a 26 e a R59, por merge) |
 | 27 | BFF | `~/repos/apl-credit-whitelabel-api-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `fa7c287` | publicada |
-| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `91b75672` | **commitada (20/10), falta publicar** (POLI no portal e mascotes; `tarefas/28-*`; portas 4600–4699) |
+| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `91b75672` | **publicada (20/10)** (POLI no portal e mascotes; `tarefas/28-*`; portas 4600–4699) |
 
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
@@ -44,6 +44,24 @@ para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido
   Formalização. A 28 recebe tudo por merge da `refact/TS-5395-refinamento-visual`.
 
 **Prévia junta (20/10):** `~/repos/apl-credit-whitelabel-wt/previa` (sem branch, sem commit) = a 27 com a fotografia das mudanças não commitadas da 28, aplicadas por cima, e o mascote dentro da seção compacta. É só para o Pietro ver o resultado; pode ser apagada (`git worktree remove`). O portal local está servindo ela.
+
+## Junção da 28 com a home nova da 25 (R59)
+
+A 28 (`feature/TS-5406-poli-mascote`, publicada em 20/10) e a home nova da 25 (R59, no outro chat)
+andam juntas: o Pietro vai trazer a 28 para a 25 depois, por **merge**. Arquivos em comum, com
+conflito esperado:
+
+- `features/general/home/home.page.*`:
+  - a 28 tira o vídeo do robô e a saudação;
+  - põe a frase "Escreva algo para iniciar um chat" e o `<app-mascot [floor]>` sobre a caixa, com
+    o `(topSpanChange)` da caixa;
+  - a 25 refaz a home e apaga o `poli-footer`.
+  - Na junção, manter a home da 25 e encaixar nela o mascote, o chão e a frase da 28.
+- `layouts/app-shell/app-shell.component.*`:
+  - a 28 só acrescenta o `data.shellContent: 'full'` (classes `shell__main--full` e
+    `shell__content--full`), para a POLI ocupar a tela dentro do shell.
+- O que a Home precisa da 28 está em `shared/ui/mascot/` e em `shared/ui/textbox` (`topSpanChange`):
+  arquivos novos ou só da 28, sem conflito.
 
 ## Como trabalhar ao mesmo tempo
 

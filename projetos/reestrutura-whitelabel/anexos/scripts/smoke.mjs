@@ -3,11 +3,15 @@
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
 // SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); "Sair" encerra a sessão local (cookie) e "Entrar com Microsoft" volta logado, sem Azure; /__marcas escolhe a marca e a visão (parceiro ou interna) com o portal no ar; FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
+// Com FIXTURES, o BFF falso também aceita escrita (POST/PUT/PATCH/DELETE e o controle de acesso em lote, regras em
+// smoke-escrita.mjs). Com SERVE=1, as mudanças ficam numa cópia em alteracoes/, ao lado do arquivo, e valem mais que ele,
+// inclusive depois de reiniciar; /__reset (no portal) apaga a cópia e volta ao original. Sem SERVE, nada é gravado.
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { applyWrite, createDataStore, noEffectWarning } from './smoke-escrita.mjs';
 
 const require = createRequire(process.env.PW_DIR ? path.join(process.env.PW_DIR, 'x.js') : import.meta.url);
 const { chromium } = require('playwright-core');
@@ -37,14 +41,7 @@ const IAM = {
   'iam/paths': PATHS,
   'iam/profile': { name: 'Pessoa de Teste', email: 'teste@exemplo.com', azureId: '00000000-0000-4000-8000-000000000001' },
 };
-// Relido quando o arquivo muda: dado novo vale sem reiniciar o portal.
-let fixtures = { mtime: 0, data: {} };
-const FIXTURES = () => {
-  if (!process.env.FIXTURES) return {};
-  const mtime = fs.statSync(process.env.FIXTURES).mtimeMs;
-  if (mtime !== fixtures.mtime) fixtures = { mtime, data: JSON.parse(fs.readFileSync(process.env.FIXTURES, 'utf8')) };
-  return fixtures.data;
-};
+const store = createDataStore({ file: process.env.FIXTURES, persist: Boolean(process.env.SERVE) });
 
 const bff = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -70,9 +67,52 @@ const bff = http.createServer((req, res) => {
     res.statusCode = 401;
     return res.end(JSON.stringify({ detail: 'Not authenticated' }));
   }
-  const data = FIXTURES();
-  res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? peoplePage(paged(data[key], url.searchParams), url.searchParams) : []));
+  if (WRITES.has(req.method)) return handleWrite(req, res, key, url);
+  respondData(res, key, url);
 });
+
+function respondData(res, key, url) {
+  const data = store.data();
+  res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? peoplePage(paged(data[key], url.searchParams), url.searchParams) : []));
+}
+
+const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const readBody = (req) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+
+// A write with no rule answers as a read does, so a screen that has no rule yet keeps working.
+async function handleWrite(req, res, key, url) {
+  try {
+    const raw = await readBody(req);
+    let body;
+    // Only JSON is read: an upload (multipart) has no rule and its body is not needed to answer.
+    if (raw && /json/.test(req.headers['content-type'] || '')) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        res.statusCode = 400;
+        return res.end(JSON.stringify({ detail: 'JSON inválido.' }));
+      }
+    }
+    const result = applyWrite(store.data(), req.method, key, body);
+    if (!result) {
+      console.warn(noEffectWarning(req.method, key));
+      return respondData(res, key, url);
+    }
+    if (result.data) store.commit(result.data);
+    res.statusCode = result.status;
+    res.end(JSON.stringify(result.body));
+  } catch (error) {
+    console.error(error);
+    res.statusCode = 500;
+    res.end(JSON.stringify({ detail: `Falha no BFF falso: ${error.message}` }));
+  }
+}
 
 // Resposta paginada (`pagination` com `per_page` + `records`): devolve só a página pedida, como o
 // BFF real. Sem isso, a tela mostra todos os registros do arquivo, com o tamanho de página dele.
@@ -149,6 +189,18 @@ const web = http.createServer((req, res) => {
     res.writeHead(302, { 'Set-Cookie': 'portal-sessao=; Path=/; Max-Age=0', Location: '/home' });
     return res.end();
   }
+  if (p === '/__reset') {
+    const removed = store.reset();
+    const message = !process.env.FIXTURES
+      ? 'Este portal não tem FIXTURES: não há dados guardados.'
+      : !process.env.SERVE
+        ? 'O smoke não guarda mudanças: não há cópia a apagar.'
+        : removed
+          ? 'As mudanças guardadas foram apagadas e os dados voltaram ao arquivo original.'
+          : 'Não havia mudanças guardadas: os dados já são os do arquivo original.';
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(`<!doctype html><meta charset="utf-8"><title>Dados do portal local</title><body style="font: 15px system-ui; margin: 32px"><h1 style="font-size: 20px">Dados do portal local</h1><p>${message}</p><p><a href="/">Voltar ao portal</a></p></body>`);
+  }
   const pick = p.match(/^\/__marca\/(\w+)$/);
   if (pick) {
     // ?org=plgn: a marca vista por alguém de dentro. Sem ele, a organização segue a marca.
@@ -186,6 +238,13 @@ await new Promise((r) => web.listen(4300, r));
 // SERVE=1: só sobe o portal e o BFF falso, para navegar à mão; sem prints.
 if (process.env.SERVE) {
   console.log('Portal em http://localhost:4300 (BFF falso em http://localhost:8765). Ctrl+C para sair.');
+  if (process.env.FIXTURES) {
+    console.log(
+      store.usingCopy()
+        ? `Dados com as mudanças guardadas em ${store.copyPath}; http://localhost:4300/__reset volta ao arquivo original.`
+        : `As mudanças feitas no portal ficam em ${store.copyPath}; http://localhost:4300/__reset volta ao arquivo original.`
+    );
+  }
   await new Promise(() => {});
 }
 
