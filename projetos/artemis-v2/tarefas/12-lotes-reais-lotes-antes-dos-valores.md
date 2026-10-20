@@ -180,6 +180,49 @@ pelo BFF (2.198 chamadas em 30 dias, todas `python-httpx`) **[C]**, então
 não há fluxo legado a preservar. O merge com a TS-5377 não conflita: ela não
 mexe na listagem de lotes reais.
 
+## Proposta da DBA (20/10)
+
+A DBA mandou duas consultas:
+- **Query 1:** página e total de lotes, com o fundo descoberto por um
+  pagamento (`LATERAL ... LIMIT 1`) e o soft delete num `EXISTS` com
+  `OFFSET 0`. Leva ~90 ms com cache quente e ~6 s frio.
+- **Query 2:** totais de um lote (valor, quantidade, `proc_ids`). Custa ~0,014
+  ms por pagamento quente e ~1,2 ms frio, e propõe 16 fatias paralelas para
+  lotes grandes.
+
+**Atende em parte a tela.** Comparação com o que a tela usa (front
+`d23eaef6`, `manual-reconciliation.ts` e `batches.service.ts`; cessão
+`get_lotes`, `repository.py:632`):
+
+| A tela usa | Proposta | Situação |
+|---|---|---|
+| Fundo obrigatório | sim | ok (D11 confirmada em 20/10) |
+| Vários produtos | um produto, comentado | trocar por `IN` |
+| Vários status | não tem | falta |
+| Período | sim | ok |
+| Filtro "lotes desta remessa" (`proc_id`, ignora a data) | não tem | falta |
+| Ordenação por 6 campos | fixa (data desc) | falta |
+| Página de 5 (`per_page`) | `LIMIT 20` fixo | parametrizar |
+| Total de lotes | `count(*) OVER ()` | ok |
+| Valor, quantidade, `proc_ids` | query 2 por lote | mesma conta do `LATERAL` atual; virar rota por lote muda o contrato |
+| Chip de lotes da remessa (`remittance_batch_ids`) | não tem | falta; é a origem de 100 dos 124 erros 500 |
+
+- **A query 1 confirma o caminho da proposta 2 desta tarefa** (fundo por um
+  pagamento). Resolve os 500 da página sem produto (23 de 124), depois dos
+  ajustes da tabela.
+- **A query 2 não ganha nada** sobre o `LATERAL`. Com cache frio, um lote de
+  162 mil pagamentos leva 199 s, acima dos 120 s da réplica, e derruba a
+  página. As 16 fatias paralelas abririam 16 conexões por requisição, o que
+  não serve numa rota de tela.
+- **Falta levar à DBA:** a consulta dos lotes irmãos (proposta 1) e o índice
+  composto `(liquidacao_processo_uuid, liquidacao_lote_id)`.
+- **Em aberto (pergunta ao Pietro em 20/10):** valor de lote gigante:
+  1. somar na hora (como hoje);
+  2. carregar por linha (muda BFF e front);
+  3. gravar o total no lote.
+
+  Recomendação: 1 agora, 3 depois.
+
 ## Fora do escopo
 
 - Carregar os lotes irmãos sob demanda (proposta 1 da
