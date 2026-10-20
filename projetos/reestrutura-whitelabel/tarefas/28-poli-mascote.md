@@ -47,6 +47,7 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 | D83 | A animação segue o sistema por padrão. Junto da troca de mascote há "Animação: ligada/desligada", salva no navegador, que vale por cima do sistema | Pietro, 19/10: acessibilidade por padrão, com escolha da pessoa |
 | D84 | Os mascotes são portados para TypeScript em `shared/ui/mascot/`, desenhados em SVG por código, sem imagem. As matrizes e as fases das ações ficam idênticas às do artefato | Pietro, 19/10: abordagem recomendada |
 | D85 | O vídeo do robô e o `poli.svg` saem do repositório. Revoga a D46 (o robô ficava como identidade do assistente) | consequência da D80 e da D82 |
+| D86 | As cores fixas do pixel art ficam num arquivo só, `shared/ui/mascot/mascot-palettes.ts`, que entra no `ALLOWED` da regra `cor-fora-do-scss` do `check-patterns`. O Cofre e os destaques seguem a cor da marca por token | Pietro, 19/10: aprovou a exceção, que é arte fixa, como as cores das marcas em `themes.ts` |
 
 ## Escopo
 
