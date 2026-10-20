@@ -29,6 +29,52 @@ Base: [roteiro de acompanhamento](acompanhamento-fechamento-assincrono.md) e
 - **Esteira:** 23 de 25 lotes chegaram à atualização de status dos contratos.
   Os 2 de renegociação, fechados às 17:06 UTC, ainda não chegaram.
 
+## Comparação com a rota antiga
+
+Mesmo caminho, a tela via BFF, nas duas colunas:
+- **Antes:** `consolidate` no BFF → `POST /liquidacao/` na cessão
+  (`@http.useragent:python-httpx*`), 30 dias até a implantação (19/09 21:45
+  a 19/10 21:45 UTC).
+- **Agora:** `fake-batches/close` → task `close_fake_batch`, em 20/10.
+
+| Métrica | Antes (rota antiga) | Agora (rota nova) | Ganho |
+|---|---|---|---|
+| Espera do clique no BFF (p50) | 5,0 s, sem confirmar nada | 0,25 s | 20× mais rápido |
+| Clique recusado com 429 | 11,7% (95 de 811) | 0% (0 de 25) | eliminado |
+| Fechamento que falhou depois do "ok" (500) | 4,9% (21 de 428); a falha chegava em 20 min (p50), até 44 min | 0% | eliminado |
+| Duração do fechamento (p50) | 20,6 s | 9,8 s (1,5 s sem a espera por trava) | 2× (14×) |
+| Duração do fechamento (p95) | 5,5 min | 25,8 s | 13× |
+| Duração do fechamento (máximo) | 9,7 min | 27,6 s | 21× |
+| Tempo de servidor por fechamento (média) | 100 s; 179 s contando as falhas | 10,6 s | ~10× (~17×) |
+| Usuário vê o resultado | não; só recarregando a lista | sim, na linha ("Fechando…" → fechado/falha) | — |
+
+Como ler:
+- **Amostra:** o "Agora" é um dia, 25 fechamentos e só alguns produtos (1901,
+  1145, 1143, 713, 449, 1043). O "Antes" são 30 dias com todos os produtos da
+  tela. É indicativo; repetir com uma semana de uso.
+- **Contagens do APM:** os spans do legado são amostrados (~50%). As
+  contagens são limite inferior; as proporções e os percentis valem. Os
+  números do "Agora" vêm dos logs (completos).
+- **"Duração" no legado** é o tempo da requisição na cessão. Inclui montar a
+  resposta depois do commit, que chegava a 99% do tempo nos grupos grandes
+  ([evidência de 09/10](fechamento-lote-datadog-2026-10-09.md)). O lote
+  ficava pronto antes do fim, mas a cessão seguia ocupada, e é isso que a
+  linha mede.
+- **"1,5 s sem a espera por trava":** p50 dos 11 fechamentos que não pegaram
+  a espera de 14:28–14:29 (seção abaixo).
+- **429 e 500 no legado:**
+  - o 429 era o clique repetido, porque a tela não guardava o "em
+    andamento";
+  - 49 dos 500 de 30 dias até 09/10 eram a trava do `max_calls` expirando
+    aos 600 s, com o lote às vezes já criado;
+  - o BFF respondia 202 depois de 5 s, então o usuário nunca via esses 500.
+- **Tempo de servidor** = soma das durações ÷ fechamentos:
+  - antes: 40.765 s ÷ 407 (só os 200), ou (40.765 + 35.660) s ÷ 428
+    (contando os 500);
+  - agora: 265 s ÷ 25.
+- **Não comparável:** pagamentos por segundo. O legado não registra quantos
+  pagamentos cada fechamento levou.
+
 ## Fechamentos por produto
 
 | Produto | Fundo | Lotes | Pagamentos | Maior grupo | Duração (mín.–máx.) |
@@ -142,6 +188,13 @@ entre 14:29:48 e 14:31:57 UTC. É o problema da
 fechamento, mas o usuário cai nele ao conferir o lote que acabou de fechar.
 
 ## Consultas para repetir
+
+- Antes (legado pela tela): spans `env:production service:platform-cessao
+  resource_name:"POST /liquidacao/" operation_name:flask.request
+  @http.useragent:python-httpx*` e `env:production
+  service:apl-credit-whitelabel-api resource_name:*fake-batches/consolidate*
+  operation_name:fastapi.request`, por `@http.status_code`, com contagem,
+  p50, p95, máximo e soma de `@duration`.
 
 - Fechamentos: `analyze_datadog_logs` com filtro
   `env:production service:platform-cessao-worker "Fechamento de lote fake concluído"`
