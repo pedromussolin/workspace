@@ -264,14 +264,15 @@ da página e a `.ai`):
 - código morto do lote removido; aviso sem `write`; avisos de regra só onde valem;
 - `.ai`: padrão da tela em `reference-screens.md`, leituras novas em `bff.md`, dados do smoke do
   repo (`smoke-data/access-control.json`) e `/access-control` nas rotas padrão do smoke;
-- validação: build ok, lint 20/162 (igual à base), 2.922 testes passando; smoke das 5 abas e 3 modais
+- `app-kpi` (`shared/ui`, apontado na revisão): numa `app-kpi-grid`, o cartão sem a dica de filtro
+  ou a legenda que outro tem guarda a linha vazia, e os valores ficam na mesma altura (antes o do
+  total descia; valia também na Formalização). O erro veio da TS-5395 (valor preso embaixo);
+- validação: build ok, lint 20/162 (igual à base), 2.923 testes passando; smoke das 5 abas e 3 modais
   em claro (desktop e celular), escuro e Dots, sem erro e sem rolagem lateral.
 
 **Fora, para depois:**
 - os três diálogos de "escolher e continuar" (atribuir a uma permissão, adicionar membros, atribuir a
   uma pessoa) são parecidos no visual, mas o código está em três componentes; dá para unificar;
-- no `app-kpi` (`shared/ui`), o KPI que não filtra tem o valor mais baixo que o vizinho que filtra
-  (falta a linha "Clique para filtrar"); vale em todas as telas.
 
 ## Commits (plano para revisão)
 
@@ -297,4 +298,5 @@ junta com o seguinte):
 | 7 | `feat(TS-5405): aba Grupos com membros e permissões no modal` | `components/{groups-tab,group-detail}`, `dialogs/group-draft-dialog` |
 | 8 | `refact(TS-5405): Em lote e Migração em passos` | `components/{batch-tab,batch-builder,batch-result,migration-tab}`, `models/{batch-draft,migration-plan}` |
 | 9 | `chore(TS-5405): .ai e smoke com o padrão do controle de acesso` | `.ai/` |
+| 10 | `fix(TS-5405): valor do KPI alinhado na grade` | `shared/ui/kpi` (fora da feature) |
 
