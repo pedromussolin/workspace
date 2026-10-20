@@ -308,7 +308,10 @@ WHERE pr.proc_id = ANY(CAST(:proc_ids AS uuid[]))
 GROUP BY pr.proc_id;
 
 
--- 9. Lotes de cada remessa saltando de lote em lote (loose index scan).
+-- 9. DESCARTADO em 20/10: na réplica, liquidacao_processo tem uma linha por
+-- pagamento (802 milhões), então não há lote para saltar. Fica só como
+-- registro do mecanismo.
+-- Lotes de cada remessa saltando de lote em lote (loose index scan).
 -- NÃO rodar antes de existir o índice abaixo: sem ele, cada volta lê todos
 -- os pagamentos da remessa e fica pior que a consulta atual. O índice é
 -- criado pela DBA no primário e chega à réplica sozinho:

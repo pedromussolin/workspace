@@ -101,14 +101,11 @@ São três consultas: 1 a 3 numa só (o total e a ordem ficam no banco), 4 e
 
 - **D11** para a etapa 2. Sem ela, a etapa 2 só fica barata com o fundo
   gravado no lote (opção (b) abaixo).
-- **Índice composto** `liquidacao_pagamento (liquidacao_processo_uuid,
-  liquidacao_lote_id)` para a etapa 5 saltar de lote em lote (*loose index
-  scan*, passo 9 do SQL). Sem ele, a etapa 5 ainda lê os pagamentos da
-  remessa, mas sem parcela e sem soft delete. O passo 8 mede o ganho:
-  pagamentos × lotes distintos por remessa. Em dados sintéticos (Postgres
-  13 local, duas remessas com 64.500 pagamentos em 5 lotes), o salto leu 27
-  páginas contra 539 do `DISTINCT` atual, com o mesmo resultado. **[C]** para
-  o mecanismo; o ganho real depende do passo 8.
+- ~~Índice composto `(liquidacao_processo_uuid, liquidacao_lote_id)` para
+  saltar de lote em lote~~ **descartado em 20/10**: na réplica,
+  `liquidacao_processo` tem uma linha por pagamento (802 milhões), então não
+  há o que saltar. A etapa 5 lê os pagamentos da remessa, sem parcela e sem
+  soft delete. **[C]**
 - **Soft delete** só na etapa 4 (valores); fora das etapas que apenas
   identificam lotes (ver "Efeito do soft delete").
 
@@ -134,14 +131,9 @@ e só nos poucos lotes encontrados.
 - **Etapa B:** dos lotes da etapa A (dezenas), ficam os do fundo, olhando
   **um** pagamento de cada (`LIMIT 1`).
 
-Ganho esperado **[H]**: a etapa A ainda lê os pagamentos da remessa, mas com
-uma fração dos acessos. Se o `EXPLAIN` mostrar que ela continua lenta, o
-próximo passo é o índice composto `liquidacao_pagamento
-(liquidacao_processo_uuid, liquidacao_lote_id)`: deixa a etapa A só no
-índice e permite saltar de lote em lote (passo 9 do SQL), com custo pelo
-número de lotes da remessa. Preferível ao `INCLUDE (liquidacao_lote_id)`,
-que não ordena pelo lote e não permite o salto. Índice novo passa pela DBA
-(`CREATE INDEX CONCURRENTLY` no primário).
+Medido na réplica em 20/10 (fundo 209): **> 120 s** na consulta atual contra
+**0,17 s** (5,3 s frio) nas duas etapas. **[C]** O índice composto pensado
+antes foi descartado (ver "Visão em etapas").
 
 ### 2. Fundo da página olhando um pagamento
 
@@ -214,14 +206,39 @@ A DBA mandou duas consultas:
   162 mil pagamentos leva 199 s, acima dos 120 s da réplica, e derruba a
   página. As 16 fatias paralelas abririam 16 conexões por requisição, o que
   não serve numa rota de tela.
-- **Falta levar à DBA:** a consulta dos lotes irmãos (proposta 1) e o índice
-  composto `(liquidacao_processo_uuid, liquidacao_lote_id)`.
+- **Falta levar à DBA:** a consulta dos lotes irmãos (proposta 1). O índice
+  composto saiu da lista (ver "Medição na réplica").
 - **Em aberto (pergunta ao Pietro em 20/10):** valor de lote gigante:
   1. somar na hora (como hoje);
   2. carregar por linha (muda BFF e front);
   3. gravar o total no lote.
 
   Recomendação: 1 agora, 3 depois.
+
+## Medição na réplica (20/10)
+
+Detalhe em [evidencias/lotes-reais-replica-2026-10-20.md](../evidencias/lotes-reais-replica-2026-10-20.md).
+Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
+
+| Parte | Atual | PR | Proposta |
+|---|---|---|---|
+| Página (fundo pelo 1º pagamento) | > 60 s | > 60 s | **0,1 s** |
+| Irmãos (duas etapas) | > 120 s | não mexe | **0,17 s** (5,3 s frio) |
+
+- **Contraexemplo da D11:** o lote 1836143 (produto 1637, por proc_id,
+  15/10) tem 78 pagamentos do fundo 836 e 1 do fundo 869. É o único entre
+  os 215 lotes por proc_id de 30 dias. Com o atalho, ele some da listagem
+  do fundo 869. A D11 foi registrada hoje como confirmada; **reabrir ou
+  aceitar a exceção é decisão do Pietro**. **[C]**
+- **Dois mundos de remessa:** em 7 dos 14 fundos do dia (~296 mil dos ~345
+  mil pagamentos), cada pagamento tem a sua remessa. Ali os irmãos são o
+  próprio lote, e a página carrega um `proc_id` por pagamento (211 mil no
+  fundo 36). **[C]**
+- **Lote gigante continua estourando** com a proposta: no fundo 36 (11
+  lotes, 211 mil pagamentos), página 0,04 s, soma e contagem 0,12 s, mas o
+  `proc_id` de cada pagamento leva 11,8 s, e o soft delete leva os valores
+  e os irmãos a mais de 120 s. O custo é por pagamento, não por lote: é a
+  pergunta em aberto acima (somar na hora × gravar no lote). **[C]**
 
 ## Fora do escopo
 
