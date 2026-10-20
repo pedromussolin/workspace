@@ -1,7 +1,7 @@
 # 27 — Organização e cliente da pessoa no controle de acesso
 
 - **TS:** TS-5407 · **Branch:** `feature/TS-5407-organizacao-e-cliente` (front e BFF)
-- **Status:** **em implementação** (19/10): spec aprovada; plano em [27-organizacao-e-cliente-plano.md](27-organizacao-e-cliente-plano.md)
+- **Status:** **implementada e validada** (19/10), sem commit: esperando a revisão do Pietro no portal local (worktree 27). BFF: 1.159 testes (só as 8 falhas antigas), ruff e black limpos. Front: build ok, lint 20/162 (igual à base), 3.076 testes; telas conferidas sem erro e sem rolagem lateral no celular
 - **Depende de:**
   - **front e BFF:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux` de
     cada repo, porque estende a aba Pessoas, o modal da pessoa, o Em lote e a listagem de pessoas
@@ -153,3 +153,19 @@ Log WARNING de evento, mensagem fixa "Usuário sem escopo de parceiro", com `org
 - **Grupo de parceiro com atributo** (proposto e descartado em favor do atributo no usuário, D64).
 - **Organização da Viva:** entra no `OrgType` quando a Viva tiver usuários no portal.
 - **Login lendo do Graph** (abordagem 2, D68).
+
+## Decisões tomadas na implementação (19/10)
+
+- **BFF:** organização desconhecida (fora do `OrgType`) conta como `no-organization`; cliente só com
+  dígitos vale (`""`, `" 12 "`, `"abc"`, `"-1"` são `invalid-client`); com o product-manager fora,
+  as leituras não caem (o nome do cliente vem vazio e o número conta como válido) e a prévia
+  bloqueia só a linha que precisa de cliente ("Não foi possível consultar os clientes no
+  product-manager."); a mesma pessoa duas vezes no lote: a segunda é pulada ("Repetido no lote.");
+  o `PATCH` que dá 404 no apply falha a linha. Sem `org_type` a pessoa nem tem sessão, então o
+  `no-organization` do bloqueio só vale para o atributo vazio lido pela tela.
+- **Front:** escolher a interna esvazia e desliga o cliente; salvar fica desligado sem mudança e,
+  para parceiro, com a lista de clientes carregando ou com erro; o aviso em vermelho da interna sai
+  em `accessChangeAlerts`; a tabela de pessoas rola dentro dela no celular (`--app-table-min-width:
+  900px`).
+- **A validar na sandbox:** o `$select` dos atributos de extensão em `groups/{id}/members` e em
+  `users` (o fake aceita; o Graph real ainda não foi provado).
