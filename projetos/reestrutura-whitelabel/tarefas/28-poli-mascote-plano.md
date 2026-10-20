@@ -112,7 +112,7 @@ Na worktree 28. Não toca em `shared/ui/mascot/`: usa o contrato. Enquanto o A n
 `app-mascot` não desenha nada, e os specs do B só conferem que ele está lá e que os comandos saem.
 
 - [ ] **B1. Rotas e shell.**
-  - As 12 rotas da POLI viram filhas do shell em `app.routes.ts`, com o mesmo `loadChildren`. URLs,
+  - As 11 rotas da POLI viram filhas do shell em `app.routes.ts`, com o mesmo `loadChildren`. URLs,
     guards e `data.department` ficam iguais.
   - Cada rota ganha `data.shellContent: 'full'`. O shell lê o `data` da rota ativa mais funda e tira
     a margem do `.shell__content` (classe `shell__content--full`).

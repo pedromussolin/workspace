@@ -25,7 +25,7 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 
 ## Como está hoje
 
-- **Rotas:** as 12 rotas da POLI (`/poli-chat` e os 11 `*-poli-chat`) ficam fora do shell
+- **Rotas:** as 11 rotas da POLI (`/poli-chat` e os 10 `*-poli-chat`) ficam fora do shell
   (`src/app/app.routes.ts:12-17`, `features/poli-chat/poli-chat.routes.ts:10`), por causa do
   cabeçalho próprio.
 - **Cabeçalho:** `features/poli-chat/poli-header/` tem voltar, robô (`assets/general/poli.svg`),
@@ -53,7 +53,7 @@ https://claude.ai/artifact/6S5AR8hXRvYp2bRE12EGyq (`project/Palco.dc.html`), que
 
 ### Página da POLI
 
-- As 12 rotas passam a ser filhas do shell. A rota marca a página como tela cheia
+- As 11 rotas passam a ser filhas do shell. A rota marca a página como tela cheia
   (`data.shellContent: 'full'`), e o shell tira a margem do conteúdo, para o chat ocupar a altura
   toda.
 - A coluna de histórico ganha:
@@ -115,7 +115,7 @@ Fora estas, as matrizes de pixels e as fases das ações ficam iguais às do art
 
 ## Critérios de aceite
 
-1. As 12 rotas da POLI abrem dentro do shell, com as mesmas URLs, guards e departamentos; não há
+1. As 11 rotas da POLI abrem dentro do shell, com as mesmas URLs, guards e departamentos; não há
    mais `poli-header`.
 2. O título do departamento aparece no topo da coluna de histórico; usuário e sair, só na sidebar
    do portal.
