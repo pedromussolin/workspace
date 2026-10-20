@@ -41,7 +41,7 @@ pedidos sem aviso e ganha limites de tempo no banco
   - **Dono do pedido:** só ele grava o resultado. O cliente Redis da trava
     tem timeout de 2 s.
   - **Logs:** o de conclusão traz tentativa, espera na fila e quem pediu.
-- **BFF** (PR #212): manda à cessão quem pediu (id do usuário no Azure AD,
+- **BFF** (PR #212, pela `release/20261020` do BFF): manda à cessão quem pediu (id do usuário no Azure AD,
   não o e-mail) e registra o id do job no log.
 
 **O que não muda**
@@ -100,13 +100,15 @@ Médio. O que pode dar errado, o que acontece e o que segura:
 ## Plano de implantação
 
 1. **Cessão (API e worker juntos).** Merge do PR #2683 na
-   `release/20261020` e deploy da release.
+   `release/20261020`, merge do PR da release para a `master` (#2682, que leva
+   também a TS-5383) e deploy.
    - Conferir: pods da API e do `platform-cessao-fake-batch-closing-worker`
      na versão `prod-<sha>` nova; o worker escutando
      `fake_batch_closing_celery` com concorrência 16.
    - No Datadog, o primeiro "Fechamento de lote fake concluído" com os campos
      `attempt` e `queue_wait_ms`.
-2. **BFF.** Merge do PR #212 e deploy.
+2. **BFF.** Merge do PR #212 na `release/20261020` do BFF, PR da release para a
+   `master` e deploy.
    - Conferir no Datadog: "Fechamento de lote fake solicitado" com `job_id` e
      `requested_by`.
 3. **Front:** sem deploy.
