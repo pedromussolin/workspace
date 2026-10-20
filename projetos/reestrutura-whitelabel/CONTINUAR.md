@@ -11,12 +11,12 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 
 | Tarefa | Repo | Worktree | Branch | Ponta (19/10) | Situação |
 |---|---|---|---|---|---|
-| 25 | front | `~/repos/apl-credit-whitelabel-wt/25` | `refact/TS-5395-refinamento-visual` | `17335cb2` | publicada; **R59 (marca da sessão) em andamento no outro chat** |
+| 25 | front | `~/repos/apl-credit-whitelabel-wt/25` | `refact/TS-5395-refinamento-visual` | `5a915319` | publicada, com a R59 (marca da sessão) |
 | 25 | BFF | `~/repos/apl-credit-whitelabel-api-wt/25` | `refact/TS-5395-opcoes-na-docs-da-api` | `444c9ca` | publicada |
-| 26 | front | `~/repos/apl-credit-whitelabel-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `6303b2e5` | publicada |
+| 26 | front | `~/repos/apl-credit-whitelabel-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `d62bbc85` | publicada (com a R59, por merge) |
 | 26 | BFF | `~/repos/apl-credit-whitelabel-api-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `0446d9b` | publicada |
-| 27 | front | `~/repos/apl-credit-whitelabel-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `6303b2e5` | **em andamento no outro chat** (spec e plano em `tarefas/27-*`) |
-| 27 | BFF | `~/repos/apl-credit-whitelabel-api-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `0446d9b` | **em andamento no outro chat** |
+| 27 | front | `~/repos/apl-credit-whitelabel-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `3e05c4f6` | publicada (com a 26 e a R59, por merge) |
+| 27 | BFF | `~/repos/apl-credit-whitelabel-api-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `fa7c287` | publicada |
 | 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `6303b2e5` | **em andamento no chat da 28** (POLI no portal e mascotes; spec e plano em `tarefas/28-*`; portas 4600–4699) |
 
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
@@ -33,7 +33,7 @@ forem commitadas e publicadas.
   - o resto do front: saia da `feature/TS-5405-controle-de-acesso-ux` (já tem toda a 25) e, quando a
     R59 for publicada, faça merge da `refact/TS-5395-refinamento-visual`.
   - Branch publicada recebe o que veio de baixo por **merge**, nunca por rebase com force push.
-- **Portas:** 4300 e 8765 são do portal local do Pietro (no fim de 19/10, servindo a worktree 27, com a TS-5407; a R59 está na 25, sem commit). O outro chat
+- **Portas:** 4300 e 8765 são do portal local do Pietro (servindo a worktree 27, que tem tudo: 25, R59, 26 e 27). O outro chat
   usa 4510–4599 nos agentes e 4591/8791 no smoke. Use 4600–4699 e, no smoke, uma cópia com as
   portas trocadas: `sed 's/4300/46XX/g; s/8765/87XX/g' anexos/scripts/smoke.mjs > <cópia>`.
 - **Máquina:** comando pesado (`ng build`, `ng test`, `ng lint`, Playwright) passa pelo

@@ -1,7 +1,7 @@
 # 27 — Organização e cliente da pessoa no controle de acesso
 
 - **TS:** TS-5407 · **Branch:** `feature/TS-5407-organizacao-e-cliente` (front e BFF)
-- **Status:** **implementada e validada** (19/10), sem commit: esperando a revisão do Pietro no portal local (worktree 27). BFF: 1.159 testes (só as 8 falhas antigas), ruff e black limpos. Front: build ok, lint 20/162 (igual à base), 3.076 testes; telas conferidas sem erro e sem rolagem lateral no celular
+- **Status:** **commitada e publicada** (20/10). BFF: `e4d4bb6` (B1–B3 juntas: os arquivos misturam as três) e `fa7c287` (bloqueio, desligado). Front: `77cce810` (F1–F3 juntas: o contrato e o Em lote só compilam juntos) e `1d967874` (`.ai`), mais os merges da 26 com a R59 e os testes do seletor (`3e05c4f6`). 3.085 testes no front; 1.159 no BFF (só as 8 falhas antigas; o `pre_trade/test_repository` às vezes falha pela ordem, passa sozinho)
 - **Depende de:**
   - **front e BFF:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux` de
     cada repo, porque estende a aba Pessoas, o modal da pessoa, o Em lote e a listagem de pessoas
