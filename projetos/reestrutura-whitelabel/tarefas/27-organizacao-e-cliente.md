@@ -1,7 +1,7 @@
 # 27 — Organização e cliente da pessoa no controle de acesso
 
 - **TS:** TS-5407 · **Branch:** `feature/TS-5407-organizacao-e-cliente` (front e BFF)
-- **Status:** **spec em revisão** (19/10)
+- **Status:** **em implementação** (19/10): spec aprovada; plano em [27-organizacao-e-cliente-plano.md](27-organizacao-e-cliente-plano.md)
 - **Depende de:**
   - **front e BFF:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux` de
     cada repo, porque estende a aba Pessoas, o modal da pessoa, o Em lote e a listagem de pessoas
