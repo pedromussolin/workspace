@@ -31,7 +31,12 @@
     chaves. Bugs de código antigo do BFF viraram B9 a B11.
 - **Implantação (19/10):** cessão em produção (`prod-f19ef2c`); worker de
   produção no argocd em `feature/TS-5377-worker-fechamento-lote-producao`
-  (`61ecc97`, só asgard-production); faltam BFF e front.
+  (`61ecc97`, só asgard-production). BFF (`prod-fe2bee2`) e front em
+  produção em 20/10, ~12:26 UTC.
+- **Casos depois da implantação (20/10):** [03-casos-pos-producao.md](03-casos-pos-producao.md)
+  — revisão de todos os caminhos (tempo, fechamento perdido, corridas com o
+  legado, tela) e plano em fases; acompanhamento em
+  [evidencias/acompanhamento-fechamento-assincrono.md](../evidencias/acompanhamento-fechamento-assincrono.md).
 - **Pendências depois da implantação (19/10)** — retomar por aqui:
   1. **R16, concorrência 16 no worker de produção.** O values pede 2; o pod
      (`platform-cessao-fake-batch-closing-worker`, 19/10 21:45 UTC,
@@ -67,12 +72,11 @@
      com `exec`/init e prazo de desligamento, numa tarefa própria.
   5. **Fora da TS-5377:** "Erro na esteira 'NoneType' object is not
      iterable" em `estados_cessao.py:82` (`_existe_callback`), logo após
-     lote criado pela varredura; apareceu em 13, 15, 16 e 19/10. Verificar
-     se impede o lote de seguir.
-  6. **Implantação:** cessão e worker em produção; faltam BFF e front (front
-     por último). Conferência do front sem clicar: procurar
-     `fake-batches/close` no JS publicado do Portal; no Datadog do BFF,
-     chamadas a `close/status`. vivo-production sem worker (sem Portal lá).
+     lote criado pela varredura; apareceu em 13, 15, 16 e 19/10. Causa
+     levantada em 20/10: [B18](../bugs-encontrados.md); não impede o lote de
+     seguir.
+  6. ~~**Implantação:** faltam BFF e front~~ — no ar em 20/10 (BFF
+     `prod-fe2bee2`). vivo-production sem worker (sem Portal lá).
 - **Revisão antes de produção (15/10):** [03-revisao-pre-producao.md](03-revisao-pre-producao.md).
   Bloqueios R1–R6 (worker de produção, ordem de deploy, deploy que mata o
   fechamento em andamento, limites de tempo em grupos grandes, fundo da
