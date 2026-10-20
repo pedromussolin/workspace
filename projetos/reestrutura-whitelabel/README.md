@@ -4,6 +4,9 @@ Pasta de trabalho do épico **[FRONT] Reestrutura whitelabel** (apl-credit-white
 Cada tarefa tem um arquivo com escopo, inventário, critérios de aceite e
 validação. A ideia é revisar o desenho **antes** de abrir cada branch.
 
+> **Chat novo?** Comece por [CONTINUAR.md](CONTINUAR.md): onde está cada branch, o que outro chat
+> ainda está fazendo e como trabalhar ao mesmo tempo.
+
 - Pedido de 10/10/2026 (Pietro Nett).
 - Objetivo:
   - os temas de marca valem em todas as páginas;
