@@ -2,7 +2,7 @@
 
 - **TS:** TS-5395 (refinamento) · **Branch:** `refact/TS-5395-refinamento-visual`, worktree
   `~/repos/apl-credit-whitelabel-wt/25`
-- **Status:** **em implementação** (20/10): desenho aprovado em três partes no chat
+- **Status:** **feito, sem commit** (20/10): build ok, lint 20/162, 2.791 testes; claro, escuro e celular sem erro e sem rolagem lateral. Esperando a revisão
 - **Convive com a 28** (TS-5406, outro chat): ela muda a home interna (POLI e mascotes) em
   `features/general/home/home.page.*`. Aqui a home dos parceiros vira um componente próprio, e o
   `home.page.html` só troca o bloco dos parceiros por ele. A 28 recebe isto por merge.
@@ -84,3 +84,18 @@ escuro, celular), `.ai` (`reference-screens.md` e a regra das entradas públicas
 `architecture.md`), validação e commits:
 `feat(TS-5395): resumo da home por módulo`, `feat(TS-5395): home dos parceiros com a operação do
 dia`, `chore(TS-5395): .ai com a home dos parceiros`.
+
+## Decisões tomadas na implementação (20/10)
+
+- **Lotes de Liquidação:** os números vêm dos lotes reais (aba Conciliação manual), somando todos os
+  fundos da pessoa (a rota exige o fundo); o link abre essa aba. Sem a permissão dos lotes reais, o
+  cartão não aparece (`load()` devolve `null`, contrato novo).
+- **Lotes de Cessão:** não existe "aguardando lastro"; os números são os dois grupos da tela, Em
+  aberto e Fechados.
+- **Formalização:** Pendentes e Ativos do `summary` da lista.
+- **Número que pede atenção:** fica na cor do tom, do mesmo tamanho (opção nova `emphasis` no
+  `app-detail-list`, com os tons de texto que passam AA); antes virava uma pílula menor que os
+  vizinhos.
+- **Recentes:** sem repetir a página (a URL mais nova vale); o login limpa a lista junto com a
+  sessão. Falha em `iam/paths` mostra "Não foi possível carregar." com "Tentar de novo".
+- **Limpeza:** saíram do `home.page.scss` os estilos da home antiga dos parceiros.
