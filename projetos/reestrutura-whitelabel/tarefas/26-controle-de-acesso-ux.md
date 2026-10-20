@@ -1,7 +1,7 @@
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)
-- **Status:** em execução (19/10): [plano](26-controle-de-acesso-ux-plano.md) aprovado; leva 1 pronta e revisada (BFF B1–B5: 201 testes no módulo; base do front F1–F4: 230 specs); leva 2 (as 4 abas, F5–F8) com quatro agentes
+- **Status:** **implementada e validada** (19/10), sem commit: esperando a revisão do Pietro no portal local para commitar
 - **Depende de:**
   - **front:** os commits da 25 (TS-5395). A branch nasce da `refact/TS-5395-refinamento-visual` depois
     deles, porque usa a barra de filtros, a grade de campos e a tabela do refinamento;
@@ -241,3 +241,60 @@ Pedido do Pietro em 19/10, revisando a tela `/access-control` (tarefas 19 e 21):
   2. as abas em paralelo (Permissões, Pessoas, Grupos, Em lote + Migração);
   3. revisão, validação (`validar-leva.sh` e smoke) e plano de commits para o Pietro aprovar.
 - Commits só depois da revisão, em PT-BR, `tipo(TS-5405): …`, sem `Co-Authored-By`.
+
+## O que foi feito (19/10/2026)
+
+Seis agentes Sonnet em três levas (BFF e base do front; as quatro abas; fechamento pelo `main`).
+Nada commitado: o Pietro revisa no portal local antes.
+
+**BFF** (`apl-credit-whitelabel-api-wt/26`, 17 arquivos):
+- cache do controle de acesso no Redis (geração apagada no `apply`; Redis fora lê o Graph e avisa);
+- índice puro de quem tem o quê (direto e por grupo, sem repetir);
+- `GET /people` do grupo dinâmico, com busca sem acento, situação, ordem e página; `settings` com
+  `portalUsersGroup`; `GET /roles/{valor}/holders`; `peopleCount` e os grupos da pessoa;
+- **decisão do agente, mantida:** a prévia e o `apply` leem o Graph direto, nunca o cache;
+- 1000 testes passando (201 no módulo, eram 116), só as 8 falhas antigas de `cerc_reconciliation`;
+  ruff e black limpos.
+
+**Front** (`apl-credit-whitelabel-wt/26`, 122 arquivos, só em `features/access-control`, a descrição
+da página e a `.ai`):
+- base: contrato novo, diálogo de mudança (simples, em vermelho, digitando o nome; repete só o que
+  falhou), modal de detalhe aberto pela URL (tela cheia no celular), seletores, passos;
+- abas Permissões, Pessoas e Grupos no padrão lista + modal; Em lote e Migração em passos;
+- código morto do lote removido; aviso sem `write`; avisos de regra só onde valem;
+- `.ai`: padrão da tela em `reference-screens.md`, leituras novas em `bff.md`, dados do smoke do
+  repo (`smoke-data/access-control.json`) e `/access-control` nas rotas padrão do smoke;
+- validação: build ok, lint 20/162 (igual à base), 2.922 testes passando; smoke das 5 abas e 3 modais
+  em claro (desktop e celular), escuro e Dots, sem erro e sem rolagem lateral.
+
+**Fora, para depois:**
+- os três diálogos de "escolher e continuar" (atribuir a uma permissão, adicionar membros, atribuir a
+  uma pessoa) são parecidos no visual, mas o código está em três componentes; dá para unificar;
+- no `app-kpi` (`shared/ui`), o KPI que não filtra tem o valor mais baixo que o vizinho que filtra
+  (falta a linha "Clique para filtrar"); vale em todas as telas.
+
+## Commits (plano para revisão)
+
+**BFF**, `feature/TS-5405-controle-de-acesso-ux`:
+
+| # | Commit | Arquivos |
+|---|---|---|
+| 1 | `feat(TS-5405): cache do controle de acesso no Redis` | `src/config/__init__.py`, `access_control/cache.py`, `test_cache.py`, `support.py` |
+| 2 | `feat(TS-5405): índice de quem tem cada permissão` | `business/access_index.py`, `business/text.py`, `test_access_index.py` |
+| 3 | `feat(TS-5405): pessoas do portal e quem tem cada permissão` | `repository.py`, `schemas.py`, `viewer.py`, `business/__init__.py`, `conftest.py`, `fake_graph.py` e os testes de rotas |
+
+**Front**, `feature/TS-5405-controle-de-acesso-ux` (por pasta, na ordem; o que não compilar sozinho
+junta com o seguinte):
+
+| # | Commit | Pastas (em `features/access-control/`) |
+|---|---|---|
+| 1 | `feat(TS-5405): contrato novo do controle de acesso no front` | `data-access`, `testing`, `models/directory-search` |
+| 2 | `feat(TS-5405): diálogo de mudança direta com prévia` | `dialogs/access-change-dialog`, `models/access-change`, `components/batch-preview` |
+| 3 | `feat(TS-5405): modal de detalhe, seletores e passos do acesso` | `components/access-{detail,pickers,steps}` |
+| 4 | `refact(TS-5405): estado e página do acesso sem o lote no centro` | store, view, página, `access-detail-dialogs.ts`, `access-control-draft-dialogs.ts`, `models/create-drafts`, `core/config/page.constants.ts` |
+| 5 | `feat(TS-5405): aba Permissões com quem tem cada uma` | `components/{roles-tab,role-detail}`, `dialogs/role-draft-dialog` |
+| 6 | `feat(TS-5405): aba Pessoas com quem tem acesso ao portal` | `components/{people-tab,person-detail}` |
+| 7 | `feat(TS-5405): aba Grupos com membros e permissões no modal` | `components/{groups-tab,group-detail}`, `dialogs/group-draft-dialog` |
+| 8 | `refact(TS-5405): Em lote e Migração em passos` | `components/{batch-tab,batch-builder,batch-result,migration-tab}`, `models/{batch-draft,migration-plan}` |
+| 9 | `chore(TS-5405): .ai e smoke com o padrão do controle de acesso` | `.ai/` |
+
