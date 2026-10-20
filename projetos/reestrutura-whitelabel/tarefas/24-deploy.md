@@ -1,7 +1,7 @@
 # 24 — Deploy da reestruturação
 
 - **TS:** TS-5394 · **Branch:** `release/AAAAMMDD` (front e BFF)
-- **Status:** a iniciar quando 13 e 21 a 23 estiverem prontas (D40 a D43 decididas em 16/10). É a última tarefa do épico.
+- **Status:** **release `release/20261021` em montagem** (20/10, noite), local, sem push: front (épico + 28 + TS-5411) e BFF (27 + TS-5395 + TS-5411). Plano do Pietro: sandbox na manhã de 21/10 e produção na noite de 21/10. O TSE vai à parte (`fix/TS-5411-whitelists-consultas`, sobe antes do BFF). Roteiro na pasta privada (`deploy/roteiro-de-deploy.md`)
 - **Depende de:** todas as outras (01 a 23, menos a 16)
 
 ## O que é

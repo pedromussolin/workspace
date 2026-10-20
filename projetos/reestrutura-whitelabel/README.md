@@ -70,7 +70,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 27 | [Organização e cliente da pessoa no controle de acesso](tarefas/27-organizacao-e-cliente.md) | `feature/TS-5407-organizacao-e-cliente` (front e BFF) | 26 | **publicada** (20/10): 2 commits no BFF, 2 no front, mais os merges | TS-5407 |
 | 28 | [POLI dentro do portal, com mascotes animados](tarefas/28-poli-mascote.md) | `feature/TS-5406-poli-mascote` | 26 | **publicada** (20/10): 8 commits, ponta `91b75672` | TS-5406 |
 | 29 | [Segurança e alinhamento com a infraestrutura](tarefas/29-seguranca-infra.md) | `fix/TS-5411-seguranca-bff` e `fix/TS-5411-seguranca-front` | `master` (e a 27, para o que só existe no épico) | **publicada** (20/10): leva do deploy; escopo do parceiro (D99), TSE e cessão em andamento | TS-5411 |
-| 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | a iniciar depois das outras (D40–D43 decididas). É a última | TS-5394 |
+| 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **release `release/20261021` em montagem** (20/10); sandbox na manhã e produção na noite de 21/10 | TS-5394 |
 
 ## Situação em 16/10
 
