@@ -267,7 +267,10 @@ da página e a `.ai`):
 - `app-kpi` (`shared/ui`, apontado na revisão): numa `app-kpi-grid`, o cartão sem a dica de filtro
   ou a legenda que outro tem guarda a linha vazia, e os valores ficam na mesma altura (antes o do
   total descia; valia também na Formalização). O erro veio da TS-5395 (valor preso embaixo);
-- validação: build ok, lint 20/162 (igual à base), 2.923 testes passando; smoke das 5 abas e 3 modais
+- título com faixa escura e linha embaixo (Unidades da Formalização e o aviso de falhas do
+  Onboarding, apontado na revisão): vinha de uma regra global `.header` antiga no `styles.scss`, que
+  pegava qualquer componente com essa classe. A regra saiu; nada mais a usava;
+- validação: build ok, lint 20/162 (igual à base), 2.924 testes passando; smoke das 5 abas e 3 modais
   em claro (desktop e celular), escuro e Dots, sem erro e sem rolagem lateral.
 
 **Fora, para depois:**
@@ -299,4 +302,5 @@ junta com o seguinte):
 | 8 | `refact(TS-5405): Em lote e Migração em passos` | `components/{batch-tab,batch-builder,batch-result,migration-tab}`, `models/{batch-draft,migration-plan}` |
 | 9 | `chore(TS-5405): .ai e smoke com o padrão do controle de acesso` | `.ai/` |
 | 10 | `fix(TS-5405): valor do KPI alinhado na grade` | `shared/ui/kpi` (fora da feature) |
+| 11 | `fix(TS-5405): título sem a faixa da regra global .header` | `styles.scss`, spec do `units-panel` |
 
