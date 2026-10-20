@@ -28,7 +28,7 @@ organização interna a **seção da POLI compacta logo abaixo** (não ocupa mai
 para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido, recentes).
 
 - `home.page.html` virou: `<app-home-panel>` com a seção da POLI projetada dentro dele (só
-  `isPlgn()`). **Revisão de 20/10, ainda sem commit na 25:** a seção é uma coluna:
+  `isPlgn()`). **Revisão de 20/10 (R62), publicada na 25 (`88ba625b`) e por merge na 26 e na 27:** a seção é uma coluna:
   `section.poli-welcome-component` > `h2.poli-prompt` "POLI AI" (no topo, à esquerda),
   `.textbox-stage` com a caixa (centralizada, até 720 px; placeholder "Escreva algo para iniciar um
   chat") e `p.poli-note` centralizado e menor (ícone e "A POLI usa o ChatGPT-5.2 e pode cometer

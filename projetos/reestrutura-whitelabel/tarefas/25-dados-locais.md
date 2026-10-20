@@ -1,6 +1,6 @@
 # 25 / R61 — Teste local que guarda as mudanças (BFF falso e navegador)
 
-- **TS:** TS-5395 · **Status:** parte 1 (BFF falso) **feita e publicada** neste repo (20/10); parte 2 (navegador) em implementação
+- **TS:** TS-5395 · **Status:** **feito e publicado** (20/10): parte 1 (BFF falso) neste repo; parte 2 (navegador) na TS-5395 (`b8a02a7f`), levada à 26 e à 27 por merge
 - **Pedido do Pietro (20/10):** rodando local, dá para sair e ver o login (feito no portal local:
   "Sair" encerra a sessão, "Entrar com Microsoft" volta logado sem Azure); e o que se muda nos testes
   locais tem que ficar guardado. **Padrão: o BFF falso** (testes com a integração); **reserva: o
@@ -80,3 +80,10 @@ permissão que não existe no Azure bloqueia; buscas por POST (`pre-trade/invest
 `access-control/` fica sem regra. Limites: não confere o `confirm: 'REMOVER'`; não bloqueia o que o
 BFF real bloqueia por configuração (`deletable`, `groupAssignmentEnabled`, `canEditPartner`); o POST
 genérico não cria o detalhe; o DELETE genérico não apaga subcaminhos.
+
+**Parte 2 (20/10):** `core/http/mock-api/` com 122 testes (regras de lista e do controle de acesso,
+interceptor, estado, sessão e reset). O `app.config` e o interceptor usam a mesma função
+(`isMockApiEnabled`): só liga com `mockApi` e sem `production`. O build de produção não leva os
+JSON. Checagem nova no `check-patterns` (`mock-api-fora-da-lista`): arquivo de `smoke-data` fora
+da lista do mock falha. Na 26, que tem `access-control.json`, o arquivo entrou na lista e o README
+da `.ai` deixou de dizer que não há dados do controle de acesso.
