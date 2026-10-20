@@ -28,10 +28,14 @@ organização interna a **seção da POLI compacta logo abaixo** (não ocupa mai
 para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido, recentes).
 
 - `home.page.html` virou: `<app-home-panel>` com a seção da POLI projetada dentro dele (só
-  `isPlgn()`), com a mesma estrutura interna da 28: `section.poli-welcome-component` >
-  `h2.poli-prompt` "Escreva algo para iniciar um chat", `.textbox-stage` > caixa,
-  `.poli-reminder` e `app-poli-footer`. **Não há mascote** aqui: no merge, a 28 só põe o
-  `<app-mascot />` dentro do `.textbox-stage`.
+  `isPlgn()`). **Revisão de 20/10, ainda sem commit na 25:** a seção ficou em duas colunas,
+  `section.poli-welcome-component` > `.poli-intro` (`h2.poli-prompt` "Converse com a POLI" e
+  `p.poli-note` com o ícone e "A POLI usa o ChatGPT-5.2 e pode cometer erros. Verifique as
+  informações importantes.") e `.textbox-stage` com a caixa (placeholder "Escreva algo para
+  iniciar um chat"). Saíram o `.poli-reminder` e o `app-poli-footer` (o componente
+  `features/general/home/poli-footer/` foi apagado). **Não há mascote** aqui: no merge, a 28 põe
+  o `<app-mascot />` dentro do `.textbox-stage`, com `position: relative` e `margin-top:
+  var(--mascot-stage-h)` nele (o mascote anda nesse espaço, acima da caixa), como está na prévia.
 - `home.page.ts` já não tem o vídeo do robô (como na 28) nem a saudação da POLI.
 - `home.page.scss` foi reescrito para a seção compacta (cartão com a caixa centralizada).
 - Também toca: `layouts/app-shell/app-shell.component.ts` (uma linha no `NavigationEnd`),

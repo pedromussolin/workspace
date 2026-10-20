@@ -1,7 +1,7 @@
 // Smoke test visual do front sem BFF real: serve o dist e um BFF falso (sessão válida, todas as
 // rotas liberadas, dados vazios) e tira prints de cada rota em desktop e celular.
 // Uso: node smoke.mjs <dist/browser> <pasta-de-saida> [rota ...]
-// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); /__marcas escolhe a marca e a visão (parceiro ou interna) com o portal no ar; FIXTURES=<arquivo.json> dá dados
+// SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); "Sair" encerra a sessão local (cookie) e "Entrar com Microsoft" volta logado, sem Azure; /__marcas escolhe a marca e a visão (parceiro ou interna) com o portal no ar; FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
@@ -59,6 +59,17 @@ const bff = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'OPTIONS') return res.end();
   if (key === 'iam/organization') return res.end(JSON.stringify(chosenOrg(req)));
+  if (key === 'iam/status') return res.end(JSON.stringify(sessionOn(req)));
+  // "Sair" ends the local session (a cookie that both ports see); "Entrar" on the portal brings it back.
+  if (key === 'auth/logout') {
+    res.setHeader('Set-Cookie', 'portal-sessao=off; Path=/; SameSite=Lax');
+    return res.end('null');
+  }
+  // Like the real BFF: without a session, everything else is 401, and the front goes to /login.
+  if (!sessionOn(req)) {
+    res.statusCode = 401;
+    return res.end(JSON.stringify({ detail: 'Not authenticated' }));
+  }
   const data = FIXTURES();
   res.end(JSON.stringify(key in IAM ? IAM[key] : key in data ? peoplePage(paged(data[key], url.searchParams), url.searchParams) : []));
 });
@@ -116,6 +127,10 @@ function chosenBrand(req) {
 }
 // A organização decide a home (a interna tem a assistente; a de parceiro, os cartões de boas-vindas),
 // como o org_type do token faz em produção. Sem ORG nem escolha, segue a marca: a padrão é a interna.
+// Local session: on unless NO_SESSION or after "Sair" (cookie portal-sessao=off).
+function sessionOn(req) {
+  return !process.env.NO_SESSION && cookieValue(req, 'portal-sessao') !== 'off';
+}
 function chosenOrg(req) {
   const brand = chosenBrand(req);
   return process.env.ORG || cookieValue(req, 'portal-org') || (brand === 'default' ? 'plgn' : brand);
@@ -128,6 +143,11 @@ const web = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'text/javascript');
     res.setHeader('Cache-Control', 'no-store');
     return res.end(`window.__CONFIG__ = { apiUrl: "http://localhost:8765", themeKey: "${chosenBrand(req)}", authLoginPath: "/auth/login", authCallbackPath: "/auth/callback", production: false, brandSwitcher: true };`);
+  }
+  // "Entrar com Microsoft" skips Azure: the session comes back and the portal opens on the home.
+  if (p === '/auth/login') {
+    res.writeHead(302, { 'Set-Cookie': 'portal-sessao=; Path=/; Max-Age=0', Location: '/home' });
+    return res.end();
   }
   const pick = p.match(/^\/__marca\/(\w+)$/);
   if (pick) {
