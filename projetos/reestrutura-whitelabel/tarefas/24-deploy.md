@@ -191,3 +191,14 @@ Sem a transição, a ordem no deploy é:
 - **`PRODUCTION`:** nenhum ambiente define essa variável hoje, e o `env.js` diz `production: false`
   até em produção. Vale decidir se ela entra nos três `values.yaml` de produção.
 
+
+## Pendência vinda da 26 (19/10)
+
+- **Pedido à infraestrutura (D60), antes do deploy do controle de acesso:**
+  - atributo booleano no usuário do Azure dizendo se a pessoa tem acesso ao portal, e quem liga;
+  - grupo dinâmico com a regra sobre esse atributo (exige Entra ID P1; é a mesma licença pendente
+    da D17, de atribuir permissão a grupo);
+  - o id do grupo em `CFG_ACCESS_CONTROL_PORTAL_USERS_GROUP_ID` nos `values.yaml` do BFF (sandbox,
+    staging e produção). Sem a variável, a aba Pessoas cai na busca no diretório, como hoje.
+- O BFF passa a usar o Redis que já tem para o cache do controle de acesso (5 min); nada novo a
+  configurar.
