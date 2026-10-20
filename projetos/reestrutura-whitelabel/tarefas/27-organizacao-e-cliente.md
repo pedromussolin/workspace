@@ -32,8 +32,9 @@ Pedido do Pietro em 19/10:
   não tem filtro e vê tudo.
 - **Brecha:** sem cliente, com cliente que não é número ou com o product-manager fora, a lista de ids
   volta vazia, e lista vazia vira consulta **sem filtro**, igual à da Poliedro
-  (`src/shared/business/funds.py:33-42`). O mesmo vale para quem não tem `org_type`. Um atributo
-  esquecido no Azure expõe todos os fundos a um parceiro.
+  (`src/shared/business/funds.py:33-42`). Um atributo esquecido no Azure expõe todos os fundos a um
+  parceiro. Quem não tem `org_type` nem chega a ter sessão: o `User` do BFF exige a organização
+  (`src/shared/schemas/users.py`), e o login falha.
 - **Organizações do BFF** (`OrgType`): a interna, Dots, Cerys e `client`. A Viva não tem.
 - **Licença:** a infraestrutura confirmou a Entra ID P1 (19/10), o que destrava também o grupo
   dinâmico da 26.
