@@ -47,6 +47,8 @@ para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido
 
 **Prévia junta (20/10):** `~/repos/apl-credit-whitelabel-wt/previa` (sem branch; um commit local solto) = a 27 com o **merge da `feature/TS-5406-poli-mascote` (`91b75672`)** e a home compacta com o mascote: no `.textbox-stage`, `<app-mascot [floor]="mascotFloor()" />` e `(topSpanChange)="mascotFloor.set($event)"` na caixa. Sem essa ligação, o clique no mascote não faz nada (o `click()` só escolhe ação que cabe no chão). É só para o Pietro ver o resultado; pode ser apagada (`git worktree remove`). O portal local está servindo ela.
 
+**Mascotes com cor fixa (D90, 20/10):** feito e testado na prévia, ainda não está na 28. O patch (código da empresa, fora deste repo) está em `~/repos/.reestrutura_whitelabel/patches/mascotes-cor-fixa.patch` e aplica limpo na `91b75672`: muda `mascot-palettes.ts`, tira `BRAND_COLOR` e `brandMix` do `mascot-render.ts` e troca os dois testes que esperavam a cor da marca (`mascot-engine.spec.ts` e `mascot.component.spec.ts`). Commit sugerido na 28: `fix(TS-5406): mascotes com cor fixa, sem a cor da marca`.
+
 ## Junção da 28 com a home nova da 25 (R59)
 
 A 28 (`feature/TS-5406-poli-mascote`, publicada em 20/10) e a home nova da 25 (R59, no outro chat)
