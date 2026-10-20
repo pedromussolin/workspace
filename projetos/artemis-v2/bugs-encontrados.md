@@ -202,6 +202,82 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
 - **Correção:** depende da validação; se existir, montar o arquivo a partir de
   todos os arquivos do lote ou fechar esses produtos por proc_id.
 
+## B14 — Pagamento em trânsito muda de lote (corrida, importante)
+
+- **Onde:** a liquidação commita `cadastrado` em `EstadoSalvo`
+  (`cessao/framework/liquidacao/estados_liquidacao.py:319-329`) e só depois
+  `acumula_liquidacao` põe o pagamento no vigente com
+  `pagamento.liquidacao_lote = lote` (`cessao/api/liquidacao/repository.py:459-473`),
+  um UPDATE por id sem `liquidacao_lote_id IS NULL`.
+- **Efeito:** se um fechamento (novo ou legado) pegar o pagamento nesse
+  intervalo, a atribuição seguinte o tira do lote fechado e o põe no vigente.
+  O lote fechado fica vazio ou parcial, e pode já estar na esteira. Se o
+  arquivo desse lote já tiver saído, o pagamento vai em dois arquivos
+  (hipótese).
+- **Confirmado:** leitura do código (20/10/2026, `f19ef2cef`). Só em produto
+  com `acumula_liquidacoes`, durante remessa em processamento.
+- **Validar:** consulta 3 de
+  [anexos/sql/grupos_pendentes_fechamento_novo.sql](anexos/sql/grupos_pendentes_fechamento_novo.sql);
+  lotes com `data_atualizacao` de pagamento posterior ao fechamento.
+- **Correção:** atribuir ao vigente com UPDATE guardado (`IS NULL`) e conferir
+  o rowcount, ou na mesma transação que grava `cadastrado`. Ver
+  [03-casos-pos-producao.md](tarefas/03-casos-pos-producao.md#3-corridas-com-outros-caminhos-que-fecham-lote).
+
+## B15 — Lote vigente fechado e alimentado sem trava (corrida)
+
+- **Onde:** a entrada no vigente lê sem `FOR UPDATE`
+  (`repository.py:443-451`; `lock=False` em `:370-381`); o fechamento também
+  (`service.py:1165-1184`: SELECT `fechado == False` e `save()`). Fecham
+  vigente o fluxo novo, o `POST /liquidacao/` e o beat das 19h UTC
+  (`tasks/liquidacao_lote.py:239-317`). A `esteira_baixar` não tem trava por
+  lote (`tasks/liquidacao_lote.py:81-104`; idempotência só por
+  `ja_enviado_ok`).
+- **Efeito:** um pagamento entra num vigente já fechado e despachado e pode
+  ficar fora do arquivo da ADM. Dois fechamentos simultâneos despacham o mesmo
+  vigente, e dois workers podem gerar o arquivo (hipótese).
+- **Confirmado:** leitura do código (20/10/2026). Herdado do legado.
+- **Correção:** `UPDATE liquidacao_lote_vigente SET fechado = true WHERE ...
+  AND fechado = false RETURNING`, `FOR UPDATE` na entrada e trava por lote no
+  início da `esteira_baixar`.
+
+## B16 — Exclusão de liquidação concorrente com fechamento
+
+- **Onde:** a task de exclusão carrega os pagamentos, apaga e commita sem
+  revalidar o lote (`tasks/liquidacao.py:137-155`). A validação roda antes,
+  na rota (`validator.py:87-126`).
+- **Efeito:** um pagamento recém-fechado é apagado do lote; o log da exclusão
+  grava `liquidacao_lote_id` `None` (valor lido antes).
+- **Confirmado:** leitura do código (20/10/2026). Rara.
+- **Correção:** na task, `FOR UPDATE` nos pagamentos e abortar se o lote já
+  não for nulo.
+
+## B17 — Legado: limpeza do cache depois do commit derruba a esteira
+
+- **Onde:** `create_by_originador` chama `fechar_liquidacao_lote_fake_cache`
+  sem try/except depois do commit (`models.py:6115-6119`); um `KeyError` no
+  `del` também é possível (`listeners.py:223-224`).
+- **Efeito:** erro do Redis sobe antes de `_enviar_para_esteira`
+  (`viewer.py:404`) e os lotes commitados ficam sem esteira.
+- **Confirmado:** leitura do código (20/10/2026). O fluxo novo já isola isso
+  (`refact.py:470-483`).
+- **Correção:** o mesmo try/except do fluxo novo.
+
+## B18 — "Erro na esteira 'NoneType' object is not iterable"
+
+- **Onde:** `_existe_callback` itera `objeto_esteira.callbacks`
+  (`framework/cessao/estados_cessao.py:80-89`), que é `None` por padrão em
+  `TituloContrato` (`dataclass.py:96-108`). Dois caminhos montam o título sem
+  callbacks: `liberacao_processos` (`framework/liquidacao/estados_baixa.py:96-104`), chamado no fim
+  da baixa de qualquer lote, e `esteira_aditamento` (`tasks/cessao.py:49-54`).
+  O `_trata_excecao` chama `_finaliza_esteira` de novo e levanta outra vez.
+- **Efeito:** a liberação dos contratos `liberando` do produto é abortada e o
+  contrato continua `liberando`. O lote em si segue.
+- **Confirmado:** código (20/10/2026); Datadog: 19 ocorrências de 06/10 a
+  19/10 no `platform-cessao-worker`. Não vem da TS-5377.
+- **Validar:** stack trace (passa por `liberacao_processos` ou por
+  `esteira_aditamento`?) e contagem de contratos `liberando` por produto.
+- **Correção:** `callbacks` com lista vazia por padrão.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
