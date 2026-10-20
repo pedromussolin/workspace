@@ -78,6 +78,7 @@ function peoplePage(body, query) {
   let all = body.people.filter((p) => !search || [p.displayName, p.mail, p.userPrincipalName].some((v) => fold(v).includes(search)));
   if (status === 'with-roles') all = all.filter((p) => p.roleCount > 0);
   if (status === 'without-roles') all = all.filter((p) => p.roleCount === 0);
+  if (status === 'without-scope') all = all.filter((p) => p.scopeState && p.scopeState !== 'ok');
   const byName = (a, b) => fold(a.displayName).localeCompare(fold(b.displayName));
   const field = sort.replace(/^-/, '');
   all = [...all].sort((a, b) => (field === 'roles' ? a.roleCount - b.roleCount || byName(a, b) : byName(a, b)) * (sort.startsWith('-') ? -1 : 1));
