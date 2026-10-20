@@ -33,8 +33,10 @@
   produção no argocd em `feature/TS-5377-worker-fechamento-lote-producao`
   (`61ecc97`, só asgard-production). BFF (`prod-fe2bee2`) e front em
   produção em 20/10, ~12:26 UTC.
-- **Fase 1 de robustez (20/10), implementada e aguardando revisão:** branches
-  `fix/TS-5377-robustez-fechamento-lote` na cessão e no BFF, sem commit.
+- **Fase 1 de robustez: em produção desde 20/10 ~23:06 UTC** (cessão
+  `prod-2eb8faa`, BFF `prod-a1d5abd`), branches
+  `fix/TS-5377-robustez-fechamento-lote`. GMUD retroativa em
+  [gmud-ts-5377-fase1.md](../gmud-ts-5377-fase1.md).
   - **Cessão (`refact.py`, task, schema, viewer):**
     - `SET LOCAL statement_timeout` (480 s) e `lock_timeout` (60 s),
       configuráveis por `FAKE_BATCH_CLOSING_STATEMENT_TIMEOUT_MS` e

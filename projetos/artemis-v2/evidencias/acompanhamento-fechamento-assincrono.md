@@ -21,11 +21,19 @@ quanto tempo e se algum pedido se perdeu. Base da
 | 3 | Duração | mesma consulta, `@duration_ms` (p50, p95, máx.) e `@payments_count` (máx.) | segundos | acima de 300.000 ms (a trava passa a depender só da renovação; o soft limit é 540 s) |
 | 4 | Descartes | logs `"Fechamento de lote fake descartado"` | zero | qualquer um: a task chegou sem a trava (fila atrasada ou trava expirada) |
 | 5 | Falhas | logs `"Falha no fechamento de lote fake"` (com stack) | zero | qualquer um |
-| 6 | Trava | logs `"Falha ao renovar a trava do fechamento de lote fake"` | zero | qualquer um: Redis com problema durante um fechamento |
+| 6 | Trava | logs `"Falha ao renovar a trava do fechamento de lote fake"` e `"Trava do fechamento de lote fake perdida"` (fase 1) | zero | qualquer um: Redis com problema ou outro job assumiu a linha |
 | 7 | Depois do fechamento | logs `"Falha ao enviar lote real fechado para a esteira de baixa"` e `"Falha ao limpar o cache do lote fake"` | zero | lote fechado e parado |
 | 8 | Rotas | APM `env:production service:platform-cessao resource_name:*fake-batches/close*`, por `@http.status_code` | 202 e 200 | 409 frequente (clique repetido), 400 (chave/produto), 5xx |
 | 9 | Worker | logs `env:production kube_deployment:*fake-batch-closing*` com `status:error`, e reinícios do pod | sem reinício | reinício = fechamento em andamento perdido |
 | 10 | Esteira | APM `operation_name:celery.run resource_name:cessao.tasks.liquidacao_lote.esteira_baixar`, erros | igual aos dias anteriores | erro em lote criado pelo fluxo novo |
+
+**Desde a fase 1 (20/10 ~23:06 UTC):**
+- o "concluído" traz `attempt`, `queue_wait_ms` e `requested_by`;
+- o "solicitado" do BFF traz `job_id`.
+- `@attempt:2` = a mensagem voltou à fila (deploy ou queda do worker).
+- Motivos novos em `@reason`: tempo limite, "em uso por outro processo",
+  interrompido, não começou, parcial.
+- `queue_wait_ms` alto (minutos) = fila parada.
 
 Pedido perdido (item 2) se acha cruzando `@job_id` do "solicitado" com o do
 "concluído": o `job_id` está nos dois logs.

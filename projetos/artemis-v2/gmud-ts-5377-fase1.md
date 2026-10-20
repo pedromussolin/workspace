@@ -1,10 +1,10 @@
 # GMUD — TS-5377 fase 1: robustez do fechamento de lote fake
 
-> **Status (20/10/2026):** pronta para submeter. A evidência de sandbox fica
-> pendente até o merge dos PRs da sandbox (cessão #2681, BFF #211), que
-> exigem aprovação.
+> **Status (20/10/2026, 23:25 UTC):** já executada em produção. Registrar em
+> 21/10 como retroativa. Falta só anexar os primeiros fechamentos com o
+> código novo (Datadog, manhã de 21/10).
 
-Tipo: Mudança programada
+Tipo: Mudança não programada (já executada em 20/10/2026)
 
 ## Summary
 
@@ -161,8 +161,20 @@ Médio. O que pode dar errado, o que acontece e o que segura:
   | Worker morto | 1 de 5 | 0; a linha fecha uma vez |
   | Redis fora | rota presa até 30 s | erro em 2 s, sem trava órfã |
 
-- **Sandbox:** pendente. Os PRs #2681 (cessão) e #211 (BFF) aguardam merge.
-  Depois do deploy, registrar aqui:
-  - versão `sand-<sha>`;
-  - um fechamento com `attempt` e `queue_wait_ms` no log;
-  - um reinício do worker com um fechamento em andamento.
+- **Sandbox:** PRs #2681 (cessão) e #211 (BFF) entregues em 20/10, sem
+  fechamento exercitado lá antes da produção.
+- **Produção (20/10/2026, Datadog):**
+  - cessão `prod-2eb8faa` (release #2682, com a TS-5383): API e workers
+    reiniciados às 23:05–23:06 UTC;
+  - o worker de fechamento escuta `fake_batch_closing_celery` com
+    concorrência 16 desde 23:05:54;
+  - BFF `prod-a1d5abd` (release #213) às 23:07–23:08 UTC;
+  - os commits `d80f0f21c`, `2ab73da63` (cessão) e `4e1cb09` (BFF) estão
+    nessas versões (`git merge-base --is-ancestor`).
+- **Na subida:**
+  - o `platform-cessao-beat` caiu uma vez às 23:05:48, porque o download do
+    guardian falhou (`guardian: command not found`), sem relação com a
+    mudança, e voltou sozinho às 23:06:09;
+  - nenhum erro do código novo até 23:25 UTC.
+- **A preencher em 21/10:** os primeiros "Fechamento de lote fake concluído"
+  com `attempt` e `queue_wait_ms`, e os "solicitado" do BFF com `job_id`.
