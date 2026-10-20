@@ -172,8 +172,8 @@ Médio. O que pode dar errado, o que acontece e o que segura:
   - os commits `d80f0f21c`, `2ab73da63` (cessão) e `4e1cb09` (BFF) estão
     nessas versões (`git merge-base --is-ancestor`).
 - **Na subida:**
-  - o `platform-cessao-beat` caiu uma vez às 23:05:48, porque o download do
-    guardian falhou (`guardian: command not found`), sem relação com a
+  - o `platform-cessao-beat` caiu uma vez às 23:05:48, porque falhou o
+    download da ferramenta que carrega a configuração, sem relação com a
     mudança, e voltou sozinho às 23:06:09;
   - nenhum erro do código novo até 23:25 UTC.
 - **A preencher em 21/10:** os primeiros "Fechamento de lote fake concluído"
