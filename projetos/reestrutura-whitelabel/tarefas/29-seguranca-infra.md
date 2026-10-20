@@ -3,9 +3,12 @@
 - **TS:** TS-5411 · **Branches:** `fix/TS-5411-seguranca-bff` (BFF) e `fix/TS-5411-seguranca-front`
   (front), as duas da `master` (`--no-track`), worktrees `apl-credit-whitelabel-api-wt/5411` e
   `apl-credit-whitelabel-wt/5411`
-- **Status:** leva do deploy **implementada e testada, sem commit** (20/10), esperando a revisão do Pietro.
-  Três branches: `fix/TS-5411-seguranca-bff` (da `master`), `fix/TS-5411-seguranca-front` (da `master`) e
-  `fix/TS-5411-seguranca-front-epico` (da ponta da 27, só o que existe no épico)
+- **Status:** leva do deploy **commitada e publicada** (20/10):
+  - `fix/TS-5411-seguranca-bff`: 11 commits, ponta `50167bf`; cada commit testado sozinho (589 testes no fim, só as 8 falhas da `master`);
+  - `fix/TS-5411-seguranca-front` (da `master`): 2 commits, ponta `034fda89`;
+  - `fix/TS-5411-seguranca-front-epico` (da 27): 6 commits, ponta `652a0ede`; cada um compila sozinho, 3.315 testes, lint igual à base.
+  Em andamento: o escopo do parceiro como padrão no BFF (D99), o filtro das whitelists no TSE
+  (`fix/TS-5411-whitelists-por-parceiro`, opção 2) e o levantamento da cessão.
 - **Origem:** revisão de segurança de 20/10, antes do deploy (5 revisores, só leitura). O relatório
   com os achados fica na pasta privada (`agentes/seguranca/consolidado.md`), porque descreve falhas
   abertas. Aqui só o plano e o andamento.
