@@ -65,6 +65,23 @@
     serviço do data lake, que só existe numa PR aberta desse serviço; ela sobe antes do BFF, como a do orquestrador.
 - **21/10, testes sem falha:** as 8 falhas antigas do BFF (testes da conciliação desatualizados desde 21/09) foram
   corrigidas. Front com 4.298 testes e BFF com 1.787, nenhum falhando. O TSE está sendo conferido no ambiente completo.
+- **21/10, conferência no Datadog (produção, ~1 h depois da subida):**
+  - BFF: logs em JSON com `evt.name` e `http.request_id`. 413 requisições: 373 ok, 19 × 401 (sessão vencida, esperado
+    com o login de novo), 18 × 499 (chamada cancelada pelo navegador) e 3 × 504;
+  - os 504 são timeouts do orquestrador na Visão do produto (19:37). As 4 rotas de `product-analytics` levam de 6 s a
+    23 s na mediana e chegam a 60 s. O resto do portal fica abaixo de 5 s, com o controle de acesso de 1 s a 5 s;
+  - migração das permissões (20:22): 23 ok, 9 já existentes e 2 falhas ("Permission being assigned was not found on
+    application"). As duas atribuições eram de roles criadas no mesmo lote, antes de o Azure propagar. Refeitas às
+    20:25 e 20:26, com sucesso;
+  - RUM: 12 sessões nas três marcas, `env:production`, versão nova, nenhum erro (nenhum `[Report Only]`); ações com o
+    nome mascarado ("texto da tela omitido");
+  - front: os erros do nginx são só avisos de subida e desligamento, gravados como erro. A mensagem do log de acesso
+    do nginx segue em PT-BR ("Requisição HTTP concluída", `nginx.conf:62`), fora do commit dos logs em inglês;
+  - TSE, orquestrador e data lake: na versão nova, sem padrão de erro novo. O que aparece como erro são o progresso
+    do download do Guardian e linhas INFO gravadas na saída de erro, como antes do deploy;
+  - **nenhum monitor do portal no Datadog** (busca por nome e serviço): os da seção 4 do roteiro não foram criados;
+  - fora do deploy: o event bus do TSE reinicia a cada 2 a 3 minutos desde antes da subida, e o TSE grava variáveis
+    de ambiente no log (`[DEBUG] NOME=valor`). Os valores não foram abertos.
 
 ## O que é
 
