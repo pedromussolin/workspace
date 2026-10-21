@@ -31,6 +31,23 @@
 - **21/10, primeira subida na sandbox:** o BFF novo morria por falta de memória (usa ~128 MiB, o limite era 128 MiB,
   igual em produção); recursos do BFF passam a 256/512 MiB e 100m/500m de CPU (sandbox agora, produção no deploy da noite).
   O Guardian do front funciona no pod, mas entrega os valores entre aspas: correção no `entrypoint.sh` (`e426aca9`, PR #231)
+- **21/10, rodada de correções na release (front):** 5 pacotes por agentes ([brief](../anexos/agentes/brief-release-21-10.md)):
+  - sai "Hoje na sua operação" da home;
+  - o contador de produtos vai para fora da tabela e volta a contar a busca;
+  - o carregando do Consolidado de Caixa segue o padrão das tabelas;
+  - a Conciliação de Estoques deixa de chamar uma rota que não existe no BFF e mostra um aviso no lugar;
+  - zero avisos no build;
+  - as tabelas do Envio de Relatórios encostam no cartão, como no Pré-Trade e nos Lotes.
+
+  Estado: aplicadas na release, sem commit, com a validação completa rodando.
+
+  Ficaram para decidir:
+  - a tabela de agendamentos não cabe a 1440 px com o menu aberto (faltam 195 px);
+  - as colunas da visão "Por parceiro" não se alinham entre os grupos.
+- **21/10 (TS-5193):** a área do Orquestrador refeita pelo dev (aba Visão do produto e Execuções por produto) é portada para
+  a base nova e entra no deploy da noite ([brief](../anexos/agentes/brief-5193.md)). As PRs dele não são mergeadas.
+  - O BFF chama rotas novas do serviço de orquestração, que só existem numa PR aberta desse serviço.
+  - Essa PR precisa subir na sandbox e em produção antes do BFF.
 
 ## O que é
 
