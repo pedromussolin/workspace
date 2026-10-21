@@ -14,6 +14,13 @@
 - **21/10 (D105):** padrão do Parameter Store e `scripts/parameter-store/` (manifesto, doc e `ps.sh`) no front e no BFF,
   testados com uma AWS falsa (nenhum valor nos argumentos de processo). Na sandbox do BFF: 57 nomes no formato antigo, 1
   duplicado (`CFG_USER_SERVICE_TOKEN`), um segredo gravado sem criptografia, e faltam o certificado e a chave
+- **21/10, commits (locais, sem push):**
+  - front `release/20261021`: `dac4aa3b` (merge da master), `2c977cc0` (Guardian), `bfb6ca6d` (manifesto e `ps.sh`);
+    `release/20261021-sdbx` = `8d399b99`, merge da `sandbox` sem mudar arquivo (a `sandbox` tem o conteúdo da master);
+  - BFF `release/20261021`: `01650ad` (merge da master), `058b2f1` (sai o provedor de login antigo, D106), `ba4e142`
+    (manifesto e `ps.sh`); `release/20261021-sdbx` = `a6dc857`, com a TS-5228 da sandbox (`instance` só com o caminho)
+    e sem a role de bypass da TS-5270;
+  - TSE `fix/TS-5411-whitelists-consultas-sdbx` = `44a01da`.
 
 ## O que é
 
