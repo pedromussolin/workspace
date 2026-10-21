@@ -26,6 +26,8 @@
 - **21/10, sandbox:** Parameter Store do BFF e do front prontos (`check: ok`; 49 nomes migrados, o duplicado resolvido, 2 sem
   uso apagados; o secret e o provedor de login antigo ficam até o fim do ciclo). PRs para a `sandbox` abertas: TSE #304,
   BFF #218, front #230. Falta o Pietro mergear, trocar as tags no argocd e validar (6.3)
+- **21/10:** mensagens de log do BFF e do front em inglês (`052e27d` no BFF, `84cbac52` no front), como os outros serviços;
+  as mensagens ao usuário seguem em PT-BR. Levadas às `-sdbx` e às PRs
 
 ## O que é
 
