@@ -11,6 +11,9 @@
   imagem igual à de produção com um Guardian falso (lista fechada, valor recusado, nada no log, e os três casos sem Guardian
   caindo na configuração do deploy). A `-sdbx` do TSE (`fix/TS-5411-whitelists-consultas-sdbx`) está montada: conflito só de
   acréscimo em `/v1/products`, e as mesmas falhas da `sandbox` pura
+- **21/10 (D105):** padrão do Parameter Store e `scripts/parameter-store/` (manifesto, doc e `ps.sh`) no front e no BFF,
+  testados com uma AWS falsa (nenhum valor nos argumentos de processo). Na sandbox do BFF: 57 nomes no formato antigo, 1
+  duplicado (`CFG_USER_SERVICE_TOKEN`), o segredo do Zitadel gravado sem criptografia, e faltam o certificado e a chave
 
 ## O que é
 
