@@ -13,6 +13,9 @@ mesmo tempo, cada um na sua worktree. Escreva o relatório em PT-BR.
   pacote toca. Em especial `rules/components.md` (tabelas, estados da lista), `rules/styling.md` e
   `rules/angular.md`: código e comentário novos em inglês; texto de tela e descrição de teste em
   português.
+- **No BFF** (`apl-credit-whitelabel-api`), nome de teste, docstring e comentário de teste também são em
+  inglês, porque são código ([tarefa 30](../../tarefas/30-testes-do-bff-em-ingles.md)). Só as mensagens que o
+  teste confere ficam no idioma em que o código as produz.
 - As telas de referência são o Pré-Trade e os Lotes de Liquidação (`.ai/context/reference-screens.md`).
 - **Só edite as pastas e arquivos da sua lista.** Se precisar mudar algo fora dela, não mexa:
   descreva no relatório, com o texto pronto.
