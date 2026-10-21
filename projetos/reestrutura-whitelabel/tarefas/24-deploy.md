@@ -3,6 +3,10 @@
 - **TS:** TS-5394 · **Branch:** `release/AAAAMMDD` (front e BFF)
 - **Status:** **release `release/20261021` em montagem** (20/10, noite), local, sem push: front (épico + 28 + TS-5411) e BFF (27 + TS-5395 + TS-5411). Plano do Pietro: sandbox na manhã de 21/10 e produção na noite de 21/10. O TSE vai à parte (`fix/TS-5411-whitelists-consultas`, sobe antes do BFF). Roteiro na pasta privada (`deploy/roteiro-de-deploy.md`)
 - **Depende de:** todas as outras (01 a 23, menos a 16)
+- **21/10, manhã:** as `master` tinham andado (TS-5377: pagamentos pelo `lote_id` e modal de CNABs). Merge da
+  `master` nas duas releases, com a TS-5377 do front levada a `features/liquidation-batches` e o modal refeito com os
+  componentes próprios. Front: `validate.sh` ok (3.498 testes) e smoke ok. BFF: 1.480 testes, as mesmas 8 falhas.
+  Commit depois da revisão do Pietro; em seguida, as `-sdbx`
 
 ## O que é
 
