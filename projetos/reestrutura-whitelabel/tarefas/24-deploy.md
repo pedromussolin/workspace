@@ -54,6 +54,10 @@
   - O BFF do dev exige 4 variáveis novas para a consulta à registradora. No porte, elas ficam opcionais.
   - O pré-aquecimento do cache roda em cada réplica; o porte o trava a uma réplica por dia.
   - Entra no deploy da noite (D107). As variáveis da registradora vão para o Parameter Store da sandbox e de produção.
+  - Feito: front e BFF portados, validados e nas PRs para a sandbox (front #232, BFF #219). O BFF chama uma rota nova do
+    serviço do data lake, que só existe numa PR aberta desse serviço; ela sobe antes do BFF, como a do orquestrador.
+- **21/10, testes sem falha:** as 8 falhas antigas do BFF (testes da conciliação desatualizados desde 21/09) foram
+  corrigidas. Front com 4.298 testes e BFF com 1.787, nenhum falhando. O TSE está sendo conferido no ambiente completo.
 
 ## O que é
 
