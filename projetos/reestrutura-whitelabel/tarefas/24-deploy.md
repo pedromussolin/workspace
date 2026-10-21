@@ -23,6 +23,9 @@
   - TSE `fix/TS-5411-whitelists-consultas-sdbx` = `44a01da`.
   - `fix(TS-5394)` no `ps.sh` das duas releases (`07dda33` no BFF, `52e84c2c` no front), levado às `-sdbx`: a AWS CLI
     não lê `--cli-input-json` de pipe; o valor vai num arquivo 600 em `/dev/shm`, só durante a chamada.
+- **21/10, sandbox:** Parameter Store do BFF e do front prontos (`check: ok`; 49 nomes migrados, o duplicado resolvido, 2 sem
+  uso apagados; o secret e o provedor de login antigo ficam até o fim do ciclo). PRs para a `sandbox` abertas: TSE #304,
+  BFF #218, front #230. Falta o Pietro mergear, trocar as tags no argocd e validar (6.3)
 
 ## O que é
 
