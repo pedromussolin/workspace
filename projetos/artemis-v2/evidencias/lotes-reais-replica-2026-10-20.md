@@ -141,3 +141,24 @@ TS-5383 em produção na noite de 20/10. Nas últimas 3 h: `GET
 `9cc782411e60f129`): 31 execuções, nenhuma cancelada, máximo 2,5 s. **[C]**
 Amostra pequena, fora do horário de uso; a medição que vale é a de dois dias
 úteis (passo 5 da validação da tarefa 12).
+
+## Hotfix do detalhe do lote real (TS-5377, noite de 20/10)
+
+Com a TS-5383 a listagem do fundo 209 voltou a abrir e o detalhe do lote
+1837116 (uma remessa por pagamento, 1.744 `proc_id`) quebrou: um botão de
+CNAB por `proc_id` e a tabela de pagamentos com 414 (a lista ia na URL).
+
+- A tela passou a buscar pagamentos, rejeitados e a exportação só pelo
+  `lote_id`; a cessão descobre as remessas do lote. **[C]**
+- Os mesmos 1.744 `proc_id` num `IN`, dentro da cessão, levavam o Postgres a
+  estimar ~13 mil processos por `proc_id` e varrer `liquidacao_processo`,
+  `liquidacao_pagamento` e `contrato_parcela` (mais de 60 s). Até 100
+  `proc_id` o plano seguia por índice; acima de 20 a cessão resolve os
+  processos uma remessa por vez (`LATERAL`) e filtra pelo `uuid`. **[C]**
+- Réplica, SQL gerado pelo código: lote 1837116 até 34 ms (antes, mais de
+  60 s); lote 1837120 (remessa de arquivo, 43 mil pagamentos) até 0,42 s
+  quente; lote multifundo 1836143 em milissegundos. **[C]**
+- CNABs: acima de 3, um botão abre um modal com busca e "ver mais".
+- Branches `fix/TS-5377-pagamentos-pelo-lote` (e `-sdbx`) na cessão, no BFF e
+  no front, com PRs para a `release/20261020`, a `sandbox` e, depois do merge
+  na release, para a `master`.
