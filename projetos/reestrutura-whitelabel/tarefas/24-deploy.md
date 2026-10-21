@@ -28,6 +28,9 @@
   BFF #218, front #230. Falta o Pietro mergear, trocar as tags no argocd e validar (6.3)
 - **21/10:** mensagens de log do BFF e do front em inglês (`052e27d` no BFF, `84cbac52` no front), como os outros serviços;
   as mensagens ao usuário seguem em PT-BR. Levadas às `-sdbx` e às PRs
+- **21/10, primeira subida na sandbox:** o BFF novo morria por falta de memória (usa ~128 MiB, o limite era 128 MiB,
+  igual em produção); recursos do BFF passam a 256/512 MiB e 100m/500m de CPU (sandbox agora, produção no deploy da noite).
+  O Guardian do front funciona no pod, mas entrega os valores entre aspas: correção no `entrypoint.sh` (`e426aca9`, PR #231)
 
 ## O que é
 
