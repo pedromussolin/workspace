@@ -7,6 +7,10 @@
   `master` nas duas releases, com a TS-5377 do front levada a `features/liquidation-batches` e o modal refeito com os
   componentes próprios. Front: `validate.sh` ok (3.498 testes) e smoke ok. BFF: 1.480 testes, as mesmas 8 falhas.
   Commit depois da revisão do Pietro; em seguida, as `-sdbx`
+- **21/10 (D104):** a configuração do front passa a vir do Parameter Store pelo Guardian (`entrypoint.sh`), testada numa
+  imagem igual à de produção com um Guardian falso (lista fechada, valor recusado, nada no log, e os três casos sem Guardian
+  caindo na configuração do deploy). A `-sdbx` do TSE (`fix/TS-5411-whitelists-consultas-sdbx`) está montada: conflito só de
+  acréscimo em `/v1/products`, e as mesmas falhas da `sandbox` pura
 
 ## O que é
 
