@@ -21,6 +21,8 @@
     (manifesto e `ps.sh`); `release/20261021-sdbx` = `a6dc857`, com a TS-5228 da sandbox (`instance` só com o caminho)
     e sem a role de bypass da TS-5270;
   - TSE `fix/TS-5411-whitelists-consultas-sdbx` = `44a01da`.
+  - `fix(TS-5394)` no `ps.sh` das duas releases (`07dda33` no BFF, `52e84c2c` no front), levado às `-sdbx`: a AWS CLI
+    não lê `--cli-input-json` de pipe; o valor vai num arquivo 600 em `/dev/shm`, só durante a chamada.
 
 ## O que é
 
