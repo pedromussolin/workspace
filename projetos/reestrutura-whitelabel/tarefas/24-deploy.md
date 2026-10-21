@@ -48,6 +48,11 @@
   a base nova e entra no deploy da noite ([brief](../anexos/agentes/brief-5193.md)). As PRs dele não são mergeadas.
   - O BFF chama rotas novas do serviço de orquestração, que só existem numa PR aberta desse serviço.
   - Essa PR precisa subir na sandbox e em produção antes do BFF.
+- **21/10 (TS-5129):** a aba de ativos pendentes da Conciliação de registros, feita por outro dev na estrutura antiga
+  (front e BFF), é portada para a base nova ([brief](../anexos/agentes/brief-5129.md)).
+  - O BFF do dev exige 4 variáveis novas para a consulta à registradora. No porte, elas ficam opcionais.
+  - O pré-aquecimento do cache roda em cada réplica; o porte o trava a uma réplica por dia.
+  - Entrada no deploy da noite: a decidir.
 
 ## O que é
 
