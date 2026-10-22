@@ -2,8 +2,7 @@
 
 > **Status (22/10/2026, ~18:10 UTC):** já executada em produção em 20/10;
 > registrar como retroativa. A evidência de uso real está preenchida (63
-> fechamentos, 21/10 12:18 a 22/10 18:00 UTC, todos ok). Falta: testes
-> (orquestrador), confirmar a prioridade, colar o link do Jira e entender por
+> fechamentos, 21/10 12:18 a 22/10 18:00 UTC, todos ok). Falta entender por
 > que o limite de espera por trava (30 s) não cortou esperas de até 44 s em
 > 21/10 (Evidências, "a confirmar").
 

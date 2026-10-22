@@ -1,8 +1,7 @@
 # GMUD — TS-5377: fechamento de lote fake assíncrono pela tela
 
 > **Status (22/10/2026):** já executada em produção em 19/10/2026; registrar
-> como retroativa. Falta: testes dos três commits (orquestrador), confirmar a
-> prioridade, colar o link do Jira, e os itens "a confirmar" marcados abaixo.
+> como retroativa. Falta: os itens "a confirmar" marcados abaixo.
 > A fase 1 de robustez (subiu em 20/10) tem GMUD própria:
 > [gmud-ts-5377-fase1.md](gmud-ts-5377-fase1.md).
 
