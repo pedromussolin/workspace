@@ -7,7 +7,6 @@
 > **Falta:**
 > - a medição de 23/10, que fecha os dois dias úteis previstos (22 e 23/10);
 >   o que está aqui vai até 22/10 ~18:00 UTC;
-> - os testes (preenchidos pelo orquestrador);
 > - decidir o que fazer com a cauda lenta que a medição mostrou (seção Risco).
 >
 > A fase 1 da TS-5377 foi no mesmo deploy da TS-5383 e tem GMUD própria
@@ -289,9 +288,11 @@ que a listagem e o detalhe respondem 200.
 
 ## Evidências de validação
 
-- **Testes:** <preenchido pelo orquestrador>
-  - commits que a GMUD precisa testados: cessão `2eb8faacd` e `bcf84478d`,
-    BFF `ccb8306`, front `71f34a58`;
+- **Testes** (rodados de novo em 22/10/2026, 17:58–18:06 UTC, nos commits de produção):
+  - cessão `2eb8faacd`: 4.849 testes, 4.808 ok, 41 pulados, zero falhas;
+  - cessão `bcf84478d`: 4.863 testes, 4.822 ok, 41 pulados, zero falhas;
+  - BFF `ccb8306`: 548 testes, as mesmas 8 falhas da conciliação que já falhavam antes do merge (corrigidas na release de 21/10), nenhuma nova;
+  - front `71f34a58`: a suíte da estrutura antiga não compila (6 specs com erro de TypeScript, já assim antes do merge); sem esses 6 specs, 260 testes e nenhuma falha nova (56 já falhavam antes);
   - testes novos nos commits (contados nos diffs): TS-5383, 5 (SQL com sessão
     falsa); hotfix, 15 na cessão, 3 no BFF e ao menos 14 no front.
 

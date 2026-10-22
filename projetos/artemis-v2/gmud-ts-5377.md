@@ -225,8 +225,10 @@ descartável do código atual:
 
 ## Evidências de validação
 
-- **Testes:** <preenchido pelo orquestrador>
-  - Commits da GMUD: cessão `f19ef2cef`, BFF `fe2bee2`, Portal `d23eaef6`.
+- **Testes** (rodados de novo em 22/10/2026, 17:58–18:06 UTC, nos commits de produção):
+  - cessão `f19ef2cef`: 4.823 testes, 4.782 ok, 41 pulados, zero falhas;
+  - BFF `fe2bee2`: 544 testes, as mesmas 8 falhas da conciliação que já falhavam antes do merge (corrigidas na release de 21/10), nenhuma nova;
+  - Portal `d23eaef6`: a suíte da estrutura antiga não compila (6 specs com erro de TypeScript, já assim antes do merge); sem esses 6 specs, 247 testes e nenhuma falha nova (79 já falhavam antes).
 - **Produção (Datadog, `env:production`, UTC):**
   - versões por `version`/`@version`: Portal `prod-d23eaef` desde 19/10
     21:37:17 (três marcas); BFF `prod-fe2bee2` desde 21:38:30; cessão

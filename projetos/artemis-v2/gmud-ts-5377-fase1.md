@@ -173,8 +173,9 @@ Testado em 22/10 numa cópia descartável do código atual:
 
 ## Evidências de validação
 
-- **Testes:** <preenchido pelo orquestrador>
-  - Commits da GMUD: cessão `2eb8faacd`, BFF `a1d5abd`.
+- **Testes** (rodados de novo em 22/10/2026, 17:58–18:06 UTC, nos commits de produção):
+  - cessão `2eb8faacd`: 4.849 testes, 4.808 ok, 41 pulados, zero falhas;
+  - BFF `a1d5abd`: 545 testes, as mesmas 8 falhas da conciliação que já falhavam antes do merge (corrigidas na release de 21/10), nenhuma nova.
   - Números de 20/10, antes da subida (suíte completa da cessão: 4.803 testes,
     zero falhas, nos commits `d80f0f21c` e `2ab73da63`; BFF: 114 testes do
     módulo, commit `4e1cb09`), ficam como histórico.
