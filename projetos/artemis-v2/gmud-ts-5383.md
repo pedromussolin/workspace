@@ -8,7 +8,6 @@
 > - a medição de 23/10, que fecha os dois dias úteis previstos (22 e 23/10);
 >   o que está aqui vai até 22/10 ~18:00 UTC;
 > - os testes (preenchidos pelo orquestrador);
-> - prioridade e links do Jira;
 > - decidir o que fazer com a cauda lenta que a medição mostrou (seção Risco).
 >
 > A fase 1 da TS-5377 foi no mesmo deploy da TS-5383 e tem GMUD própria
@@ -114,7 +113,7 @@ e pagamentos/rejeitados do lote buscados pelo `lote_id`
 
 ## Prioridade
 
-Medium (a confirmar com o usuário). A tela de lotes reais falhava em 1 de
+Medium. A tela de lotes reais falhava em 1 de
 cada 5 cargas, mas sem perda de dado e com contorno (recarregar).
 
 ## Link Tarefa
@@ -233,8 +232,8 @@ o caminho é `git revert` do merge e um deploy novo, por repo.
 **O que subiu depois e entra no caminho**
 - **Cessão:** `prod-fb6f409` (21/10 20:11 UTC, PR #2677, "onda 6", de outro dev),
   mais a variável `CELERY_MAX_MEMORY_PER_CHILD` nos values, e o mesmo tag no
-  segundo ambiente de produção do argocd da cessão (a confirmar, ver
-  Evidências). Voltar a imagem para `prod-bcf8447` desfaz o PR #2677
+  segundo ambiente de produção do argocd da cessão, que entra nesta
+  GMUD (ver Evidências): o deploy do revert troca a tag lá também. Voltar a imagem para `prod-bcf8447` desfaz o PR #2677
   (`emissores/registro.py`, `parsers/padrao/parsers.py`, `utils/monitor.py` e
   o `entrypoint.sh`), e a variável ficaria sem efeito. Voltar para
   `prod-f19ef2c` desfaz também a fase 1, a TS-5383 e o hotfix.
@@ -401,12 +400,12 @@ Banco (`service:postgres`, instância da cessão), por `resource_hash`:
   na sandbox. Nos dois casos a validação anterior ao deploy foi local e na
   réplica.
 
-**Segundo ambiente de produção (a confirmar)**
+**Segundo ambiente de produção**
 - O argocd da cessão tem um segundo ambiente de produção (pasta de outra
   operação). Ele estava em `prod-f19ef2c` e foi para `prod-fb6f409` em 21/10
   20:14 UTC (commit `a87c914`, outro dev), ou seja, recebeu a TS-5383, a fase 1
-  e o hotfix só então e sem esta GMUD. **A confirmar:** se o time dele cobre
-  o registro, e se o rollback também precisa mudar a tag lá.
+  e o hotfix só então. Esta GMUD cobre também esse ambiente, e o rollback
+  troca a tag lá junto com o `asgard-production`.
 
 **Para repetir a medição** (Datadog, `aggregate_spans`)
 - Rota: `env:production service:platform-cessao operation_name:flask.request

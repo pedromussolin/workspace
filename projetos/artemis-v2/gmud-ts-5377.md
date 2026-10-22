@@ -65,7 +65,7 @@ a ser assíncrono, em fila dedicada
 
 ## Prioridade
 
-Medium (proposta; a confirmar com o usuário)
+Medium
 
 ## Link Tarefa
 
