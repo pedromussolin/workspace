@@ -18,7 +18,7 @@ está em `docs/research/2026-10-23-dev-agent-kit-review.md`.
 
 | # | Conceito | Uma frase |
 |---|---|---|
-| 1 | Janela de contexto | Tudo que o modelo "vê" num turno; é um orçamento, não um depósito. |
+| 1 | Janela de contexto | Tudo que o modelo lê num turno. Tem limite, e cada coisa que entra custa dinheiro, tempo e piora a atenção do modelo; por isso se escolhe o que entra. |
 | 2 | Skill | Um procedimento empacotado que só ocupa contexto quando é usado. |
 | 3 | Gate | Uma checagem que bloqueia a ação quando a regra não é cumprida, rodando fora do modelo. |
 | 4 | MCP × script | Dois jeitos de o agente falar com sistemas externos, com custos diferentes. |
