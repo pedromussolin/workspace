@@ -243,6 +243,9 @@ do portal no celular, que sai. O diagnóstico abaixo, dos ícones do navegador, 
 
 ## Divisão em PRs (proposta)
 
+TS de cada PR (criadas em 23/10, épico TS-5357, sprint ativa): PR 1 = TS-5424, PR 2 = TS-5425,
+PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = TS-5427.
+
 | PR | O que entra | Repos | Depende de |
 |---|---|---|---|
 | 1 | A1, A2, A3, A9, A12, A13, A15 (texto do front), pendentes de 21/10, A11 (lado do front) | front | — |
