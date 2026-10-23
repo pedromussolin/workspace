@@ -249,7 +249,7 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
 | PR | O que entra | Repos | Depende de |
 |---|---|---|---|
 | 1 | A1, A2, A3, A9, A12, A13, A15 (texto do front), pendentes de 21/10, A11 (lado do front) | front | — |
-| 2 | A4, A5, A6, A7 | front + BFF | lista dos grupos de instituição (infraestrutura) |
+| 2 | A4, A5, A6, A7 | front + BFF | — (D121 respondeu a infraestrutura) |
 | 3 | A8 (ver como) | front + BFF | 2 |
 | 4 | A14 e o texto de A15 que vem do shared | shared + front | — |
 | 5 | A10 (funil novo) | front | protótipo aprovado |
@@ -258,9 +258,9 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
 ## Decisões
 
 D108 a D118 (23/10), no `decisoes.md`. Em aberto:
-- **A4:** de onde vem a organização e o cliente. Com a D118 (`User.ReadWrite.All`), voltar a gravar
-  atributo no usuário é possível, mas o token continua vindo do grupo de instituição (D91); a
-  recomendação segue sendo ler e mudar pelo grupo. Falta o valor de claim de cada grupo da D112.
+- **A4:** respondida pela infraestrutura (D121): um grupo de instituição por pessoa, cada um com
+  `org_type` e `internal_client_id`; a Visaggio usa `plgn`. Segue a recomendação de ler e mudar a
+  organização pelo grupo. Os IDs de cliente estão no `privado.md`.
 - **A11:** o print do Edu Romano (22/10, 17:53) mostra a página curta e ~830 px vazios abaixo do
   fim do `app-shell`, com o menu lateral rolando junto. Não reproduziu localmente (build da master,
   dados fictícios, respostas atrasadas, vindo do Orquestrador rolado). Falta medir em produção.
