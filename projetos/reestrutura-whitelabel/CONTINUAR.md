@@ -2,15 +2,14 @@
 
 **Release 20261026 (aberta em 23/10, para o deploy de 26/10):** as PRs 1, 5, 2, 4 e 3 foram commitadas
 nas branches de cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `-sdbx`
-(release + `sandbox`). Worktrees em `~/repos/.reestrutura_whitelabel/release-20261026/`. PRs abertas,
-ainda não mergeadas (as de `release/20261023`, #71/#72, #222/#223 e #235/#236, foram fechadas e
+(release + `sandbox`). Worktrees em `~/repos/.reestrutura_whitelabel/release-20261026/`. PRs para a `master` abertas; as da `sandbox` #74, #225 e #238 mergeadas em 23/10, e #226 e #239 abertas com a D124 (as de `release/20261023`, #71/#72, #222/#223 e #235/#236, foram fechadas e
 substituídas):
 
 | Repo | Para a `master` | Para a `sandbox` | Validação da release |
 |---|---|---|---|
-| apl-shared-service | #73 | #74 | 609 testes |
-| BFF | #224 | #225 | 1968 testes (1970 na `-sdbx`) |
-| front | #237 | #238 | `validate.sh` ok, 4758 testes, smoke ok |
+| apl-shared-service | #73 | #74 (mergeada) | 609 testes |
+| BFF | #224 | #225 (mergeada) e #226 (D124) | 2068 testes (2070 na `-sdbx`) |
+| front | #237 | #238 (mergeada) e #239 (D124) | `validate.sh` ok, 4802 testes, smoke ok |
 
 Ordem do deploy: shared, BFF e front. Antes do BFF: `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no
 Parameter Store e a app role `access-control:impersonate`. Nova tarefa aberta: [34](tarefas/34-renovacao-tokens-azure.md)
