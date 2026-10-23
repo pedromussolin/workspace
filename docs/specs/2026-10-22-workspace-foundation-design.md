@@ -1,7 +1,9 @@
 # Workspace foundation — design
 
 - **Date:** 2026-10-22
-- **Status:** draft, waiting for review
+- **Status:** v2 (2026-10-23), waiting for review. v2 adds the lessons
+  from `docs/research/2026-10-23-agent-workspace-concepts.md` and
+  `docs/research/2026-10-23-dev-agent-kit-review.md`.
 - **Scope:** subproject 1 of 3 (repo, migration, guardrails, CLI skeleton)
 
 ## Goal
@@ -36,6 +38,11 @@ Subprojects 2 and 3 are designed after the Atlassian MCP is explored live
 | Tuning approved | Secrets hook; unified rules and private files; `ws mask`; versioned skills; generic tools; project template. |
 | Board scope | Automations touch only issues assigned to the user. Never other developers' issues, never unassigned ones. Enforced in code (subproject 3). |
 | GMUD target | The company Jira Service Management portal. The site URL lives only in local config. A personal API token is allowed for the fallback. |
+| Enforcement (v2) | Hard rules are hooks or deny rules, never prose only. Every gate script fails closed: an internal error blocks. |
+| Context budget (v2) | Root `CLAUDE.md` under 200 lines, project `CLAUDE.md` short, MEMORY.md an index; procedures live in skills. |
+| Write skills (v2) | Skills that write outside the repo (Jira, GMUD) use `disable-model-invocation: true` and follow plan → validate → approval → execute. |
+| Search (v2) | No RAG for now: structure plus grep. `ws search` (SQLite FTS5) only after measured misses; vectors last. |
+| Reuse (v2) | From dev-agent-kit, only the ideas listed in "Reuse from dev-agent-kit"; its code is not copied. |
 
 ## Language rule
 
@@ -48,6 +55,21 @@ Subprojects 2 and 3 are designed after the Atlassian MCP is explored live
 
 Chat follows the language the user writes in. The root `CLAUDE.md` states
 this rule.
+
+## Context budget (v2)
+
+Every always-loaded byte is paid on every turn. The workspace keeps the
+always-loaded part small and pushes detail to on-demand loading:
+
+| Always loaded | Budget | On demand |
+|---|---|---|
+| root `CLAUDE.md` | under 200 lines (target about 80) | project `CLAUDE.md`, read when working in that project |
+| skill name + description | one or two sentences each: what it does and when to use it | `SKILL.md` body (under 500 lines), then its `references/` (one level deep) |
+| `MEMORY.md` | one line per memory, an index | the memory files |
+| MCP tool names | deferred schemas (Claude Code default) | schemas, loaded when a tool is used |
+
+Scripts bundled with a skill are executed, not read, so deterministic work
+costs only its output.
 
 ## Repository layout
 
@@ -67,8 +89,17 @@ workspace/
 │   ├── artemis-v2/              ← artemis-workspace, with history
 │   └── reestrutura-whitelabel/  ← whitelabel-workspace, with history
 ├── docs/specs/              one design per subproject
-└── .githooks/pre-commit     runs `ws check-secrets --staged`
+├── docs/research/           research notes and reviews that feed the specs
+├── hooks/                   Claude Code hook scripts, registered in ~/.claude/settings.json
+└── .githooks/pre-commit     git hook: runs `ws check-secrets --staged`
 ```
+
+Two kinds of hook, both gates:
+- **Git hooks** (`.githooks/`) run on `git commit` from anywhere: the
+  terminal, the editor, Claude.
+- **Claude Code hooks** (`hooks/`) run before or after Claude's tool
+  calls. They also cover rules git cannot see, such as which files Claude
+  may read.
 
 ## Private files (outside the repo)
 
@@ -114,6 +145,21 @@ project's `CLAUDE.md`. It becomes automatic:
 - `ws check-secrets --all` scans the whole tree (used once in the
   migration).
 - The AI never uses `git commit --no-verify`.
+- **Fail closed (v2):** an exception inside the check blocks the commit.
+  Git blocks on any non-zero exit. Claude Code blocks only on exit 2, so
+  its hook scripts catch every error and exit 2.
+
+## Guardrail: Claude Code hooks and deny rules (v2)
+
+User-level, in `~/.claude/settings.json`, so they hold in every repo:
+
+| Gate | Kind | Status |
+|---|---|---|
+| Block `git commit` commands carrying a Co-Authored-By trailer | `PreToolUse` hook on `Bash`, `hooks/block_co_authored_by.py` | done on 2026-10-23, tested live |
+| Deny Claude's `Read` of `~/.config/workspace/credentials` | permission deny rule | this subproject |
+
+`ws setup` checks that both are registered and prints the JSON to add when
+they are missing; it never edits `~/.claude/settings.json` itself.
 
 ## The `ws` CLI (subproject 1 scope)
 
@@ -125,7 +171,7 @@ project's `CLAUDE.md`. It becomes automatic:
 
 | Command | What it does | Origin |
 |---|---|---|
-| `ws setup` | Idempotent. Sets the hooks path, symlinks `skills/*` into `~/.claude/skills/`, checks the files and permissions in `~/.config/workspace/`, and prints what is missing. | new |
+| `ws setup` | Idempotent. Sets the hooks path, symlinks `skills/*` into `~/.claude/skills/`, checks the files and permissions in `~/.config/workspace/`, checks the Claude Code gates above, and prints what is missing. | new |
 | `ws check-secrets [--staged \| --all \| PATH…]` | The guardrail above. | today's two greps |
 | `ws mask [--in-place \| --check] [FILE \| -]` | Replaces real names with analogs from `names.toml`. `--check` exits 1 if a real name remains (same engine as `check-secrets`). | new |
 | `ws project new <slug>` | Copies `templates/project/` into `projetos/<slug>/`. | new |
@@ -138,6 +184,60 @@ Project-specific scripts (`validar-leva.sh`, `smoke*.mjs`,
 are, in `projetos/reestrutura-whitelabel/anexos/scripts/`, with their
 current names. `ng-slot.sh` keeps working at its old path until the
 whitelabel briefs switch to `ws slot`.
+
+## Skill conventions (v2)
+
+Every skill in `skills/` follows these rules:
+- **Description:** what it does plus when to use it, in the third person.
+  It is the only part always loaded, and it alone decides when the skill
+  triggers.
+- **Size:** `SKILL.md` under 500 lines. Detail goes to `references/`,
+  linked one level deep.
+- **Scripts:** deterministic steps are `ws` commands or bundled scripts,
+  which Claude runs instead of reading.
+- **Writes outside the repo** (Jira, GMUD, GitHub):
+  - `disable-model-invocation: true`, so the skill runs only when the user
+    types `/name`;
+  - the flow is plan → validate (`ws … --dry-run`) → explicit approval →
+    execute.
+- **Evals:** each skill gets about 5 cases: should trigger, should not
+  trigger, an edge case, and "must not write without approval". The tool
+  that runs them (`claude plugin eval` or skill-creator evals) is chosen in
+  subproject 2, with the first skill that writes. `change-request` moves in
+  this subproject without evals; they are added in subproject 2.
+
+## Knowledge base and search (v2)
+
+The project notes are the workspace's memory. For a few hundred Markdown
+files, grep over a good structure beats a vector index: it is exact,
+always fresh, and auditable.
+- **Structure:**
+  - each project `README.md` is the index of its folder (task table,
+    status);
+  - one decision per row in `decisoes.md`;
+  - one task per file.
+- **New documents** created from the template start with a short header:
+  `Status`, `Data` and `Tags`.
+- **Migrated documents** are not rewritten.
+- **`ws search`** (SQLite FTS5, ranked full-text search with snippets) is
+  built only after real queries are seen to miss.
+- **Vectors** (sqlite-vec and a local multilingual embedding model) come
+  only if FTS5 still misses: notes mix PT-BR and English, and
+  paraphrases are where embeddings help.
+
+## Reuse from dev-agent-kit (v2)
+
+The review found little worth carrying over. Ideas, not code:
+
+| Idea | Where it lands |
+|---|---|
+| Structured result with evidence that the executor produced, never the model's word | the file contract of subprojects 2 and 3: the dry-run output is the evidence the approval gate checks |
+| Process hygiene: kill the whole process group on timeout, cap output, redact secrets | `ws slot` and any later `ws` command that runs external processes |
+| Loop and idle detection | later, only if `ws` ever drives an agent loop |
+| CI template: actions pinned by SHA, `permissions: contents: read`, `persist-credentials: false` | a future CI for this repo (out of scope here) |
+
+Not carried over: the 29 role agents, the 31 skills and their copies,
+provider fan-out, the Codex executor and the monitor.
 
 ## Project template and conventions
 
@@ -216,7 +316,9 @@ migration from its README status.
     `names.toml`, allowlist;
   - `project new`;
   - `slot`: two runs with `-n 1` serialize;
-  - `git assemble` and `git merge-rehearsal` on temporary repos.
+  - `git assemble` and `git merge-rehearsal` on temporary repos;
+  - the Claude Code hook scripts: block, pass, and fail closed on bad
+    input.
 - `ruff check` clean.
 - The migration checks in step 7.
 
@@ -225,3 +327,5 @@ migration from its README status.
 - Atlassian client, credentials, `ws cr …` (change request) and
   `ws jira …` commands, the `jira-board` skill.
 - Exploring the Atlassian MCP live, before those specs.
+- `ws search` and any vector index (see "Knowledge base and search").
+- CI for this repo.

@@ -36,6 +36,13 @@ pytest, ruff, git, git-filter-repo, gh.
   overrides it in tests); the hook fails closed without `names.toml`.
 - Old repos and local folders are never deleted.
 - Scratch clones go to `~/.cache/workspace-migration/`, not `/tmp`.
+- Every gate fails closed. The git hook blocks on any non-zero exit, so
+  `check-secrets` turns an internal error into exit 1. Claude Code hook
+  scripts catch everything and exit 2.
+- Root `CLAUDE.md` stays under 200 lines (target about 80); procedures go
+  in skills.
+- `ws` never edits `~/.claude/settings.json`; it reports and prints the
+  JSON to add.
 
 ## Review Focus
 
@@ -237,7 +244,16 @@ exec uv run --quiet --project "$root" ws check-secrets --staged
   - `test_all_mode_skips_binary`;
   - `test_allowlist`: `docs/*.md real-name Brilliant` suppresses only that
     finding;
-  - `test_cli_exit_codes`: 0, 1 and 2 (missing table).
+  - `test_cli_exit_codes`: 0, 1 and 2 (missing table);
+  - `test_internal_error_blocks`: with `scan_text` patched to raise, the
+    CLI exits 1 and prints `check-secrets failed (<error>); blocking`;
+  - `tests/test_claude_hooks.py` for the existing
+    `hooks/block_co_authored_by.py`, fed through stdin:
+    - a `git commit` with the trailer exits 2;
+    - a commit without it exits 0;
+    - a `grep` for the word exits 0;
+    - invalid JSON exits 2;
+    - a non-string command exits 2.
 - [ ] **Step 2:** the tests fail.
 - [ ] **Step 3: Implement** `secrets.py`, the CLI command, the hook and
   `.secrets-allow`: a header comment explaining the format, plus one entry
@@ -269,7 +285,16 @@ exec uv run --quiet --project "$root" ws check-secrets --staged
     this repo` and touch nothing;
   - `config/names.toml` must exist;
   - `config/credentials`, if it exists, must have mode `0o600`;
-  - `config/private/` is created with mode `0o700` if missing.
+  - `config/private/` is created with mode `0o700` if missing;
+  - **Claude Code gates**, read from `claude_settings_path()` (new in
+    `config.py`: env `WS_CLAUDE_SETTINGS`, default
+    `~/.claude/settings.json`). Report a problem when either gate is
+    missing, with the exact JSON to add:
+    - a `PreToolUse` entry whose command contains
+      `hooks/block_co_authored_by.py`;
+    - `Read(~/.config/workspace/credentials)` in `permissions.deny`.
+
+    Never write this file.
 
   CLI prints each problem and exits 1 if there are any; otherwise it prints
   `ok`.
@@ -281,7 +306,10 @@ exec uv run --quiet --project "$root" ws check-secrets --staged
   - `test_conflicting_skill_untouched` (a real folder with the same name
     keeps its content and is reported);
   - `test_reports_missing_names_table`;
-  - `test_reports_loose_credentials_mode` (0o644 is reported).
+  - `test_reports_loose_credentials_mode` (0o644 is reported);
+  - `test_reports_missing_claude_gates` (a settings fixture without hooks
+    and deny rules yields two problems; the file is unchanged afterwards);
+  - `test_accepts_registered_claude_gates`.
 - [ ] **Step 2:** the tests fail.
 - [ ] **Step 3:** implement.
 - [ ] **Step 4:** `uv run pytest` and `uv run ruff check` pass.
@@ -304,7 +332,10 @@ exec uv run --quiet --project "$root" ws check-secrets --staged
   - copies `root/templates/project` into `root/projetos/<slug>`;
   - replaces `{{slug}}` and `{{data}}` (`DD/MM/AAAA`) in the `.md` files.
 
-Template content, in PT-BR, follows the two existing projects:
+Template content, in PT-BR, follows the two existing projects. Every
+template `.md` starts with three header lines: `Status: rascunho`,
+`Data: {{data}}` and `Tags:`. These are the structure the search relies on
+(spec, "Knowledge base and search"). The files:
 - **`README.md`:** "Visão geral", a "Tarefas" table (`#`, `Tarefa`,
   `Status`) and "Situação".
 - **`CLAUDE.md`:** says the common rules are in the root `CLAUDE.md`, plus
@@ -413,8 +444,9 @@ No repo code; everything happens outside the repo, except the final check.
     becomes an entry;
   - entries with `/` become one entry each, or aliases;
   - the user's own name goes in with its analog;
-  - real names that are common Portuguese words get
-    `case_sensitive = true`;
+  - real names that are also common words, in Portuguese or English, get
+    `case_sensitive = true`. The 2026-10-23 scan found two: "ao vivo" and
+    "vector" in lowercase prose;
   - `blocked_domains` = the company domains found in the two `privado.md`
     files and the Jira site.
 - [ ] **Step 2: Move the private notes:**
@@ -424,7 +456,10 @@ No repo code; everything happens outside the repo, except the final check.
     content.
 - [ ] **Step 3: Install `ws`:** `uv tool install --editable ~/repos/workspace`;
   `ws --help` works from `~`.
-- [ ] **Step 4:** `ws setup` prints `ok`.
+- [ ] **Step 4: Add the deny rule** `Read(~/.config/workspace/credentials)`
+  to `permissions.deny` in `~/.claude/settings.json`. The `hooks` key
+  already holds the Co-Authored-By gate; show the diff before writing.
+  Then `ws setup` prints `ok`.
 - [ ] **Step 5: Smoke test the hook:**
   - stage a scratch file that contains one real name from the table;
     `git commit` is blocked;
@@ -476,7 +511,11 @@ No repo code; everything happens outside the repo, except the final check.
   - **Private values:** `~/.config/workspace/private/<slug>.md`;
   - **Sync and commits:** the spec section;
   - **Layout:** a table;
-  - **Python:** uv only.
+  - **Python:** uv only;
+  - **Skill conventions and context budget:** the two spec sections, in
+    short.
+
+  Check: `wc -l CLAUDE.md` is under 200 (target about 80).
 - [ ] **Step 2: Root `README.md` (English):**
   - what the repo is;
   - setup (`uv tool install --editable .`, `ws setup`, the
@@ -525,7 +564,13 @@ No repo code; everything happens outside the repo, except the final check.
     `~/repos/workspace/projetos/artemis-v2/gmud-ts-<id>.md` and the root
     `CLAUDE.md`.
 
-  No real hosts, container names or domains (the hook checks).
+  No real hosts, container names or domains (the hook checks). Follow the
+  skill conventions in the spec:
+  - the description says what plus when, in the third person;
+  - `SKILL.md` under 500 lines, with the Docker test recipe moved to
+    `references/tests.md`;
+  - no `disable-model-invocation` yet, because the skill writes no external
+    system. That changes in subproject 2.
 - [ ] **Step 2:** move `~/.claude/skills/criando-gmud` to
   `~/.claude/skills/.trash/criando-gmud-2026-10-22`.
 - [ ] **Step 3:** `ws setup` prints `ok`, and `~/.claude/skills/change-request`
