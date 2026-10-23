@@ -1,5 +1,21 @@
 # Continuar em outro chat ou no Codex (23/10)
 
+**Revisão do Claude sobre a entrega do Codex (23/10, noite):** todas as PRs validadas por inteiro,
+sem commit.
+
+| PR | Validação | Correções da revisão |
+|---|---|---|
+| 1 | front ok (commits locais) | — |
+| 5 | front ok, 4654 testes | — |
+| 2 | front ok, 4592; BFF 1944 | regra da licença P1 removida (D17 cai): `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED` e o aviso saem |
+| 4 | front ok, 4517; BFF 1796; shared 621 (a falha `modules-viewer-boundaries` já existe na master) | spec com TestBed duplo; rota `POST /report-transfer/flows/{key}/run` só para a interna (escopo de parceiro); um registro "Envios manuais: {fluxo}" por fluxo em vez de um por envio; lista de subfluxos com estilo e "Marcar/Desmarcar todos" |
+| 3 | front ok, 4603; BFF 1962 | rotas no teste de escopo; serviço do "ver como" sem consulta a cada 30 s (uma no início e uma na expiração); testes do controle de acesso com o serviço falso; PR 3 remontada sobre a PR 2 final |
+
+Portal local (4300) servindo todas as PRs juntas: build em
+`~/repos/.reestrutura_whitelabel/agentes/revisao-codex/integra-dist` (junção por `integra.py`),
+dados em `smoke-dados/validacao-integrada.json`.
+
+
 Retomada no Codex concluída na implementação: PR 2, envio por subfluxo (PR 4)
 e "Ver como" (PR 3) preparados localmente. Ajustes finais da PR 5 revisados.
 Ver as seções finais das tarefas 31, 32 e 33 e o relatório local
