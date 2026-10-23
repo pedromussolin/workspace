@@ -284,13 +284,19 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
   - Contrato BFF ↔ front, relatórios dos agentes e mapa do código: `~/repos/.reestrutura_whitelabel/agentes/t5425/`
     (`contrato.md`, `relatorios.md`) e `agentes/t5425-mapa/mapa.md` (locais, com nomes reais).
   - BFF pronto, sem commit, em `~/repos/apl-credit-whitelabel-api-wt/33` (1946 testes passando).
-  - Front em três lugares, sem commit: a base comum (tipos e fixtures) em
-    `~/repos/apl-credit-whitelabel-wt/33`; A6+A7 pronto em `agentes/t5425/front-b`; A4+A5 em
-    `agentes/t5425/front-a` (o agente ainda rodava).
-  - Falta: juntar `front-a` e `front-b` na `wt/33` (merge de 3 vias; arquivos dos dois lados em
-    `relatorios.md`), aplicar o texto da `.ai/` do `relatorios.md`, `validate.sh`, smoke do controle
-    de acesso, revisão do Pietro (inclusive a tabela de páginas), commits, e incluir
-    `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no roteiro de deploy.
+  - Front **junto** em `~/repos/apl-credit-whitelabel-wt/33`, sem commit (os dois agentes, por
+    `agentes/t5425/juntar.py`; 4 conflitos resolvidos à mão; texto da `.ai/context/bff.md` aplicado).
+    A confirmação com a palavra REMOVER não vale para a troca de organização (`batch-plan.ts`), porque
+    o BFF manda os passos como `add` e `remove`.
+  - Pontos para a revisão:
+    - o mock do modo só-front manda os dois passos da troca de organização como `update` e o BFF como
+      `add`/`remove`: alinhar (na prévia, o BFF real os mostra em "Adicionar" e "Remover");
+    - textos fixos do front que espelham o BFF ("Os grupos de instituição não estão configurados no
+      BFF.", "Só quem é da organização interna muda a organização das pessoas.") contra os do BFF;
+    - a tabela de páginas (`relatorios.md`).
+  - Falta: resultado do `validate.sh` (log em `agentes/t5425/validate.log`), smoke do controle de
+    acesso, revisão do Pietro, commits (front e BFF) e incluir `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
+    no roteiro de deploy.
 - **PR 3 e PR 4:** tarefas [33](33-ver-como.md) e [32](32-envio-por-subfluxo.md).
 - Ainda não publicadas nem abertas as PRs.
 
