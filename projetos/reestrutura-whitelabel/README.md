@@ -75,6 +75,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 32 | [Enviar agora escolhendo os subfluxos](tarefas/32-envio-por-subfluxo.md) (PR 4 da 31) | `feature/TS-5416-envio-por-subfluxo` | `master`; front sobre a PR 1 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5416 |
 | 33 | ["Ver como" outra pessoa](tarefas/33-ver-como.md) (PR 3 da 31) | `feature/TS-5426-ver-como` | PR 2 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5426 |
 | 34 | [Renovação dos tokens do Azure derruba a sessão](tarefas/34-renovacao-tokens-azure.md) | a criar | `master` | **aberta** (23/10) | TS-5429 |
+| 35 | [Permissões atômicas, perfis por página e migração dos grupos](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md) | a criar | depois da release 20261026 | **aberta** (23/10): falta o levantamento das telas | TS-5431 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção** (21/10, 19:29): front `prod-f7bb2d8`, BFF `prod-bb877db`; falta a conferência (7.4) e o pós-deploy (8) | TS-5394 |
 
 ## Situação em 16/10
