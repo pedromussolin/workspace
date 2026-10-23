@@ -255,6 +255,18 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
 | 5 | A10 (funil novo) | front | protótipo aprovado |
 | — | Lentidão do `product-analytics/processes` | apl-orchestrator-service | fora do épico |
 
+## Andamento (23/10)
+
+- **PR 1 (TS-5424):** 21 commits na branch local `feature/TS-5424-ajustes-visuais-e-padroes`, aprovados pelo
+  Pietro. Entraram também, a pedido dele na revisão: KPI com tendência compacto (108 px; variação na linha
+  do valor, sparkline à direita), rótulo do ISIN do Pré-Trade sem `@if` vazado e painéis (select,
+  calendário, menu) acompanhando a rolagem de diálogos, tabelas e da lista da POLI (`cdkScrollable`).
+- **PR 5 (TS-5427):** 5 commits na branch local `feature/TS-5427-funil-e-cards-orquestrador`, sobre a PR 1.
+  Em revisão, fora dos commits: Faixas desenhadas em px na largura da área (não escalam com a tela) e
+  valor desembolsado em 18 px.
+- **PR 2 (TS-5425):** começou. Front sobre a PR 1 (ela mexe no controle de acesso), BFF sobre a master.
+- Ainda não publicadas nem abertas as PRs.
+
 ## Decisões
 
 D108 a D118 (23/10), no `decisoes.md`. Em aberto:
