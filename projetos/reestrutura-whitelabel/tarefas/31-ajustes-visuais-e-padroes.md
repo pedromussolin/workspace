@@ -1,8 +1,9 @@
 # 31 — Ajustes visuais e padrões de design (pós-deploy)
 
-- **TS:** TS-5424 · **Branch:** `feature/TS-5424-ajustes-visuais-e-padroes` (a criar, da `master` do front)
-- **Status:** **diagnóstico feito** (23/10): lista do Pietro recebida e lida no código. Faltam as
-  decisões da seção "Decisões pendentes" e a divisão em PRs.
+- **TS:** TS-5424 · **Branch:** `feature/TS-5424-ajustes-visuais-e-padroes` (worktree
+  `~/repos/apl-credit-whitelabel-wt/31`, da `master` `f7bb2d84`)
+- **Status:** **PR 1 em andamento** (23/10): decisões D108 a D118; quatro agentes no front (pacotes A
+  a D, briefs em `anexos/agentes/brief-31.md`); barra do celular e `app-card flush` feitos por mim.
 - **Depende de:** 24 (deploy de 21/10)
 
 ## Por quê
@@ -23,7 +24,8 @@ dizem o repo.
 
 ### Geral
 
-**A1. Favicon antigo no celular.**
+**A1. Favicon antigo no celular.** *Resolvido pela D116: o "favicon" era o símbolo da marca na barra
+do portal no celular, que sai. O diagnóstico abaixo, dos ícones do navegador, fica só registrado.*
 - O servidor já entrega só o ícone novo (`src/favicon.ico`, 32×32, de 19/10). Os antigos por marca
   saíram do build no mesmo commit. O antigo que aparece está guardado no aparelho: atalho na tela
   inicial (copiado na criação, nunca atualiza) ou o cache de favicon do Safari/Chrome.
@@ -250,9 +252,15 @@ dizem o repo.
 | 5 | A10 (funil novo) | front | protótipo aprovado |
 | — | Lentidão do `product-analytics/processes` | apl-orchestrator-service | fora do épico |
 
-## Decisões pendentes
+## Decisões
 
-Ver a conversa de 23/10; viram D-números no `decisoes.md` quando fecharem.
+D108 a D118 (23/10), no `decisoes.md`. Em aberto:
+- **A4:** de onde vem a organização e o cliente. Com a D118 (`User.ReadWrite.All`), voltar a gravar
+  atributo no usuário é possível, mas o token continua vindo do grupo de instituição (D91); a
+  recomendação segue sendo ler e mudar pelo grupo. Falta o valor de claim de cada grupo da D112.
+- **A11:** o print do Edu Romano (22/10, 17:53) mostra a página curta e ~830 px vazios abaixo do
+  fim do `app-shell`, com o menu lateral rolando junto. Não reproduziu localmente (build da master,
+  dados fictícios, respostas atrasadas, vindo do Orquestrador rolado). Falta medir em produção.
 
 ## Parte B: regras e padrões
 
