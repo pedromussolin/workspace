@@ -2,7 +2,7 @@
 
 - **TS:** TS-5416 (já existia como "executar rota unitária").
 - **Repos:** apl-shared-service, apl-credit-whitelabel-api (BFF) e apl-credit-whitelabel (front).
-- **Status (23/10):** não começada. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A14.
+- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A14.
 - **Branches:** `feature/TS-5416-envio-por-subfluxo` nos três. Shared e BFF saem da `master`; o front
   sai da `feature/TS-5424-ajustes-visuais-e-padroes` (a PR 1 mexe no envio de relatórios). Sempre
   `--no-track` ao criar a partir de outra branch, e `git pull`/`fetch` antes.
@@ -50,3 +50,27 @@ Na revisão de 23/10, no diálogo "Enviar agora" de um fluxo com mais de um subf
 - Testes do BFF: venv em `~/repos/.reestrutura_whitelabel/agentes/t5425/bff/venv`,
   `PYTHONPATH=. <venv>/bin/pytest -q tests/`. Shared: ver o README do repo.
 - Validar tudo localmente antes de qualquer ambiente.
+
+## Implementado no Codex (23/10)
+
+- Worktrees: shared `apl-shared-service-wt/32`, BFF `apl-credit-whitelabel-api-wt/32`
+  e front `apl-credit-whitelabel-wt/34`, todas na branch TS-5416 indicada acima.
+- Diálogo com todos os subfluxos marcados, seleção parcial e bloqueio sem seleção;
+  fluxo único conserva o envio sem campo adicional. Botão na aba Fluxos e aviso
+  de agendamento desativado. Front e BFF conferem a ação `run`.
+- Contrato `payload.route_names`: lista de nomes; vazio/ausente executa todos.
+  Nomes desconhecidos são rejeitados antes de transferir. Só as conexões dos
+  subfluxos selecionados são abertas.
+- `POST /flows/{key}/run` no BFF e no shared. O shared cria um registro ONCE
+  inativo para ligar o histórico à execução manual, sem ativar envio automático.
+  Os nomes desses registros são únicos para permitir envios repetidos.
+- Trava por fluxo no Redis, compartilhada por envios manuais e agendados, com
+  renovação durante a execução e liberação por token. Perda da trava cancela
+  cooperativamente a transferência. Pedido manual de fluxo em execução recebe 409.
+- Texto do CSV e dos erros de validação do shared atualizado para subfluxo.
+- Validação: build development, tipos, padrões e lint dos arquivos alterados
+  passaram; 38 testes do executor/trava e 5 testes diretos do BFF passaram.
+- Limites do ambiente: sem navegador/portas para smoke; o ambiente Python
+  disponível não tem todas as dependências do shared, impedindo a suíte completa.
+  O modo só-front já não simulava envios manuais e conserva essa limitação.
+- Sem commits ou publicação; aguarda revisão.

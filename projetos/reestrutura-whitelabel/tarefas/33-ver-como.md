@@ -2,7 +2,7 @@
 
 - **TS:** TS-5426.
 - **Repos:** apl-credit-whitelabel-api (BFF) e apl-credit-whitelabel (front).
-- **Status (23/10):** não começada. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A8.
+- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A8.
 - **Depende da PR 2 (TS-5425):** a organização e o cliente da outra pessoa vêm do grupo de
   instituição (D121, D122). As branches saem das da PR 2 (`feature/TS-5425-organizacao-e-grupos`,
   front e BFF) depois que ela estiver junta e validada: `feature/TS-5426-ver-como`, `--no-track`.
@@ -35,3 +35,22 @@
 As mesmas da [32](32-envio-por-subfluxo.md) (git, commit só depois da revisão do Pietro, Python em
 inglês, logs, `.ai/` do front, validar local antes). Segurança: mexe em sessão, então a revisão é
 mais cuidadosa (spec das rotas, teste de que toda escrita é bloqueada simulando).
+
+## Implementado no Codex (23/10)
+
+- BFF `apl-credit-whitelabel-api-wt/34`; front `apl-credit-whitelabel-wt/35`;
+  branch `feature/TS-5426-ver-como`. As worktrees incluem as alterações ainda
+  não commitadas da PR 2; os commits devem separar essa base da TS-5426.
+- Ação exclusiva `access-control:impersonate`, sem substituição por admin.
+  Botão no detalhe da pessoa, faixa fixa, botão Voltar e recarga ao trocar a visão.
+- Estado de simulação em chave própria da sessão no Redis, duração de 30 minutos,
+  preservado na renovação OAuth e removido no logout. Rejeita a própria pessoa,
+  alvos com a permissão de simular, escopo inválido e encadeamento.
+- Middleware usa o acesso da pessoa simulada e conserva o autor real. Bloqueia
+  POST, PUT, PATCH e DELETE, exceto encerrar a simulação; logout continua liberado.
+  Ações anunciadas ao front ficam restritas à leitura. Logs carregam os dois IDs.
+- Validação: build development, tipos, padrões e lint dos arquivos alterados
+  passaram; 126 testes direcionados do BFF passaram (simulação, sessão, catálogo
+  de permissões e páginas). Specs do front escritos e compilados.
+- Smoke e execução dos specs de navegador pendentes pelo ambiente restrito.
+- Sem commits ou publicação; aguarda revisão.

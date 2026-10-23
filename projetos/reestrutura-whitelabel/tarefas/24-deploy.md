@@ -289,6 +289,10 @@ Sem a transição, a ordem no deploy é:
 - **Perguntas à infraestrutura** (lista completa em [27](27-organizacao-e-cliente.md#perguntas-para-a-infraestrutura)):
   como o `org_type` e o `internal_client_id` são gravados no usuário e como chegam ao token, e se o
   app do BFF pode receber `User.ReadWrite.All`.
-- **Variáveis novas do BFF** (sandbox, staging e produção): `CFG_ACCESS_CONTROL_ORGANIZATION_ATTRIBUTE`
-  e `CFG_ACCESS_CONTROL_CLIENT_ATTRIBUTE` (nomes dos atributos); `CFG_ACCESS_CONTROL_REQUIRE_PARTNER_SCOPE`
-  só depois de acertar quem está sem organização ou cliente (D67).
+- **Variáveis do BFF após a PR 2 (TS-5425)** (sandbox, staging e produção): substituir
+  `CFG_ACCESS_CONTROL_ORGANIZATION_ATTRIBUTE` e `CFG_ACCESS_CONTROL_CLIENT_ATTRIBUTE` por
+  `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`, JSON com `group_id`, `organization` e `client_id`.
+  Usar os object ids dos grupos de cada ambiente, incluindo o da organização interna (D122).
+  Conferir uma única instituição por pessoa, os valores das claims e a troca de grupo no sandbox.
+  Não há organização padrão: quem não tem grupo não entra no portal.
+  `CFG_ACCESS_CONTROL_REQUIRE_PARTNER_SCOPE` só depois de acertar quem está sem organização ou cliente (D67).

@@ -335,3 +335,24 @@ Ainda a levantar (pedido de 21/10): vazio, erro, cabeçalho de página, filtros,
 - `check-patterns` limpo, sem item novo na lista de legado.
 - Prints de antes e depois em claro, escuro e celular.
 - Build, lint e testes sem falha nova.
+
+## Retomada no Codex (23/10)
+
+- TS-5425: mock alinhado ao BFF (`add`/`remove` na troca de instituição); aviso de
+  organização interna alinhado ao BFF, incluindo os testes dos componentes.
+- Verificação local: 61 testes do mock passando em Node; o caso da troca falha
+  com o comportamento anterior. Tipos, lint e padrões passaram.
+- Validação completa pendente: sem rede para pull, fontes do build e audit;
+  Karma bloqueado pela abertura de porta local (`EPERM`), impedindo também o smoke.
+  Os números de testes da rodada anterior não equivalem a uma nova execução validada.
+- Tabela de 23 páginas preservada para revisão, especialmente os escopos sem tela
+  própria (`ADMINISTRADOR` e `FORMALIZACAO-UNIDADES`). Tabela e relatório detalhados
+  no diretório local dos agentes da TS-5425, fora deste repositório.
+- Roteiro da 24 atualizado para a variável de grupos de instituição e D122.
+- Sem commits ou publicação. PR 3 continua dependente da validação da PR 2.
+
+- Retomada concluída na implementação das PRs 4 e 3 (tarefas 32 e 33).
+  Ajustes finais da PR 5 conferidos: build development, tipos, lint/padrões e
+  testes puros do funil passaram; os 10 arquivos pendentes continuam sem commit.
+- PR 2 conserva a tabela de páginas do contrato. Revisão local com os 23 códigos
+  e as diferenças de rótulos no relatório local indicado no CONTINUAR.
