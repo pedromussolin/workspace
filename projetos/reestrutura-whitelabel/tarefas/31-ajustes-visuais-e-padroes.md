@@ -265,6 +265,21 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
   Em revisão, fora dos commits: Faixas desenhadas em px na largura da área (não escalam com a tela) e
   valor desembolsado em 18 px.
 - **PR 2 (TS-5425):** começou. Front sobre a PR 1 (ela mexe no controle de acesso), BFF sobre a master.
+  Três agentes em paralelo (BFF; front A4+A5; front A6+A7) seguindo um contrato comum. Escolhas de
+  desenho minhas, para o Pietro revisar:
+  - variável `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` (JSON: id do grupo, organização, cliente) no
+    lugar dos dois nomes de atributo, e `CFG_ACCESS_CONTROL_DEFAULT_ORGANIZATION` opcional, para quem
+    não está em grupo nenhum (se a claim tiver valor padrão);
+  - na pessoa, um seletor único "Organização" com os grupos de instituição (no lugar de organização +
+    cliente); estado novo "em mais de um grupo de instituição";
+  - trocar a organização = adicionar ao grupo novo e depois tirar do antigo (se a segunda chamada
+    falhar, a pessoa fica em dois grupos, mas não perde o acesso);
+  - `add_member` num grupo de instituição bloqueia se a pessoa já está em outro;
+  - campo novo `membersEditable` (D109) separado do `ownedByApp` (origem e apagar);
+  - lista fixa de páginas no BFF com os escopos do catálogo de cada uma: serve ao nome do grupo
+    (A6) e aos dois dropdowns (A7); "Outros" para grupo ou permissão sem página.
+  - Falta da infra: os ids dos três grupos de instituição por ambiente e como a interna (`plgn`)
+    recebe a claim (valor padrão ou grupo).
 - Ainda não publicadas nem abertas as PRs.
 
 ## Decisões
