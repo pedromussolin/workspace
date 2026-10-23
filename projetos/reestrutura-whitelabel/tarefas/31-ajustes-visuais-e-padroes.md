@@ -294,9 +294,9 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
     - textos fixos do front que espelham o BFF ("Os grupos de instituição não estão configurados no
       BFF.", "Só quem é da organização interna muda a organização das pessoas.") contra os do BFF;
     - a tabela de páginas (`relatorios.md`).
-  - Falta: resultado do `validate.sh` (log em `agentes/t5425/validate.log`), smoke do controle de
-    acesso, revisão do Pietro, commits (front e BFF) e incluir `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
-    no roteiro de deploy.
+  - `validate.sh` do front junto: ok (build, lint, check-patterns, 4598 testes, audit).
+  - Falta: smoke do controle de acesso com o front junto, revisão do Pietro, commits (front e BFF) e
+    incluir `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no roteiro de deploy.
 - **PR 3 e PR 4:** tarefas [33](33-ver-como.md) e [32](32-envio-por-subfluxo.md).
 - Ainda não publicadas nem abertas as PRs.
 
