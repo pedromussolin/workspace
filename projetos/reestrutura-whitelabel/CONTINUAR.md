@@ -1,19 +1,40 @@
-# Continuar em outro chat ou no Codex (23/10)
+# Continuar em outro chat ou no Codex (23/10, fim do dia)
 
-**Release 20261026 (aberta em 23/10, para o deploy de 26/10):** as PRs 1, 5, 2, 4 e 3 foram commitadas
-nas branches de cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `-sdbx`
-(release + `sandbox`). Worktrees em `~/repos/.reestrutura_whitelabel/release-20261026/`. PRs para a `master` abertas; as da `sandbox` #74, #225 e #238 mergeadas em 23/10, e #226 e #239 abertas com a D124 (as de `release/20261023`, #71/#72, #222/#223 e #235/#236, foram fechadas e
-substituídas):
+Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
+mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D127) e o
+`~/repos/.reestrutura_whitelabel/privado.md` (nomes reais).
 
-| Repo | Para a `master` | Para a `sandbox` | Validação da release |
+## Onde está
+
+**Release 20261026 (deploy de 26/10):** as PRs 1, 5, 2, 4 e 3 da tarefa 31 estão commitadas nas branches de
+cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `release/20261026-sdbx` (release +
+`sandbox`). Worktrees em `~/repos/.reestrutura_whitelabel/release-20261026/{front,front-sdbx,bff,bff-sdbx,shared,shared-sdbx}`.
+
+| Repo | Para a `master` (aberta) | Para a `sandbox` | Validação da release |
 |---|---|---|---|
-| apl-shared-service | #73 | #74 (mergeada) | 609 testes |
-| BFF | #224 | #225 (mergeada) e #226 (D124) | 2068 testes (2070 na `-sdbx`) |
-| front | #237 | #238 (mergeada) e #239 (D124) | `validate.sh` ok, 4802 testes, smoke ok |
+| apl-shared-service | #73 | #74 mergeada | 609 testes |
+| BFF | #224 | #225 mergeada; #226 aberta (D124) | 2068 testes (2070 na `-sdbx`) |
+| front | #237 | #238 mergeada; #239 aberta (D124) | `validate.sh` ok, 4802 testes, smoke ok |
 
-Ordem do deploy: shared, BFF e front. Antes do BFF: `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no
-Parameter Store e a app role `access-control:impersonate`. Nova tarefa aberta: [34](tarefas/34-renovacao-tokens-azure.md)
-(TS-5429, fora da release).
+- Ordem do deploy: shared, BFF e front.
+- Antes do BFF: `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no Parameter Store, **numa linha só** (o
+  `entrypoint.sh` lê o Guardian linha a linha) e só com ids reais; a app role `access-control:impersonate`.
+- Mudança nova na release vai primeiro na branch da tarefa (ex.: `feature/TS-5425-organizacao-e-grupos`),
+  depois merge na `release/20261026` e, dela, na `-sdbx` (sincronizada antes com `origin/sandbox`). As PRs
+  para a `master` se atualizam sozinhas; para a sandbox, abrir PR nova quando a anterior já foi mergeada.
+
+**Tarefas abertas, fora da release:**
+- [34](tarefas/34-renovacao-tokens-azure.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
+- [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: permissões atômicas, perfis por
+  página e migração dos grupos. Primeiro passo: o levantamento de todas as telas (não feito).
+
+**Sugestão pendente, não pedida pelo Pietro:** o BFF cai no boot se `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
+estiver inválida; o melhor seria subir, registrar o erro e tratar como não configurada. Não aplicar sem ele
+pedir.
+
+---
+
+## Histórico
 
 **Revisão do Claude sobre a entrega do Codex (23/10, noite):** todas as PRs validadas por inteiro,
 sem commit.
@@ -36,7 +57,7 @@ e "Ver como" (PR 3) preparados localmente. Ajustes finais da PR 5 revisados.
 Ver as seções finais das tarefas 31, 32 e 33 e o relatório local
 `~/repos/.reestrutura_whitelabel/entrega-codex-23-10.md`.
 Sem commits ou publicação; revisão e smoke seguem pendentes.
-Documentação na branch `chore/TS-5425-revisao-pr2`.
+A documentação do Codex foi para a `main` (aqui não se usa branch).
 
 O limite semanal acabou no meio da tarefa 31. Ponto de partida para quem continuar (Claude ou
 Codex): leia o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md`
