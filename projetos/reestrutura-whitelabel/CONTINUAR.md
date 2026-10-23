@@ -1,5 +1,19 @@
 # Continuar em outro chat ou no Codex (23/10)
 
+**Release 20261023 (23/10, noite):** as PRs 1, 5, 2, 4 e 3 foram commitadas nas branches de cada
+tarefa e juntadas na `release/20261023` de cada repo, com a cópia `-sdbx` (release + `sandbox`). PRs
+abertas, ainda não mergeadas:
+
+| Repo | Para a `master` | Para a `sandbox` | Validação da release |
+|---|---|---|---|
+| apl-shared-service | #71 | #72 | 609 testes |
+| BFF | #222 | #223 | 1968 testes (1970 na `-sdbx`) |
+| front | #235 | #236 | `validate.sh` ok, 4758 testes, smoke ok |
+
+Ordem do deploy: shared, BFF e front. Antes do BFF: `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no
+Parameter Store e a app role `access-control:impersonate`. Nova tarefa aberta: [34](tarefas/34-renovacao-tokens-azure.md)
+(TS-5429, fora da release).
+
 **Revisão do Claude sobre a entrega do Codex (23/10, noite):** todas as PRs validadas por inteiro,
 sem commit.
 
