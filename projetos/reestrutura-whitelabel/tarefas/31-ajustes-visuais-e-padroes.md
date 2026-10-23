@@ -280,6 +280,18 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
     (A6) e aos dois dropdowns (A7); "Outros" para grupo ou permissão sem página.
   - No deploy, a variável recebe os ids dos grupos de instituição de cada ambiente, inclusive o
     da Poliedro (D122).
+- **Estado exato da PR 2 (fim de 23/10, para quem continuar):**
+  - Contrato BFF ↔ front, relatórios dos agentes e mapa do código: `~/repos/.reestrutura_whitelabel/agentes/t5425/`
+    (`contrato.md`, `relatorios.md`) e `agentes/t5425-mapa/mapa.md` (locais, com nomes reais).
+  - BFF pronto, sem commit, em `~/repos/apl-credit-whitelabel-api-wt/33` (1946 testes passando).
+  - Front em três lugares, sem commit: a base comum (tipos e fixtures) em
+    `~/repos/apl-credit-whitelabel-wt/33`; A6+A7 pronto em `agentes/t5425/front-b`; A4+A5 em
+    `agentes/t5425/front-a` (o agente ainda rodava).
+  - Falta: juntar `front-a` e `front-b` na `wt/33` (merge de 3 vias; arquivos dos dois lados em
+    `relatorios.md`), aplicar o texto da `.ai/` do `relatorios.md`, `validate.sh`, smoke do controle
+    de acesso, revisão do Pietro (inclusive a tabela de páginas), commits, e incluir
+    `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no roteiro de deploy.
+- **PR 3 e PR 4:** tarefas [33](33-ver-como.md) e [32](32-envio-por-subfluxo.md).
 - Ainda não publicadas nem abertas as PRs.
 
 ## Decisões

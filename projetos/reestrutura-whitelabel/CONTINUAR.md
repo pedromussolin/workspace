@@ -1,4 +1,24 @@
-# Continuar em outro chat (19/10)
+# Continuar em outro chat ou no Codex (23/10)
+
+O limite semanal acabou no meio da tarefa 31. Ponto de partida para quem continuar (Claude ou
+Codex): leia o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md`
+tem o mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D122) e o
+`~/repos/.reestrutura_whitelabel/privado.md` (nomes reais).
+
+| PR | TS | Tarefa | Onde | Estado |
+|---|---|---|---|---|
+| 1 | TS-5424 | [31](tarefas/31-ajustes-visuais-e-padroes.md) | front `~/repos/apl-credit-whitelabel-wt/31`, `feature/TS-5424-ajustes-visuais-e-padroes` | 21 commits locais, aprovados; falta publicar e abrir a PR contra a master |
+| 5 | TS-5427 | 31 | front `~/repos/apl-credit-whitelabel-wt/32`, `feature/TS-5427-funil-e-cards-orquestrador` (sobre a PR 1) | 5 commits locais; **em revisão, fora dos commits:** Faixas em px, valor desembolsado em 18 px e centralizado. Falta o ok do Pietro, encaixar nos commits, publicar e abrir a PR contra a branch da PR 1 |
+| 2 | TS-5425 | 31 (seção "Andamento") | BFF `~/repos/apl-credit-whitelabel-api-wt/33`; front `~/repos/apl-credit-whitelabel-wt/33` + `agentes/t5425/front-a` e `front-b` | sem commit; ver o passo a passo na tarefa 31 |
+| 4 | TS-5416 | [32](tarefas/32-envio-por-subfluxo.md) | — | não começada |
+| 3 | TS-5426 | [33](tarefas/33-ver-como.md) | — | não começada; depois da PR 2 |
+
+Ordem sugerida: fechar a PR 2, depois a PR 4, depois a PR 3. Nada se commita nos repos da empresa
+sem a revisão do Pietro, e nada se publica sem ele pedir.
+
+---
+
+# Histórico: continuar em outro chat (19/10)
 
 Ponto de partida para um chat novo que vai fazer a última tarefa antes do deploy (24), **enquanto
 outro chat termina a R59 e a 27**. Leia isto, o `CLAUDE.md` desta pasta, o README (Tarefas e
