@@ -71,7 +71,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 28 | [POLI dentro do portal, com mascotes animados](tarefas/28-poli-mascote.md) | `feature/TS-5406-poli-mascote` | 26 | **publicada** (20/10): 8 commits, ponta `91b75672` | TS-5406 |
 | 29 | [Segurança e alinhamento com a infraestrutura](tarefas/29-seguranca-infra.md) | `fix/TS-5411-seguranca-bff` e `fix/TS-5411-seguranca-front` | `master` (e a 27, para o que só existe no épico) | **publicada** (20/10): leva do deploy; escopo do parceiro (D99), TSE e cessão em andamento | TS-5411 |
 | 30 | [Nomes e docstrings dos testes do BFF em inglês](tarefas/30-testes-do-bff-em-ingles.md) | a criar | `master`, depois do deploy de 21/10 | **aberta** (21/10) | a criar |
-| 31 | [Ajustes visuais e padrões de design](tarefas/31-ajustes-visuais-e-padroes.md) | a criar | `master`, depois do deploy de 21/10 | **aberta** (21/10): falta a lista do Pietro | a criar |
+| 31 | [Ajustes visuais e padrões de design](tarefas/31-ajustes-visuais-e-padroes.md) | `feature/TS-5424-ajustes-visuais-e-padroes` (a criar) | `master`, depois do deploy de 21/10 | **diagnóstico feito** (23/10): faltam as decisões e a divisão em PRs | TS-5424 |
 | 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção** (21/10, 19:29): front `prod-f7bb2d8`, BFF `prod-bb877db`; falta a conferência (7.4) e o pós-deploy (8) | TS-5394 |
 
 ## Situação em 16/10
