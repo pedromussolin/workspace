@@ -9,3 +9,5 @@
 # goes to names.toml with `ws names add`, never here. The file is read from the commit being
 # pushed (from the index when committing), so an entry counts once it is committed.
 Revisit
+GDM
+Debian
