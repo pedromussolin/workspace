@@ -1,0 +1,195 @@
+# Roteiro comum das tarefas de área (05–12)
+
+Cada tarefa de área segue estes passos. O arquivo da tarefa traz só o que é
+específico dela: telas, serviços, fluxos críticos e armadilhas.
+
+## Branch
+
+- Nasce da 04 enquanto a 04 não entra na master. Depois, da `origin/master`
+  com `--no-track`.
+- Antes de qualquer ação, dar `git pull` na branch de base.
+
+## Commits, nesta ordem
+
+1. **Mover** (`refact`): levar as telas para `features/<área>/` e os
+   serviços e interfaces de `services/` e `interfaces/` para
+   `data-access/`/`models/`, só corrigindo imports. Nenhuma outra mudança,
+   para o git reconhecer como renomeação.
+2. **Rotas** (`refact`): criar `<área>.routes.ts` e trocar as entradas do
+   `app.routes.ts` por `loadChildren`. URLs, guards e `data` ficam
+   idênticos.
+3. **Shell** (`refact`): tirar o `<app-layout>` das telas. Título e
+   breadcrumbs passam a vir da rota.
+4. **Componentes** (`refact`): trocar `mat-*` pelos componentes de
+   `shared/ui` e `mat-icon` por `app-icon`, usando
+   [material-para-novo.json](../anexos/icones/material-para-novo.json).
+5. **Tokens** (`refact`): trocar cores fixas por tokens semânticos e apagar
+   os `::ng-deep` que miravam classes do Material.
+6. **Organização** (`refact`), sem mudar comportamento, usabilidade nem lógica:
+   - quebrar componentes gigantes em partes com responsabilidade clara (ex.:
+     a toolbar de filtros, o card de resumo, o diálogo);
+   - tirar a regra de negócio do template para funções puras testáveis, e as
+     chamadas HTTP para o `data-access/`;
+   - reaproveitar o que se repete entre telas (formatadores, mapas de
+     status, montagem de filtros) em `shared/` ou na própria feature;
+   - padronizar comportamentos comuns:
+     - valor vazio com um formatador só, no lugar de cada tela com o seu
+       `-`, `—` ou `N/A`;
+     - estados de carregando, vazio e erro com os componentes de `shared/ui`;
+     - datas, moeda e percentual com os formatadores de `shared/utils`;
+   - signals no estado da tela, `inject()`, `input()`/`output()`, `@if`/`@for`
+     com `track`. Sem API depreciada e sem `subscribe` sem limpeza.
+
+   Toda padronização que muda algo visível (ex.: o texto do valor vazio)
+   fica listada na descrição da PR, com o antes e o depois.
+7. **Limpeza** (`refact`/`fix`): código morto confirmado, tipos melhores.
+   Um defeito encontrado no caminho vai num commit `fix` separado, ou vira
+   anotação na tarefa.
+
+## Regra de ouro
+
+Toda tela segue os estilos e os componentes definidos por nós:
+- **Visual:** só tokens (cor, raio, espaçamento, fonte, sombra). Nada de cor
+  ou valor solto no SCSS da tela.
+- **Componentes:** botão, campo, select, tabela, diálogo, pílula de status,
+  card de resumo, toolbar de filtros, estado vazio etc. vêm de `shared/ui`.
+  A tela não recria um componente que já existe nem sobrescreve o visual
+  dele com `::ng-deep`.
+- **SCSS da tela:** fica só com o layout dela (grid, ordem, larguras).
+- **Faltou alguma coisa?** Se a tela precisa de um padrão que ainda não
+  existe, ele entra em `shared/ui`, com spec e exemplo na vitrine (15), e só
+  então a tela usa. Não fica como versão local.
+
+## Pronto quando
+
+- `npm run build` e `npm run lint` passam sem erro novo em relação ao
+  baseline da 01.
+- Os specs da área passam, inclusive os que já falhavam no
+  [baseline](../evidencias/baseline-2026-10-10.md). A correção deles vai num
+  commit `test` separado, **antes** da refatoração. Spec que mudou de lugar
+  continua testando a mesma coisa.
+- `grep -r "@angular/material" features/<área>` não retorna nada.
+- Não sobra cor fixa nos `.scss` da área, salvo as anotadas com motivo (ex.:
+  logo de parceiro).
+- A tela foi aberta no navegador nos 4 casos: Poliedro claro, Poliedro
+  escuro (forçado por `data-scheme`), Dots claro e no celular (~400 px).
+- Os fluxos críticos da tarefa foram exercitados. O que não deu para
+  exercitar (ex.: falta de dado na sandbox) fica escrito na tarefa.
+
+## Como validar uma leva (comandos)
+
+**Desde a 4ª leva, dois scripts fazem tudo isto:**
+- `anexos/scripts/validar-leva.sh <worktree> [rota ...]` confere:
+  - commits: 72 caracteres, trailers e se cada um compila sozinho;
+  - build, lint e a suíte inteira contra a base da 04;
+  - smoke em claro, escuro, Dots e celular, com `FIXTURES` e `SCENES`.
+  - Os agentes rodam o script antes de entregar, e eu rodo de novo na
+    revisão.
+- `anexos/scripts/merge-teste.sh <repo>` junta todas as áreas sobre a 04
+  numa worktree descartável e confere `tsc`. Com `FULL=1`, roda também
+  build e testes. Conflito conhecido tem resolução automática por branch.
+- **O que fica fora do repo,** em `~/repos/.reestrutura_whitelabel/`:
+  - o lock comum;
+  - as listas de falhas da base (front e BFF);
+  - os logs e os prints;
+  - o `playwright-core`;
+  - os dados de smoke que vêm do código da empresa (ex.: o OpenAPI do BFF);
+  - as resoluções de conflito.
+- **As instruções comuns aos agentes** estão em `anexos/agentes/brief-comum.md`.
+  O pedido de cada agente traz só o que é da tarefa dele.
+
+Os passos abaixo são o que os scripts fazem, para referência.
+
+O scratchpad do Claude fica em `/tmp` e se perde entre sessões. Por isso os
+números de base estão aqui:
+
+- **Base da 04 com as três correções de 15/10:**
+  - lint: 59 erros e 281 avisos;
+  - testes: 678, com 77 falhando.
+- **Base da `origin/master` (`576957c`) com o `9bcf7b7`:**
+  - lint: 73 erros e 288 avisos;
+  - testes: 250, com 96 falhando.
+  - Sem o `9bcf7b7`, a suíte nem compila (A21).
+  - Vale para as tarefas que nascem da master (18 e 20):
+    `BASE=origin/master BASE_FALHAS=$PRIV/base-master-falhas.txt BASE_LINT=73/288`.
+- **Base da 13 (`2dbb699`):**
+  - lint: 20 erros e 166 avisos;
+  - testes: 1.822, com 1 falhando.
+  - Para validar: `BASE=2dbb699 BASE_FALHAS=$PRIV/base-13-falhas.txt BASE_LINT=20/166`.
+- **Regra:** nenhuma falha nova e nenhum erro de lint novo.
+
+Comandos:
+
+1. **Testes:** sem `--port`, porque o `ng test` desta versão não aceita a opção; o Karma escolhe outra porta quando a dele está ocupada.
+   Comando:
+   `CHROME_BIN=~/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome npx ng test --watch=false --browsers=ChromeHeadless`.
+   - A lista de falhas sai das linhas `... FAILED` do log, depois de tirar as
+     cores ANSI.
+   - Compare essa lista com a da 04, gerada com o mesmo comando na branch da 04.
+2. **Smoke:** a navegação com dados fictícios (mock) pelas 29 rotas.
+   - Instale uma vez: `npm i playwright-core` numa pasta qualquer.
+   - Rode `PW_DIR=<pasta>/node_modules node anexos/scripts/smoke.mjs <dist>/browser <pasta-prints>`.
+   - O mock não tem os escopos de lotes, então essa tela abre em "sem permissão".
+3. **Juntar os commits:**
+   [anexos/scripts/juntar-branch.py](../anexos/scripts/juntar-branch.py) monta
+   a branch final a partir da worktree do agente.
+   - Os agentes Sonnet costumam passar de 72 caracteres no assunto do commit.
+   - Os assuntos encurtados vão no mapa `R` do script.
+4. **Smoke completo (desde a 3ª leva):** o `smoke.mjs` aceita, por
+   variável de ambiente:
+   - `SCHEME=dark` (escuro), `THEME_KEY=<chave real da marca>` e
+     `NO_SESSION=1` (tela de login);
+   - `FIXTURES=anexos/smoke-dados/<área>.json`, com dados fictícios por
+     caminho da API;
+   - `SCENES='[["nome","/rota","texto de um app-toggle"]]'`, para abas e
+     visões sem URL própria (print da página inteira).
+   - Além dos erros de página, ele acusa os erros de console (o Angular só
+     escreve neles) e a página mais larga que a tela (rolagem lateral).
+5. **Commit a commit:** `tsc -p tsconfig.app.json --noEmit` e o mesmo com
+   `tsconfig.spec.json` em cada commit, numa worktree à parte. Leva poucos
+   segundos por commit e pega commit que não compila sozinho.
+6. **Merge de teste:** juntar todas as áreas sobre a 04 numa worktree
+   descartável, rodar `tsc`, build e testes. Mostra antes da `sandbox` os
+   conflitos entre áreas.
+7. **Conferências de revisão:** sem `@angular/material`, sem `#hex`/`rgb(` nos
+   `.scss`, sem `@Input`/`*ngIf`/`::ng-deep` e com um spec por componente.
+
+**Lição da 1ª leva:**
+- Os agentes da 05 e da 06 bateram no limite de sessão no meio do trabalho.
+- Os agentes da próxima leva vão com escopo enxuto e com commit a cada etapa.
+- Se um agente cair, um agente novo termina o que ficou pendente no working
+  tree da worktree.
+
+**Lições da 3ª leva (15/10):**
+- Pedir ao agente que terminou os dados fictícios da área para o smoke: ele
+  conhece os serviços e escreve o arquivo em minutos.
+- Revisar com dados e no celular achou o que os specs não acham: valores
+  de KPI cortados, colunas escondidas, rolagem lateral causada por uma
+  tabela oculta para leitor de tela e um erro de template que travava a
+  tela (sem aparecer como erro de página).
+- Um agente misturou num commit de teste a remoção de arquivos do commit
+  seguinte. A conferência commit a commit pegou, e a branch final foi
+  montada separando as duas partes.
+- **Para a próxima leva** (a 13 em diante), a pedido do Pietro ("use os
+  agentes no xhigh e torne o processo mais rápido"):
+  - agentes Opus 5.5 em esforço xhigh;
+  - os dados fictícios do smoke prontos antes de disparar os agentes;
+  - cada agente roda um smoke com dados no fim (claro, escuro e celular,
+    com a conferência de console e de largura), antes de entregar. Isso
+    corta as rodadas de revisão, que foram o que mais atrasou a 3ª leva.
+
+**Montagem da 3ª leva (15/10):**
+- Agentes Opus 5.5 em esforço alto, a pedido do Pietro. A leva começou em
+  esforço médio; os agentes foram trocados no meio e os novos continuaram da
+  worktree, o que funcionou porque cada etapa já estava commitada.
+- Validação intermediária mínima ("acelere"): sem smoke nem prints nos
+  agentes, build a cada 2–3 etapas e lint uma vez. A validação completa é na
+  revisão.
+- Uma worktree por área em `~/repos/apl-credit-whitelabel-wt/<nº>`, com a
+  branch `wip/TS-<id>` saída da 04. O `node_modules` é cópia por hardlink
+  (`cp -al`) do repositório principal: fica pronto na hora, sem ocupar disco,
+  e por isso ninguém roda `npm install` na worktree.
+- A máquina tem 7 GB de RAM. Build, lint, testes e smoke rodam com `flock`
+  num arquivo de lock comum, um de cada vez entre os agentes.
+- As instruções comuns aos agentes ficam num arquivo só; o pedido de cada
+  área traz só o que é dela.

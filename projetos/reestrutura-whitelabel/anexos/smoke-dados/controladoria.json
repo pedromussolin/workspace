@@ -1,0 +1,1280 @@
+{
+ "controllership/portfolio/funds": [
+  {
+   "id": 1,
+   "name": "FIDC Aurora Crédito",
+   "legal_id": "11111111000101",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "FIDC Horizonte Consignado",
+   "legal_id": "22222222000102",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "FIDC Vale Verde Recebíveis",
+   "legal_id": "33333333000103",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "FIDC Estrela do Sul",
+   "legal_id": "44444444000104",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  }
+ ],
+ "controllership/portfolio/receivables": [
+  {
+   "date": "2025-10-31",
+   "vp": 180000000.0,
+   "pdd": 8100000.0,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-11-30",
+   "vp": 189865883.94,
+   "pdd": 8923696.55,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-12-31",
+   "vp": 196637189.71,
+   "pdd": 9635222.3,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-01-31",
+   "vp": 200064480.03,
+   "pdd": 10203288.48,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-02-28",
+   "vp": 202972790.02,
+   "pdd": 10757557.87,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-03-31",
+   "vp": 208664302.9,
+   "pdd": 11476536.66,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-04-30",
+   "vp": 217882338.01,
+   "pdd": 12419293.27,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-05-31",
+   "vp": 228127946.39,
+   "pdd": 13459548.84,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-06-30",
+   "vp": 235957432.99,
+   "pdd": 14393403.41,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-07-31",
+   "vp": 240148473.94,
+   "pdd": 15129353.86,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-08-31",
+   "vp": 242823915.56,
+   "pdd": 15783554.51,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-09-30",
+   "vp": 247500039.17,
+   "pdd": 16582502.62,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-10-14",
+   "vp": 255853708.33,
+   "pdd": 17653905.87,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  }
+ ],
+ "controllership/portfolio/acquisition_amount": [
+  {
+   "date": "2025-10-31",
+   "acquisition_amount": 25000000.0,
+   "contracts": 1800,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-11-30",
+   "acquisition_amount": 24090120.13,
+   "contracts": 1840,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-12-31",
+   "acquisition_amount": 21912401.43,
+   "contracts": 1880,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-01-31",
+   "acquisition_amount": 19787818.85,
+   "contracts": 1920,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-02-28",
+   "acquisition_amount": 19005115.67,
+   "contracts": 1960,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-03-31",
+   "acquisition_amount": 20039069.14,
+   "contracts": 2000,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-04-30",
+   "acquisition_amount": 22262496.95,
+   "contracts": 2040,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-05-31",
+   "acquisition_amount": 24326697.64,
+   "contracts": 2080,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-06-30",
+   "acquisition_amount": 24979554.76,
+   "contracts": 2120,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-07-31",
+   "acquisition_amount": 23825053.94,
+   "contracts": 2160,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-08-31",
+   "acquisition_amount": 21563499.9,
+   "contracts": 2200,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-09-30",
+   "acquisition_amount": 19566720.96,
+   "contracts": 2240,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-10-14",
+   "acquisition_amount": 19045936.43,
+   "contracts": 2280,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  }
+ ],
+ "controllership/portfolio/liquidation_amount": [
+  {
+   "date": "2025-10-31",
+   "liquidation_amount": 15500000.0,
+   "payments": 2600,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-11-30",
+   "liquidation_amount": 17110544.22,
+   "payments": 2625,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2025-12-31",
+   "liquidation_amount": 17963624.32,
+   "payments": 2650,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-01-31",
+   "liquidation_amount": 17658023.42,
+   "payments": 2675,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-02-28",
+   "liquidation_amount": 16337470.38,
+   "payments": 2700,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-03-31",
+   "liquidation_amount": 14623041.93,
+   "payments": 2725,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-04-30",
+   "liquidation_amount": 13321060.57,
+   "payments": 2750,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-05-31",
+   "liquidation_amount": 13043868.47,
+   "payments": 2775,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-06-30",
+   "liquidation_amount": 13921833.41,
+   "payments": 2800,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-07-31",
+   "liquidation_amount": 15542034.75,
+   "payments": 2825,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-08-31",
+   "liquidation_amount": 17142466.5,
+   "payments": 2850,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-09-30",
+   "liquidation_amount": 17970420.58,
+   "payments": 2875,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  },
+  {
+   "date": "2026-10-14",
+   "liquidation_amount": 17636497.27,
+   "payments": 2900,
+   "type": "monthly",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito"
+  }
+ ],
+ "controllership/cerc/funds": {
+  "funds": [
+   {
+    "id": 1,
+    "name": "FIDC Aurora Crédito",
+    "legal_id": "11111111000101"
+   },
+   {
+    "id": 2,
+    "name": "FIDC Horizonte Consignado",
+    "legal_id": "22222222000102"
+   }
+  ],
+  "registros_data_available": true
+ },
+ "controllership/cerc/reconciliation": [
+  {
+   "date": "2026-09-29",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 582000,
+   "cession_quantity": 120,
+   "registered_amount": 582000.0,
+   "registered_quantity": 120
+  },
+  {
+   "date": "2026-09-30",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 654750,
+   "cession_quantity": 135,
+   "registered_amount": 635107.5,
+   "registered_quantity": 131
+  },
+  {
+   "date": "2026-10-01",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 727500,
+   "cession_quantity": 150,
+   "registered_amount": 669300.0,
+   "registered_quantity": 138
+  },
+  {
+   "date": "2026-10-02",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 800250,
+   "cession_quantity": 165,
+   "registered_amount": 800250.0,
+   "registered_quantity": 165
+  },
+  {
+   "date": "2026-10-05",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 873000,
+   "cession_quantity": 180,
+   "registered_amount": 768240.0,
+   "registered_quantity": 158
+  },
+  {
+   "date": "2026-10-06",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 945750,
+   "cession_quantity": 195,
+   "registered_amount": 936292.5,
+   "registered_quantity": 193
+  },
+  {
+   "date": "2026-10-07",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 1018500,
+   "cession_quantity": 210,
+   "registered_amount": 967575.0,
+   "registered_quantity": 200
+  },
+  {
+   "date": "2026-10-08",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 1091250,
+   "cession_quantity": 225,
+   "registered_amount": 1091250.0,
+   "registered_quantity": 225
+  },
+  {
+   "date": "2026-10-09",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 1164000,
+   "cession_quantity": 240,
+   "registered_amount": 1047600.0,
+   "registered_quantity": 216
+  },
+  {
+   "date": "2026-10-12",
+   "fund_legal_id": "11111111000101",
+   "fund_name": "FIDC Aurora Crédito",
+   "cession_amount": 1236750,
+   "cession_quantity": 255,
+   "registered_amount": 1199647.5,
+   "registered_quantity": 247
+  },
+  {
+   "date": "2026-09-29",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 795200,
+   "cession_quantity": 160,
+   "registered_amount": 795200.0,
+   "registered_quantity": 160
+  },
+  {
+   "date": "2026-09-30",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 869750,
+   "cession_quantity": 175,
+   "registered_amount": 843657.5,
+   "registered_quantity": 170
+  },
+  {
+   "date": "2026-10-01",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 944300,
+   "cession_quantity": 190,
+   "registered_amount": 868756.0,
+   "registered_quantity": 175
+  },
+  {
+   "date": "2026-10-02",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1018850,
+   "cession_quantity": 205,
+   "registered_amount": 1018850.0,
+   "registered_quantity": 205
+  },
+  {
+   "date": "2026-10-05",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1093400,
+   "cession_quantity": 220,
+   "registered_amount": 962192.0,
+   "registered_quantity": 194
+  },
+  {
+   "date": "2026-10-06",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1167950,
+   "cession_quantity": 235,
+   "registered_amount": 1156270.5,
+   "registered_quantity": 233
+  },
+  {
+   "date": "2026-10-07",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": null,
+   "cession_quantity": null,
+   "registered_amount": 1180375.0,
+   "registered_quantity": 238
+  },
+  {
+   "date": "2026-10-08",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1317050,
+   "cession_quantity": 265,
+   "registered_amount": 1317050.0,
+   "registered_quantity": 265
+  },
+  {
+   "date": "2026-10-09",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1391600,
+   "cession_quantity": 280,
+   "registered_amount": 1252440.0,
+   "registered_quantity": 252
+  },
+  {
+   "date": "2026-10-12",
+   "fund_legal_id": "22222222000102",
+   "fund_name": "FIDC Horizonte Consignado",
+   "cession_amount": 1466150,
+   "cession_quantity": 295,
+   "registered_amount": 1422165.5,
+   "registered_quantity": 286
+  }
+ ],
+ "controllership/valid/funds": [
+  {
+   "id": 1,
+   "name": "FIDC Aurora Crédito",
+   "legal_id": "11111111000101",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "FIDC Horizonte Consignado",
+   "legal_id": "22222222000102",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "FIDC Vale Verde Recebíveis",
+   "legal_id": "33333333000103",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "FIDC Estrela do Sul",
+   "legal_id": "44444444000104",
+   "products": [
+    {
+     "id": "prd-consig",
+     "name": "Consignado"
+    }
+   ]
+  }
+ ],
+ "controllership/valid/stock": {
+  "selected_stock": {
+   "admin": "Administradora Fictícia S.A.",
+   "fund_legal_id": "11111111000101",
+   "stock_per_date": [
+    {
+     "reference_date": "2025-10-31",
+     "contracts_count": 51000,
+     "pv_total": 420000000,
+     "pv_matured": 50400000.0,
+     "pv_to_mature": 369600000.0,
+     "pdd_total": 21420000.0,
+     "pdd_pv_ratio": 0.051,
+     "ticket": 8235.29
+    },
+    {
+     "reference_date": "2025-11-30",
+     "contracts_count": 51900,
+     "pv_total": 429000000,
+     "pv_matured": 54054000.0,
+     "pv_to_mature": 374946000.0,
+     "pdd_total": 22651200.0,
+     "pdd_pv_ratio": 0.0528,
+     "ticket": 8265.9
+    },
+    {
+     "reference_date": "2025-12-31",
+     "contracts_count": 52800,
+     "pv_total": 438000000,
+     "pv_matured": 57816000.0,
+     "pv_to_mature": 380184000.0,
+     "pdd_total": 23914800.0,
+     "pdd_pv_ratio": 0.0546,
+     "ticket": 8295.45
+    },
+    {
+     "reference_date": "2026-01-31",
+     "contracts_count": 53700,
+     "pv_total": 447000000,
+     "pv_matured": 61686000.0,
+     "pv_to_mature": 385314000.0,
+     "pdd_total": 25210800.0,
+     "pdd_pv_ratio": 0.0564,
+     "ticket": 8324.02
+    },
+    {
+     "reference_date": "2026-02-28",
+     "contracts_count": 54600,
+     "pv_total": 456000000,
+     "pv_matured": 65664000.0,
+     "pv_to_mature": 390336000.0,
+     "pdd_total": 26539200.0,
+     "pdd_pv_ratio": 0.0582,
+     "ticket": 8351.65
+    },
+    {
+     "reference_date": "2026-03-31",
+     "contracts_count": 55500,
+     "pv_total": 465000000,
+     "pv_matured": 69750000.0,
+     "pv_to_mature": 395250000.0,
+     "pdd_total": 27900000.0,
+     "pdd_pv_ratio": 0.06,
+     "ticket": 8378.38
+    },
+    {
+     "reference_date": "2026-04-30",
+     "contracts_count": 56400,
+     "pv_total": 474000000,
+     "pv_matured": 73944000.0,
+     "pv_to_mature": 400056000.0,
+     "pdd_total": 29293200.0,
+     "pdd_pv_ratio": 0.0618,
+     "ticket": 8404.26
+    },
+    {
+     "reference_date": "2026-05-31",
+     "contracts_count": 57300,
+     "pv_total": 483000000,
+     "pv_matured": 78246000.0,
+     "pv_to_mature": 404754000.0,
+     "pdd_total": 30718800.0,
+     "pdd_pv_ratio": 0.0636,
+     "ticket": 8429.32
+    },
+    {
+     "reference_date": "2026-06-30",
+     "contracts_count": 58200,
+     "pv_total": 492000000,
+     "pv_matured": 82656000.0,
+     "pv_to_mature": 409344000.0,
+     "pdd_total": 32176800.0,
+     "pdd_pv_ratio": 0.0654,
+     "ticket": 8453.61
+    },
+    {
+     "reference_date": "2026-07-31",
+     "contracts_count": 59100,
+     "pv_total": 501000000,
+     "pv_matured": 87174000.0,
+     "pv_to_mature": 413826000.0,
+     "pdd_total": 33667200.0,
+     "pdd_pv_ratio": 0.0672,
+     "ticket": 8477.16
+    },
+    {
+     "reference_date": "2026-08-31",
+     "contracts_count": 60000,
+     "pv_total": 510000000,
+     "pv_matured": 91800000.0,
+     "pv_to_mature": 418200000.0,
+     "pdd_total": 35190000.0,
+     "pdd_pv_ratio": 0.069,
+     "ticket": 8500.0
+    },
+    {
+     "reference_date": "2026-09-30",
+     "contracts_count": 60900,
+     "pv_total": 519000000,
+     "pv_matured": 96534000.0,
+     "pv_to_mature": 422466000.0,
+     "pdd_total": 36745200.0,
+     "pdd_pv_ratio": 0.0708,
+     "ticket": 8522.17
+    }
+   ]
+  },
+  "other_stocks_summary": [
+   {
+    "reference_date": "2026-09-30",
+    "admin": "Administradora Fictícia S.A.",
+    "fund_legal_id": "11111111000101",
+    "pv_total": 250000000,
+    "pdd_total": 12500000.0
+   },
+   {
+    "reference_date": "2026-09-30",
+    "admin": "Administradora Fictícia S.A.",
+    "fund_legal_id": "22222222000102",
+    "pv_total": 140000000,
+    "pdd_total": 10080000.0
+   },
+   {
+    "reference_date": "2026-09-30",
+    "admin": "Administradora Fictícia S.A.",
+    "fund_legal_id": "33333333000103",
+    "pv_total": 92000000,
+    "pdd_total": 5612000.0
+   },
+   {
+    "reference_date": "2026-09-30",
+    "admin": "Administradora Fictícia S.A.",
+    "fund_legal_id": "44444444000104",
+    "pv_total": 37000000,
+    "pdd_total": 4070000.0
+   }
+  ]
+ },
+ "controllership/valid/pdd": [
+  {
+   "product": {
+    "id": "prd-consig",
+    "name": "Consignado"
+   },
+   "pdd_rate": [
+    {
+     "rating": "AA",
+     "aging_from": 0,
+     "aging_to": 0,
+     "contract_count": 24025,
+     "pv": 192200000.0,
+     "pdd": 961000.0,
+     "pdd_pv_ratio": 0.005
+    },
+    {
+     "rating": "A",
+     "aging_from": 1,
+     "aging_to": 14,
+     "contract_count": 5425,
+     "pv": 43400000.0,
+     "pdd": 434000.0,
+     "pdd_pv_ratio": 0.01
+    },
+    {
+     "rating": "B",
+     "aging_from": 15,
+     "aging_to": 30,
+     "contract_count": 3100,
+     "pv": 24800000.0,
+     "pdd": 744000.0,
+     "pdd_pv_ratio": 0.03
+    },
+    {
+     "rating": "C",
+     "aging_from": 31,
+     "aging_to": 60,
+     "contract_count": 2325,
+     "pv": 18600000.0,
+     "pdd": 1860000.0,
+     "pdd_pv_ratio": 0.1
+    },
+    {
+     "rating": "D",
+     "aging_from": 61,
+     "aging_to": 90,
+     "contract_count": 1550,
+     "pv": 12400000.0,
+     "pdd": 3720000.0,
+     "pdd_pv_ratio": 0.3
+    },
+    {
+     "rating": "E",
+     "aging_from": 91,
+     "aging_to": 120,
+     "contract_count": 1162,
+     "pv": 9300000.0,
+     "pdd": 4650000.0,
+     "pdd_pv_ratio": 0.5
+    },
+    {
+     "rating": "F",
+     "aging_from": 121,
+     "aging_to": 150,
+     "contract_count": 775,
+     "pv": 6200000.0,
+     "pdd": 4340000.0,
+     "pdd_pv_ratio": 0.7
+    },
+    {
+     "rating": "G",
+     "aging_from": 151,
+     "aging_to": 9999,
+     "contract_count": 387,
+     "pv": 3100000.0,
+     "pdd": 3100000.0,
+     "pdd_pv_ratio": 1.0
+    }
+   ]
+  },
+  {
+   "product": {
+    "id": "prd-cartao",
+    "name": "Cartão de crédito"
+   },
+   "pdd_rate": [
+    {
+     "rating": "AA",
+     "aging_from": 0,
+     "aging_to": 0,
+     "contract_count": 6750,
+     "pv": 54000000.0,
+     "pdd": 270000.0,
+     "pdd_pv_ratio": 0.005
+    },
+    {
+     "rating": "A",
+     "aging_from": 1,
+     "aging_to": 14,
+     "contract_count": 2550,
+     "pv": 20400000.0,
+     "pdd": 204000.0,
+     "pdd_pv_ratio": 0.01
+    },
+    {
+     "rating": "B",
+     "aging_from": 15,
+     "aging_to": 30,
+     "contract_count": 1650,
+     "pv": 13200000.0,
+     "pdd": 396000.0,
+     "pdd_pv_ratio": 0.03
+    },
+    {
+     "rating": "C",
+     "aging_from": 31,
+     "aging_to": 60,
+     "contract_count": 1350,
+     "pv": 10800000.0,
+     "pdd": 1080000.0,
+     "pdd_pv_ratio": 0.1
+    },
+    {
+     "rating": "D",
+     "aging_from": 61,
+     "aging_to": 90,
+     "contract_count": 1050,
+     "pv": 8400000.0,
+     "pdd": 2520000.0,
+     "pdd_pv_ratio": 0.3
+    },
+    {
+     "rating": "E",
+     "aging_from": 91,
+     "aging_to": 120,
+     "contract_count": 750,
+     "pv": 6000000.0,
+     "pdd": 3000000.0,
+     "pdd_pv_ratio": 0.5
+    },
+    {
+     "rating": "F",
+     "aging_from": 121,
+     "aging_to": 150,
+     "contract_count": 600,
+     "pv": 4800000.0,
+     "pdd": 3360000.0,
+     "pdd_pv_ratio": 0.7
+    },
+    {
+     "rating": "G",
+     "aging_from": 151,
+     "aging_to": 9999,
+     "contract_count": 300,
+     "pv": 2400000.0,
+     "pdd": 2400000.0,
+     "pdd_pv_ratio": 1.0
+    }
+   ]
+  },
+  {
+   "product": {
+    "id": "prd-pessoal",
+    "name": "Crédito pessoal"
+   },
+   "pdd_rate": [
+    {
+     "rating": "AA",
+     "aging_from": 0,
+     "aging_to": 0,
+     "contract_count": 4180,
+     "pv": 33440000.0,
+     "pdd": 167200.0,
+     "pdd_pv_ratio": 0.005
+    },
+    {
+     "rating": "A",
+     "aging_from": 1,
+     "aging_to": 14,
+     "contract_count": 2200,
+     "pv": 17600000.0,
+     "pdd": 176000.0,
+     "pdd_pv_ratio": 0.01
+    },
+    {
+     "rating": "B",
+     "aging_from": 15,
+     "aging_to": 30,
+     "contract_count": 1320,
+     "pv": 10560000.0,
+     "pdd": 316800.0,
+     "pdd_pv_ratio": 0.03
+    },
+    {
+     "rating": "C",
+     "aging_from": 31,
+     "aging_to": 60,
+     "contract_count": 1100,
+     "pv": 8800000.0,
+     "pdd": 880000.0,
+     "pdd_pv_ratio": 0.1
+    },
+    {
+     "rating": "D",
+     "aging_from": 61,
+     "aging_to": 90,
+     "contract_count": 880,
+     "pv": 7040000.0,
+     "pdd": 2112000.0,
+     "pdd_pv_ratio": 0.3
+    },
+    {
+     "rating": "E",
+     "aging_from": 91,
+     "aging_to": 120,
+     "contract_count": 660,
+     "pv": 5280000.0,
+     "pdd": 2640000.0,
+     "pdd_pv_ratio": 0.5
+    },
+    {
+     "rating": "F",
+     "aging_from": 121,
+     "aging_to": 150,
+     "contract_count": 440,
+     "pv": 3520000.0,
+     "pdd": 2464000.0,
+     "pdd_pv_ratio": 0.7
+    },
+    {
+     "rating": "G",
+     "aging_from": 151,
+     "aging_to": 9999,
+     "contract_count": 220,
+     "pv": 1760000.0,
+     "pdd": 1760000.0,
+     "pdd_pv_ratio": 1.0
+    }
+   ]
+  }
+ ],
+ "management/funds-health/funds": [
+  {
+   "name": "FIDC Aurora Crédito",
+   "legal_id": "11111111000101"
+  },
+  {
+   "name": "FIDC Horizonte Consignado",
+   "legal_id": "22222222000102"
+  },
+  {
+   "name": "FIDC Vale Verde Recebíveis",
+   "legal_id": "33333333000103"
+  },
+  {
+   "name": "FIDC Estrela do Sul",
+   "legal_id": "44444444000104"
+  },
+  {
+   "name": "FIDC Lagoa Azul Multicedentes",
+   "legal_id": "55555555000105"
+  },
+  {
+   "name": "FIC Master Caixa I",
+   "legal_id": null
+  },
+  {
+   "name": "FIC Master Caixa II",
+   "legal_id": null
+  }
+ ],
+ "management/funds-health": {
+  "funds": [
+   {
+    "fund_name": "FIDC Aurora Crédito",
+    "fund_legal_id": "11111111000101",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 18400000,
+     "net_asset_value_percentage": 7.36
+    },
+    "opening_cash": {
+     "amount": 19136000.0,
+     "net_asset_value_percentage": 7.65
+    },
+    "available_cash": {
+     "amount": 16744000.0,
+     "net_asset_value_percentage": 6.7
+    },
+    "indirect_cash": {
+     "amount": 6440000.0,
+     "net_asset_value_percentage": 2.58
+    }
+   },
+   {
+    "fund_name": "FIDC Horizonte Consignado",
+    "fund_legal_id": "22222222000102",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 7950000,
+     "net_asset_value_percentage": 5.68
+    },
+    "opening_cash": {
+     "amount": 8268000.0,
+     "net_asset_value_percentage": 5.91
+    },
+    "available_cash": {
+     "amount": 7234500.0,
+     "net_asset_value_percentage": 5.17
+    },
+    "indirect_cash": {
+     "amount": 2782500.0,
+     "net_asset_value_percentage": 1.99
+    }
+   },
+   {
+    "fund_name": "FIDC Vale Verde Recebíveis",
+    "fund_legal_id": "33333333000103",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 12300000,
+     "net_asset_value_percentage": 13.37
+    },
+    "opening_cash": {
+     "amount": 12792000.0,
+     "net_asset_value_percentage": 13.9
+    },
+    "available_cash": {
+     "amount": 11193000.0,
+     "net_asset_value_percentage": 12.17
+    },
+    "indirect_cash": {
+     "amount": 4305000.0,
+     "net_asset_value_percentage": 4.68
+    }
+   },
+   {
+    "fund_name": "FIDC Estrela do Sul",
+    "fund_legal_id": "44444444000104",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 3150000,
+     "net_asset_value_percentage": 8.51
+    },
+    "opening_cash": {
+     "amount": 3276000.0,
+     "net_asset_value_percentage": 8.85
+    },
+    "available_cash": {
+     "amount": 2866500.0,
+     "net_asset_value_percentage": 7.75
+    },
+    "indirect_cash": {
+     "amount": 1102500.0,
+     "net_asset_value_percentage": 2.98
+    }
+   },
+   {
+    "fund_name": "FIDC Lagoa Azul Multicedentes",
+    "fund_legal_id": "55555555000105",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 9870000,
+     "net_asset_value_percentage": 8.97
+    },
+    "opening_cash": {
+     "amount": 10264800.0,
+     "net_asset_value_percentage": 9.33
+    },
+    "available_cash": {
+     "amount": 8981700.0,
+     "net_asset_value_percentage": 8.17
+    },
+    "indirect_cash": {
+     "amount": 3454500.0,
+     "net_asset_value_percentage": 3.14
+    }
+   }
+  ],
+  "master_funds": [
+   {
+    "fund_name": "FIC Master Caixa I",
+    "fund_legal_id": "66666666000106",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 41000000,
+     "net_asset_value_percentage": 10.0
+    },
+    "opening_cash": {
+     "amount": 42640000.0,
+     "net_asset_value_percentage": 10.4
+    },
+    "available_cash": {
+     "amount": 37310000.0,
+     "net_asset_value_percentage": 9.1
+    },
+    "indirect_cash": {
+     "amount": 14350000.0,
+     "net_asset_value_percentage": 3.5
+    }
+   },
+   {
+    "fund_name": "FIC Master Caixa II",
+    "fund_legal_id": "77777777000107",
+    "updated_at": "2026-10-14T00:00:00Z",
+    "last_cash_position": {
+     "amount": 26500000,
+     "net_asset_value_percentage": 8.83
+    },
+    "opening_cash": {
+     "amount": 27560000.0,
+     "net_asset_value_percentage": 9.19
+    },
+    "available_cash": {
+     "amount": 24115000.0,
+     "net_asset_value_percentage": 8.04
+    },
+    "indirect_cash": {
+     "amount": 9275000.0,
+     "net_asset_value_percentage": 3.09
+    }
+   }
+  ]
+ },
+ "management/funds-health/details": {
+  "closing_cash": {
+   "updated_at": "2026-10-14T00:00:00Z",
+   "cash_fund": {
+    "amount": 9800000,
+    "net_asset_value_percentage": 3.92
+   },
+   "checking_account": {
+    "amount": 420000,
+    "net_asset_value_percentage": 0.17
+   },
+   "government_bonds": {
+    "amount": 6100000,
+    "net_asset_value_percentage": 2.44
+   },
+   "agreements": {
+    "amount": 2080000,
+    "net_asset_value_percentage": 0.83
+   }
+  },
+  "asset_movements": {
+   "acquisitions": {
+    "amount": -3200000,
+    "net_asset_value_percentage": -1.28
+   },
+   "sales": {
+    "amount": 850000,
+    "net_asset_value_percentage": 0.34
+   }
+  },
+  "liability_movements": {
+   "subscriptions": {
+    "amount": 5000000,
+    "net_asset_value_percentage": 2.0
+   },
+   "redemptions": {
+    "amount": -1750000,
+    "net_asset_value_percentage": -0.7
+   }
+  },
+  "maturity": {
+   "amortizations": {
+    "amount": 2300000,
+    "net_asset_value_percentage": 0.92
+   },
+   "interest": {
+    "amount": 640000,
+    "net_asset_value_percentage": 0.26
+   },
+   "fees": {
+    "amount": -95000,
+    "net_asset_value_percentage": -0.04
+   }
+  },
+  "provisioned_expenses": {
+   "administration_fee": {
+    "amount": -48000,
+    "net_asset_value_percentage": -0.02
+   },
+   "management_fee": {
+    "amount": -112000,
+    "net_asset_value_percentage": -0.04
+   },
+   "performance_fee": {
+    "amount": "",
+    "net_asset_value_percentage": ""
+   }
+  },
+  "movements": {
+   "date": "2026-10-15T00:00:00Z",
+   "redemptions": {
+    "amount": -900000,
+    "net_asset_value_percentage": -0.36
+   },
+   "subscriptions": {
+    "amount": 1200000,
+    "net_asset_value_percentage": 0.48
+   },
+   "maturities": {
+    "amount": 780000,
+    "net_asset_value_percentage": 0.31
+   },
+   "trades": {
+    "amount": -410000,
+    "net_asset_value_percentage": -0.16
+   }
+  }
+ }
+}

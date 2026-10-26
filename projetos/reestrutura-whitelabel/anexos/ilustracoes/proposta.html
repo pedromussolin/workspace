@@ -1,0 +1,1146 @@
+<title>Ilustrações do portal</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+<style>
+  /* Layout: coluna de até 1180 px, barra de controles fixa no topo, uma linha por direção na
+     comparação e, em contexto, a direção escolhida em maquetes do portal.
+     Tokens da página (--bg, --text...) mudam com o tema de quem vê. As áreas de prévia usam --m-*
+     e --illu-*, que o #app tira da marca e da aparência escolhidas nos controles. */
+  :root {
+    --bg: #f3f5f7;
+    --surface: #ffffff;
+    --surface-2: #eaeef2;
+    --border: #dde3e8;
+    --text: #0f1e29;
+    --muted: #586674;
+    --accent: #0d8291;
+    --on-accent: #ffffff;
+    --accent-soft: #e2f1f3;
+    --device: #1d2830;
+    --device-edge: #3a4853;
+    --shadow: 0 1px 2px rgb(15 30 41 / 0.06), 0 4px 14px -6px rgb(15 30 41 / 0.12);
+    --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    --l-bg: #fbfcfd;
+    --l-surface: #ffffff;
+    --l-muted: #f8fafc;
+    --l-sunken: #f1f5f9;
+    --l-line: #eef0f3;
+    --l-border: #e2e8f0;
+    --l-strong: #cbd5e1;
+    --l-text: #0f172a;
+    --l-ink: #0f2a3a;
+    --l-text2: #475569;
+    --l-text3: #64748b;
+    --l-sidebar: #f5f7fa;
+    --l-sideline: #e2e7ee;
+    --l-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -14px rgb(15 52 67 / 0.22);
+    --d-bg: #0e171e;
+    --d-surface: #141f27;
+    --d-muted: #18242d;
+    --d-sunken: #1c2a34;
+    --d-line: #22313b;
+    --d-border: #2a3a45;
+    --d-strong: #3a4c58;
+    --d-text: #e6edf2;
+    --d-ink: #eef3f7;
+    --d-text2: #b4c2cc;
+    --d-text3: #93a3b0;
+    --d-sidebar: #0b1217;
+    --d-sideline: #1e2b35;
+    --d-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+    --poliedro-l-accent: #0d8291;
+    --poliedro-l-primary: #0f3443;
+    --poliedro-l-secondary: #0d8291;
+    --poliedro-d-accent: #4fc3d0;
+    --poliedro-d-primary: #5fb8c6;
+    --poliedro-d-secondary: #4fc3d0;
+    --dots-l-accent: #ee7342;
+    --dots-l-primary: #d34108;
+    --dots-l-secondary: #ee7342;
+    --dots-l-ink: #ae5433;
+    --dots-d-accent: #ff9a6e;
+    --dots-d-primary: #ff7a45;
+    --dots-d-secondary: #ff9a6e;
+    --cerys-l-accent: #ff8f1c;
+    --cerys-l-primary: #ff8f1c;
+    --cerys-l-secondary: #1e1e1e;
+    --cerys-d-accent: #ffa64d;
+    --cerys-d-primary: #ffa64d;
+    --cerys-d-secondary: #d4d4d4;
+    --viva-l-accent: #9333ea;
+    --viva-l-primary: #79009d;
+    --viva-l-secondary: #9333ea;
+    --viva-d-accent: #b98cff;
+    --viva-d-primary: #c77dff;
+    --viva-d-secondary: #b98cff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0b1217;
+      --surface: #121c23;
+      --surface-2: #1a2630;
+      --border: #25343e;
+      --text: #e6edf2;
+      --muted: #98a8b4;
+      --accent: #4fc3d0;
+      --on-accent: #062029;
+      --accent-soft: #163640;
+      --device: #2b3843;
+      --device-edge: #45555f;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #0b1217;
+    --surface: #121c23;
+    --surface-2: #1a2630;
+    --border: #25343e;
+    --text: #e6edf2;
+    --muted: #98a8b4;
+    --accent: #4fc3d0;
+    --on-accent: #062029;
+    --accent-soft: #163640;
+    --device: #2b3843;
+    --device-edge: #45555f;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
+  }
+
+  #app[data-scheme='light'] { --m-bg: var(--l-bg); --m-surface: var(--l-surface); --m-muted: var(--l-muted); --m-sunken: var(--l-sunken); --m-line: var(--l-line); --m-border: var(--l-border); --m-strong: var(--l-strong); --m-text: var(--l-text); --m-ink: var(--l-ink); --m-text2: var(--l-text2); --m-text3: var(--l-text3); --m-sidebar: var(--l-sidebar); --m-sideline: var(--l-sideline); --m-shadow: var(--l-shadow); --m-soft: 14%; --m-deep: 72%; --m-tonal: 12%; }
+  #app[data-scheme='dark'] { --m-bg: var(--d-bg); --m-surface: var(--d-surface); --m-muted: var(--d-muted); --m-sunken: var(--d-sunken); --m-line: var(--d-line); --m-border: var(--d-border); --m-strong: var(--d-strong); --m-text: var(--d-text); --m-ink: var(--d-ink); --m-text2: var(--d-text2); --m-text3: var(--d-text3); --m-sidebar: var(--d-sidebar); --m-sideline: var(--d-sideline); --m-shadow: var(--d-shadow); --m-soft: 20%; --m-deep: 72%; --m-tonal: 18%; }
+  #app[data-brand='poliedro'][data-scheme='light'] { --m-accent: var(--poliedro-l-accent); --m-primary: var(--poliedro-l-primary); --m-secondary: var(--poliedro-l-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='poliedro'][data-scheme='dark'] { --m-accent: var(--poliedro-d-accent); --m-primary: var(--poliedro-d-primary); --m-secondary: var(--poliedro-d-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='dots'][data-scheme='light'] { --m-accent: var(--dots-l-accent); --m-primary: var(--dots-l-primary); --m-secondary: var(--dots-l-secondary); --m-brand-ink: var(--dots-l-ink); }
+  #app[data-brand='dots'][data-scheme='dark'] { --m-accent: var(--dots-d-accent); --m-primary: var(--dots-d-primary); --m-secondary: var(--dots-d-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='cerys'][data-scheme='light'] { --m-accent: var(--cerys-l-accent); --m-primary: var(--cerys-l-primary); --m-secondary: var(--cerys-l-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='cerys'][data-scheme='dark'] { --m-accent: var(--cerys-d-accent); --m-primary: var(--cerys-d-primary); --m-secondary: var(--cerys-d-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='viva'][data-scheme='light'] { --m-accent: var(--viva-l-accent); --m-primary: var(--viva-l-primary); --m-secondary: var(--viva-l-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app[data-brand='viva'][data-scheme='dark'] { --m-accent: var(--viva-d-accent); --m-primary: var(--viva-d-primary); --m-secondary: var(--viva-d-secondary); --m-brand-ink: color-mix(in srgb, var(--m-secondary) 82%, var(--m-text)); }
+  #app { --illu-brand: var(--m-accent); --illu-brand-soft: color-mix(in srgb, var(--m-accent) var(--m-soft), var(--m-surface)); --illu-brand-strong: color-mix(in srgb, var(--m-accent) var(--m-deep), var(--m-text)); --illu-ink: var(--m-text2); --illu-line: var(--m-strong); --illu-surface: var(--m-surface); --illu-bg: var(--m-sunken); }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: var(--bg);
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  h1 {
+    font-size: 1.875rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1rem;
+    font-weight: 650;
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+  }
+
+  .top {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .eyebrow {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .lede {
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .controls {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .ctl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .ctl-l {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9px;
+    background: var(--surface-2);
+  }
+  .seg button {
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    font: 500 0.8rem var(--font);
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .seg button:hover {
+    color: var(--text);
+  }
+  .seg button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .block-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 24px;
+  }
+  .bh-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    max-width: 72ch;
+  }
+  .bh-text p {
+    color: var(--muted);
+  }
+  .block-head > .seg {
+    flex: none;
+    max-width: 100%;
+  }
+
+  /* Comparação */
+  .dirs {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .dir {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dir-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 14px;
+  }
+  .tag {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .dir-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .dir-text p,
+  .dir-size {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .dir-size {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .scenes {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .scene {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .scene .art {
+    padding: 14px 14px 6px;
+  }
+  .scene figcaption {
+    padding: 9px 14px 11px;
+    border-top: 1px solid var(--m-line);
+    color: var(--m-text2);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .illu {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  #app[data-focus='a'] .dir:not([data-dir='a']),
+  #app[data-focus='b'] .dir:not([data-dir='b']),
+  #app[data-focus='c'] .dir:not([data-dir='c']) {
+    display: none;
+  }
+  #app:not([data-focus='all']) .scenes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Em contexto */
+  #app[data-ctx='a'] .ctx-dir:not([data-dir='a']),
+  #app[data-ctx='b'] .ctx-dir:not([data-dir='b']),
+  #app[data-ctx='c'] .ctx-dir:not([data-dir='c']) {
+    display: none;
+  }
+  .ctx-dir {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .shot {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .shot figcaption {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .shot figcaption b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .shot-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    gap: 24px;
+  }
+  .frame {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--m-bg);
+    box-shadow: var(--shadow);
+  }
+
+  /* Maquete do portal: menu recolhido, cabeçalho da página, filtros e tabela. */
+  .frame-app {
+    container: app / inline-size;
+  }
+  .mock {
+    display: flex;
+    min-width: 0;
+    background: var(--m-bg);
+    color: var(--m-text);
+    font-family: var(--font);
+  }
+  .mock .i {
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+  .m-rail {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 60px;
+    padding: 16px 0;
+    background: var(--m-sidebar);
+    border-right: 1px solid var(--m-sideline);
+  }
+  .m-mark {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 12px;
+    border-radius: 9px;
+    background: var(--m-primary);
+  }
+  .m-nav {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    color: var(--m-text3);
+  }
+  .m-nav.on {
+    background: color-mix(in srgb, var(--m-text) 7.5%, transparent);
+    color: var(--m-text);
+  }
+  .m-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px 24px 24px;
+  }
+  .m-crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--m-text3);
+    font-size: 0.82rem;
+  }
+  .m-crumbs .i {
+    width: 15px;
+    height: 15px;
+  }
+  .m-crumbs b {
+    color: var(--m-text);
+    font-weight: 600;
+  }
+  .m-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 16px;
+  }
+  .m-head > div {
+    min-width: 0;
+    flex: 1 1 260px;
+  }
+  .m-title {
+    color: var(--m-ink);
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+  .m-desc {
+    margin-top: 4px;
+    color: var(--m-text3);
+    font-size: 0.9rem;
+  }
+  .m-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--m-border);
+    border-radius: 8px;
+    background: var(--m-muted);
+    color: var(--m-text2);
+    font-size: 0.86rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .m-btn.primary {
+    background: color-mix(in srgb, var(--m-secondary) var(--m-tonal), var(--m-surface));
+    border-color: color-mix(in srgb, var(--m-secondary) 30%, var(--m-surface));
+    color: var(--m-brand-ink);
+  }
+  .m-card {
+    min-width: 0;
+    background: var(--m-surface);
+    border: 1px solid var(--m-line);
+    border-radius: 14px;
+    box-shadow: var(--m-shadow);
+  }
+  .m-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 14px;
+    padding: 14px 18px;
+  }
+  .m-field {
+    flex: 1 1 150px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .m-field.wide {
+    flex-grow: 1.6;
+  }
+  .m-label {
+    color: var(--m-text3);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+  .m-input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--m-border);
+    border-radius: 8px;
+    background: var(--m-muted);
+    color: var(--m-text3);
+    font-size: 0.875rem;
+  }
+  .m-input span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .m-input .i {
+    width: 16px;
+    height: 16px;
+  }
+  .m-table {
+    overflow: hidden;
+  }
+  .m-thead {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    height: 41px;
+    overflow: hidden;
+    background: var(--m-muted);
+    border-bottom: 1px solid var(--m-line);
+  }
+  .m-thead span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 0 8px;
+    overflow: hidden;
+    color: var(--m-text3);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .m-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 16px 40px;
+    text-align: center;
+  }
+  .m-art {
+    width: 210px;
+    max-width: 100%;
+  }
+  .m-empty-title {
+    margin-top: 6px;
+    color: var(--m-text);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .m-empty-text {
+    max-width: 420px;
+    color: var(--m-text3);
+    font-size: 0.875rem;
+    text-wrap: pretty;
+  }
+  .m-empty .m-btn {
+    margin-top: 12px;
+  }
+  @container app (max-width: 640px) {
+    .m-rail,
+    .m-crumbs {
+      display: none;
+    }
+    .m-main {
+      padding: 16px 14px 18px;
+    }
+    .m-head .m-btn {
+      width: 100%;
+    }
+  }
+
+  /* Página de estado (acesso negado e 404), no padrão do status-page do portal. */
+  .status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    min-height: 460px;
+    height: 100%;
+    padding: 32px;
+    background: var(--m-bg);
+    color: var(--m-text);
+    text-align: center;
+  }
+  .status-art {
+    width: min(288px, 90%);
+  }
+  .status-title {
+    color: var(--m-text);
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .status-msg,
+  .status-hint {
+    max-width: 400px;
+    color: var(--m-text2);
+    font-size: 1.05rem;
+    text-wrap: pretty;
+  }
+  .status-hint {
+    margin-top: -8px;
+    color: var(--m-text3);
+    font-size: 0.875rem;
+  }
+  .status .m-btn {
+    margin-top: 8px;
+  }
+  .shot-phone {
+    justify-self: center;
+    width: min(300px, 100%);
+  }
+  .phone {
+    position: relative;
+    width: 100%;
+    padding: 10px;
+    border-radius: 42px;
+    background: var(--device);
+    box-shadow: inset 0 0 0 1px var(--device-edge), var(--shadow);
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    z-index: 1;
+    width: 76px;
+    height: 20px;
+    margin-left: -38px;
+    border-radius: 999px;
+    background: var(--device);
+  }
+  .phone-screen {
+    display: grid;
+    aspect-ratio: 280 / 580;
+    overflow: hidden;
+    border-radius: 32px;
+    background: var(--m-bg);
+  }
+  .phone .status {
+    min-height: 0;
+    gap: 14px;
+    padding: 52px 22px 28px;
+  }
+  .phone .status-art {
+    width: 210px;
+    max-width: 100%;
+  }
+  .phone .status-title {
+    font-size: 1.375rem;
+  }
+  .phone .status-msg {
+    font-size: 0.95rem;
+  }
+  .phone .status-hint {
+    margin-top: -4px;
+    font-size: 0.8125rem;
+  }
+  .phone .m-btn {
+    align-self: stretch;
+  }
+
+  /* 404 simples, à parte. */
+  .nf {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    align-items: center;
+    gap: 16px 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .nf .status {
+    min-height: 260px;
+    gap: 10px;
+    padding: 28px;
+  }
+  .nf-code {
+    color: var(--m-text3);
+    font-size: 2.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .nf .status-title {
+    font-size: 1.25rem;
+  }
+  .nf .status-msg {
+    font-size: 0.9rem;
+  }
+  .nf-note {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 52ch;
+  }
+  .nf-note p {
+    color: var(--muted);
+  }
+
+  .rules {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .rules ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 10px 32px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rules li {
+    color: var(--muted);
+    max-width: 62ch;
+  }
+  .rules li b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 960px) {
+    #app .scenes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .shot-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .nf {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 640px) {
+    .controls {
+      position: static;
+    }
+    .block-head > .seg {
+      display: flex;
+      width: 100%;
+    }
+    .block-head > .seg button {
+      flex: 1 1 auto;
+    }
+    .dir-head {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .dir-size {
+      grid-column: 2;
+      white-space: normal;
+    }
+    .status {
+      min-height: 400px;
+      padding: 24px 18px;
+    }
+    .status-title {
+      font-size: 1.375rem;
+    }
+  }
+  @media (max-width: 540px) {
+    #app .scenes,
+    #app:not([data-focus='all']) .scenes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
+
+<div class="wrap" id="app" data-brand="poliedro" data-scheme="light" data-focus="all" data-ctx="a">
+  <header class="top">
+    <p class="eyebrow">Tarefa 23 · proposta visual</p>
+    <h1>Ilustrações do portal</h1>
+    <p class="lede">
+      Três direções para as ilustrações próprias do portal, cada uma com as mesmas quatro cenas: lista vazia, busca sem
+      resultado, erro ao carregar e acesso negado. Compare as linhas, troque a marca e a aparência e veja cada direção
+      nas telas para escolher uma. A página não encontrada (404) fica simples, sem ilustração.
+    </p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl">
+      <span class="ctl-l" id="l-brand">Marca</span>
+      <div class="seg" role="group" aria-labelledby="l-brand" data-key="brand"><button type="button" data-v="poliedro" aria-pressed="true">Poliedro</button><button type="button" data-v="dots" aria-pressed="false">Dots</button><button type="button" data-v="cerys" aria-pressed="false">Cerys</button><button type="button" data-v="viva" aria-pressed="false">Viva</button></div>
+    </div>
+    <div class="ctl">
+      <span class="ctl-l" id="l-scheme">Aparência das ilustrações</span>
+      <div class="seg" role="group" aria-labelledby="l-scheme" data-key="scheme">
+        <button type="button" data-v="light" aria-pressed="true">Claro</button>
+        <button type="button" data-v="dark" aria-pressed="false">Escuro</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="ctl-l" id="l-focus">Direção</span>
+      <div class="seg" role="group" aria-labelledby="l-focus" data-key="focus"><button type="button" data-v="all" aria-pressed="true">Todas</button><button type="button" data-v="a" aria-pressed="false">A</button><button type="button" data-v="b" aria-pressed="false">B</button><button type="button" data-v="c" aria-pressed="false">C</button></div>
+    </div>
+  </div>
+
+  <section class="block" aria-labelledby="h-compare">
+    <div class="block-head">
+      <div class="bh-text">
+        <h2 id="h-compare">Comparação</h2>
+        <p>As mesmas cenas nas três direções, na marca e na aparência escolhidas acima.</p>
+      </div>
+    </div>
+    <div class="dirs">
+  <section class="dir" data-dir="a" aria-labelledby="dir-a">
+    <header class="dir-head">
+      <span class="tag" aria-hidden="true">A</span>
+      <div class="dir-text">
+        <h3 id="dir-a">Interface em camadas</h3>
+        <p>Pedaços do próprio portal em planos sobrepostos, tom sobre tom da marca, com o motivo da cena grande na frente.</p>
+      </div>
+      <p class="dir-size">4 arquivos, de 1,6 a 1,8 KB</p>
+    </header>
+    <div class="scenes">
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><path d="M60 72h70M60 88h70M60 104h70M60 120h70" stroke="var(--illu-line)" stroke-dasharray="3 5"/><path d="M157 82h50l9 25v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6v-19z" fill="var(--illu-surface)"/><path d="M148 107h18l4.5 8h23l4.5-8h18v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6z" fill="var(--illu-brand-soft)"/><path d="M157 82h50l9 25v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6v-19zM148 107h18l4.5 8h23l4.5-8h18" stroke="var(--illu-ink)" stroke-width="2"/><circle cx="207" cy="82" r="11" fill="var(--illu-brand)"/><path d="M207 77v10M202 82h10" stroke="var(--illu-surface)" stroke-width="2"/></svg></div><figcaption>Lista vazia</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><rect x="58" y="49" width="96" height="14" rx="7" fill="var(--illu-bg)"/><g stroke="var(--illu-line)"><circle cx="67" cy="56" r="3"/><path d="M69.2 58.2l2.3 2.3"/></g><g fill="var(--illu-line)"><rect x="78" y="54" width="40" height="4" rx="2"/><rect x="60" y="76" width="34" height="4" rx="2"/><rect x="104" y="76" width="24" height="4" rx="2"/><rect x="60" y="92" width="26" height="4" rx="2"/><rect x="104" y="92" width="32" height="4" rx="2"/><rect x="60" y="108" width="38" height="4" rx="2"/><rect x="104" y="108" width="20" height="4" rx="2"/><rect x="60" y="124" width="30" height="4" rx="2"/><rect x="104" y="124" width="28" height="4" rx="2"/></g><rect x="-5" y="0" width="10" height="24" rx="5" transform="translate(196 118) rotate(-45)" fill="var(--illu-brand)"/><circle cx="176" cy="98" r="27" fill="var(--illu-surface)" stroke="var(--illu-ink)" stroke-width="2"/><path d="M168 90l16 16M184 90l-16 16" stroke="var(--illu-brand-strong)" stroke-width="2"/></svg></div><figcaption>Busca sem resultado</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><path d="M60 130v-10l14-12 14 5 14-18 12 7v28z" fill="var(--illu-brand-soft)"/><path d="M60 120l14-12 14 5 14-18 9 5.3" stroke="var(--illu-brand)" stroke-width="2"/><path d="M60 130h76" stroke="var(--illu-line)"/><path d="M114 102h22" stroke="var(--illu-line)" stroke-dasharray="3 4"/><circle cx="114" cy="102" r="3" fill="var(--illu-surface)" stroke="var(--illu-brand)" stroke-width="2"/><g fill="var(--illu-line)"><rect x="60" y="64" width="30" height="4" rx="2"/></g><path d="M175.9 78.7Q182 68 188.1 78.7L210.1 117.5Q216 128 204 128L160 128Q148 128 153.9 117.5z" fill="var(--illu-surface)" stroke="var(--illu-ink)" stroke-width="2"/><path d="M182 90v17" stroke="var(--illu-brand-strong)" stroke-width="2"/><circle cx="182" cy="116" r="2.4" fill="var(--illu-brand-strong)"/></svg></div><figcaption>Erro ao carregar</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><g fill="var(--illu-bg)"><rect x="60" y="66" width="74" height="10" rx="5"/><rect x="60" y="84" width="58" height="10" rx="5"/><rect x="60" y="102" width="66" height="10" rx="5"/><rect x="60" y="120" width="44" height="10" rx="5"/></g><path d="M165 92V82a16 16 0 0 1 32 0v10" stroke="var(--illu-ink)" stroke-width="2"/><rect x="152" y="92" width="58" height="42" rx="9" fill="var(--illu-surface)" stroke="var(--illu-ink)" stroke-width="2"/><circle cx="181" cy="110" r="5.5" fill="var(--illu-brand)"/><rect x="178.75" y="112" width="4.5" height="12" rx="2.25" fill="var(--illu-brand)"/></svg></div><figcaption>Acesso negado</figcaption></figure>
+    </div>
+  </section>
+  <section class="dir" data-dir="b" aria-labelledby="dir-b">
+    <header class="dir-head">
+      <span class="tag" aria-hidden="true">B</span>
+      <div class="dir-text">
+        <h3 id="dir-b">Traço fino</h3>
+        <p>Desenho de linha no traço dos ícones, em tinta neutra, com um único plano suave da marca.</p>
+      </div>
+      <p class="dir-size">4 arquivos, de 0,6 a 0,8 KB</p>
+    </header>
+    <div class="scenes">
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="56" y="28" width="128" height="104" rx="10" stroke="var(--illu-ink)"/><path d="M56 48h128" stroke="var(--illu-ink)"/><path d="M70 38h18M100 38h26M138 38h14M164 38h8" stroke="var(--illu-line)"/><rect x="72" y="66" width="96" height="32" rx="8" fill="var(--illu-brand-soft)"/><rect x="72" y="66" width="96" height="32" rx="8" stroke="var(--illu-ink)" stroke-dasharray="4 5"/><path d="M120 75v14M113 82h14" stroke="var(--illu-ink)"/><path d="M72 114h48M132 114h36" stroke="var(--illu-line)" stroke-dasharray="4 5"/></svg></div><figcaption>Lista vazia</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="40" y="26" width="120" height="96" rx="10" stroke="var(--illu-ink)"/><path d="M54 44h44M54 52h26M54 70h52M54 78h30M54 96h40M54 104h22" stroke="var(--illu-line)"/><path d="M54 61h92M54 87h92" stroke="var(--illu-line)"/><rect x="-4" y="0" width="8" height="24" rx="4" transform="translate(184 120) rotate(-45)" stroke="var(--illu-ink)"/><circle cx="162" cy="98" r="28" fill="var(--illu-brand-soft)" stroke="var(--illu-ink)"/><path d="M154 90l16 16M170 90l-16 16" stroke="var(--illu-ink)"/></svg></div><figcaption>Busca sem resultado</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="40" y="32" width="124" height="96" rx="10" stroke="var(--illu-ink)"/><path d="M54 48h28M54 56h44" stroke="var(--illu-line)"/><path d="M54 112h96" stroke="var(--illu-line)"/><path d="M54 104l14-12 12 6 12.4-16" stroke="var(--illu-ink)"/><path d="M98 80h26" stroke="var(--illu-line)" stroke-dasharray="3 4"/><circle cx="94" cy="80" r="2.6" fill="var(--illu-surface)" stroke="var(--illu-ink)"/><circle cx="168" cy="100" r="32" fill="var(--illu-brand-soft)"/><path d="M164.5 82.1Q168 76 171.5 82.1L188.6 112Q192 118 185.1 118L150.9 118Q144 118 147.4 112z" stroke="var(--illu-ink)"/><path d="M168 92v12" stroke="var(--illu-ink)"/><circle cx="168" cy="110.5" r="1.6" fill="var(--illu-ink)"/></svg></div><figcaption>Erro ao carregar</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="40" y="28" width="160" height="104" rx="10" stroke="var(--illu-ink)"/><path d="M40 46h160" stroke="var(--illu-ink)"/><path d="M54 37h20M82 37h12" stroke="var(--illu-line)"/><path d="M54 62h56M54 70h34M54 88h48M54 96h28M54 114h52" stroke="var(--illu-line)"/><path d="M144 82V72a14 14 0 0 1 28 0v10" stroke="var(--illu-ink)"/><rect x="132" y="82" width="52" height="38" rx="8" fill="var(--illu-brand-soft)" stroke="var(--illu-ink)"/><circle cx="158" cy="98" r="4" stroke="var(--illu-ink)"/><path d="M158 102v6" stroke="var(--illu-ink)"/></svg></div><figcaption>Acesso negado</figcaption></figure>
+    </div>
+  </section>
+  <section class="dir" data-dir="c" aria-labelledby="dir-c">
+    <header class="dir-head">
+      <span class="tag" aria-hidden="true">C</span>
+      <div class="dir-text">
+        <h3 id="dir-c">Geométrico</h3>
+        <p>Círculos, arcos, grade de pontos e retângulos em degraus de tom da marca, com um símbolo só por cena.</p>
+      </div>
+      <p class="dir-size">4 arquivos, de 1,4 a 1,6 KB</p>
+    </header>
+    <div class="scenes">
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><path d="M72 54L36 54A36 36 0 0 1 72 18z" fill="var(--illu-brand-soft)"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="174" cy="24" r="1.8"/><circle cx="182" cy="24" r="1.8"/><circle cx="190" cy="24" r="1.8"/><circle cx="198" cy="24" r="1.8"/><circle cx="174" cy="32" r="1.8"/><circle cx="182" cy="32" r="1.8"/><circle cx="190" cy="32" r="1.8"/><circle cx="198" cy="32" r="1.8"/><circle cx="174" cy="40" r="1.8"/><circle cx="182" cy="40" r="1.8"/><circle cx="190" cy="40" r="1.8"/><circle cx="198" cy="40" r="1.8"/><circle cx="174" cy="48" r="1.8"/><circle cx="182" cy="48" r="1.8"/><circle cx="190" cy="48" r="1.8"/><circle cx="198" cy="48" r="1.8"/></g><path d="M72 98A18 18 0 0 1 72 62z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="186" cy="80" r="18" fill="var(--illu-brand-soft)"/><rect x="80" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M124 106L160 106A36 36 0 0 1 124 142z" fill="var(--illu-brand)" fill-opacity=".5"/><path d="M204 106A18 18 0 0 1 168 106z" fill="var(--illu-brand)" fill-opacity=".25"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><rect x="114" y="36" width="12" height="44" rx="6" fill="var(--illu-brand)"/><rect x="98" y="52" width="44" height="12" rx="6" fill="var(--illu-brand)"/></svg></div><figcaption>Lista vazia</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="42" cy="24" r="1.8"/><circle cx="50" cy="24" r="1.8"/><circle cx="58" cy="24" r="1.8"/><circle cx="66" cy="24" r="1.8"/><circle cx="42" cy="32" r="1.8"/><circle cx="50" cy="32" r="1.8"/><circle cx="58" cy="32" r="1.8"/><circle cx="66" cy="32" r="1.8"/><circle cx="42" cy="40" r="1.8"/><circle cx="50" cy="40" r="1.8"/><circle cx="58" cy="40" r="1.8"/><circle cx="66" cy="40" r="1.8"/><circle cx="42" cy="48" r="1.8"/><circle cx="50" cy="48" r="1.8"/><circle cx="58" cy="48" r="1.8"/><circle cx="66" cy="48" r="1.8"/></g><path d="M168 54L168 18A36 36 0 0 1 204 54z" fill="var(--illu-brand-soft)"/><circle cx="54" cy="80" r="18" fill="var(--illu-brand-soft)"/><path d="M168 62A18 18 0 0 1 168 98z" fill="var(--illu-brand)" fill-opacity=".25"/><path d="M72 106A18 18 0 0 1 36 106z" fill="var(--illu-brand)" fill-opacity=".25"/><path d="M116 106L116 142A36 36 0 0 1 80 106z" fill="var(--illu-brand)" fill-opacity=".5"/><rect x="168" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><rect x="-6" y="0" width="12" height="34" rx="6" transform="translate(129.9 67.9) rotate(-45)" fill="var(--illu-brand-strong)"/><path d="M88 52a26 26 0 1 0 52 0a26 26 0 1 0-52 0zM98 52a16 16 0 1 1 32 0a16 16 0 1 1-32 0z" fill="var(--illu-brand)" fill-rule="evenodd"/></svg></div><figcaption>Busca sem resultado</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="36" y="18" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M168 54A18 18 0 0 1 204 54z" fill="var(--illu-brand)" fill-opacity=".25"/><path d="M72 62L72 98A36 36 0 0 1 36 62z" fill="var(--illu-brand)" fill-opacity=".5"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="174" cy="68" r="1.8"/><circle cx="182" cy="68" r="1.8"/><circle cx="190" cy="68" r="1.8"/><circle cx="198" cy="68" r="1.8"/><circle cx="174" cy="76" r="1.8"/><circle cx="182" cy="76" r="1.8"/><circle cx="190" cy="76" r="1.8"/><circle cx="198" cy="76" r="1.8"/><circle cx="174" cy="84" r="1.8"/><circle cx="182" cy="84" r="1.8"/><circle cx="190" cy="84" r="1.8"/><circle cx="198" cy="84" r="1.8"/><circle cx="174" cy="92" r="1.8"/><circle cx="182" cy="92" r="1.8"/><circle cx="190" cy="92" r="1.8"/><circle cx="198" cy="92" r="1.8"/></g><path d="M116 106A18 18 0 0 1 80 106z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="142" cy="124" r="18" fill="var(--illu-brand-soft)"/><path d="M168 106L204 106A36 36 0 0 1 168 142z" fill="var(--illu-brand-soft)"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><path d="M113 40.6Q120 28 127 40.6L143.4 70.1Q150 82 136.4 82L103.6 82Q90 82 96.6 70.1z" fill="var(--illu-brand)"/><rect x="117" y="44" width="6" height="20" rx="3" fill="var(--illu-surface)"/><circle cx="120" cy="71" r="3.2" fill="var(--illu-surface)"/></svg></div><figcaption>Erro ao carregar</figcaption></figure>
+      <figure class="scene"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><path d="M72 54A18 18 0 0 1 72 18z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="186" cy="36" r="18" fill="var(--illu-brand-soft)"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="42" cy="68" r="1.8"/><circle cx="50" cy="68" r="1.8"/><circle cx="58" cy="68" r="1.8"/><circle cx="66" cy="68" r="1.8"/><circle cx="42" cy="76" r="1.8"/><circle cx="50" cy="76" r="1.8"/><circle cx="58" cy="76" r="1.8"/><circle cx="66" cy="76" r="1.8"/><circle cx="42" cy="84" r="1.8"/><circle cx="50" cy="84" r="1.8"/><circle cx="58" cy="84" r="1.8"/><circle cx="66" cy="84" r="1.8"/><circle cx="42" cy="92" r="1.8"/><circle cx="50" cy="92" r="1.8"/><circle cx="58" cy="92" r="1.8"/><circle cx="66" cy="92" r="1.8"/></g><path d="M168 98L168 62A36 36 0 0 1 204 98z" fill="var(--illu-brand)" fill-opacity=".5"/><path d="M72 106L72 142A36 36 0 0 1 36 106z" fill="var(--illu-brand-soft)"/><rect x="124" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M204 106A18 18 0 0 1 168 106z" fill="var(--illu-brand)" fill-opacity=".25"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><path d="M106 58V46a14 14 0 0 1 28 0v12h-8V46a6 6 0 0 0-12 0v12z" fill="var(--illu-brand-strong)"/><rect x="98" y="54" width="44" height="34" rx="9" fill="var(--illu-brand)"/><circle cx="120" cy="68" r="4.5" fill="var(--illu-surface)"/><rect x="118" y="70" width="4" height="10" rx="2" fill="var(--illu-surface)"/></svg></div><figcaption>Acesso negado</figcaption></figure>
+    </div>
+  </section>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-ctx">
+    <div class="block-head">
+      <div class="bh-text">
+        <h2 id="h-ctx">Em contexto</h2>
+        <p>Uma direção por vez numa lista vazia do Pré-Trade e na página de acesso negado, no computador e no celular.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Direção mostrada em contexto" data-key="ctx"><button type="button" data-v="a" aria-pressed="true">A · Interface em camadas</button><button type="button" data-v="b" aria-pressed="false">B · Traço fino</button><button type="button" data-v="c" aria-pressed="false">C · Geométrico</button></div>
+    </div>
+  <div class="ctx-dir" data-dir="a">
+    <figure class="shot">
+      <figcaption><b>Lista vazia</b> na página do Pré-Trade</figcaption>
+      <div class="frame frame-app"><div class="mock">
+        <div class="m-rail" aria-hidden="true"><span class="m-mark"></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/></svg></span><span class="m-nav on"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L12 4l9 5.5M4 9.5h16M5.5 9.5v8M10 9.5v8M14 9.5v8M18.5 9.5v8M3 20.5h18M4 17.5h16"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3.5v15a2 2 0 0 0 2 2h15"/><path d="M7.5 15l4-4.5 3 3 5.5-6.5"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.2a6 6 0 0 1 3.5 5.3"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.89 9.89L21.48 10.5L21.48 13.5L18.89 14.11L18.36 15.38L19.77 17.64L17.64 19.77L15.38 18.36L14.11 18.89L13.5 21.48L10.5 21.48L9.89 18.89L8.62 18.36L6.36 19.77L4.23 17.64L5.64 15.38L5.11 14.11L2.52 13.5L2.52 10.5L5.11 9.89L5.64 8.62L4.23 6.36L6.36 4.23L8.62 5.64L9.89 5.11L10.5 2.52L13.5 2.52L14.11 5.11L15.38 5.64L17.64 4.23L19.77 6.36L18.36 8.62z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+        <div class="m-main">
+          <div class="m-crumbs"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg><span>Operações</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg><b>Pré-Trade</b></div>
+          <div class="m-head">
+            <div><p class="m-title">Pré-Trade</p><p class="m-desc">Gerencie os pré-trades e acompanhe as aprovações necessárias das operações.</p></div>
+            <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo Pré-Trade</span>
+          </div>
+          <div class="m-card m-filters">
+            <div class="m-field"><span class="m-label">Data de criação</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Data limite</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Fundo(s)</span><span class="m-input"><span>Todos os fundos</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <div class="m-field wide"><span class="m-label">Status</span><span class="m-input"><span>Todos os Status</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <span class="m-btn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h14l-5.3 6.3V17l-3.4 2.2v-8.4zM15.5 14.5l5 5M20.5 14.5l-5 5"/></svg>Limpar filtros</span>
+          </div>
+          <div class="m-card m-table">
+            <div class="m-thead"><span>ID</span><span>Data de criação</span><span>Data limite</span><span>Usuário criador</span><span>Tipo</span><span>Fundo(s)</span><span>Volume (R$)</span><span>Etapa</span><span>Status</span></div>
+            <div class="m-empty">
+              <div class="m-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><path d="M60 72h70M60 88h70M60 104h70M60 120h70" stroke="var(--illu-line)" stroke-dasharray="3 5"/><path d="M157 82h50l9 25v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6v-19z" fill="var(--illu-surface)"/><path d="M148 107h18l4.5 8h23l4.5-8h18v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6z" fill="var(--illu-brand-soft)"/><path d="M157 82h50l9 25v19a6 6 0 0 1-6 6h-56a6 6 0 0 1-6-6v-19zM148 107h18l4.5 8h23l4.5-8h18" stroke="var(--illu-ink)" stroke-width="2"/><circle cx="207" cy="82" r="11" fill="var(--illu-brand)"/><path d="M207 77v10M202 82h10" stroke="var(--illu-surface)" stroke-width="2"/></svg></div>
+              <p class="m-empty-title">Nenhum pré-trade por aqui ainda</p>
+              <p class="m-empty-text">Crie a primeira solicitação: ela começa como rascunho e só vai para aprovação quando você enviar.</p>
+              <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Criar o primeiro Pré-Trade</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </figure>
+    <div class="shot-row">
+      <figure class="shot">
+        <figcaption><b>Acesso negado</b> no computador</figcaption>
+        <div class="frame frame-desk"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><g fill="var(--illu-bg)"><rect x="60" y="66" width="74" height="10" rx="5"/><rect x="60" y="84" width="58" height="10" rx="5"/><rect x="60" y="102" width="66" height="10" rx="5"/><rect x="60" y="120" width="44" height="10" rx="5"/></g><path d="M165 92V82a16 16 0 0 1 32 0v10" stroke="var(--illu-ink)" stroke-width="2"/><rect x="152" y="92" width="58" height="42" rx="9" fill="var(--illu-surface)" stroke="var(--illu-ink)" stroke-width="2"/><circle cx="181" cy="110" r="5.5" fill="var(--illu-brand)"/><rect x="178.75" y="112" width="4.5" height="12" rx="2.25" fill="var(--illu-brand)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div>
+      </figure>
+      <figure class="shot shot-phone">
+        <figcaption><b>Acesso negado</b> no celular</figcaption>
+        <div class="phone"><div class="phone-screen"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="24" y="16" width="140" height="96" rx="12" fill="var(--illu-brand-soft)"/><g fill="var(--illu-surface)"><rect x="36" y="24" width="28" height="8" rx="4"/><rect x="70" y="24" width="20" height="8" rx="4"/><rect x="96" y="24" width="24" height="8" rx="4"/><rect x="32" y="50" width="8" height="8" rx="2.5"/><rect x="32" y="64" width="8" height="8" rx="2.5"/><rect x="32" y="78" width="8" height="8" rx="2.5"/></g><rect x="48" y="40" width="148" height="100" rx="10" fill="var(--illu-surface)"/><path d="M58 40h128a10 10 0 0 1 10 10v6H48v-6a10 10 0 0 1 10-10z" fill="var(--illu-bg)"/><g fill="var(--illu-line)"><rect x="60" y="46" width="20" height="4" rx="2"/><rect x="92" y="46" width="28" height="4" rx="2"/><rect x="132" y="46" width="16" height="4" rx="2"/><rect x="160" y="46" width="24" height="4" rx="2"/></g><rect x="48" y="40" width="148" height="100" rx="10" stroke="var(--illu-line)"/><g fill="var(--illu-bg)"><rect x="60" y="66" width="74" height="10" rx="5"/><rect x="60" y="84" width="58" height="10" rx="5"/><rect x="60" y="102" width="66" height="10" rx="5"/><rect x="60" y="120" width="44" height="10" rx="5"/></g><path d="M165 92V82a16 16 0 0 1 32 0v10" stroke="var(--illu-ink)" stroke-width="2"/><rect x="152" y="92" width="58" height="42" rx="9" fill="var(--illu-surface)" stroke="var(--illu-ink)" stroke-width="2"/><circle cx="181" cy="110" r="5.5" fill="var(--illu-brand)"/><rect x="178.75" y="112" width="4.5" height="12" rx="2.25" fill="var(--illu-brand)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div></div>
+      </figure>
+    </div>
+  </div>
+  <div class="ctx-dir" data-dir="b">
+    <figure class="shot">
+      <figcaption><b>Lista vazia</b> na página do Pré-Trade</figcaption>
+      <div class="frame frame-app"><div class="mock">
+        <div class="m-rail" aria-hidden="true"><span class="m-mark"></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/></svg></span><span class="m-nav on"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L12 4l9 5.5M4 9.5h16M5.5 9.5v8M10 9.5v8M14 9.5v8M18.5 9.5v8M3 20.5h18M4 17.5h16"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3.5v15a2 2 0 0 0 2 2h15"/><path d="M7.5 15l4-4.5 3 3 5.5-6.5"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.2a6 6 0 0 1 3.5 5.3"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.89 9.89L21.48 10.5L21.48 13.5L18.89 14.11L18.36 15.38L19.77 17.64L17.64 19.77L15.38 18.36L14.11 18.89L13.5 21.48L10.5 21.48L9.89 18.89L8.62 18.36L6.36 19.77L4.23 17.64L5.64 15.38L5.11 14.11L2.52 13.5L2.52 10.5L5.11 9.89L5.64 8.62L4.23 6.36L6.36 4.23L8.62 5.64L9.89 5.11L10.5 2.52L13.5 2.52L14.11 5.11L15.38 5.64L17.64 4.23L19.77 6.36L18.36 8.62z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+        <div class="m-main">
+          <div class="m-crumbs"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg><span>Operações</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg><b>Pré-Trade</b></div>
+          <div class="m-head">
+            <div><p class="m-title">Pré-Trade</p><p class="m-desc">Gerencie os pré-trades e acompanhe as aprovações necessárias das operações.</p></div>
+            <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo Pré-Trade</span>
+          </div>
+          <div class="m-card m-filters">
+            <div class="m-field"><span class="m-label">Data de criação</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Data limite</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Fundo(s)</span><span class="m-input"><span>Todos os fundos</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <div class="m-field wide"><span class="m-label">Status</span><span class="m-input"><span>Todos os Status</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <span class="m-btn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h14l-5.3 6.3V17l-3.4 2.2v-8.4zM15.5 14.5l5 5M20.5 14.5l-5 5"/></svg>Limpar filtros</span>
+          </div>
+          <div class="m-card m-table">
+            <div class="m-thead"><span>ID</span><span>Data de criação</span><span>Data limite</span><span>Usuário criador</span><span>Tipo</span><span>Fundo(s)</span><span>Volume (R$)</span><span>Etapa</span><span>Status</span></div>
+            <div class="m-empty">
+              <div class="m-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="56" y="28" width="128" height="104" rx="10" stroke="var(--illu-ink)"/><path d="M56 48h128" stroke="var(--illu-ink)"/><path d="M70 38h18M100 38h26M138 38h14M164 38h8" stroke="var(--illu-line)"/><rect x="72" y="66" width="96" height="32" rx="8" fill="var(--illu-brand-soft)"/><rect x="72" y="66" width="96" height="32" rx="8" stroke="var(--illu-ink)" stroke-dasharray="4 5"/><path d="M120 75v14M113 82h14" stroke="var(--illu-ink)"/><path d="M72 114h48M132 114h36" stroke="var(--illu-line)" stroke-dasharray="4 5"/></svg></div>
+              <p class="m-empty-title">Nenhum pré-trade por aqui ainda</p>
+              <p class="m-empty-text">Crie a primeira solicitação: ela começa como rascunho e só vai para aprovação quando você enviar.</p>
+              <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Criar o primeiro Pré-Trade</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </figure>
+    <div class="shot-row">
+      <figure class="shot">
+        <figcaption><b>Acesso negado</b> no computador</figcaption>
+        <div class="frame frame-desk"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="40" y="28" width="160" height="104" rx="10" stroke="var(--illu-ink)"/><path d="M40 46h160" stroke="var(--illu-ink)"/><path d="M54 37h20M82 37h12" stroke="var(--illu-line)"/><path d="M54 62h56M54 70h34M54 88h48M54 96h28M54 114h52" stroke="var(--illu-line)"/><path d="M144 82V72a14 14 0 0 1 28 0v10" stroke="var(--illu-ink)"/><rect x="132" y="82" width="52" height="38" rx="8" fill="var(--illu-brand-soft)" stroke="var(--illu-ink)"/><circle cx="158" cy="98" r="4" stroke="var(--illu-ink)"/><path d="M158 102v6" stroke="var(--illu-ink)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div>
+      </figure>
+      <figure class="shot shot-phone">
+        <figcaption><b>Acesso negado</b> no celular</figcaption>
+        <div class="phone"><div class="phone-screen"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><rect x="40" y="28" width="160" height="104" rx="10" stroke="var(--illu-ink)"/><path d="M40 46h160" stroke="var(--illu-ink)"/><path d="M54 37h20M82 37h12" stroke="var(--illu-line)"/><path d="M54 62h56M54 70h34M54 88h48M54 96h28M54 114h52" stroke="var(--illu-line)"/><path d="M144 82V72a14 14 0 0 1 28 0v10" stroke="var(--illu-ink)"/><rect x="132" y="82" width="52" height="38" rx="8" fill="var(--illu-brand-soft)" stroke="var(--illu-ink)"/><circle cx="158" cy="98" r="4" stroke="var(--illu-ink)"/><path d="M158 102v6" stroke="var(--illu-ink)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div></div>
+      </figure>
+    </div>
+  </div>
+  <div class="ctx-dir" data-dir="c">
+    <figure class="shot">
+      <figcaption><b>Lista vazia</b> na página do Pré-Trade</figcaption>
+      <div class="frame frame-app"><div class="mock">
+        <div class="m-rail" aria-hidden="true"><span class="m-mark"></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/></svg></span><span class="m-nav on"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L12 4l9 5.5M4 9.5h16M5.5 9.5v8M10 9.5v8M14 9.5v8M18.5 9.5v8M3 20.5h18M4 17.5h16"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3.5v15a2 2 0 0 0 2 2h15"/><path d="M7.5 15l4-4.5 3 3 5.5-6.5"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.2a6 6 0 0 1 3.5 5.3"/></svg></span><span class="m-nav"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.89 9.89L21.48 10.5L21.48 13.5L18.89 14.11L18.36 15.38L19.77 17.64L17.64 19.77L15.38 18.36L14.11 18.89L13.5 21.48L10.5 21.48L9.89 18.89L8.62 18.36L6.36 19.77L4.23 17.64L5.64 15.38L5.11 14.11L2.52 13.5L2.52 10.5L5.11 9.89L5.64 8.62L4.23 6.36L6.36 4.23L8.62 5.64L9.89 5.11L10.5 2.52L13.5 2.52L14.11 5.11L15.38 5.64L17.64 4.23L19.77 6.36L18.36 8.62z"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+        <div class="m-main">
+          <div class="m-crumbs"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M3 12.5h18"/></svg><span>Operações</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg><b>Pré-Trade</b></div>
+          <div class="m-head">
+            <div><p class="m-title">Pré-Trade</p><p class="m-desc">Gerencie os pré-trades e acompanhe as aprovações necessárias das operações.</p></div>
+            <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo Pré-Trade</span>
+          </div>
+          <div class="m-card m-filters">
+            <div class="m-field"><span class="m-label">Data de criação</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Data limite</span><span class="m-input"><span>Início – fim</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+            <div class="m-field"><span class="m-label">Fundo(s)</span><span class="m-input"><span>Todos os fundos</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <div class="m-field wide"><span class="m-label">Status</span><span class="m-input"><span>Todos os Status</span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 10h9L12 15z" fill="currentColor"/></svg></span></div>
+            <span class="m-btn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h14l-5.3 6.3V17l-3.4 2.2v-8.4zM15.5 14.5l5 5M20.5 14.5l-5 5"/></svg>Limpar filtros</span>
+          </div>
+          <div class="m-card m-table">
+            <div class="m-thead"><span>ID</span><span>Data de criação</span><span>Data limite</span><span>Usuário criador</span><span>Tipo</span><span>Fundo(s)</span><span>Volume (R$)</span><span>Etapa</span><span>Status</span></div>
+            <div class="m-empty">
+              <div class="m-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><path d="M72 54L36 54A36 36 0 0 1 72 18z" fill="var(--illu-brand-soft)"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="174" cy="24" r="1.8"/><circle cx="182" cy="24" r="1.8"/><circle cx="190" cy="24" r="1.8"/><circle cx="198" cy="24" r="1.8"/><circle cx="174" cy="32" r="1.8"/><circle cx="182" cy="32" r="1.8"/><circle cx="190" cy="32" r="1.8"/><circle cx="198" cy="32" r="1.8"/><circle cx="174" cy="40" r="1.8"/><circle cx="182" cy="40" r="1.8"/><circle cx="190" cy="40" r="1.8"/><circle cx="198" cy="40" r="1.8"/><circle cx="174" cy="48" r="1.8"/><circle cx="182" cy="48" r="1.8"/><circle cx="190" cy="48" r="1.8"/><circle cx="198" cy="48" r="1.8"/></g><path d="M72 98A18 18 0 0 1 72 62z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="186" cy="80" r="18" fill="var(--illu-brand-soft)"/><rect x="80" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M124 106L160 106A36 36 0 0 1 124 142z" fill="var(--illu-brand)" fill-opacity=".5"/><path d="M204 106A18 18 0 0 1 168 106z" fill="var(--illu-brand)" fill-opacity=".25"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><rect x="114" y="36" width="12" height="44" rx="6" fill="var(--illu-brand)"/><rect x="98" y="52" width="44" height="12" rx="6" fill="var(--illu-brand)"/></svg></div>
+              <p class="m-empty-title">Nenhum pré-trade por aqui ainda</p>
+              <p class="m-empty-text">Crie a primeira solicitação: ela começa como rascunho e só vai para aprovação quando você enviar.</p>
+              <span class="m-btn primary"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Criar o primeiro Pré-Trade</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </figure>
+    <div class="shot-row">
+      <figure class="shot">
+        <figcaption><b>Acesso negado</b> no computador</figcaption>
+        <div class="frame frame-desk"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><path d="M72 54A18 18 0 0 1 72 18z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="186" cy="36" r="18" fill="var(--illu-brand-soft)"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="42" cy="68" r="1.8"/><circle cx="50" cy="68" r="1.8"/><circle cx="58" cy="68" r="1.8"/><circle cx="66" cy="68" r="1.8"/><circle cx="42" cy="76" r="1.8"/><circle cx="50" cy="76" r="1.8"/><circle cx="58" cy="76" r="1.8"/><circle cx="66" cy="76" r="1.8"/><circle cx="42" cy="84" r="1.8"/><circle cx="50" cy="84" r="1.8"/><circle cx="58" cy="84" r="1.8"/><circle cx="66" cy="84" r="1.8"/><circle cx="42" cy="92" r="1.8"/><circle cx="50" cy="92" r="1.8"/><circle cx="58" cy="92" r="1.8"/><circle cx="66" cy="92" r="1.8"/></g><path d="M168 98L168 62A36 36 0 0 1 204 98z" fill="var(--illu-brand)" fill-opacity=".5"/><path d="M72 106L72 142A36 36 0 0 1 36 106z" fill="var(--illu-brand-soft)"/><rect x="124" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M204 106A18 18 0 0 1 168 106z" fill="var(--illu-brand)" fill-opacity=".25"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><path d="M106 58V46a14 14 0 0 1 28 0v12h-8V46a6 6 0 0 0-12 0v12z" fill="var(--illu-brand-strong)"/><rect x="98" y="54" width="44" height="34" rx="9" fill="var(--illu-brand)"/><circle cx="120" cy="68" r="4.5" fill="var(--illu-surface)"/><rect x="118" y="70" width="4" height="10" rx="2" fill="var(--illu-surface)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div>
+      </figure>
+      <figure class="shot shot-phone">
+        <figcaption><b>Acesso negado</b> no celular</figcaption>
+        <div class="phone"><div class="phone-screen"><div class="status">
+          <div class="status-art"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="illu"><path d="M72 54A18 18 0 0 1 72 18z" fill="var(--illu-brand)" fill-opacity=".25"/><circle cx="186" cy="36" r="18" fill="var(--illu-brand-soft)"/><g fill="var(--illu-brand)" fill-opacity=".5"><circle cx="42" cy="68" r="1.8"/><circle cx="50" cy="68" r="1.8"/><circle cx="58" cy="68" r="1.8"/><circle cx="66" cy="68" r="1.8"/><circle cx="42" cy="76" r="1.8"/><circle cx="50" cy="76" r="1.8"/><circle cx="58" cy="76" r="1.8"/><circle cx="66" cy="76" r="1.8"/><circle cx="42" cy="84" r="1.8"/><circle cx="50" cy="84" r="1.8"/><circle cx="58" cy="84" r="1.8"/><circle cx="66" cy="84" r="1.8"/><circle cx="42" cy="92" r="1.8"/><circle cx="50" cy="92" r="1.8"/><circle cx="58" cy="92" r="1.8"/><circle cx="66" cy="92" r="1.8"/></g><path d="M168 98L168 62A36 36 0 0 1 204 98z" fill="var(--illu-brand)" fill-opacity=".5"/><path d="M72 106L72 142A36 36 0 0 1 36 106z" fill="var(--illu-brand-soft)"/><rect x="124" y="106" width="36" height="36" rx="8" fill="var(--illu-brand-soft)"/><path d="M204 106A18 18 0 0 1 168 106z" fill="var(--illu-brand)" fill-opacity=".25"/><rect x="80" y="18" width="80" height="80" rx="16" fill="var(--illu-brand-soft)"/><path d="M106 58V46a14 14 0 0 1 28 0v12h-8V46a6 6 0 0 0-12 0v12z" fill="var(--illu-brand-strong)"/><rect x="98" y="54" width="44" height="34" rx="9" fill="var(--illu-brand)"/><circle cx="120" cy="68" r="4.5" fill="var(--illu-surface)"/><rect x="118" y="70" width="4" height="10" rx="2" fill="var(--illu-surface)"/></svg></div>
+          <p class="status-title">Acesso negado</p>
+          <p class="status-msg">Você não tem permissão para acessar esta página.</p>
+          <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
+          <span class="m-btn primary">Voltar para o início</span>
+        </div></div></div>
+      </figure>
+    </div>
+  </div>
+    <div class="nf">
+      <figure class="shot">
+        <figcaption><b>Página não encontrada</b>, igual nas três direções</figcaption>
+        <div class="frame">
+          <div class="status">
+            <p class="nf-code">404</p>
+            <p class="status-title">Página não encontrada</p>
+            <p class="status-msg">Verifique o endereço ou volte para a página inicial.</p>
+            <span class="m-btn primary">Voltar para a Home</span>
+          </div>
+        </div>
+      </figure>
+      <div class="nf-note">
+        <h3>A 404 fica sem desenho</h3>
+        <p>
+          Só o código, o título, uma frase e o botão de volta. As ilustrações ficam para a lista vazia, a busca sem
+          resultado, o erro ao carregar e o acesso negado.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rules" aria-labelledby="h-rules">
+    <h2 id="h-rules">Regras do conjunto</h2>
+    <ul>
+      <li><b>Sem personagens.</b> Nada de pessoas, mascotes, rostos, plantas ou nuvens: só formas do próprio portal e um motivo por cena.</li>
+      <li><b>O traço dos ícones.</b> Área de 240 × 160 em todas, linha de 1,75 (2 no motivo), pontas e cantos arredondados.</li>
+      <li>
+        <b>Cor só por variável.</b> Sete variáveis <code>--illu-*</code> (marca, marca suave, marca forte, tinta, linha,
+        superfície e fundo) apontam para os tokens. O desenho acompanha as quatro marcas e o escuro sem filtro.
+      </li>
+      <li><b>Sem texto no desenho.</b> Título e mensagem ficam no componente, onde podem ser traduzidos.</li>
+      <li><b>Leves e decorativas.</b> Menos de 4 KB cada. O leitor de tela pula o desenho e lê só o texto ao lado.</li>
+      <li><b>Um componente.</b> O <code>app-illustration</code> recebe o nome da cena e o tamanho, como o <code>app-icon</code>.</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+  (() => {
+    const app = document.getElementById('app');
+    const set = (key, val) => {
+      app.dataset[key] = val;
+      document
+        .querySelectorAll(`.seg[data-key="${key}"] button`)
+        .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === val)));
+    };
+    document.querySelectorAll('.seg[data-key]').forEach((seg) =>
+      seg.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        set(seg.dataset.key, b.dataset.v);
+        if (seg.dataset.key === 'focus' && b.dataset.v !== 'all') set('ctx', b.dataset.v);
+      })
+    );
+    const theme = document.documentElement.dataset.theme;
+    const dark = theme ? theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    set('scheme', dark ? 'dark' : 'light');
+  })();
+</script>

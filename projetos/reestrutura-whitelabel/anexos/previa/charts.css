@@ -1,0 +1,238 @@
+/* Gráficos: tokens de cor por série, derivados da marca. */
+.portal {
+  --chart-1: var(--brand-secondary);
+  --chart-2: color-mix(in srgb, var(--brand-secondary) 45%, var(--surface));
+  --chart-3: var(--chart-ink);
+  --chart-4: color-mix(in srgb, var(--brand-primary) 70%, var(--surface));
+  --chart-ink: #1f2933;
+}
+.portal[data-scheme='dark'] {
+  --chart-ink: #e6edf2;
+}
+.ch {
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  display: block;
+  overflow: visible;
+}
+.ch-grid {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.ch-tick {
+  font-size: 11px;
+  fill: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ch-small {
+  font-size: 10px;
+}
+.ch-strong {
+  font-weight: 700;
+  fill: var(--text);
+}
+.ch-band {
+  fill: var(--surface-sunken);
+}
+.ch-cursor {
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 3;
+}
+.ch-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  transition: opacity var(--t);
+}
+.ch-bar:hover {
+  opacity: 0.85;
+}
+.ch-track {
+  stroke: color-mix(in srgb, var(--chart-1) 12%, var(--surface));
+}
+.ch-center {
+  font-size: 26px;
+  font-weight: 700;
+  fill: var(--text);
+}
+.ch-sub {
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+.ch-seg,
+.ch-arc {
+  transition: opacity var(--t);
+}
+.ch-cell {
+  transition: opacity var(--t), transform var(--t);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ch-donut:hover .ch-seg {
+  opacity: 0.45;
+}
+.ch-donut .ch-seg:hover {
+  opacity: 1;
+}
+.ch-cell:hover {
+  transform: scale(1.08);
+}
+.ch-donut,
+.ch-radial,
+.ch-heat {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.ch-donut {
+  max-width: 200px;
+}
+.ch-radial {
+  max-width: 280px;
+}
+.ch-spark {
+  width: 96px;
+  height: 36px;
+  flex: none;
+}
+.ch-hbars {
+  display: grid;
+  gap: 12px;
+}
+.ch-hrow {
+  display: grid;
+  grid-template-columns: minmax(90px, 30%) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.ch-hlabel {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-htrack {
+  height: 14px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--chart-1) 10%, var(--surface)) 0 4px,
+    var(--surface-muted) 4px 8px
+  );
+  overflow: hidden;
+}
+.ch-hfill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+.ch-hval {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ch-tip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  background: var(--chart-ink);
+  color: var(--surface);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  min-width: 160px;
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--t), transform var(--t);
+}
+.ch-tip.show {
+  opacity: 1;
+  transform: none;
+}
+.ch-tip b {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+.ch-tip div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ch-tip i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.ch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.ch-legend button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity var(--t), background-color var(--t);
+}
+.ch-legend button:hover {
+  background: var(--surface-sunken);
+}
+.ch-legend button[aria-pressed='false'] {
+  opacity: 0.4;
+}
+.ch-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.ch-legend i.dashed {
+  height: 0;
+  border-top: 2px dashed currentColor;
+  border-radius: 0;
+  width: 14px;
+}
+/* data-motion é resolvido no JS: "full" (animações leves) ou "reduced" (só opacidade). */
+.portal.enter[data-motion='full'] .ch-bar {
+  animation: ch-grow 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.portal.enter[data-motion='full'] .ch-hfill {
+  animation: ch-fill 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.portal.enter[data-motion='full'] .ch-arc,
+.portal.enter[data-motion='reduced'] .ch-bar,
+.portal.enter[data-motion='reduced'] .ch-hfill,
+.portal.enter[data-motion='reduced'] .ch-arc {
+  animation: ch-fade 0.35s ease both;
+}
+@keyframes ch-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes ch-fill {
+  from {
+    width: 0;
+  }
+}
+@keyframes ch-fade {
+  from {
+    opacity: 0;
+  }
+}
