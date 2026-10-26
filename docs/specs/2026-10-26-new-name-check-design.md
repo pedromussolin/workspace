@@ -2,7 +2,8 @@
 
 - **Date:** 2026-10-26
 - **Status:** v1, implemented on 2026-10-26. The flow was approved in conversation on the same
-  day; the open point (stored or computed pending list) is decided: computed.
+  day; the open point (stored or computed pending list) is decided: computed. The common-word
+  dictionary (below) was added on the same day.
 - **Scope:** one addition to the confidentiality check. Everything else in the check stays as it
   is.
 
@@ -58,7 +59,9 @@ it.
     upstream, else `origin/main`, else nothing elsewhere;
   - it is listed in `.known-words`, read from the commit being pushed (from the index when
     committing), so an entry counts once it is committed;
-  - it is an analog in `names.toml`.
+  - it is an analog in `names.toml`;
+  - it is an ordinary word of the common-word dictionaries and stands at the start of a sentence
+    (see "Common-word dictionary").
 - A real name already in `names.toml` is not a new word: the existing check blocks it, as today.
 - The code of the `ws` CLI (`src/`, `tests/`, `hooks/`, `.githooks/`) is not checked: it is
   English, written by us, and its tests use made-up names on purpose. Over the last 50 commits it
@@ -68,10 +71,55 @@ it.
   a later commit removes the line: the removed line is in the published history. Commits
   reachable from `ws.scanBaseline` are left out, as in the range check.
 
+## Common-word dictionary (2026-10-26)
+
+Most new words are ordinary Portuguese or English words ("Parece", "Backlog") that happen to be
+capitalized, and each one blocked the push until answered. A fourth source of known words, the
+common-word dictionaries, clears them, with one restriction that keeps it safe.
+
+| Topic | Decision |
+|---|---|
+| Sources | The Debian word lists of the packages `wamerican` (`usr/share/dict/american-english`) and `wbrazilian` (`usr/share/dict/brazilian`): UTF-8, one entry per line, about 316,000 words once folded. |
+| Which entries count | Only entries that start with a lowercase letter and hold letters alone. A capitalized entry is a proper noun (a first name), and an entry with an apostrophe or hyphen never matches a word. Compared with `names.fold` (lowercase, no accents). |
+| Where they live | The ws data dir first, `~/.local/share/workspace/dict/` (env `WS_DATA_DIR`), then `/usr/share/dict/` (env `WS_SYSTEM_DICT_DIR`, used by the tests). Each file is looked up on its own. |
+| Who installs them | `ws setup`, without root: when neither place has both files it runs `apt-get download wamerican wbrazilian` in a temporary folder of the cache dir (apt checks the packages against its signed index), unpacks each with `dpkg -x` into its own folder, copies the two files to the data dir and removes the folder. Without `apt-get` or `dpkg`, or if the download fails, setup reports the manual command (`sudo apt-get install wamerican wbrazilian`) and goes on. `ws setup --check` never downloads. |
+| When they clear a word | Only at the start of a sentence (rule below). In the middle of a sentence the word is still reported, and a word cleared in one place is still reported where it appears mid-sentence. |
+| Without the dictionaries | The check still works, only stricter: nothing is cleared. The report adds one line saying so and that `ws setup` installs them (`ws names pending` prints it on stderr, so its list and `--json` stay clean). |
+
+**Why only at a sentence start.** In the middle of a sentence a capitalized word is probably a
+name, and a name is often an ordinary word: 7 of the 23 real names in the user's table are
+dictionary words (a brand named after a common word, for one). Clearing them everywhere would let
+those names through. At the start of a sentence the capital is explained by the grammar, so the
+dictionary decides there, and nowhere else.
+
+**The sentence-start rule.** Looking at the text before the word in its line, the word starts a
+sentence when that text either
+
+- matches `^[\s>#*\-+|`"'(\[]*(\d+[.)]\s*)?[\s*_`"'(\[]*$`: it is empty, or only a heading, quote,
+  list item, ordered item (`1.` or `1)`), table cell start, emphasis, or an opening quote or
+  bracket; or
+- ends with `[.:!?|]\s*[*_`"'(\[]*`: a period, colon, `!`, `?` or table pipe, then optional
+  spaces, emphasis or an opening quote or bracket.
+
+The same rule applies to the lines of a commit message. camelCase parts keep their column, so
+in `AcmeTheme` only `Acme` is at a sentence start.
+
+**Measured.** Over the last 50 non-merge commits of `main` (notes and messages only, each commit
+against its parent tree): without the dictionary 8 commits and 16 words are blocked; with it, 4
+commits and 5 words. The words cleared are ordinary ones (`backlog`, `cleanup`, `survey`,
+`revisit`).
+
+**Speed.** Loading the dictionaries takes about 0.2 s, so `ws names check --staged` and `ws names
+pending` on the real repo went from about 0.2 s to about 0.4 s. That is under the 1 s that would
+justify a cache, so none exists; if it ever does, cache the folded set under the cache dir, keyed
+by the size and mtime of the two source files.
+
 ## Known limits
 
 - A new real name that is also a common word already in the repo (as the case-sensitive entries
   of `names.toml` are) passes. Those keep entering `names.toml` by hand, as today.
+- A new real name that is a dictionary word, written as the first word of a sentence, passes too:
+  the dictionary clears it there. In the middle of a sentence it is reported.
 - A name written in lowercase only is not caught.
 - Between the commit and the review, the name sits in local history. It never leaves the machine.
 - An AI-added `.known-words` entry needs no human click, like `.secrets-allow` (see
@@ -82,10 +130,12 @@ it.
 
 | Piece | Change |
 |---|---|
-| `src/ws/newwords.py` | new-word detection: vocabulary of the pushed state, `.known-words`, grouping of the places of each word |
+| `src/ws/newwords.py` | new-word detection: vocabulary of the pushed state, `.known-words`, word columns and the sentence-start rule, grouping of the places of each word |
+| `src/ws/dictionary.py` | the common-word dictionaries: where they are read from, which entries count, and the download without root used by `ws setup` |
 | `src/ws/review.py` | `ws names review`: the terminal loop and the report of what carries the new real names |
 | `src/ws/names.py` | `add_name`: appends an entry to `names.toml`, keeping its mode |
 | `src/ws/cli.py` | the `ws names` commands below |
+| `src/ws/bootstrap.py` | `ws setup` installs the dictionaries (and fixes the rest of the clone by itself, see the README) |
 | `.githooks/pre-commit`, `commit-msg` | also run the new-word warning; the exit code still comes only from the current check |
 | `.githooks/pre-push` | also blocks on new words, for each pushed range, besides the range check |
 | `.known-words` | new file at the repo root, one word per line, `#` comments |
@@ -107,6 +157,16 @@ The commands work on the repo that contains the current directory.
 
 - Detection: sentence-start word known through its lowercase form; accents; analog known;
   `.known-words` known; word in a commit message; a word already pushed is known.
+- Dictionary: a dictionary word is cleared at each sentence start (line start, heading, quote, list
+  and ordered item, table cell, after a period, colon, `!`, `?` or pipe, after emphasis) and
+  reported in the middle of a sentence, also for camelCase parts; accents and case; commit message
+  lines; the report line and the stderr note when the files are missing; entries that are
+  capitalized, with an apostrophe or hyphen are skipped. The fake dictionaries of the tests hold
+  made-up words, so no test reads the real ones.
+- Install: fake `apt-get` and `dpkg` first on `PATH` (the suite never reaches the network, and a
+  guard fails any test that would run the real `apt-get`): the happy path and its arguments, the
+  work inside the cache dir and removed afterwards, a failed download, a failed unpack, a missing
+  tool, a package without its file or with a link in its place.
 - `pre-commit` warns and exits 0; `pre-push` blocks with the list and passes once the words are
   known or masked.
 - `ws names review` with a temporary config dir: a real name lands in `names.toml`, a harmless
