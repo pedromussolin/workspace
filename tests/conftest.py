@@ -49,6 +49,24 @@ def ws_config(names_toml: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return names_toml.parent
 
 
+@pytest.fixture(autouse=True)
+def ws_dictionaries(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Both dictionaries in a fake data dir, with made-up words, so no test reads the real ones.
+
+    Returns the `dict/` folder; a test overwrites or removes its files to change what is known.
+    """
+    data = tmp_path_factory.mktemp("ws-data")
+    folder = data / "dict"
+    folder.mkdir()
+    (folder / "american-english").write_text("gadget\nsprocket\n", encoding="utf-8")
+    (folder / "brazilian").write_text("engrenagem\nparafuso\n", encoding="utf-8")
+    monkeypatch.setenv("WS_DATA_DIR", str(data))
+    monkeypatch.setenv("WS_SYSTEM_DICT_DIR", str(data / "no-system-dict"))
+    return folder
+
+
 @pytest.fixture
 def git(monkeypatch: pytest.MonkeyPatch) -> Callable[..., subprocess.CompletedProcess[str]]:
     """Runs git in a repo without reading the user's git config."""

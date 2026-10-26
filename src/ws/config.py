@@ -17,6 +17,14 @@ def cache_dir() -> Path:
     return _env_path("WS_CACHE_DIR", Path.home() / ".cache" / "workspace")
 
 
+def data_dir() -> Path:
+    return _env_path("WS_DATA_DIR", Path.home() / ".local" / "share" / "workspace")
+
+
+def system_dict_dir() -> Path:
+    return _env_path("WS_SYSTEM_DICT_DIR", Path("/usr/share/dict"))
+
+
 def claude_skills_dir() -> Path:
     return _env_path("WS_CLAUDE_SKILLS_DIR", Path.home() / ".claude" / "skills")
 
