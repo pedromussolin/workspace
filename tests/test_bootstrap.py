@@ -8,6 +8,7 @@ from typing import NamedTuple
 
 import pytest
 
+from ws import dictionary
 from ws.bootstrap import SetupResult, run_setup
 from ws.cli import main
 
@@ -495,8 +496,10 @@ def _snapshot(env: Env) -> dict:
     }
 
 
-def test_check_changes_nothing_and_lists_what_setup_would_fix(env):
+def test_check_changes_nothing_and_lists_what_setup_would_fix(env, ws_dictionaries, fake_apt):
     _break_everything(env)
+    for path in ws_dictionaries.iterdir():
+        path.unlink()
     before = _snapshot(env)
 
     result = _setup(env, check=True)
@@ -504,6 +507,8 @@ def test_check_changes_nothing_and_lists_what_setup_would_fix(env):
     assert _snapshot(env) == before
     assert not env.skills_target.exists()
     assert not (env.config / "private").exists()
+    assert not ws_dictionaries.parent.joinpath("dict", "brazilian").exists()
+    assert fake_apt.calls() == [], "check does not use the network"
     assert f"git hooks path: set core.hooksPath to .githooks in {env.repo}" in result.fixed
     for name in HOOK_NAMES:
         assert f"hook {env.repo / '.githooks' / name}: chmod +x" in result.fixed
@@ -512,6 +517,9 @@ def test_check_changes_nothing_and_lists_what_setup_would_fix(env):
     assert f"credentials {env.config / 'credentials'}: chmod 600 (from 0666)" in result.fixed
     assert f"private folder {env.config / 'private'}: create with mode 700" in result.fixed
     assert any(line.startswith("skill alpha: link") for line in result.fixed)
+    assert any(
+        line.startswith("dictionaries: download wamerican and wbrazilian") for line in result.fixed
+    )
     assert len(result.needs) == 1 and "Claude Code gates missing" in result.needs[0]
 
 
@@ -529,6 +537,79 @@ def test_check_still_reports_what_only_the_user_can_settle(env):
 
     assert any("names.toml" in need for need in result.needs)
     assert any("not found" in need for need in result.needs)
+
+
+def test_a_missing_dictionary_is_downloaded_without_root(env, ws_dictionaries, fake_apt):
+    for path in ws_dictionaries.iterdir():
+        path.unlink()
+
+    result = _setup(env)
+
+    target = dictionary.data_path()
+    assert result.needs == []
+    assert f"dictionaries: download wamerican and wbrazilian into {target}" in result.fixed
+    assert dictionary.missing() == []
+    assert dictionary.load() == {"flange", "gizmo", "porca", "arruela"}
+    assert fake_apt.calls()[0]["args"] == ["download", "wamerican", "wbrazilian"]
+
+
+def test_dictionaries_that_are_already_there_are_not_downloaded(env, fake_apt):
+    result = _setup(env)
+
+    assert not any(line.startswith("dictionaries:") for line in result.fixed)
+    assert fake_apt.calls() == []
+
+
+def test_the_system_dictionaries_count_too(env, ws_dictionaries, fake_apt, monkeypatch, tmp_path):
+    system = tmp_path / "system-dict"
+    system.mkdir()
+    (system / "american-english").write_text("system\n", encoding="utf-8")
+    (system / "brazilian").write_text("sistema\n", encoding="utf-8")
+    monkeypatch.setenv("WS_SYSTEM_DICT_DIR", str(system))
+    for path in ws_dictionaries.iterdir():
+        path.unlink()
+
+    result = _setup(env)
+
+    assert not any(line.startswith("dictionaries:") for line in result.fixed)
+    assert fake_apt.calls() == []
+
+
+def test_a_failed_download_needs_the_user_and_the_other_steps_still_run(
+    env, ws_dictionaries, fake_apt, monkeypatch
+):
+    for path in ws_dictionaries.iterdir():
+        path.unlink()
+    monkeypatch.setenv("FAKE_APT_FAIL", "1")
+
+    result = _setup(env)
+
+    assert len(result.needs) == 1
+    assert "dictionaries not installed" in result.needs[0]
+    assert "Unable to locate package" in result.needs[0]
+    assert "sudo apt-get install wamerican wbrazilian" in result.needs[0]
+    assert (env.skills_target / "alpha").is_symlink()
+    assert _git(env.repo, "config", "core.hooksPath") == ".githooks"
+    assert not any(line.startswith("dictionaries:") for line in result.fixed)
+
+
+def test_missing_apt_needs_the_user_with_the_manual_command(
+    env, ws_dictionaries, tmp_path, monkeypatch
+):
+    for path in ws_dictionaries.iterdir():
+        path.unlink()
+    real_git = shutil.which("git")
+    bin_dir = tmp_path / "only-git"
+    bin_dir.mkdir()
+    (bin_dir / "git").symlink_to(real_git)
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    result = _setup(env)
+
+    assert len(result.needs) == 1
+    assert "apt-get or dpkg was not found" in result.needs[0]
+    assert "sudo apt-get install wamerican wbrazilian" in result.needs[0]
+    assert (env.skills_target / "alpha").is_symlink()
 
 
 def _point_ws_at(env: Env, monkeypatch) -> None:
@@ -583,7 +664,7 @@ def test_cli_setup_prints_needs_you_lines_and_fails(env, monkeypatch, capsys):
 
 
 def test_cli_setup_check_is_read_only_and_exits_1_when_there_is_something_to_fix(
-    env, monkeypatch, capsys
+    env, monkeypatch, capsys, fake_apt
 ):
     _point_ws_at(env, monkeypatch)
     before = _snapshot(env)
@@ -596,6 +677,7 @@ def test_cli_setup_check_is_read_only_and_exits_1_when_there_is_something_to_fix
     assert "ok" not in out.splitlines()
     assert _snapshot(env) == before
     assert not env.skills_target.exists()
+    assert fake_apt.calls() == []
 
 
 def test_cli_setup_check_exits_0_once_everything_is_in_place(env, monkeypatch, capsys):

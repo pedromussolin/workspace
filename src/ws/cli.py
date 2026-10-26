@@ -24,11 +24,11 @@ from ws.config import claude_skills_dir, config_dir, repo_root
 def _add_setup(subparsers) -> None:
     parser = subparsers.add_parser(
         "setup",
-        help="Wire this clone and fix what can be fixed: hooks, skill links and private config.",
+        help="Wire this clone and fix what can be fixed: hooks, skill links, config, dictionaries.",
         description=(
             "Fixes by itself the git hooks path and the executable bit of the hooks, the skill "
-            "links and the modes of the private config. Prints a `fixed:` line per change and a "
-            "`needs you:` line per "
+            "links, the modes of the private config and the common-word dictionaries (downloaded "
+            "without root). Prints a `fixed:` line per change and a `needs you:` line per "
             "problem left, among them the Claude Code gates as one JSON block that Claude "
             "applies after you approve; ws never writes ~/.claude/settings.json. Exits 0 when "
             "nothing is left."

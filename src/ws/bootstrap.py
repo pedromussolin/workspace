@@ -1,12 +1,13 @@
 """Idempotent setup of a workspace clone: it fixes what it can by itself and reports the rest.
 
-It fixes: the git hooks path, the executable bit of the four hooks, the skill links and the folders
-and modes of the private config. It reports, as "needs you": what only the user can settle (a
-missing `names.toml`, a skill link that points elsewhere) and the Claude Code gates, because ws
-never writes `~/.claude/settings.json`: it prints one JSON block that Claude applies after the
-user approves.
+It fixes: the git hooks path, the executable bit of the four hooks, the skill links, the folders
+and modes of the private config, and the common-word dictionaries (downloaded without root). It
+reports, as "needs you": what only the user can settle (a missing `names.toml`, a skill link that
+points elsewhere) and the Claude Code gates, because ws never writes `~/.claude/settings.json`: it
+prints one JSON block that Claude applies after the user approves.
 
-With `check` nothing is changed; the changes that setup would make are listed instead.
+With `check` nothing is changed and the network is not used; the changes that setup would make are
+listed instead.
 """
 
 import json
@@ -18,12 +19,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ws import dictionary
 from ws.config import claude_settings_path
 
 GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
+PACKAGES = " and ".join(source.package for source in dictionary.SOURCES)
 
 
 @dataclass
@@ -72,6 +75,7 @@ def run_setup(
         _check_hooks_path(setup, repo)
     _link_skills(setup, repo, skills_target)
     _check_config(setup, config)
+    _install_dictionaries(setup)
     _check_claude_gates(setup, repo, settings)
     return setup.result
 
@@ -209,6 +213,25 @@ def _check_config(setup: _Setup, config: Path) -> None:
         _fix_mode(setup, private, 0o700, "private folder")
     else:
         setup.need(f"{private} exists and is not a folder")
+
+
+def _install_dictionaries(setup: _Setup) -> None:
+    """The common-word dictionaries, downloaded without root when neither place has them."""
+    if not dictionary.missing():
+        return
+    target = dictionary.data_path()
+    if not setup.apply:
+        setup.result.fixed.append(f"dictionaries: download {PACKAGES} into {target}")
+        return
+    try:
+        dictionary.install()
+    except dictionary.InstallError as error:
+        setup.need(
+            f"dictionaries not installed ({error}); the new-word check is stricter without them; "
+            f"run: {dictionary.MANUAL_COMMAND}"
+        )
+        return
+    setup.result.fixed.append(f"dictionaries: download {PACKAGES} into {target}")
 
 
 def _hook_entry(repo: Path, script: str) -> dict:
