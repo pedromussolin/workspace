@@ -64,7 +64,9 @@ def env(tmp_path: Path) -> Env:
 
     config = tmp_path / "config"
     config.mkdir()
+    config.chmod(0o700)
     (config / "names.toml").write_text("[names]\n", encoding="utf-8")
+    (config / "names.toml").chmod(0o600)
 
     settings = tmp_path / "claude" / "settings.json"
     settings.parent.mkdir()
@@ -229,6 +231,57 @@ def test_creates_private_folder_with_mode_700(env):
 
     assert (env.config / "private").is_dir()
     assert (env.config / "private").stat().st_mode & 0o777 == 0o700
+
+
+def test_reports_loose_names_table_mode(env):
+    names = env.config / "names.toml"
+    names.chmod(0o644)
+
+    problems = _setup(env)
+
+    assert len(problems) == 1
+    assert str(names) in problems[0]
+    assert "0644" in problems[0]
+    assert "chmod 600" in problems[0]
+    assert names.stat().st_mode & 0o777 == 0o644
+
+
+def test_reports_loose_config_folder_mode(env):
+    env.config.chmod(0o755)
+
+    problems = _setup(env)
+
+    assert len(problems) == 1
+    assert str(env.config) in problems[0]
+    assert "0755" in problems[0]
+    assert "chmod 700" in problems[0]
+    assert env.config.stat().st_mode & 0o777 == 0o755
+
+
+def test_reports_loose_private_folder_mode(env):
+    private = env.config / "private"
+    private.mkdir()
+    private.chmod(0o750)
+
+    problems = _setup(env)
+
+    assert len(problems) == 1
+    assert str(private) in problems[0]
+    assert "0750" in problems[0]
+    assert "chmod 700" in problems[0]
+    assert private.stat().st_mode & 0o777 == 0o750
+
+
+def test_creates_a_missing_config_folder_with_mode_700(env, tmp_path):
+    fresh = tmp_path / "fresh" / "workspace"
+
+    problems = run_setup(env.repo, fresh, env.skills_target, env.settings)
+
+    assert problems == [
+        f"{fresh / 'names.toml'} is missing; the secrets hook fails closed without it"
+    ]
+    assert fresh.stat().st_mode & 0o777 == 0o700
+    assert (fresh / "private").stat().st_mode & 0o777 == 0o700
 
 
 def test_reports_missing_claude_gates(env):

@@ -82,23 +82,34 @@ def _link_skills(repo: Path, skills_target: Path) -> list[str]:
     return problems
 
 
+def _mode_problem(path: Path, expected: int) -> list[str]:
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if mode == expected:
+        return []
+    return [f"{path} has mode {mode:04o}; run: chmod {expected:o} {path}"]
+
+
 def _check_config(config: Path) -> list[str]:
-    problems = []
+    config.mkdir(mode=0o700, parents=True, exist_ok=True)
+    problems = _mode_problem(config, 0o700)
+
     names = config / "names.toml"
-    if not names.is_file():
+    if names.is_file():
+        problems += _mode_problem(names, 0o600)
+    else:
         problems.append(f"{names} is missing; the secrets hook fails closed without it")
 
     credentials = config / "credentials"
     if credentials.exists():
-        mode = stat.S_IMODE(credentials.stat().st_mode)
-        if mode != 0o600:
-            problems.append(f"{credentials} has mode {mode:04o}; run: chmod 600 {credentials}")
+        problems += _mode_problem(credentials, 0o600)
 
     private = config / "private"
     if not private.exists():
-        private.mkdir(mode=0o700, parents=True)
+        private.mkdir(mode=0o700)
         private.chmod(0o700)
-    elif not private.is_dir():
+    elif private.is_dir():
+        problems += _mode_problem(private, 0o700)
+    else:
         problems.append(f"{private} exists and is not a folder")
     return problems
 
