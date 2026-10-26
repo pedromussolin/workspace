@@ -10,7 +10,7 @@ import codecs
 import re
 import subprocess
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -18,10 +18,19 @@ from ws.names import NamesTable, blocked_domain_matches, real_name_matches
 
 ALLOWLIST_FILE = ".secrets-allow"
 BINARY_RULE = "binary-file"
+CO_AUTHOR_RULE = "co-authored-by"
+MESSAGE_PATH = "message"
 BINARY_PROBE_BYTES = 8000
 GITLINK_MODE = "160000"
 BATCH_SIZE = 256
 HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+CO_AUTHOR = re.compile(r"^[ \t]*co-authored-by[ \t]*:", re.IGNORECASE | re.MULTILINE)
+# The block git puts into the message file of `git commit -v`, above the diff it ignores.
+SCISSORS = (
+    "# ------------------------ >8 ------------------------",
+    "# Do not modify or remove the line above.",
+    "# Everything below it will be ignored.",
+)
 GITLINK_HEADER = re.compile(rf"^(?:new file mode|new mode|index \w+\.\.\w+) {GITLINK_MODE}$")
 # Git's own view of what changed. --text and --no-textconv keep a file that is marked binary or
 # has a converter from being summarized as "differ"; --no-renames makes a moved file count as
@@ -84,6 +93,7 @@ class Finding:
     # Column span of the match in its line. It is what the allowlist is matched against, and it
     # is raw even when `match` is redacted.
     span: tuple[int, int] = field(default=(0, 0), compare=False, repr=False)
+    commit: str = ""
 
 
 @dataclass(frozen=True)
@@ -394,4 +404,100 @@ def check_repo(
     findings: list[Finding] = []
     for name, data, only_lines in _sources(repo, mode, paths, entries):
         findings.extend(_scan_file(name, data, only_lines, table, allow))
+    return findings
+
+
+def _without_comments(text: str) -> str:
+    """Blank the lines git drops from a message (# ...) and the block under its scissors line."""
+    lines = text.split("\n")
+    for number in range(len(lines)):
+        if tuple(lines[number : number + len(SCISSORS)]) == SCISSORS:
+            lines = lines[:number]
+            break
+    return "\n".join("" if line.startswith("#") else line for line in lines)
+
+
+def _message_findings(text: str, table: NamesTable, allow: list[AllowRule]) -> list[Finding]:
+    findings = scan_text(MESSAGE_PATH, text, table, allow)
+    for found in CO_AUTHOR.finditer(text):
+        number = text.count("\n", 0, found.start()) + 1
+        findings.append(Finding(MESSAGE_PATH, number, CO_AUTHOR_RULE, "Co-Authored-By trailer"))
+    return sorted(findings, key=lambda finding: finding.line)
+
+
+def check_message(repo: Path, text: str, table: NamesTable) -> list[Finding]:
+    """Names, domains and secret patterns of a commit message; no Co-Authored-By trailer."""
+    allow = _index_allowlist(repo, _index_entries(repo))
+    return _message_findings(_without_comments(text), table, allow)
+
+
+@dataclass(frozen=True)
+class Commit:
+    sha: str
+    is_merge: bool
+    author_email: str
+    committer_email: str
+    message: str
+
+
+def _range_commits(repo: Path, revs: list[str]) -> list[Commit]:
+    # Git refuses a NUL in a message, so -z can tell one commit from the next.
+    out = _git(repo, "log", "--reverse", "-z", "--format=%H%n%P%n%ae%n%ce%n%B", *revs)
+    commits = []
+    for record in out.split(b"\0"):
+        if record:
+            text = record.decode("utf-8", errors="replace")
+            sha, parents, author, committer, message = text.split("\n", 4)
+            commits.append(Commit(sha, len(parents.split()) > 1, author, committer, message))
+    return commits
+
+
+def _email_findings(
+    label: str, email: str, table: NamesTable, allow: list[AllowRule]
+) -> list[Finding]:
+    found = [
+        Finding(label, 1, "blocked-domain", domain, (offset, offset + len(domain)))
+        for offset, domain in blocked_domain_matches(email, table)
+    ]
+    return [finding for finding in found if not _is_allowed(finding, email, allow)]
+
+
+def _check_commit(
+    repo: Path, commit: Commit, table: NamesTable, allowlists: dict[bytes, list[AllowRule]]
+) -> list[Finding]:
+    additions: dict[str, set[int]] = {}
+    if not commit.is_merge:
+        diff = _git(repo, "show", "--format=", *DIFF_FLAGS, commit.sha)
+        additions = parse_additions(diff.decode("utf-8", errors="replace"))
+    specs = [f"{commit.sha}:{ALLOWLIST_FILE}", *(f"{commit.sha}:{name}" for name in additions)]
+    allow_data, *contents = _read_objects(repo, specs)
+    allow_data = allow_data or b""
+    if allow_data not in allowlists:
+        allowlists[allow_data] = parse_allowlist(allow_data.decode("utf-8"))
+    allow = allowlists[allow_data]
+    findings = []
+    for (name, only_lines), data in zip(additions.items(), contents, strict=True):
+        if data is None:
+            raise RuntimeError(f"{name} is missing in commit {commit.sha}")
+        findings.extend(_scan_file(name, data, only_lines, table, allow))
+    findings.extend(_message_findings(commit.message, table, allow))
+    findings.extend(_email_findings("author", commit.author_email, table, allow))
+    findings.extend(_email_findings("committer", commit.committer_email, table, allow))
+    return [replace(finding, commit=commit.sha) for finding in findings]
+
+
+def check_range(repo: Path, revs: list[str], table: NamesTable) -> list[Finding]:
+    """What each commit in a rev-list expression published.
+
+    Every commit: its message, and its author and committer e-mails against the blocked domains.
+    A commit that is not a merge also gets its added lines, against its first parent, checked: a
+    merge brings in commits that are in the range themselves. The allowlist of each commit is
+    the one in that commit's own tree.
+    """
+    if not revs:
+        raise ValueError("a revision range is needed")
+    allowlists: dict[bytes, list[AllowRule]] = {}
+    findings = []
+    for commit in _range_commits(repo, revs):
+        findings.extend(_check_commit(repo, commit, table, allowlists))
     return findings

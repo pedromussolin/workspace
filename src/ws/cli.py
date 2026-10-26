@@ -223,14 +223,43 @@ def _add_check_secrets(
     mode.add_argument(
         "--staged", action="store_true", help="added lines of the staged diff (default)"
     )
-    mode.add_argument("--all", action="store_true", help="every tracked text file")
+    mode.add_argument("--all", action="store_true", help="every file in the index")
+    mode.add_argument(
+        "--message",
+        type=Path,
+        metavar="FILE",
+        help="a commit message file, as the commit-msg hook gets it",
+    )
+    mode.add_argument(
+        "--range",
+        metavar="REVS",
+        help=(
+            "each non-merge commit of a rev-list expression (words split on spaces, "
+            "e.g. 'origin/main..HEAD'): added lines, message and e-mails"
+        ),
+    )
     parser.add_argument("paths", nargs="*", type=Path, metavar="PATH", help="files to check")
     parser.set_defaults(handler=_cmd_check_secrets)
 
 
+def _check_with_mode(
+    args: argparse.Namespace, repo: Path, table: names.NamesTable
+) -> list[secrets.Finding]:
+    if args.message:
+        text = args.message.read_bytes().decode("utf-8", errors="replace")
+        return secrets.check_message(repo, text, table)
+    if args.range is not None:
+        return secrets.check_range(repo, args.range.split(), table)
+    mode = "paths" if args.paths else "all" if args.all else "staged"
+    return secrets.check_repo(repo, mode, table, args.paths)
+
+
 def _run_check_secrets(args: argparse.Namespace) -> int:
-    if args.paths and (args.staged or args.all):
-        print("ws check-secrets: use either --staged, --all or PATH arguments", file=sys.stderr)
+    if args.paths and (args.staged or args.all or args.message or args.range is not None):
+        print(
+            "ws check-secrets: use either --staged, --all, --message, --range or PATH arguments",
+            file=sys.stderr,
+        )
         return 2
     try:
         table = names.load_names()
@@ -238,11 +267,11 @@ def _run_check_secrets(args: argparse.Namespace) -> int:
         print(f"{error}; the check fails closed", file=sys.stderr)
         return 2
     repo = secrets.repo_toplevel(Path.cwd())
-    mode = "paths" if args.paths else "all" if args.all else "staged"
-    findings = secrets.check_repo(repo, mode, table, args.paths)
+    findings = _check_with_mode(args, repo, table)
     for finding in findings:
+        where = f"{finding.commit[:10]}:" if finding.commit else ""
         matched = " ".join(finding.match.split())
-        print(f"{finding.path}:{finding.line}: {finding.rule}: {matched}")
+        print(f"{where}{finding.path}:{finding.line}: {finding.rule}: {matched}")
     if findings:
         print(f"{len(findings)} finding(s): fix them or add a reviewed line to .secrets-allow")
     return 1 if findings else 0
