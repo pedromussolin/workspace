@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
 # Checks what the push would publish: for each commit the added lines, the message and the
-# e-mails. Commits reachable from the ws.scanBaseline ref, when it is set, were accepted as they
-# are and are left out.
+# e-mails (ws check-secrets), then the new words of the lines and messages (ws names check)
+# against the text of the remote state. Commits reachable from the ws.scanBaseline ref, when it
+# is set, were accepted as they are and are left out. Both checks run for every range, and any
+# failure blocks the push.
 set -euo pipefail
 project="$(cd "$(dirname "$0")/.." && pwd)"
 remote="$1"
 baseline="$(git config --get --default '' ws.scanBaseline)"
+status=0
 while read -r _local_ref local_sha _remote_ref remote_sha; do
     case "$local_sha" in
         *[!0]*) ;;
         *) continue ;;
     esac
     excludes="--remotes=$remote"
+    # The vocabulary of the new-word check: the remote tip when it is known here, else the
+    # remote's main; with neither, nothing is pushed yet and the vocabulary is empty.
+    against=""
     if [[ "$remote_sha" =~ [^0] ]] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
         excludes="$remote_sha"
+        against="$remote_sha"
+    elif git rev-parse --verify --quiet "refs/remotes/$remote/main^{commit}" >/dev/null; then
+        against="refs/remotes/$remote/main"
     fi
     if [ -n "$baseline" ]; then
         excludes="$excludes $baseline"
     fi
     revs="$local_sha --not $excludes"
-    PYTHONPATH="$project/src" python3 -m ws check-secrets --range "$revs" </dev/null
+    PYTHONPATH="$project/src" python3 -m ws check-secrets --range "$revs" </dev/null || status=1
+    PYTHONPATH="$project/src" python3 -m ws names check --range "$revs" --tip "$local_sha" \
+        --against "$against" </dev/null || status=1
 done
+exit "$status"

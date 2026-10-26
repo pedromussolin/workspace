@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# The exit code comes only from ws check-secrets. The new-word check only warns: a failure of its
+# own is printed and does not block, because pre-push is the gate.
 set -euo pipefail
 project="$(cd "$(dirname "$0")/.." && pwd)"
-PYTHONPATH="$project/src" exec python3 -m ws check-secrets --staged
+PYTHONPATH="$project/src" python3 -m ws check-secrets --staged
+PYTHONPATH="$project/src" python3 -m ws names check --staged --warn \
+    || echo "ws: the new-word warning failed; the commit goes through" >&2
