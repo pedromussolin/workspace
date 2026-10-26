@@ -113,11 +113,16 @@ def _name_matcher(table: NamesTable) -> tuple[re.Pattern[str], dict[str, str]] |
     return re.compile(rf"(?<!\w)(?:{'|'.join(groups)})(?!\w)"), analogs
 
 
-def find_real_names(text: str, table: NamesTable) -> list[str]:
+def real_name_matches(text: str, table: NamesTable) -> list[tuple[int, str]]:
+    """Offset and matched text of each real name, in order, so callers can map them to lines."""
     matcher = _name_matcher(table)
     if matcher is None:
         return []
-    return [match.group() for match in matcher[0].finditer(text)]
+    return [(match.start(), match.group()) for match in matcher[0].finditer(text)]
+
+
+def find_real_names(text: str, table: NamesTable) -> list[str]:
+    return [matched for _, matched in real_name_matches(text, table)]
 
 
 def find_blocked_domains(text: str, table: NamesTable) -> list[str]:

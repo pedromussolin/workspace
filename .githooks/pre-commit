@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project="$(cd "$(dirname "$0")/.." && pwd)"
+exec uv run --quiet --project "$project" ws check-secrets --staged

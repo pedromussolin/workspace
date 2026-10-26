@@ -1,3 +1,6 @@
+import os
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -44,3 +47,26 @@ def table(names_toml: Path) -> NamesTable:
 def ws_config(names_toml: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("WS_CONFIG_DIR", str(names_toml.parent))
     return names_toml.parent
+
+
+@pytest.fixture
+def git(monkeypatch: pytest.MonkeyPatch) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """Runs git in a repo without reading the user's git config."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+    def run(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        command = ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com"]
+        return subprocess.run(
+            [*command, "-C", str(repo), *args], capture_output=True, text=True, check=check
+        )
+
+    return run
+
+
+@pytest.fixture
+def repo(tmp_path: Path, git: Callable[..., subprocess.CompletedProcess[str]]) -> Path:
+    path = tmp_path / "repo"
+    path.mkdir()
+    git(path, "init", "-q")
+    return path
