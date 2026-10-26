@@ -1,4 +1,4 @@
-"""Starts a planning project: copies templates/project into projetos/<slug>."""
+"""Starts a planning project: copies templates/project into projects/<slug>."""
 
 import re
 import shutil
@@ -13,7 +13,7 @@ def new_project(slug: str, root: Path, today: date) -> Path:
         raise ValueError(
             f"invalid slug {slug!r}: use lowercase letters and digits separated by single hyphens"
         )
-    target = root / "projetos" / slug
+    target = root / "projects" / slug
     if target.exists():
         raise FileExistsError(f"project already exists: {target}")
 

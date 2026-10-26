@@ -14,7 +14,7 @@ build-backend = "uv_build"
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["projetos"]
+extend-exclude = ["projects"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

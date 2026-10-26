@@ -72,7 +72,7 @@ def test_the_code_of_the_cli_is_not_checked_but_notes_and_messages_are(repo, git
     code = {
         path: "Zorblax\n" for path in ("src/ws/x.py", "tests/t.py", "hooks/h.py", ".githooks/g")
     }
-    commit(repo, git, "Quuxmark", {**code, "projetos/p/decisoes.md": "Frobnitz\n"})
+    commit(repo, git, "Quuxmark", {**code, "projects/p/decisions.md": "Frobnitz\n"})
     assert words(new_in_last_commit(repo, table)) == ["Quuxmark", "Frobnitz"]
 
 

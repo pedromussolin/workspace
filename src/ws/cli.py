@@ -59,7 +59,7 @@ def _cmd_setup(args: argparse.Namespace) -> int:
 def _add_project(subparsers) -> None:
     parser = subparsers.add_parser("project", help="Planning project commands.")
     commands = parser.add_subparsers(dest="project_command", required=True)
-    new = commands.add_parser("new", help="Create projetos/<slug> from the project template.")
+    new = commands.add_parser("new", help="Create projects/<slug> from the project template.")
     new.add_argument("slug", help="lowercase letters and digits separated by hyphens")
     new.set_defaults(handler=_cmd_project_new)
 
