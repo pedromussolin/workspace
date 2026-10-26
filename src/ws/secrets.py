@@ -24,7 +24,7 @@ PATTERN_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "secret-assignment",
         re.compile(
-            r"""\b(password|passwd|senha|secret|api[_-]?key|token)\b"""
+            r"""(?<![A-Za-z0-9])(password|passwd|senha|secret|api[_-]?key|token)\b"""
             r"""["']?\s*[:=]\s*["']?[^\s"'<]{4,}""",
             re.IGNORECASE,
         ),
@@ -83,10 +83,25 @@ def _is_allowed(finding: Finding, line: str, allow: list[AllowRule]) -> bool:
     )
 
 
+def _redact(rule: str, line: str, found: re.Match[str]) -> str:
+    """The text to report for a match; a secret value never leaves this function."""
+    text = found.group()
+    if rule == "secret-assignment":
+        head = re.match(r"""[^:=]*[:=]\s*["']?""", text)
+        name_prefix = re.search(r"[\w-]*$", line[: found.start()])
+        return f"{name_prefix[0]}{head[0]}***"
+    if rule == "token-prefix":
+        return f"{text[:4]}***"
+    if rule == "url-credentials":
+        # Built in parts: written whole, this line would match the url-credentials rule itself.
+        return "://" + "***@"
+    return text
+
+
 def _line_findings(path: str, number: int, line: str, table: NamesTable) -> Iterator[Finding]:
     for rule, pattern in PATTERN_RULES:
         for found in pattern.finditer(line):
-            yield Finding(path, number, rule, found.group())
+            yield Finding(path, number, rule, _redact(rule, line, found))
     for domain in find_blocked_domains(line, table):
         yield Finding(path, number, "blocked-domain", domain)
 

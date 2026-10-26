@@ -19,6 +19,10 @@ SAMPLES = [
     ("secret-assignment", 'api_key: "abcd1234"'),
     ("secret-assignment", "SENHA=abc123"),
     ("secret-assignment", '"token": "abcd1234"'),
+    ("secret-assignment", "API_TOKEN=abcd1234"),
+    ("secret-assignment", "client_secret = abcd1234"),
+    ("secret-assignment", "DB_PASSWORD: abcd1234"),
+    ("secret-assignment", "AZURE_CLIENT_SECRET=abcd1234"),
     ("token-prefix", "export X=" + "ghp_" + "a1" * 12),
     ("token-prefix", "ATATT" + "3xFf" * 8),
     ("url-credentials", "clone https://user:pass@host.example/repo.git"),
@@ -47,6 +51,8 @@ def test_each_rule_fires(table, rule, line):
         "never commit a password to git",
         "the secret of good prose is rewriting",
         "a brilliant idea",
+        "the tokenizer: spacy",
+        "token_count = 12345",
         "Acmeville is a town",
         "see 110.1.2.3 and 10.1.2",
         "https://example.org/path@v2",
@@ -59,7 +65,16 @@ def test_prose_passes(table, line):
 
 @pytest.mark.parametrize(
     "line",
-    ["token: <seu-token>", "password = <your password>", "api_key=", 'secret: ""', "token = abc"],
+    [
+        "token: <seu-token>",
+        "password = <your password>",
+        "api_key=",
+        'secret: ""',
+        "token = abc",
+        "SECRET_KEY=<valor>",
+        "API_TOKEN=<valor>",
+        "DB_PASSWORD: <senha>",
+    ],
 )
 def test_placeholder_passes(table, line):
     assert rules_of(line, table) == []
@@ -92,6 +107,67 @@ def test_only_lines_restricts_the_scan(table):
 def test_lines_are_split_only_on_newlines(table):
     text = "one\x0ctwo three\nMéridia\n"
     assert [f.line for f in scan_text("a.md", text, table, [])] == [2]
+
+
+GITHUB_TOKEN = "ghp_" + "a1" * 12
+ATLASSIAN_TOKEN = "ATATT" + "3xFf" * 8
+
+
+@pytest.mark.parametrize(
+    ("line", "redacted"),
+    [
+        ("API_TOKEN=abcd1234", "API_TOKEN=***"),
+        ("export client_secret = abcd1234", "client_secret = ***"),
+        ("senha: hunter22", "senha: ***"),
+        ('"token": "abcd1234"', 'token": "***'),
+        ("api_key = 'abcd1234'", "api_key = '***"),
+        ("see foo.bar_token=abcd1234", "bar_token=***"),
+        (f"export X={GITHUB_TOKEN}", "ghp_***"),
+        (f"auth {ATLASSIAN_TOKEN}", "ATAT***"),
+        ("clone https://user:pass@host.example/repo.git", "://***@"),
+    ],
+)
+def test_secret_findings_never_carry_the_value(table, line, redacted):
+    found = scan_text("f.md", line, table, [])
+    assert redacted in [f.match for f in found]
+    for finding in found:
+        assert not any(value in finding.match for value in ("abcd1234", "hunter22", "pass@"))
+        assert GITHUB_TOKEN[4:] not in finding.match
+        assert ATLASSIAN_TOKEN[4:] not in finding.match
+
+
+@pytest.mark.parametrize(
+    ("line", "value"),
+    [
+        ("API_TOKEN=abcd1234", "abcd1234"),
+        ("senha: hunter22", "hunter22"),
+        (f"export X={GITHUB_TOKEN}", GITHUB_TOKEN[4:]),
+        (f"auth {ATLASSIAN_TOKEN}", ATLASSIAN_TOKEN[4:]),
+        ("clone https://user:pass@host.example/repo.git", "user:pass"),
+    ],
+)
+def test_cli_output_never_prints_the_secret(repo, git, ws_config, monkeypatch, capsys, line, value):
+    monkeypatch.chdir(repo)
+    stage(repo, git, "notes.md", line + "\n")
+    assert main(["check-secrets"]) == 1
+    captured = capsys.readouterr()
+    assert value not in captured.out + captured.err
+    assert "***" in captured.out
+
+
+def test_other_rules_keep_the_match(table):
+    text = "10.1.2.3 and /home/someone and api.service.io"
+    assert [f.match for f in scan_text("f.md", text, table, [])] == [
+        "api.service.io",
+        "10.1.2.3",
+        "/home/someone",
+    ]
+
+
+def test_redaction_does_not_change_allowlist_matching(table):
+    allow = [AllowRule("f.md", "secret-assignment", re.compile("abcd1234"))]
+    assert scan_text("f.md", "API_TOKEN=abcd1234", table, allow) == []
+    assert scan_text("f.md", "API_TOKEN=other999", table, allow) != []
 
 
 def write_allowlist(repo, content):
