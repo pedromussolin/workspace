@@ -1,4 +1,6 @@
-"""Confidentiality check: secret patterns, real names and company domains in text and staged diffs.
+"""Confidentiality check: secret patterns, real names and company domains in what gets committed.
+
+It reads text, the staged diff, the index, a commit message and the commits of a range.
 
 Every function here reads or reports; the git hook and `ws check-secrets` decide what to do with
 the findings. Errors are never swallowed here, so callers can fail closed.
