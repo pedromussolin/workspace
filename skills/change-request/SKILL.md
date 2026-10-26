@@ -59,7 +59,7 @@ Everything else in this skill is instructions for you, in English.
 | Field | Content |
 |---|---|
 | Tipo | `Mudança programada` or `Mudança não programada` (urgent or already executed) |
-| Summary | `<repos>: <what changes, one sentence>` |
+| Summary | `<product or screen>: <what changes for the people who use it>`, in plain PT-BR, up to ~80 characters; see "Summary" below |
 | Descrição | **Contexto** (the problem, with production number, period and source) · **O que muda** (one item per repo) · **O que não muda** |
 | Prioridade | `Low`, `Medium` or `High`; propose one and confirm with the user |
 | Link Tarefa | `<link do Jira da TS-<id>>`; do not invent the domain |
@@ -68,6 +68,22 @@ Everything else in this skill is instructions for you, in English.
 | Plano de implantação | Steps in the safe order (step 5), each with the concrete check (pod, queue consumer, expected log/trace, screen) |
 | Plano de Rollback | Reverse order · option without a deploy, if one exists · drain queue/tasks before removing a worker · what is left behind |
 | Evidências de validação | Tests (commit, count) · sandbox or production (UTC, versions, traces, status, durations) |
+
+## Summary
+
+The title is what the approver and the people affected see in the list of changes, often with
+nothing else. Write it for them, not for the developer:
+- Start with the product or the screen as people call it ("Portal de Crédito", "Envio de
+  Relatórios", "Conciliação CERC"), then the effect in their words.
+- No repo or service names, `TS-…`, PR, version, branch, variable or component jargon (BFF,
+  shared, worker, endpoint). Those go in Descrição.
+- A release with many changes: name the one or two that people will notice most.
+- Propose the title with the fields; the user approves it like the rest.
+
+| Bad | Good |
+|---|---|
+| `apl-shared-service, apl-credit-whitelabel-api e apl-credit-whitelabel: permissões por área no portal de crédito, com a troca dos grupos do Azure` | `Portal de Crédito: permissões por área e novo Controle de Acesso` |
+| `data-lake-api: cache por dia em /registration/pending` | `Conciliação CERC: aba Pendências abre mais rápido` |
 
 ## Form rules
 
@@ -99,3 +115,4 @@ confidentiality check, commit and push to `main`). Model:
 | "No downtime" with a worker that kills tasks on deploy | Step 5; state the effect |
 | Claiming error behavior without reading the code | Step 6; otherwise "a confirmar" |
 | Evidence without a version | `sand-<sha>`/`prod-<sha>` + ancestry |
+| Title made of repo names or jargon | Product or screen + effect for people ("Summary") |
