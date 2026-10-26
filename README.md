@@ -1,6 +1,6 @@
 # workspace
 
-Personal, private repo. It is the single home for planning projects (`projetos/`) and personal
+Personal, private repo. It is the single home for planning projects (`projects/`) and personal
 automations. It is AI first: Claude does the judgment work through skills and MCP servers, and the
 `ws` CLI is the deterministic fallback for when an MCP server fails. Rules for people and agents
 are in [CLAUDE.md](CLAUDE.md); the design is in
@@ -95,7 +95,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws names known WORD…` | Appends harmless words to `.known-words`, without repeats; commit the file |
 | `ws names add REAL --analog ANALOG [--case-sensitive]` | Appends a real name and its analog to `names.toml`, keeping its mode and content; refuses a duplicate |
 | `ws names review` | Asks in the terminal about each pending word (real name, harmless, skip), then lists the files and unpushed commits that carry the real names added |
-| `ws project new <slug>` | Copies `templates/project/` into `projetos/<slug>/` |
+| `ws project new <slug>` | Copies `templates/project/` into `projects/<slug>/` |
 | `ws slot [-n N] -- <cmd>` | Runs a heavy command in one of N slots (file lock), so parallel agents do not exhaust memory; the command holds the lock and gets SIGTERM, SIGHUP and SIGINT forwarded, so the slot lasts until it exits |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
@@ -104,12 +104,13 @@ Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --chec
 
 ## Projects
 
-Content under `projetos/` is in PT-BR.
+Prose under `projects/` is in PT-BR; folder and file names are in English.
 
 | Project | What it is |
 |---|---|
-| [artemis-v2](projetos/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches |
-| [reestrutura-whitelabel](projetos/reestrutura-whitelabel/README.md) | Epic that restructures the partner portal front end: brand themes, dark mode, own components, new architecture |
-| [estudos-ia](projetos/estudos-ia/README.md) | Study guide of the AI concepts used in this workspace |
+| [artemis-v2](projects/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches |
+| [whitelabel-restructure](projects/whitelabel-restructure/README.md) | Epic that restructures the partner portal front end: brand themes, dark mode, own components, new architecture |
+| [ai-studies](projects/ai-studies/README.md) | Study guide of the AI concepts used in this workspace |
+| [standalone](projects/standalone/README.md) | Tasks that belong to no project |
 
 New projects start with `ws project new <slug>`.
