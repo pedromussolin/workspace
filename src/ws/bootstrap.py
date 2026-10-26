@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ws.config import claude_settings_path
 
-HOOK_SCRIPT = "hooks/block_co_authored_by.py"
+HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 
 
@@ -73,10 +73,13 @@ def _check_config(config: Path) -> list[str]:
     return problems
 
 
-def _hook_gate(repo: Path) -> dict:
-    command = f'python3 -I "{repo.absolute() / HOOK_SCRIPT}"'
-    hook = {"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}
-    return {"hooks": {"PreToolUse": [hook]}}
+def _hook_entry(repo: Path, script: str) -> dict:
+    command = f'python3 -I "{repo.absolute() / script}"'
+    return {"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}
+
+
+def _hook_gate(repo: Path, scripts: tuple[str, ...] = HOOK_SCRIPTS) -> dict:
+    return {"hooks": {"PreToolUse": [_hook_entry(repo, script) for script in scripts]}}
 
 
 def _deny_gate() -> dict:
@@ -105,9 +108,10 @@ def _check_claude_gates(repo: Path, settings_path: Path) -> list[str]:
         return [f"Claude settings {settings_path} is not a valid JSON object; fix it first"]
 
     problems = []
-    if not _has_hook_gate(settings):
-        message = f"Claude Code gate missing in {settings_path}: add this PreToolUse hook"
-        problems.append(_problem_with_json(message, _hook_gate(repo)))
+    for script in HOOK_SCRIPTS:
+        if not _has_hook_gate(settings, script):
+            message = f"Claude Code gate missing in {settings_path}: add this PreToolUse hook"
+            problems.append(_problem_with_json(message, _hook_gate(repo, (script,))))
     if not _has_deny_rule(settings):
         message = f"Claude Code gate missing in {settings_path}: add this deny rule"
         problems.append(_problem_with_json(message, _deny_gate()))
@@ -122,12 +126,12 @@ def _as_list(value: object) -> list:
     return value if isinstance(value, list) else []
 
 
-def _has_hook_gate(settings: dict) -> bool:
+def _has_hook_gate(settings: dict, script: str) -> bool:
     entries = _as_list(_as_dict(settings.get("hooks")).get("PreToolUse"))
     for entry in entries:
         for hook in _as_list(_as_dict(entry).get("hooks")):
             command = _as_dict(hook).get("command")
-            if isinstance(command, str) and HOOK_SCRIPT in command:
+            if isinstance(command, str) and script in command:
                 return True
     return False
 

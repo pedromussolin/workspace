@@ -11,6 +11,7 @@ from ws.bootstrap import run_setup
 from ws.cli import main
 
 HOOK_SCRIPT = "hooks/block_co_authored_by.py"
+BYPASS_SCRIPT = "hooks/block_hook_bypass.py"
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 
 
@@ -32,12 +33,14 @@ def _write_settings(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
+def _hook_entry(script: str) -> dict:
+    command = f'python3 -I "$HOME/repos/acme/{script}"'
+    return {"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}
+
+
 def _registered_gates() -> dict:
-    command = f'python3 -I "$HOME/repos/acme/{HOOK_SCRIPT}"'
     return {
-        "hooks": {
-            "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]
-        },
+        "hooks": {"PreToolUse": [_hook_entry(HOOK_SCRIPT), _hook_entry(BYPASS_SCRIPT)]},
         "permissions": {"deny": [DENY_RULE]},
     }
 
@@ -193,12 +196,14 @@ def test_reports_missing_claude_gates(env):
 
     problems = _setup(env)
 
-    assert len(problems) == 2
-    hook_problem, deny_problem = problems
-    hook_json = json.loads(hook_problem.split("\n", 1)[1])
-    command = hook_json["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-    assert hook_json["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
-    assert command == f'python3 -I "{env.repo / HOOK_SCRIPT}"'
+    assert len(problems) == 3
+    *hook_problems, deny_problem = problems
+    for script, hook_problem in zip((HOOK_SCRIPT, BYPASS_SCRIPT), hook_problems, strict=True):
+        hook_json = json.loads(hook_problem.split("\n", 1)[1])
+        entries = hook_json["hooks"]["PreToolUse"]
+        assert len(entries) == 1
+        assert entries[0]["matcher"] == "Bash"
+        assert entries[0]["hooks"][0]["command"] == f'python3 -I "{env.repo / script}"'
     assert json.loads(deny_problem.split("\n", 1)[1]) == {"permissions": {"deny": [DENY_RULE]}}
     assert all(line.startswith("  ") for p in problems for line in p.split("\n")[1:])
     assert env.settings.read_bytes() == before
@@ -226,6 +231,18 @@ def test_reports_only_the_missing_claude_gate(env):
     assert DENY_RULE in problems[0]
 
 
+def test_reports_only_the_missing_bypass_gate(env):
+    gates = _registered_gates()
+    del gates["hooks"]["PreToolUse"][1]
+    _write_settings(env.settings, gates)
+
+    problems = _setup(env)
+
+    assert len(problems) == 1
+    assert BYPASS_SCRIPT in problems[0]
+    assert HOOK_SCRIPT not in problems[0]
+
+
 def test_reports_missing_claude_settings_file(env):
     env.settings.unlink()
 
@@ -234,6 +251,7 @@ def test_reports_missing_claude_settings_file(env):
     assert len(problems) == 1
     assert str(env.settings) in problems[0]
     assert HOOK_SCRIPT in problems[0]
+    assert BYPASS_SCRIPT in problems[0]
     assert DENY_RULE in problems[0]
     assert not env.settings.exists()
 
@@ -251,7 +269,7 @@ def test_reports_invalid_claude_settings_json(env):
 def test_unexpected_settings_shapes_count_as_missing_gates(env):
     _write_settings(env.settings, {"hooks": [], "permissions": "none"})
 
-    assert len(_setup(env)) == 2
+    assert len(_setup(env)) == 3
 
 
 def test_run_setup_reads_settings_path_from_env(env, monkeypatch):
@@ -287,4 +305,5 @@ def test_cli_setup_prints_problems_and_fails(env, monkeypatch, capsys):
     assert "ok" not in out.split("\n")
     assert str(env.config / "names.toml") in out
     assert HOOK_SCRIPT in out
+    assert BYPASS_SCRIPT in out
     assert DENY_RULE in out
