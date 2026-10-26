@@ -1,10 +1,12 @@
-# 35 — Permissões atômicas por ação, perfis por página e migração manual dos grupos
+# 35 — Um escopo por área em todas as páginas e migração manual dos grupos
 
 - **TS:** TS-5431 (épico TS-5357).
-- **Repos:** BFF (catálogo de permissões e de perfis, rotas) e front (ações, "Novo grupo"). A migração dos grupos
-  é manual (D128), sem tela.
-- **Status (26/10):** desenho combinado com o Pietro (D125, D126 e D128). Feito o levantamento dos grupos
-  amarrados no código (abaixo). **Antes de implementar as permissões, falta o levantamento de todas as telas.**
+- **Repos:** BFF (catálogo de permissões, rotas, lista de migração) e front (abas e botões por escopo). Grupos e
+  atribuições são manuais (D128), sem tela de migração de grupos e sem catálogo de perfis.
+- **Status (26/10):** desenho fechado (D128 a D130), levantamento das telas feito, 57 roles novas listadas.
+  Branch `feature/TS-5431-escopos-por-area` (front e BFF), a partir da `release/20261026`; implementação não
+  começada. Levantamento completo e a lista das roles (com nomes reais) em
+  `~/repos/.reestrutura_whitelabel/agentes/ts5431/` (`levantamento/`, `roles-ts5431.md`, `app-roles-ts5431.json`).
 - Fora da `release/20261026`.
 
 ## Por quê
@@ -20,19 +22,42 @@ agendamento.
 
 ## Desenho
 
-1. **Permissões atômicas (D125):** toda ação na tela tem uma permissão própria. Uma página pode ter vários
-   escopos, um por área, como o Envio de relatórios já faz com as conexões (`report-transfer-manage`). Ex.:
-   Fluxos (`report-transfer`), Agendamentos (`report-transfer-schedules`, novo) e Conexões.
-   - Cada separação mexe no catálogo do BFF, na proteção das rotas, nas ações do front e nas app roles do
-     App Registration.
-   - Ninguém perde acesso na troca: quem tem a permissão antiga ganha as novas pela migração de permissões
-     que a tela já tem.
-2. **Catálogo de perfis por página (D126):** no BFF, ao lado do catálogo de permissões. Cada página declara
-   perfis com nome, descrição e as permissões exatas (ex.: Leitura, Agendamentos, Fluxos, Conexões, Admin).
-   - Perfis se somam: uma pessoa pode estar em mais de um perfil da mesma página.
-   - Página sem perfis próprios ganha Leitura e Admin.
-   - No "Novo grupo" de página, o perfil vem do catálogo com as permissões dele; "Perfil próprio" fica para
-     exceções. Grupo de página só recebe permissões da página dele.
+1. **Um escopo por área (D129, D130).** Cada aba ou área com dados próprios tem o seu escopo, só com as ações dela.
+   Nome `{escopo-da-página}-{área}`. Os escopos antigos saem; a lista de migração (antiga → nova) dá a quem tem a
+   role antiga todas as novas que mantêm o acesso de hoje. A lista é composta: cobre tanto as roles de antes da
+   TS-5391 quanto as de agora, porque a cópia não encadeia `A → B → C` num lote só.
+
+   | Página | Escopos novos (ações) | Saem |
+   |---|---|---|
+   | Envio de Relatórios | `report-transfer-flows` (read, create, update, delete, test, run), `report-transfer-schedules` (read, create, update, delete, run), `report-transfer-executions` (read), `report-transfer-connections` (read, create, update, delete, test) | `report-transfer`, `report-transfer-manage` |
+   | Controle de Acesso | `access-control-roles` (read, create, update, delete), `access-control-people` (read, update, impersonate), `access-control-organization` (update), `access-control-groups` (read, create, update, delete), `access-control-batch` (run), `access-control-migration` (read, run) | `access-control` |
+   | Orquestrador | `orchestrator-executions` (read, reprocess), `orchestrator-product-view` (read) | `orchestrator`, `orchestrator-product` |
+   | Dashboard de Registros | `cerc-reconciliation-dashboard` (read), `cerc-reconciliation-table` (read), `cerc-reconciliation-pending-assets` (read, run = "Verificar na CERC") | `cerc-reconciliation` |
+   | Consolidado de Caixa | `cash-consolidation-summary` (read), `cash-consolidation-analytic` (read) | `cash-consolidation` |
+   | PDD | `pdd-overview`, `pdd-history`, `pdd-stock-movement` (read) | `pdd` |
+   | Gerenciamento de Produtos | `products-config-products` (read, create, update), `products-config-entities` (create) | `products-config` |
+   | Onboarding BGT | `onboarding-bgt-listing` (read, reprocess), `onboarding-bgt-monitoring` (read), `onboarding-bgt-details` (read, reprocess, run = reenviar webhook) | `onboarding-bgt` |
+   | Onboarding Interno e Externo | `users-list`, `users-details`, `users-documents` (read) | `users` |
+
+   **Sem mudança:** Formalização e Formalização (unidades), Detalhes do Contrato, Lotes de Cessão, Lotes de Liquidação
+   (os dois escopos já são um por aba), Pré-Trade (os sete escopos já são as áreas de aprovação, e o motor de workflow
+   só aceita um escopo), Base de Conhecimento, Poli Chat, Desempenho de Carteira (a aba Tabela não tem dados),
+   Acompanhamento de Clientes, Simulação de Propostas, Design System, Docs da API e Administrador.
+
+2. **Decisões técnicas (da implementação):**
+   - os cinco `access-control-*` entram no `SCOPES_WITHOUT_ADMIN_OVERRIDE` (o `admin:read` não abre o Controle de
+     Acesso);
+   - o lote do Controle de Acesso checa cada operação pelo escopo dela (item proibido volta "Sem permissão" na
+     prévia), porque `batch/apply` recebe qualquer operação; mudar organização pede `access-control-organization:update`;
+   - rota enxuta `GET /products/lookup` para o filtro de produto de outras páginas (hoje a lista de usuários só
+     funciona com `products-config:read`);
+   - o casamento de rotas do `iam/navigation` testa as rotas literais antes das com `{id}` (`/onboarding-bgt/monitoring`
+     casava com `/onboarding-bgt/{id}`);
+   - Lotes de Liquidação: `/payments` e o export de recusados checam a leitura da aba certa;
+   - abas que só reapresentam os mesmos dados (PDD, Dashboard e Tabela da CERC) escondem a aba no front; a rota do BFF
+     aceita qualquer uma das leituras.
+   - Bootstrap (D130): as roles novas do Controle de Acesso são criadas e atribuídas à mão antes do deploy.
+
 3. **Migração manual dos grupos (D128):** o Pietro recria os grupos e reatribui as pessoas pelo Controle de
    acesso (o lote com prévia já existe na `release/20261026`: criar grupo, atribuir permissão, pôr e tirar
    membro, copiar atribuições, mudar a instituição da pessoa, apagar grupo). Ordem, para ninguém perder acesso:
@@ -95,15 +120,15 @@ nenhum código passa um. apl-ai-service, data-lake-api, orquestrador e TSE não 
 (`groupMembershipClaims` = `ApplicationGroup`), um `[PLGN AI]` recriado precisa ser atribuído ao Enterprise
 Application, senão os membros não ganham o departamento.
 
-## A fazer antes de implementar
+## Fora desta tarefa
 
-- **Levantamento de todas as telas:** as ações de cada uma, a permissão que protege cada ação e onde uma
-  permissão cobre mais de uma função. Com ele, o Pietro decide o que separar e os perfis de cada página.
+- Checagem das roles de departamento da POLI no BFF (`{departamento}-poli-chat`, `{departamento}-poli-knowledge-base:read`)
+  e o menu da Base de Conhecimento: outra tarefa (D130).
 
 ## Pronto quando
 
-- Toda ação de tela com permissão própria, sem perda de acesso para ninguém na troca.
-- Catálogo de perfis por página no BFF, usado pelo "Novo grupo".
+- Toda área de tela com escopo próprio, cada ação com a sua permissão, sem perda de acesso para ninguém na troca
+  (lista de migração na tela Migração).
 - Grupos recriados à mão (D128), conferidos com o levantamento acima, e a variável dos grupos de instituição
   com os ids novos.
 
