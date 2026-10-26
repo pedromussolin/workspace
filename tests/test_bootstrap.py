@@ -389,7 +389,7 @@ def test_prints_one_merged_block_with_every_missing_claude_gate(env):
     header, block = _needs_block(result)
     assert str(env.settings) in header
     assert "ws never writes that file" in header
-    assert "Claude applies this after you approve" in header
+    assert "Claude applies this block after you approve" in header
     entries = block["hooks"]["PreToolUse"]
     assert [entry["hooks"][0]["command"] for entry in entries] == [
         f'python3 -I "{env.repo / script}"' for script in (HOOK_SCRIPT, BYPASS_SCRIPT)
@@ -660,7 +660,7 @@ def test_cli_setup_prints_needs_you_lines_and_fails(env, monkeypatch, capsys):
     assert HOOK_SCRIPT in out
     assert BYPASS_SCRIPT in out
     assert DENY_RULE in out
-    assert "Claude applies this after you approve" in out
+    assert "Claude applies this block after you approve" in out
 
 
 def test_cli_setup_check_is_read_only_and_exits_1_when_there_is_something_to_fix(

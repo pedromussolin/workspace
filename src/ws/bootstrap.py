@@ -253,12 +253,12 @@ def _gates_needed(message: str, snippet: dict) -> str:
 
 def _check_claude_gates(setup: _Setup, repo: Path, settings_path: Path) -> None:
     """ws never writes the Claude settings: it asks for one block with everything missing."""
-    approval = "ws never writes that file; Claude applies this after you approve"
+    approval = "ws never writes that file; Claude applies this block after you approve:"
     try:
         raw = settings_path.read_bytes()
     except FileNotFoundError:
         both = {**_hook_gate(repo), **_deny_gate()}
-        message = f"Claude settings {settings_path} not found; {approval}, creating it with:"
+        message = f"Claude settings {settings_path} not found. {approval}"
         setup.need(_gates_needed(message, both))
         return
     except OSError as error:
@@ -277,7 +277,7 @@ def _check_claude_gates(setup: _Setup, repo: Path, settings_path: Path) -> None:
     if not _has_deny_rule(settings):
         block.update(_deny_gate())
     if block:
-        message = f"Claude Code gates missing in {settings_path}; {approval}, adding:"
+        message = f"Claude Code gates missing in {settings_path}. {approval}"
         setup.need(_gates_needed(message, block))
 
 
