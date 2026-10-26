@@ -278,6 +278,29 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   `esteira_aditamento`?) e contagem de contratos `liberando` por produto.
 - **Correção:** `callbacks` com lista vazia por padrão.
 
+## B19 — Remessa por proc_id não fecha quando o último a terminar é rejeitado
+
+- **Onde:** só o estado `cadastrado` tenta fechar o lote
+  (`framework/liquidacao/estados_liquidacao.py:342-358`); rejeitado e errado
+  não chamam `lote_automatico`. O portão conta os processos terminais já
+  commitados e só fecha se a conta bater o total do Redis
+  (`database/models.py:5549-5583`). A rede de segurança (beat das 19h UTC,
+  `backstop_por_proc_id`) só roda para produto com `baixa_por_agendamento`
+  ligado (`tasks/liquidacao_lote.py:240-245`).
+- **Efeito:** se o último processo da remessa termina rejeitado, ou se os
+  últimos cadastrados commitam juntos e cada um não vê os outros, ninguém vê a
+  conta completa e o lote fica fake até alguém fechar pela tela. Não há log
+  quando o portão não abre.
+- **Confirmado:** réplica e Datadog (26/10/2026), produto da Dots: remessa
+  de 6.972 com 6.808 cadastrados e 164 rejeitados, nenhum em processamento e
+  nenhum lote. O último a terminar foi um rejeitado, 152 ms depois do último
+  cadastrado. O produto está com `baixa_por_agendamento` nulo. No Datadog, só
+  os três logs de entrada da remessa, sem erro de task.
+- **Correção:** tentar o portão também ao terminar em rejeitado ou errado (o
+  claim no Redis já evita fechamento duplo) e contar os terminais num contador
+  do Redis incrementado depois do commit, em vez de contar no banco. Avaliar o
+  backstop para todo produto com `fechar_lote_por_proc_id`.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
