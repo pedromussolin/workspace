@@ -213,52 +213,6 @@ def _cmd_mask(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_mask(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
-    parser = subparsers.add_parser("mask", help="Replace real names with their analogs.")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--in-place", action="store_true", help="rewrite FILE instead of printing")
-    mode.add_argument(
-        "--check", action="store_true", help="list the real names found; exit 1 if there are any"
-    )
-    parser.add_argument(
-        "file", nargs="?", default="-", metavar="FILE", help="file to read, or - for stdin"
-    )
-    parser.set_defaults(handler=_cmd_mask)
-
-
-def _read_input(file: str) -> str:
-    if file == "-":
-        return sys.stdin.read()
-    return Path(file).read_bytes().decode("utf-8")
-
-
-def _cmd_mask(args: argparse.Namespace) -> int:
-    if args.in_place and args.file == "-":
-        print("ws mask: --in-place needs a file", file=sys.stderr)
-        return 2
-    try:
-        table = names.load_names()
-    except names.NamesTableMissing as error:
-        print(error, file=sys.stderr)
-        return 2
-    try:
-        text = _read_input(args.file)
-    except (OSError, UnicodeDecodeError) as error:
-        print(f"ws mask: cannot read {args.file}: {error}", file=sys.stderr)
-        return 2
-    if args.check:
-        found = names.find_real_names(text, table)
-        for name in found:
-            print(f"{args.file}: {name}")
-        return 1 if found else 0
-    masked = names.mask_text(text, table)
-    if not args.in_place:
-        sys.stdout.write(masked)
-    elif masked != text:
-        Path(args.file).write_bytes(masked.encode("utf-8"))
-    return 0
-
-
 def _add_check_secrets(
     subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]",
 ) -> None:
