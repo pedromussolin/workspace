@@ -1,4 +1,4 @@
-// Run with: node --test anexos/scripts/smoke-escrita.test.mjs
+// Run with: node --test attachments/scripts/smoke-write.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import {
   previewBatch,
   scopeState,
   syncAccessControl,
-} from './smoke-escrita.mjs';
+} from './smoke-write.mjs';
 
 const AC = 'access-control';
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -545,7 +545,7 @@ test('POSTs that only search do not put the query in the list', () => {
 });
 
 function withTempDir(run) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-escrita-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-write-'));
   try {
     return run(dir);
   } finally {

@@ -1,4 +1,4 @@
-# Uso: python3 juntar-branch.py <repo> <branch-wip> <branch-final>
+# Uso: python3 merge-branch.py <repo> <branch-wip> <branch-final>
 # Cria a branch final a partir da 04 (--no-track), aplica os commits da wip
 # com cherry-pick, troca os assuntos mapeados em R e confere os 72 caracteres.
 import subprocess

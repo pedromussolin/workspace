@@ -1,5 +1,5 @@
 // Move arquivos/pastas do src/app com `git mv` e reescreve os imports relativos dos .ts.
-// Uso: node mover.mjs <raiz-do-repo> <moves.json>
+// Uso: node move.mjs <raiz-do-repo> <moves.json>
 // moves.json: [["auth", "core/auth"], ["utils/api-error.ts", "core/http/api-error.ts"], ...]
 // (caminhos relativos a src/app). Imports que atravessam core/shared/layouts viram alias
 // (@core/..., @shared/..., @layouts/...); os demais continuam relativos.

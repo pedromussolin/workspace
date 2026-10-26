@@ -4,14 +4,14 @@
 // SERVE=1 só serve o portal e o BFF falso, para navegar à mão. NO_SESSION=1 abre sem sessão (tela de login); SCHEME=dark força o esquema escuro; THEME_KEY troca a marca (chave real do tema, ver privado.md); ORG troca a organização (padrão plgn, a interna; outra mostra a visão de parceiro); "Sair" encerra a sessão local (cookie) e "Entrar com Microsoft" volta logado, sem Azure; /__marcas escolhe a marca e a visão (parceiro ou interna) com o portal no ar; FIXTURES=<arquivo.json> dá dados
 // ao BFF falso ({"caminho/da/api": resposta}, sem a barra inicial e sem a query).
 // Com FIXTURES, o BFF falso também aceita escrita (POST/PUT/PATCH/DELETE e o controle de acesso em lote, regras em
-// smoke-escrita.mjs). Com SERVE=1, as mudanças ficam numa cópia em alteracoes/, ao lado do arquivo, e valem mais que ele,
+// smoke-write.mjs). Com SERVE=1, as mudanças ficam numa cópia em alteracoes/, ao lado do arquivo, e valem mais que ele,
 // inclusive depois de reiniciar; /__reset (no portal) apaga a cópia e volta ao original. Sem SERVE, nada é gravado.
 // Requer playwright-core e CHROME_BIN apontando para um Chromium.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { applyWrite, createDataStore, noEffectWarning } from './smoke-escrita.mjs';
+import { applyWrite, createDataStore, noEffectWarning } from './smoke-write.mjs';
 
 const require = createRequire(process.env.PW_DIR ? path.join(process.env.PW_DIR, 'x.js') : import.meta.url);
 const { chromium } = require('playwright-core');

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Junta as branches do épico sobre a 04 numa worktree descartável e confere se o conjunto compila.
-# Uso: merge-teste.sh <repo-do-front> [branch ...]
+# Uso: merge-test.sh <repo-do-front> [branch ...]
 #   Sem branches, junta as áreas (`refact/TS-535x`/`TS-536x`) e as fatias 14/15 (`feature/TS-5371/5372`).
 # Ambiente: FULL=1 também roda build e a suíte inteira (com o lock comum) e compara com a base.
 # Conflito conhecido tem resolução em $PRIV/resolucoes/<branch com _ no lugar de />.sh (fora do repo,

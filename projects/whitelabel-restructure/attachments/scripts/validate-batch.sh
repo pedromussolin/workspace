@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Valida uma branch de área do front contra a base da 04, num comando só.
-# Uso: validar-leva.sh <worktree-do-front> [rota-ou-cena ...]
+# Uso: validate-batch.sh <worktree-do-front> [rota-ou-cena ...]
 #   Sem rotas, pula o smoke. Com SCENES no ambiente, o smoke usa as cenas (ver smoke.mjs).
 # Ambiente (opcional):
 #   FIXTURES=<json>       dados fictícios do BFF falso no smoke

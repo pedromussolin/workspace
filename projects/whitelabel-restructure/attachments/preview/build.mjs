@@ -1,12 +1,12 @@
 import fs from 'node:fs';
-import { ICONS } from '../icones/icons.mjs';
+import { ICONS } from '../icons/icons.mjs';
 const rd = (f) => fs.readFileSync(new URL('./' + f, import.meta.url), 'utf8');
-const css = rd('previa.css') + '\n' + rd('charts.css');
-const js0 = rd('charts.js') + '\n' + rd('previa.js') + '\n' + rd('screens.js') + '\nsyncControls();\nrender();\n';
+const css = rd('preview.css') + '\n' + rd('charts.css');
+const js0 = rd('charts.js') + '\n' + rd('preview.js') + '\n' + rd('screens.js') + '\nsyncControls();\nrender();\n';
 const names = new Set(ICONS.map((i) => i[0]));
 const used = [...new Set([...js0.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]).filter((n) => names.has(n)))];
 const map = Object.fromEntries(ICONS.filter((i) => used.includes(i[0])).map((i) => [i[0], i[2]]));
 const js = `const ICONS = ${JSON.stringify(map)};\n` + js0;
-const out = rd('previa.tpl.html').replace('/*__CSS__*/', () => css).replace('/*__JS__*/', () => js);
-fs.writeFileSync(new URL('./previa.html', import.meta.url), out);
+const out = rd('preview.tpl.html').replace('/*__CSS__*/', () => css).replace('/*__JS__*/', () => js);
+fs.writeFileSync(new URL('./preview.html', import.meta.url), out);
 console.log('ok', Object.keys(map).length, 'ícones,', Math.round(out.length / 1024), 'KB');

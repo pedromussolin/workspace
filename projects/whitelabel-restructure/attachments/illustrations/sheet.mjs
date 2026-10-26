@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { DIRECTIONS, SCENES, BRANDS, SCHEMES, ILLUSTRATIONS, illuVars, svg } from './ilustracoes.mjs';
+import { DIRECTIONS, SCENES, BRANDS, SCHEMES, ILLUSTRATIONS, illuVars, svg } from './illustrations.mjs';
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--') && !DIRECTIONS.some((d) => d.id === a));

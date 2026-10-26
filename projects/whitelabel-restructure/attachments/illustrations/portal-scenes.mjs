@@ -1,7 +1,7 @@
 // Gera as cenas do app-illustration: as 4 da direção A (idênticas à proposta) e as 2 novas.
-// Uso: node cenas-portal.mjs  -> scenes.json e preview.html (não versionados) e a conferência das regras.
+// Uso: node portal-scenes.mjs  -> scenes.json e preview.html (não versionados) e a conferência das regras.
 import fs from 'node:fs';
-import { ILLUSTRATIONS, BRANDS, SCHEMES } from './ilustracoes.mjs';
+import { ILLUSTRATIONS, BRANDS, SCHEMES } from './illustrations.mjs';
 
 const here = (f) => new URL('./' + f, import.meta.url);
 const v = (t) => `var(--illu-${t})`;
@@ -67,10 +67,10 @@ const loginBackdrop =
   G(fill('brand', '.35'), O(560, 132, 6), O(1300, 296, 6), O(860, 760, 6));
 
 const SCENES = {
-  'empty-list': { body: A['lista-vazia'] },
-  'search-no-results': { body: A['busca-sem-resultado'] },
-  'load-error': { body: A['erro-ao-carregar'] },
-  'access-denied': { body: A['acesso-negado'] },
+  'empty-list': { body: A['empty-list'] },
+  'search-no-results': { body: A['search-no-results'] },
+  'load-error': { body: A['load-error'] },
+  'access-denied': { body: A['access-denied'] },
   'file-upload': { body: fileUpload },
   'login-backdrop': { body: loginBackdrop, viewBox: `0 0 ${W} ${H}`, fit: 'slice' },
 };

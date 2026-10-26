@@ -1,9 +1,9 @@
-// Gera svg/<direção>/<cena>.svg e proposta.html (a partir de proposta.tpl.html).
+// Gera svg/<direção>/<cena>.svg e proposal.html (a partir de proposal.tpl.html).
 // Confere as regras do conjunto em cada arquivo: sem cor fixa, sem texto, sem filter, traço entre
 // 1,75 e 2 e menos de 4 KB. Uso: node build.mjs
 import fs from 'node:fs';
-import { DIRECTIONS, SCENES, SCHEMES, BRANDS, ILLUSTRATIONS, svg, illuMap } from './ilustracoes.mjs';
-import { ICONS } from '../icones/icons.mjs';
+import { DIRECTIONS, SCENES, SCHEMES, BRANDS, ILLUSTRATIONS, svg, illuMap } from './illustrations.mjs';
+import { ICONS } from '../icons/icons.mjs';
 
 const here = (f) => new URL('./' + f, import.meta.url);
 const LIMIT = 4096;
@@ -108,7 +108,7 @@ const listMock = (dir) => `<div class="mock">
               .map((c) => `<span>${c}</span>`)
               .join('')}</div>
             <div class="m-empty">
-              <div class="m-art">${art(dir, 'lista-vazia')}</div>
+              <div class="m-art">${art(dir, 'empty-list')}</div>
               <p class="m-empty-title">Nenhum pré-trade por aqui ainda</p>
               <p class="m-empty-text">Crie a primeira solicitação: ela começa como rascunho e só vai para aprovação quando você enviar.</p>
               <span class="m-btn primary">${ic('plus')}Criar o primeiro Pré-Trade</span>
@@ -118,7 +118,7 @@ const listMock = (dir) => `<div class="mock">
       </div>`;
 
 const denied = (dir) => `<div class="status">
-          <div class="status-art">${art(dir, 'acesso-negado')}</div>
+          <div class="status-art">${art(dir, 'access-denied')}</div>
           <p class="status-title">Acesso negado</p>
           <p class="status-msg">Você não tem permissão para acessar esta página.</p>
           <p class="status-hint">Entre em contato com o administrador caso precise de acesso.</p>
@@ -144,7 +144,7 @@ const context = DIRECTIONS.map(
   </div>`
 ).join('\n  ');
 
-const tpl = fs.readFileSync(here('proposta.tpl.html'), 'utf8');
+const tpl = fs.readFileSync(here('proposal.tpl.html'), 'utf8');
 const page = tpl
   .replace('/*__TOKENS__*/', () => tokens)
   .replace('/*__SCOPES__*/', () => scopes)
@@ -154,7 +154,7 @@ const page = tpl
   .replace('<!--__COMPARE__-->', () => compare)
   .replace('<!--__CONTEXT__-->', () => context);
 if (/__[A-Z_]+__/.test(page)) throw new Error('marcador sem substituir no modelo');
-fs.writeFileSync(here('proposta.html'), page);
+fs.writeFileSync(here('proposal.html'), page);
 
 for (const d of DIRECTIONS) console.log(`${d.id} ${d.slug}: ${sizes[d.id].map(([s, b]) => `${s} ${b} B`).join(' · ')}`);
-console.log('ok', ILLUSTRATIONS.length, 'svgs,', 'proposta.html', Math.round(Buffer.byteLength(page) / 1024), 'KB');
+console.log('ok', ILLUSTRATIONS.length, 'svgs,', 'proposal.html', Math.round(Buffer.byteLength(page) / 1024), 'KB');
