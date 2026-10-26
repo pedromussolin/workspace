@@ -10,38 +10,22 @@ Planejamento e acompanhamento do épico que reestrutura o front do portal
 Aqui ficam as tarefas, as decisões, o design system, as evidências e os
 protótipos próprios. O código vive no repositório da empresa, não aqui.
 
-## Repositório pessoal: o que nunca entra
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md`
+da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
+projeto.
 
-Este repo é pessoal e fica num GitHub pessoal. Antes de qualquer commit,
-conferir que nada disto entra:
+## Análogos e placeholders deste projeto
 
-- **Segredos:** credenciais, tokens de acesso, senhas, chaves e conteúdo de
-  `.env`. "Token de design" é outra coisa e pode entrar.
-- **Endereços internos:** hosts, URLs e IPs da empresa. Escrever
-  `<url-da-sandbox>`, "host da sandbox" etc.
-- **Logs:** de build, teste e lint dos repos da empresa.
-- **Código da empresa:** código-fonte copiado dos repos, inclusive patches.
-  Aqui o código se cita por `arquivo:linha`. Protótipos próprios em
-  `anexos/` (prévia, ícones, scripts) são permitidos.
-- **Nomes reais:** de pessoas, da empresa, de marcas parceiras, clientes,
-  administradoras e fornecedores.
-  - Use sempre o **análogo**: "Poliedro" para a empresa e as marcas "Dots",
-    "Cerys" e "Viva". Vale também em nomes de arquivo, chaves de tema e
-    caminhos citados.
-  - A tabela de equivalência não fica no repo.
-  - Números e cores podem ficar.
-- **Dados de cliente:** CPF, CNPJ e nomes reais. Os da prévia são fictícios.
-
-Conferência rápida antes do commit:
-
-```bash
-grep -rniE "password|senha|secret|api[_-]?key|://[^ ]+@|\.io\b|\b10\.[0-9]+\.[0-9]+\.[0-9]+\b|/home/" . --exclude-dir=.git
-```
+- Os nomes reais viram análogos: "Poliedro" para a empresa e as marcas "Dots", "Cerys" e "Viva".
+  Vale também em nomes de arquivo, chaves de tema e caminhos citados.
+- Endereços internos viram `<url-da-sandbox>`, "host da sandbox" etc.
+- Protótipos próprios em `anexos/` (prévia, ícones, scripts) são permitidos. Os dados de cliente
+  da prévia são fictícios.
 
 ## Valores reais fora do repo
 
 Alguns valores ficam no arquivo local
-`~/repos/.reestrutura_whitelabel/privado.md`, fora do controle de versão:
+`~/.config/workspace/private/reestrutura-whitelabel.md`, fora do controle de versão:
 - a URL da sandbox;
 - a tabela de nomes reais × análogos;
 - onde estão os logs brutos.
@@ -62,12 +46,6 @@ empresa), use os nomes reais.
   decidiu e o motivo.
 - **Validação:** o passo a passo e os números de base ficam em
   `tarefas/roteiro-de-area.md`.
-- **Sincronização:** a cada iteração, rode `git pull` antes de mexer. Ao
-  terminar, faça commit e `push` direto na `main`.
-  - Commits atômicos, em PT-BR, com até 72 caracteres.
-  - Prefixo `docs:` ou `chore:`, sem ID de tarefa e sem `Co-Authored-By`.
-  - A conferência acima roda antes de cada commit.
 
 As regras de git dos repos da empresa (branch e commit com `TS-…`, sem push
-pelo Claude) estão no `CLAUDE.md` da pasta de repositórios e não valem para
-este repo.
+pelo Claude) estão no `~/repos/CLAUDE.md` e não valem para este repo.

@@ -5,40 +5,21 @@ conciliação dos lotes de liquidação da platform-cessao. Aqui ficam as
 tarefas, as decisões, as evidências e as análises. O código vive nos
 repositórios da empresa (ver "Repositórios"), não aqui.
 
-## Repositório pessoal: o que nunca entra
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md`
+da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
+projeto.
 
-Este repo é pessoal e fica num GitHub pessoal. Antes de qualquer commit,
-conferir que não entra:
+## Análogos deste projeto
 
-- credenciais, tokens, senhas, chaves, strings de conexão, conteúdo de `.env`
-  ou dos arquivos `env-*.txt`;
-- hosts, IPs, portas e nomes de usuário de banco ou de infraestrutura
-  internos (escrever "host da réplica", "EC2 de automações", "usuário de banco
-  próprio");
-- caminhos e valores do Parameter Store;
-- dados de cliente final (CPF, CNPJ, nomes de sacado/cedente, valores de
-  contrato) e dumps de consulta;
-- código-fonte copiado dos repositórios da empresa, inclusive patches. O
-  código da V2 vai direto nas branches dos repos da empresa; aqui se cita
-  por `arquivo:linha`. Protótipos próprios e genéricos em `anexos/` são
-  permitidos, com credenciais só de teste local;
-- nomes reais de pessoas, clientes, administradoras e fornecedores. Usar
-  sempre o **análogo** (ex.: "Mercato Libero", "Genius", "Dayvale", "Rafael
-  Frankl"), parecido o bastante para reconhecer e diferente do nome real,
-  inclusive em nomes de arquivo, âncoras e caminhos de código citados. A
-  tabela de equivalência não fica no repo. Números e métricas podem ficar.
-
-Conferência rápida antes do commit:
-
-```bash
-grep -rniE "password|senha|secret|token|api[_-]?key|://[^ ]+@|\.io\b|\b10\.[0-9]+\.[0-9]+\.[0-9]+\b" . --exclude-dir=.git
-```
+Os nomes reais viram análogos, por exemplo "Mercato Libero", "Genius", "Dayvale" e "Rafael
+Frankl", inclusive em nomes de arquivo, âncoras e caminhos de código citados. Protótipos próprios
+e genéricos em `anexos/` são permitidos, com credenciais só de teste local.
 
 ## Valores reais fora do repo
 
 Hosts, IPs, usuários de banco, variáveis do Parameter Store e a tabela de
 nomes reais × análogos ficam no arquivo local
-`~/repos/.artemis_v2/privado.md`, fora do controle de versão. Ler
+`~/.config/workspace/private/artemis-v2.md`, fora do controle de versão. Ler
 esse arquivo quando um documento daqui falar em "host da réplica", "EC2 de
 automações", "usuário de banco próprio" ou usar um nome análogo. Valor
 sensível novo vai para lá, e aqui entra só a referência genérica.
@@ -91,14 +72,9 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 | platform-cessao-argocd | deploy (workers, filas, réplicas) |
 | atlas / fetch-api | API GraphQL legada que também fecha lote |
 
-As regras de git (branch e commit com o ID `TS-…`, sem `Co-Authored-By`,
-replicar na branch `-sdbx`) estão no `CLAUDE.md` da pasta de repositórios e
-valem para os repos da empresa. Este repo não usa ID de tarefa.
-
-**Sincronização deste repo:** a cada iteração do projeto, `git pull` antes de
-mexer e, ao terminar, commit e `push` direto na `main`. Commits atômicos,
-PT-BR, até 72 caracteres, prefixo `docs:` ou `chore:`, sem `Co-Authored-By`.
-A conferência de sigilo acima roda antes de cada commit.
+As regras de git dos repos da empresa (branch e commit com o ID `TS-…`, sem `Co-Authored-By`,
+replicar na branch `-sdbx`) estão no `~/repos/CLAUDE.md` e valem só para eles. Neste repo valem as
+regras do `CLAUDE.md` da raiz.
 
 ## Diretrizes de desenvolvimento do projeto
 
