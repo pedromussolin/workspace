@@ -17,8 +17,38 @@ def test_longest_first(table):
 
 def test_word_boundary(table):
     assert find_real_names("Acmeville", table) == []
-    assert find_real_names("preAcme", table) == []
+    assert find_real_names("acmeville", table) == []
+    assert find_real_names("preacme", table) == []
     assert find_real_names("(Acme)", table) == ["Acme"]
+
+
+@pytest.mark.parametrize(
+    ("text", "masked"),
+    [
+        ("acme_theme: x", "apex_theme: x"),
+        ("theme_acme", "theme_apex"),
+        ("AcmeTheme", "ApexTheme"),
+        ("themeAcme", "themeApex"),
+        ("ACME_API_URL=x", "APEX_API_URL=x"),
+        ("acme2", "apex2"),
+        ("v2acme", "v2apex"),
+        ("theme-acme", "theme-apex"),
+        ("MéridiaTheme meridia_x", "MeridianaTheme meridiana_x"),
+    ],
+)
+def test_names_inside_identifiers(table, text, masked):
+    assert find_real_names(text, table) != []
+    assert mask_text(text, table) == masked
+    assert find_real_names(masked, table) == []
+
+
+def test_identifier_matches_report_only_the_name(table):
+    assert find_real_names("AcmeTheme and ACME_API", table) == ["Acme", "ACME"]
+
+
+def test_longer_word_that_merely_starts_with_a_name_still_passes(table):
+    for text in ("Acmeville_theme", "AcmevilleTheme", "acmeville2", "ACMEVILLE_URL"):
+        assert find_real_names(text, table) == []
 
 
 def test_accent_insensitive(table):
@@ -46,7 +76,26 @@ def test_case_shape(table):
 def test_case_sensitive_entry(table):
     assert find_real_names("brilliant idea", table) == []
     assert find_real_names("Brilliant", table) == ["Brilliant"]
-    assert find_real_names("BRILLIANT", table) == []
+    assert find_real_names("bRILLIANT", table) == []
+
+
+def test_case_sensitive_entry_also_matches_its_all_caps_form(table):
+    assert find_real_names("BRILLIANT", table) == ["BRILLIANT"]
+    assert find_real_names("BRILLIANT_API_URL=x", table) == ["BRILLIANT"]
+    assert mask_text("BRILLIANT_API_URL", table) == "BRILLO_API_URL"
+    assert find_real_names("A BRILLIANT IDEA", table) == ["BRILLIANT"]
+
+
+def test_case_sensitive_identifiers(table):
+    assert find_real_names("brilliant_theme", table) == []
+    assert find_real_names("BrilliantTheme", table) == ["Brilliant"]
+    assert mask_text("BrilliantTheme", table) == "BrilloTheme"
+
+
+def test_case_sensitive_all_caps_form_keeps_accent_insensitivity():
+    table = NamesTable((Name("Méridia", "Meridiana", (), True),), ())
+    assert find_real_names("MERIDIA MÉRIDIA", table) == ["MERIDIA", "MÉRIDIA"]
+    assert find_real_names("méridia", table) == []
 
 
 def test_case_sensitive_entry_masks_only_the_capitalized_word(table):

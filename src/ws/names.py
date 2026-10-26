@@ -16,6 +16,12 @@ from pathlib import Path
 from ws.config import config_dir
 
 COMBINING_MARKS = r"[\u0300-\u036f]*"
+# A name ends where a letter does not continue it. An underscore, a digit and a lowercase to
+# uppercase step (camelCase) count as edges, so identifiers such as `acme_theme`, `AcmeTheme`,
+# `ACME_API_URL` and `acme2` are found, while `Acmeville` is not. Both edges sit outside the
+# case-insensitive group of a term, so they stay case-sensitive.
+LEFT_EDGE = r"(?:(?<![^\W\d_])|(?<=[a-z])(?=[A-Z]))"
+RIGHT_EDGE = r"(?:(?![^\W\d_])|(?<=[a-z])(?=[A-Z]))"
 
 
 @dataclass(frozen=True)
@@ -94,9 +100,18 @@ def _char_pattern(char: str) -> str:
     return re.escape(char)
 
 
+def _spelled(term: str) -> str:
+    return "".join(_char_pattern(char) for char in unicodedata.normalize("NFC", term))
+
+
 def _term_pattern(term: str, case_sensitive: bool) -> str:
-    body = "".join(_char_pattern(char) for char in unicodedata.normalize("NFC", term))
-    return body if case_sensitive else f"(?i:{body})"
+    if not case_sensitive:
+        return f"(?i:{_spelled(term)})"
+    # A case-sensitive term still matches its all-caps form: a heading, a constant or an env var.
+    upper = unicodedata.normalize("NFC", term.upper())
+    if upper == unicodedata.normalize("NFC", term):
+        return _spelled(term)
+    return f"(?:{_spelled(term)}|{_spelled(upper)})"
 
 
 @lru_cache(maxsize=4)
@@ -110,7 +125,7 @@ def _name_matcher(table: NamesTable) -> tuple[re.Pattern[str], dict[str, str]] |
         for i, (term, name) in enumerate(terms)
     ]
     analogs = {f"t{i}": name.analog for i, (_, name) in enumerate(terms)}
-    return re.compile(rf"(?<!\w)(?:{'|'.join(groups)})(?!\w)"), analogs
+    return re.compile(rf"{LEFT_EDGE}(?:{'|'.join(groups)}){RIGHT_EDGE}"), analogs
 
 
 def real_name_matches(text: str, table: NamesTable) -> list[tuple[int, str]]:
@@ -125,12 +140,17 @@ def find_real_names(text: str, table: NamesTable) -> list[str]:
     return [matched for _, matched in real_name_matches(text, table)]
 
 
-def find_blocked_domains(text: str, table: NamesTable) -> list[str]:
+def blocked_domain_matches(text: str, table: NamesTable) -> list[tuple[int, str]]:
+    """Offset and matched text of each blocked domain, in order."""
     if not table.blocked_domains:
         return []
     domains = sorted(table.blocked_domains, key=len, reverse=True)
     regex = re.compile("|".join(re.escape(domain) for domain in domains), re.IGNORECASE)
-    return [match.group() for match in regex.finditer(text)]
+    return [(match.start(), match.group()) for match in regex.finditer(text)]
+
+
+def find_blocked_domains(text: str, table: NamesTable) -> list[str]:
+    return [matched for _, matched in blocked_domain_matches(text, table)]
 
 
 def _match_case(matched: str, analog: str) -> str:

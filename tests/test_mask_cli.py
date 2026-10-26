@@ -68,3 +68,18 @@ def test_mask_missing_table_exits_2(tmp_path, monkeypatch, capsys):
 def test_mask_unreadable_file_exits_2(ws_config, tmp_path, capsys):
     assert main(["mask", str(tmp_path / "absent.md")]) == 2
     assert "cannot read" in capsys.readouterr().err
+
+
+def test_mask_rewrites_names_inside_identifiers(ws_config, monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin", io.StringIO("acme_theme AcmeTheme ACME_API_URL acme2\n"))
+    assert main(["mask"]) == 0
+    assert capsys.readouterr().out == "apex_theme ApexTheme APEX_API_URL apex2\n"
+
+
+def test_mask_check_finds_names_inside_identifiers(ws_config, tmp_path, capsys):
+    note = tmp_path / "note.md"
+    note.write_text("acme_theme AcmeTheme ACME_API_URL acme2 Acmeville\n", encoding="utf-8")
+    assert main(["mask", "--check", str(note)]) == 1
+    assert capsys.readouterr().out == "".join(
+        f"{note}: {hit}\n" for hit in ("acme", "Acme", "ACME", "acme")
+    )
