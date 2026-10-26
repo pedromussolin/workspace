@@ -15,7 +15,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 
 > Valores sensíveis (hosts, IPs, usuários de banco) e os nomes reais por trás
 > dos análogos usados aqui ficam fora do repo, em
-> `~/repos/.artemis_v2/privado.md` (local). Ver o `CLAUDE.md`.
+> `~/.config/workspace/private/artemis-v2.md` (local). Ver o `CLAUDE.md`.
 
 | Arquivo | Para que serve |
 |---|---|
