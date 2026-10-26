@@ -6,10 +6,10 @@ the findings. Errors are never swallowed here, so callers can fail closed.
 
 import ast
 import bisect
-import os
+import codecs
 import re
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -17,8 +17,32 @@ from pathlib import Path
 from ws.names import NamesTable, blocked_domain_matches, real_name_matches
 
 ALLOWLIST_FILE = ".secrets-allow"
+BINARY_RULE = "binary-file"
 BINARY_PROBE_BYTES = 8000
+GITLINK_MODE = "160000"
+BATCH_SIZE = 256
 HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+GITLINK_HEADER = re.compile(rf"^(?:new file mode|new mode|index \w+\.\.\w+) {GITLINK_MODE}$")
+# Git's own view of what changed. --text and --no-textconv keep a file that is marked binary or
+# has a converter from being summarized as "differ"; --no-renames makes a moved file count as
+# added, so its lines are checked again; only deletions are left out.
+DIFF_FLAGS = (
+    "-U0",
+    "--no-color",
+    "--no-ext-diff",
+    "--text",
+    "--no-textconv",
+    "--no-renames",
+    "--diff-filter=d",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+)
+WIDE_BOMS = (
+    (codecs.BOM_UTF32_LE, "utf-32"),
+    (codecs.BOM_UTF32_BE, "utf-32"),
+    (codecs.BOM_UTF16_LE, "utf-16"),
+    (codecs.BOM_UTF16_BE, "utf-16"),
+)
 
 PATTERN_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -44,7 +68,11 @@ PATTERN_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
 )
-KNOWN_RULES = frozenset(rule for rule, _ in PATTERN_RULES) | {"real-name", "blocked-domain"}
+KNOWN_RULES = frozenset(rule for rule, _ in PATTERN_RULES) | {
+    "real-name",
+    "blocked-domain",
+    BINARY_RULE,
+}
 
 
 @dataclass(frozen=True)
@@ -190,9 +218,10 @@ def scan_text(
     ]
 
 
-def _git(repo: Path, *args: str) -> bytes:
+def _git(repo: Path, *args: str, stdin: bytes | None = None) -> bytes:
     result = subprocess.run(
         ["git", "-c", "core.quotepath=false", "-C", str(repo), *args],
+        input=stdin,
         capture_output=True,
         check=False,
     )
@@ -216,20 +245,11 @@ def _diff_path(raw: str) -> str | None:
     return raw.removeprefix("b/")
 
 
-def staged_additions(repo: Path) -> dict[str, set[int]]:
-    diff = _git(
-        repo,
-        "diff",
-        "--cached",
-        "-U0",
-        "--no-color",
-        "--no-ext-diff",
-        "--src-prefix=a/",
-        "--dst-prefix=b/",
-        "--diff-filter=ACMR",
-    ).decode("utf-8", errors="replace")
+def parse_additions(diff: str) -> dict[str, set[int]]:
+    """File name to the numbers of its added lines, from a -U0 diff."""
     additions: dict[str, set[int]] = {}
     path = None
+    gitlink = False
     pending = 0
     for line in diff.split("\n"):
         # Inside a hunk every line starts with +, - or \, so "+++ " is a header only outside one.
@@ -239,8 +259,11 @@ def staged_additions(repo: Path) -> dict[str, set[int]]:
             continue
         elif line.startswith("diff --git "):
             path = None
+            gitlink = False
+        elif GITLINK_HEADER.match(line):
+            gitlink = True
         elif line.startswith("+++ "):
-            path = _diff_path(line[4:])
+            path = None if gitlink else _diff_path(line[4:])
         elif hunk := HUNK_HEADER.match(line):
             removed = 1 if hunk[1] is None else int(hunk[1])
             first = int(hunk[2])
@@ -251,16 +274,59 @@ def staged_additions(repo: Path) -> dict[str, set[int]]:
     return additions
 
 
-def _is_binary(data: bytes) -> bool:
-    return b"\0" in data[:BINARY_PROBE_BYTES]
+def staged_additions(repo: Path) -> dict[str, set[int]]:
+    diff = _git(repo, "diff", "--cached", *DIFF_FLAGS).decode("utf-8", errors="replace")
+    return parse_additions(diff)
 
 
-def _read_worktree(path: Path) -> bytes | None:
-    if path.is_symlink():
-        return os.readlink(path).encode("utf-8", errors="replace")
-    if not path.is_file():
-        return None
-    return path.read_bytes()
+def _read_objects(repo: Path, names: list[str]) -> Iterator[bytes | None]:
+    """The content of each object, in order, through `git cat-file --batch`; None if missing."""
+    if any("\n" in name for name in names):
+        raise RuntimeError("an object name with a line break cannot be read")
+    for first in range(0, len(names), BATCH_SIZE):
+        chunk = names[first : first + BATCH_SIZE]
+        out = _git(repo, "cat-file", "--batch", stdin="\n".join(chunk).encode() + b"\n")
+        position = 0
+        for name in chunk:
+            end = out.index(b"\n", position)
+            header = out[position:end].split()
+            position = end + 1
+            if header[-1] == b"missing":
+                yield None
+            elif header[-1] == b"ambiguous":
+                raise RuntimeError(f"object name {name!r} is ambiguous")
+            else:
+                size = int(header[2])
+                yield out[position : position + size]
+                position += size + 1
+
+
+def _index_entries(repo: Path) -> dict[str, tuple[str, str]]:
+    """Name to (mode, object id) of everything in the index."""
+    entries = {}
+    for record in _git(repo, "ls-files", "-s", "-z").split(b"\0"):
+        if record:
+            meta, _, raw = record.partition(b"\t")
+            mode, oid, _stage = meta.decode().split(" ")
+            entries[raw.decode("utf-8", errors="replace")] = (mode, oid)
+    return entries
+
+
+def _index_blobs(
+    repo: Path, entries: dict[str, tuple[str, str]], names: Iterable[str]
+) -> Iterator[tuple[str, bytes]]:
+    """What the index holds for each name. A symlink comes as its target text."""
+    wanted = []
+    for name in names:
+        if name not in entries:
+            raise RuntimeError(f"{name} is not in the index")
+        if entries[name][0] != GITLINK_MODE:
+            wanted.append(name)
+    contents = _read_objects(repo, [entries[name][1] for name in wanted])
+    for name, data in zip(wanted, contents, strict=True):
+        if data is None:
+            raise RuntimeError(f"the object of {name} is missing")
+        yield name, data
 
 
 def _display_path(repo: Path, path: Path) -> str:
@@ -271,16 +337,15 @@ def _display_path(repo: Path, path: Path) -> str:
 
 
 def _sources(
-    repo: Path, mode: str, paths: list[Path] | None
-) -> Iterator[tuple[str, bytes | None, set[int] | None]]:
+    repo: Path, mode: str, paths: list[Path] | None, entries: dict[str, tuple[str, str]]
+) -> Iterator[tuple[str, bytes, set[int] | None]]:
     if mode == "staged":
-        for name, lines in staged_additions(repo).items():
-            yield name, _git(repo, "show", f":{name}"), lines
+        additions = staged_additions(repo)
+        for name, data in _index_blobs(repo, entries, additions):
+            yield name, data, additions[name]
     elif mode == "all":
-        for raw in _git(repo, "ls-files", "-z").split(b"\0"):
-            if raw:
-                name = raw.decode("utf-8", errors="replace")
-                yield name, _read_worktree(repo / name), None
+        for name, data in _index_blobs(repo, entries, entries):
+            yield name, data, None
     elif mode == "paths":
         for path in paths or []:
             yield _display_path(repo, path), path.read_bytes(), None
@@ -288,21 +353,45 @@ def _sources(
         raise ValueError(f"unknown mode {mode!r}: use staged, all or paths")
 
 
-def _index_allowlist(repo: Path) -> list[AllowRule]:
+def _decode(data: bytes) -> str | None:
+    """The text of a file, or None when it is binary; UTF-16 and UTF-32 with a BOM are text."""
+    for bom, encoding in WIDE_BOMS:
+        if data.startswith(bom):
+            return data.decode(encoding, errors="replace")
+    if b"\0" in data[:BINARY_PROBE_BYTES]:
+        return None
+    return data.decode("utf-8", errors="replace")
+
+
+def _scan_file(
+    name: str, data: bytes, only_lines: set[int] | None, table: NamesTable, allow: list[AllowRule]
+) -> list[Finding]:
+    text = _decode(data)
+    if text is None:
+        # The content cannot be read here, so it needs a reviewed entry; the regex is matched
+        # against the path, which stands in for the line.
+        finding = Finding(name, 1, BINARY_RULE, "binary file", (0, len(name)))
+        return [] if _is_allowed(finding, name, allow) else [finding]
+    if data.startswith(tuple(bom for bom, _ in WIDE_BOMS)):
+        # Git counts lines by the 0x0A byte, which is not always a line break in these encodings.
+        only_lines = None
+    return scan_text(name, text, table, allow, only_lines)
+
+
+def _index_allowlist(repo: Path, entries: dict[str, tuple[str, str]]) -> list[AllowRule]:
     """The allowlist as staged: an exception counts only once it is part of what is committed."""
-    if not _git(repo, "ls-files", "-s", "-z", "--", ALLOWLIST_FILE):
+    if ALLOWLIST_FILE not in entries:
         return []
-    return parse_allowlist(_git(repo, "show", f":{ALLOWLIST_FILE}").decode("utf-8"))
+    ((_, data),) = _index_blobs(repo, entries, [ALLOWLIST_FILE])
+    return parse_allowlist(data.decode("utf-8"))
 
 
 def check_repo(
     repo: Path, mode: str, table: NamesTable, paths: list[Path] | None = None
 ) -> list[Finding]:
-    allow = load_allowlist(repo) if mode == "paths" else _index_allowlist(repo)
+    entries = {} if mode == "paths" else _index_entries(repo)
+    allow = load_allowlist(repo) if mode == "paths" else _index_allowlist(repo, entries)
     findings: list[Finding] = []
-    for name, data, only_lines in _sources(repo, mode, paths):
-        if data is None or _is_binary(data):
-            continue
-        text = data.decode("utf-8", errors="replace")
-        findings.extend(scan_text(name, text, table, allow, only_lines))
+    for name, data, only_lines in _sources(repo, mode, paths, entries):
+        findings.extend(_scan_file(name, data, only_lines, table, allow))
     return findings

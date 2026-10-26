@@ -320,20 +320,37 @@ def test_staged_with_nothing_staged(repo, table):
     assert check_repo(repo, "staged", table) == []
 
 
-def test_all_mode_skips_binary(repo, git, table):
+def test_all_mode_reports_a_binary_file_instead_of_skipping_it(repo, git, table):
     (repo / "image.bin").write_bytes(b"\x00\x01Acme\x00")
     stage(repo, git, "notes.md", "Acme\n")
     git(repo, "add", "image.bin")
     found = check_repo(repo, "all", table)
-    assert [f.path for f in found] == ["notes.md"]
+    assert [(f.path, f.rule) for f in found] == [
+        ("image.bin", "binary-file"),
+        ("notes.md", "real-name"),
+    ]
 
 
-def test_all_mode_reads_the_work_tree_and_skips_deleted_files(repo, git, table):
-    stage(repo, git, "gone.md", "x\n")
-    stage(repo, git, "notes.md", "clean\n")
-    (repo / "notes.md").write_text("Acme\n", encoding="utf-8")
+def test_all_mode_reads_the_index_not_the_work_tree(repo, git, table):
+    stage(repo, git, "clean.md", "clean\n")
+    stage(repo, git, "dirty.md", "Acme\n")
+    (repo / "clean.md").write_text("Acme\n", encoding="utf-8")
+    (repo / "dirty.md").write_text("clean\n", encoding="utf-8")
+    assert [f.path for f in check_repo(repo, "all", table)] == ["dirty.md"]
+
+
+def test_all_mode_reports_a_file_that_is_in_the_index_but_not_in_the_work_tree(repo, git, table):
+    stage(repo, git, "gone.md", "Acme\n")
     (repo / "gone.md").unlink()
-    assert [f.path for f in check_repo(repo, "all", table)] == ["notes.md"]
+    assert [f.path for f in check_repo(repo, "all", table)] == ["gone.md"]
+
+
+def test_all_mode_reads_a_symlink_as_its_target_text(repo, git, table):
+    (repo / "link").symlink_to("notes/Acme.md")
+    git(repo, "add", "link")
+    assert [(f.path, f.line, f.match) for f in check_repo(repo, "all", table)] == [
+        ("link", 1, "Acme")
+    ]
 
 
 def test_paths_mode(repo, table, tmp_path):
