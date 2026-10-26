@@ -206,6 +206,11 @@ def test_redaction_does_not_change_allowlist_matching(table):
     assert scan_text("f.md", "API_TOKEN=other999", table, allow) != []
 
 
+def test_findings_carry_the_raw_column_span_even_when_redacted(table):
+    found = scan_text("f.md", "x API_TOKEN=abcd1234 y", table, [])
+    assert [(f.match, f.span) for f in found] == [("API_TOKEN=***", (2, 20))]
+
+
 def write_allowlist(repo, content):
     (repo / ".secrets-allow").write_text(content, encoding="utf-8")
 
@@ -240,8 +245,8 @@ def test_allowlist(repo, git, table):
     (repo / "docs" / "a.md").write_text("Brilliant\nAcme\n10.1.2.3\n", encoding="utf-8")
     (repo / "other").mkdir()
     (repo / "other" / "b.md").write_text("Brilliant\n", encoding="utf-8")
-    write_allowlist(repo, "docs/*.md real-name Brilliant\n")
-    git(repo, "add", "docs", "other")
+    write_allowlist(repo, "docs/*.md real-name Brillian[t]\n")
+    git(repo, "add", ".secrets-allow", "docs", "other")
     found = check_repo(repo, "staged", table)
     assert [(f.path, f.line, f.rule) for f in found] == [
         ("docs/a.md", 2, "real-name"),
@@ -251,7 +256,7 @@ def test_allowlist(repo, git, table):
 
 
 def test_allow_any_rule(table):
-    allow = [AllowRule("a.md", "*", re.compile("example"))]
+    allow = [AllowRule("a.md", "*", re.compile(r"10\.1\.2\.3"))]
     assert scan_text("a.md", "10.1.2.3 example", table, allow) == []
     assert scan_text("b.md", "10.1.2.3 example", table, allow) != []
 
@@ -411,7 +416,7 @@ def test_outside_a_repo_blocks(tmp_path, ws_config, git, monkeypatch, capsys):
 
 def test_malformed_allowlist_blocks(repo, git, ws_config, monkeypatch, capsys):
     monkeypatch.chdir(repo)
-    write_allowlist(repo, "only-one-field\n")
+    stage(repo, git, ".secrets-allow", "only-one-field\n")
     stage(repo, git, "notes.md", "fine\n")
     assert main(["check-secrets"]) == 1
     assert "check-secrets failed (.secrets-allow line 1" in capsys.readouterr().err

@@ -6,15 +6,15 @@ the findings. Errors are never swallowed here, so callers can fail closed.
 
 import ast
 import bisect
-import fnmatch
 import os
 import re
 import subprocess
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
-from ws.names import NamesTable, find_blocked_domains, real_name_matches
+from ws.names import NamesTable, blocked_domain_matches, real_name_matches
 
 ALLOWLIST_FILE = ".secrets-allow"
 BINARY_PROBE_BYTES = 8000
@@ -53,6 +53,9 @@ class Finding:
     line: int
     rule: str
     match: str
+    # Column span of the match in its line. It is what the allowlist is matched against, and it
+    # is raw even when `match` is redacted.
+    span: tuple[int, int] = field(default=(0, 0), compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -62,12 +65,37 @@ class AllowRule:
     pattern: re.Pattern[str]
 
 
-def load_allowlist(repo: Path) -> list[AllowRule]:
-    path = repo / ALLOWLIST_FILE
-    if not path.is_file():
-        return []
+@lru_cache(maxsize=256)
+def _glob_regex(glob: str) -> re.Pattern[str]:
+    """`*` and `?` stay inside one folder, `**` crosses folders, `**/` also matches no folder."""
+    parts = []
+    position = 0
+    while position < len(glob):
+        if glob.startswith("**/", position):
+            parts.append("(?:.*/)?")
+            position += 3
+        elif glob.startswith("**", position):
+            parts.append(".*")
+            position += 2
+        elif glob[position] == "*":
+            parts.append("[^/]*")
+            position += 1
+        elif glob[position] == "?":
+            parts.append("[^/]")
+            position += 1
+        else:
+            parts.append(re.escape(glob[position]))
+            position += 1
+    return re.compile("".join(parts))
+
+
+def _covers_every_path(glob: str) -> bool:
+    return not glob.strip("*/")
+
+
+def parse_allowlist(text: str) -> list[AllowRule]:
     rules = []
-    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -76,6 +104,11 @@ def load_allowlist(repo: Path) -> list[AllowRule]:
             raise ValueError(
                 f"{ALLOWLIST_FILE} line {number}: expected '<path-glob> <rule|*> <regex>'"
             )
+        if parts[1] == "*" and _covers_every_path(parts[0]):
+            raise ValueError(
+                f"{ALLOWLIST_FILE} line {number}: a rule * entry needs a path glob that "
+                "does not cover every file"
+            )
         try:
             rules.append(AllowRule(parts[0], parts[1], re.compile(parts[2])))
         except re.error as error:
@@ -83,11 +116,25 @@ def load_allowlist(repo: Path) -> list[AllowRule]:
     return rules
 
 
+def load_allowlist(repo: Path) -> list[AllowRule]:
+    """The allowlist of the work tree; staged checks read the index instead."""
+    path = repo / ALLOWLIST_FILE
+    if not path.is_file():
+        return []
+    return parse_allowlist(path.read_text(encoding="utf-8"))
+
+
+def _overlaps(pattern: re.Pattern[str], line: str, span: tuple[int, int]) -> bool:
+    start, end = span
+    return any(found.start() < end and found.end() > start for found in pattern.finditer(line))
+
+
 def _is_allowed(finding: Finding, line: str, allow: list[AllowRule]) -> bool:
+    """An entry allows a finding only when its regex matches over the finding's own text."""
     return any(
-        fnmatch.fnmatchcase(finding.path, rule.path_glob)
+        _glob_regex(rule.path_glob).fullmatch(finding.path)
         and rule.rule in ("*", finding.rule)
-        and rule.pattern.search(line)
+        and _overlaps(rule.pattern, line, finding.span)
         for rule in allow
     )
 
@@ -110,9 +157,9 @@ def _redact(rule: str, line: str, found: re.Match[str]) -> str:
 def _line_findings(path: str, number: int, line: str, table: NamesTable) -> Iterator[Finding]:
     for rule, pattern in PATTERN_RULES:
         for found in pattern.finditer(line):
-            yield Finding(path, number, rule, _redact(rule, line, found))
-    for domain in find_blocked_domains(line, table):
-        yield Finding(path, number, "blocked-domain", domain)
+            yield Finding(path, number, rule, _redact(rule, line, found), found.span())
+    for offset, domain in blocked_domain_matches(line, table):
+        yield Finding(path, number, "blocked-domain", domain, (offset, offset + len(domain)))
 
 
 def scan_text(
@@ -134,7 +181,9 @@ def scan_text(
     for offset, matched in real_name_matches(text, table):
         number = bisect.bisect_right(starts, offset)
         if only_lines is None or number in only_lines:
-            found_all.append(Finding(path, number, "real-name", matched))
+            column = offset - starts[number - 1]
+            end = min(column + len(matched), len(lines[number - 1]))
+            found_all.append(Finding(path, number, "real-name", matched, (column, end)))
     found_all.sort(key=lambda finding: finding.line)
     return [
         finding for finding in found_all if not _is_allowed(finding, lines[finding.line - 1], allow)
@@ -239,10 +288,17 @@ def _sources(
         raise ValueError(f"unknown mode {mode!r}: use staged, all or paths")
 
 
+def _index_allowlist(repo: Path) -> list[AllowRule]:
+    """The allowlist as staged: an exception counts only once it is part of what is committed."""
+    if not _git(repo, "ls-files", "-s", "-z", "--", ALLOWLIST_FILE):
+        return []
+    return parse_allowlist(_git(repo, "show", f":{ALLOWLIST_FILE}").decode("utf-8"))
+
+
 def check_repo(
     repo: Path, mode: str, table: NamesTable, paths: list[Path] | None = None
 ) -> list[Finding]:
-    allow = load_allowlist(repo)
+    allow = load_allowlist(repo) if mode == "paths" else _index_allowlist(repo)
     findings: list[Finding] = []
     for name, data, only_lines in _sources(repo, mode, paths):
         if data is None or _is_binary(data):
