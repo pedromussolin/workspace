@@ -8,7 +8,7 @@ fazer.
 
 ```
 Continuar o épico de refatoração do front (apl-credit-whitelabel).
-Contexto em ~/repos/whitelabel-workspace: README (seção "Situação"),
+Contexto em ~/repos/workspace/projetos/reestrutura-whitelabel: README (seção "Situação"),
 decisoes.md, tarefas/roteiro-de-area.md (validação com os scripts) e
 anexos/agentes/brief-comum.md (instruções dos agentes).
 
@@ -48,7 +48,7 @@ Otimize o que puder no fluxo.
 
 ```
 Continuar o épico de refatoração do front (apl-credit-whitelabel).
-Contexto em ~/repos/whitelabel-workspace: README (seção "Situação"),
+Contexto em ~/repos/workspace/projetos/reestrutura-whitelabel: README (seção "Situação"),
 decisoes.md, tarefas/roteiro-de-area.md e anexos/agentes/brief-comum.md.
 
 Próxima leva, com agentes Opus 5.5 em xhigh, modo completo:
@@ -79,7 +79,7 @@ Mesmo fluxo da leva anterior:
 
 ```
 Continuar o épico de refatoração do front de onde o chat anterior parou.
-Leia ~/repos/whitelabel-workspace (README "Situação", a tarefa em
+Leia ~/repos/workspace/projetos/reestrutura-whitelabel (README "Situação", a tarefa em
 andamento e roteiro-de-area.md) e confira o estado real antes de agir:
 - git log e status das worktrees em ~/repos/apl-credit-whitelabel-wt/ e
   ~/repos/apl-credit-whitelabel-api-wt/;

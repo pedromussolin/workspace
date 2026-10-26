@@ -47,8 +47,8 @@ São 23 GB de RAM e 8 CPUs, divididos entre cinco agentes.
 
   ```bash
   P=<primeira porta da sua faixa>; B=$((P+1))
-  sed "s/4300/$P/g; s/8765/$B/g" ~/repos/whitelabel-workspace/anexos/scripts/smoke.mjs > ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs
-  cp ~/repos/whitelabel-workspace/anexos/scripts/smoke-escrita.mjs ~/repos/.reestrutura_whitelabel/agentes/<pacote>/
+  sed "s/4300/$P/g; s/8765/$B/g" ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs > ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs
+  cp ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke-escrita.mjs ~/repos/.reestrutura_whitelabel/agentes/<pacote>/
   SERVE=1 FIXTURES=~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json \
     PW_DIR=~/repos/.reestrutura_whitelabel/pw/node_modules \
     node ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs <seu dist>/browser "$(mktemp -d -p ~/repos/.reestrutura_whitelabel/agentes/<pacote>)"

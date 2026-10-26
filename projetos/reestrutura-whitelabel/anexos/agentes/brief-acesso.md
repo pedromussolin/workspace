@@ -59,7 +59,7 @@ falta de memória.
 - A API responde com `page.route`, a partir de
   `~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json` (cópia na sua pasta; não edite o
   original). Para as rotas novas, monte respostas fictícias no formato do plano. Veja como
-  `~/repos/whitelabel-workspace/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
+  `~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
   `iam/paths`.
 - `playwright-core` vem de `~/repos/.reestrutura_whitelabel/pw/node_modules`, via `createRequire`.
 - Prints em `~/repos/.reestrutura_whitelabel/evidencias/26/<sua-parte>/`.

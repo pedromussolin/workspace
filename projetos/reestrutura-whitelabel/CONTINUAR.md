@@ -2,7 +2,7 @@
 
 Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
 mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D127) e o
-`~/repos/.reestrutura_whitelabel/privado.md` (nomes reais).
+`~/.config/workspace/private/reestrutura-whitelabel.md` (nomes reais).
 
 ## Onde está
 
@@ -64,7 +64,7 @@ A documentação do Codex foi para a `main` (aqui não se usa branch).
 O limite semanal acabou no meio da tarefa 31. Ponto de partida para quem continuar (Claude ou
 Codex): leia o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md`
 tem o mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D122) e o
-`~/repos/.reestrutura_whitelabel/privado.md` (nomes reais).
+`~/.config/workspace/private/reestrutura-whitelabel.md` (nomes reais).
 
 | PR | TS | Tarefa | Onde | Estado |
 |---|---|---|---|---|
@@ -83,7 +83,7 @@ sem a revisão do Pietro, e nada se publica sem ele pedir.
 
 Ponto de partida para um chat novo que vai fazer a última tarefa antes do deploy (24), **enquanto
 outro chat termina a R59 e a 27**. Leia isto, o `CLAUDE.md` desta pasta, o README (Tarefas e
-Situação), o `decisoes.md` e o `~/repos/.reestrutura_whitelabel/privado.md` (local).
+Situação), o `decisoes.md` e o `~/.config/workspace/private/reestrutura-whitelabel.md` (local).
 
 ## Onde está cada coisa
 

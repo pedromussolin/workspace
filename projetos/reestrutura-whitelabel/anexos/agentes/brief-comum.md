@@ -5,7 +5,7 @@ paralelo em outras worktrees. Não mexa fora das suas worktrees.
 
 ## Antes de tudo, leia
 
-No workspace do épico (`~/repos/whitelabel-workspace/`, só leitura: não edite nem commite nada lá):
+No workspace do épico (`~/repos/workspace/projetos/reestrutura-whitelabel/`, só leitura: não edite nem commite nada lá):
 1. `README.md` (seções "Ordem e branches" e "Situação").
 2. `tarefas/roteiro-de-area.md`: passos, regra de ouro e critério de pronto.
 3. O arquivo da sua tarefa em `tarefas/`.
@@ -14,7 +14,7 @@ No workspace do épico (`~/repos/whitelabel-workspace/`, só leitura: não edite
 5. `anexos/spec-visual/pre-trade-lotes-sidebar.md` e `anexos/icones/material-para-novo.json`.
 
 Os documentos do workspace usam nomes mascarados (marcas, empresa, parceiros). A equivalência está
-em `~/repos/.reestrutura_whitelabel/privado.md`. No código, use os nomes reais que já estão lá.
+em `~/.config/workspace/private/reestrutura-whitelabel.md`. No código, use os nomes reais que já estão lá.
 
 ## Referência de implementação
 
@@ -97,7 +97,7 @@ de vez em quando. Nada de lint nem suíte inteira no meio.
 **No fim, antes do relatório (obrigatório):**
 
 ```bash
-FIXTURES=<dados fictícios da tarefa> ~/repos/whitelabel-workspace/anexos/scripts/validar-leva.sh <sua-worktree-do-front> <rota> [rota ...]
+FIXTURES=<dados fictícios da tarefa> ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/validar-leva.sh <sua-worktree-do-front> <rota> [rota ...]
 ```
 
 Ele confere commits (72 caracteres, trailers, cada commit compila), roda build, lint e a suíte inteira

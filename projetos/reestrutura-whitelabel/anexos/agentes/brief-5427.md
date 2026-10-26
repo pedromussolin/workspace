@@ -68,7 +68,7 @@ por falta de memória.
 - Build seu com `--output-path` na sua pasta, servido por um servidor estático seu na sua faixa.
 - A API responde com `page.route`, a partir de
   `~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json`. Veja como
-  `~/repos/whitelabel-workspace/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
+  `~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
   `iam/paths`. Dados da Visão do produto: `~/repos/.reestrutura_whitelabel/agentes/t31-repro/fixtures.json`.
 - `playwright-core` vem de `~/repos/.reestrutura_whitelabel/pw/node_modules`, via `createRequire`.
 - Antes de entregar: prints do depois em claro, escuro e celular (400 px), com dados, em
