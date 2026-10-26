@@ -3,7 +3,14 @@
 Open items left by subproject 1 (foundation), found by the final review and its re-review on
 2026-10-26. None blocks daily use; each was weighed and parked.
 
+## Next
+
+The new-name check: catches a real name that is not in `names.toml` yet, which none of the items
+below covers. Design: [docs/specs/2026-10-26-new-name-check-design.md](specs/2026-10-26-new-name-check-design.md).
+
 ## Confidentiality check
+
+Frozen since 2026-10-26: these items move only when a real case shows up.
 
 | Item | Why it waits | Fix when picked up |
 |---|---|---|
