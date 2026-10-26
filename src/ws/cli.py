@@ -1,11 +1,12 @@
 """Entry point of the ws command. Each subcommand sets a handler that returns the exit code."""
 
 import argparse
+import json
 import sys
 from datetime import date
 from pathlib import Path
 
-from ws import bootstrap, config, gittools, names, project, secrets, slot
+from ws import bootstrap, config, gittools, names, newwords, project, review, secrets, slot
 from ws.config import claude_skills_dir, config_dir, repo_root
 
 
@@ -313,6 +314,202 @@ def _cmd_check_secrets(args: argparse.Namespace) -> int:
         return 1
 
 
+def _add_names(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser(
+        "names",
+        help="New-word check and the names table.",
+        description=(
+            "A new word is a capitalized word of three letters or more, in an added line or a "
+            "commit message, that is not in the pushed state, in .known-words or among the "
+            "analogs of names.toml. Run these commands inside the repo."
+        ),
+    )
+    commands = parser.add_subparsers(dest="names_command", required=True)
+
+    check = commands.add_parser(
+        "check",
+        help="List the new words of staged lines, a message file or a range (the hooks run it).",
+    )
+    mode = check.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--staged", action="store_true", help="added lines of the staged diff")
+    mode.add_argument(
+        "--message", type=Path, metavar="FILE", help="a commit message file, as commit-msg gets it"
+    )
+    mode.add_argument(
+        "--range",
+        metavar="REVS",
+        help="each commit of a rev-list expression (words split on spaces): lines and message",
+    )
+    check.add_argument(
+        "--against",
+        metavar="REV",
+        help=(
+            "revision whose text is the vocabulary; empty means nothing is pushed "
+            "(default: the upstream, else origin/main, else nothing)"
+        ),
+    )
+    check.add_argument(
+        "--tip",
+        default="HEAD",
+        metavar="REV",
+        help="commit whose .known-words counts, for --range (default: HEAD)",
+    )
+    check.add_argument(
+        "--warn",
+        action="store_true",
+        help="only print: exit 0 even when there are new words or the check fails",
+    )
+    check.set_defaults(handler=_cmd_names_check)
+
+    pending = commands.add_parser(
+        "pending", help="List the new words of the unpushed commits, with where each appears."
+    )
+    _add_scope_args(pending)
+    pending.add_argument("--json", action="store_true", help="print a JSON list")
+    pending.set_defaults(handler=_cmd_names_pending)
+
+    known = commands.add_parser("known", help="Add harmless words to .known-words.")
+    known.add_argument("words", nargs="+", metavar="WORD")
+    known.set_defaults(handler=_cmd_names_known)
+
+    add = commands.add_parser("add", help="Add a real name and its analog to names.toml.")
+    add.add_argument("real", metavar="REAL")
+    add.add_argument("--analog", required=True, help="the fictitious name that replaces it")
+    add.add_argument(
+        "--case-sensitive",
+        action="store_true",
+        help="match only this spelling (and all caps), for a name that is also a common word",
+    )
+    add.set_defaults(handler=_cmd_names_add)
+
+    review_parser = commands.add_parser(
+        "review", help="Answer the pending new words one by one in the terminal."
+    )
+    _add_scope_args(review_parser)
+    review_parser.set_defaults(handler=_cmd_names_review)
+
+
+def _add_scope_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--range",
+        metavar="REVS",
+        help="commits to read (default: @{upstream}..HEAD, else origin/main..HEAD)",
+    )
+    parser.add_argument(
+        "--against", metavar="REV", help="revision whose text is the vocabulary (default: the base)"
+    )
+
+
+def _names_scope(args: argparse.Namespace, repo: Path) -> tuple[list[str], str | None]:
+    revs, base = newwords.default_scope(repo)
+    if args.range is not None:
+        revs = args.range.split()
+    if args.against is not None:
+        base = args.against or None
+    return revs, base
+
+
+def _print_new_words(words: list[newwords.NewWord], blocking: bool, stream) -> None:
+    for line in newwords.format_report(words, blocking):
+        print(line, file=stream)
+
+
+def _run_names_check(args: argparse.Namespace) -> int:
+    table = names.load_names()
+    repo = secrets.repo_toplevel(Path.cwd())
+    against = newwords.resolve_base(repo) if args.against is None else args.against or None
+    if args.staged:
+        words = newwords.check_staged(repo, table, against)
+    elif args.message:
+        text = args.message.read_bytes().decode("utf-8", errors="replace")
+        words = newwords.check_message(repo, text, table, against)
+    else:
+        words = newwords.check_range(repo, args.range.split(), table, against, args.tip)
+    if words:
+        _print_new_words(
+            words, blocking=not args.warn, stream=sys.stderr if args.warn else sys.stdout
+        )
+    return 1 if words and not args.warn else 0
+
+
+def _cmd_names_check(args: argparse.Namespace) -> int:
+    try:
+        return _run_names_check(args)
+    except Exception as error:
+        # The pre-push hook blocks on any non-zero exit; the commit hooks only warn.
+        if args.warn:
+            print(f"new-word warning failed ({error}); not blocking", file=sys.stderr)
+            return 0
+        print(f"names check failed ({error}); blocking", file=sys.stderr)
+        return 1
+
+
+def _pending(args: argparse.Namespace, repo: Path) -> tuple[list[newwords.NewWord], list[str]]:
+    table = names.load_names()
+    revs, base = _names_scope(args, repo)
+    return newwords.check_range(repo, revs, table, base), revs
+
+
+def _cmd_names_pending(args: argparse.Namespace) -> int:
+    try:
+        repo = secrets.repo_toplevel(Path.cwd())
+        words, _ = _pending(args, repo)
+    except (names.NamesTableMissing, RuntimeError, ValueError) as error:
+        print(f"ws names pending: {error}", file=sys.stderr)
+        return 2
+    if args.json:
+        listing = [
+            {
+                "word": item.word,
+                "places": [
+                    {"commit": place.commit, "path": place.path, "line": place.line}
+                    for place in item.places
+                ],
+            }
+            for item in words
+        ]
+        print(json.dumps(listing, ensure_ascii=False, indent=2))
+        return 0
+    for item in words:
+        print(f"{item.word}: {', '.join(str(place) for place in item.places)}")
+    return 0
+
+
+def _cmd_names_known(args: argparse.Namespace) -> int:
+    try:
+        repo = secrets.repo_toplevel(Path.cwd())
+        added, skipped = newwords.add_known_words(repo, args.words)
+    except (RuntimeError, ValueError, OSError) as error:
+        print(f"ws names known: {error}", file=sys.stderr)
+        return 2
+    if added:
+        print(f"added to {newwords.KNOWN_WORDS_FILE}: {', '.join(added)} (commit the file)")
+    if skipped:
+        print(f"already listed: {', '.join(skipped)}")
+    return 0
+
+
+def _cmd_names_add(args: argparse.Namespace) -> int:
+    path = config_dir() / "names.toml"
+    try:
+        names.add_name(path, args.real, args.analog, args.case_sensitive)
+    except (names.NamesTableMissing, ValueError, OSError) as error:
+        print(f"ws names add: {error}", file=sys.stderr)
+        return 2
+    print(f"added {args.real.strip()} with analog {args.analog.strip()} to {path}")
+    return 0
+
+
+def _cmd_names_review(args: argparse.Namespace) -> int:
+    try:
+        repo = secrets.repo_toplevel(Path.cwd())
+        words, revs = _pending(args, repo)
+        return review.run_review(repo, words, revs)
+    except (names.NamesTableMissing, RuntimeError, ValueError, OSError) as error:
+        print(f"ws names review: {error}", file=sys.stderr)
+        return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -322,6 +519,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_git(subparsers)
     _add_mask(subparsers)
     _add_check_secrets(subparsers)
+    _add_names(subparsers)
     return parser
 
 
