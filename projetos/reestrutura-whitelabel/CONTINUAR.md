@@ -23,8 +23,10 @@ cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `release
   depois merge na `release/20261026` e, dela, na `-sdbx` (sincronizada antes com `origin/sandbox`). As PRs
   para a `master` se atualizam sozinhas; para a sandbox, abrir PR nova quando a anterior já foi mergeada.
 
-**Tarefas abertas, fora da release:**
+**Tarefas abertas:**
 - [34](tarefas/34-renovacao-tokens-azure.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
+  **Implementada (26/10), sem commit;** vai para a `release/20261026` depois da revisão do Pietro. Ver a
+  seção "O que foi feito" da tarefa.
 - [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: permissões atômicas, perfis por
   página e migração dos grupos. Primeiro passo: o levantamento de todas as telas (não feito).
 
