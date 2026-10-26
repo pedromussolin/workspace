@@ -301,6 +301,13 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   claim no Redis já evita fechamento duplo) e contar os terminais num contador
   do Redis incrementado depois do commit, em vez de contar no banco. Avaliar o
   backstop para todo produto com `fechar_lote_por_proc_id`.
+- **Onde entra:** item 4 da [tarefa 02](tarefas/02-fechar-lote-por-proc-id.md)
+  (automático por proc_id), não no fechamento novo da TS-5377: este só aceita
+  chave `origem:` (`api/liquidacao/refact.py:203-207`); a linha `proc` segue no
+  legado (decisão de 13/10). O gatilho pode ir antes, sozinho.
+- **Paliativo sem deploy:** ligar `baixa_por_agendamento` no produto (só o
+  beat lê esse campo). Fecha às 19h UTC, depois do corte padrão da
+  conciliação (14h BRT): o lote cairia na conciliação manual.
 
 ## Menores
 
