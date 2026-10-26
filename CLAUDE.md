@@ -96,8 +96,13 @@ repo gets only the generic reference. Never read `~/.config/workspace/credential
 | `.githooks/`, `.secrets-allow` | git hooks (`pre-commit`, `pre-merge-commit`, `commit-msg`, `pre-push`) and the allowed exceptions |
 | `docs/specs/`, `docs/plans/`, `docs/research/` | designs, implementation plans, research notes |
 
-Heavy local folders of the projects (worktrees, logs, locks, Playwright) stay outside the repo,
-under the paths their `CLAUDE.md` names.
+Outside the repo there are three places, one per kind of content:
+- `~/.config/workspace/`: configuration and secrets (`names.toml`, `private/<slug>.md`,
+  `credentials`);
+- `~/.local/share/workspace/`: local data to keep: the dictionaries, and
+  `projects/<slug>/` for what a project never puts in git (worktrees, logs, locks, deploy files,
+  evidence with real data), same slug as in the repo, created by `ws project new`, mode 700;
+- `~/.cache/workspace/`: what can be rebuilt.
 
 ## Python
 

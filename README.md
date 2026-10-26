@@ -53,6 +53,10 @@ Everything sensitive lives outside the repo, in `~/.config/workspace/`:
 The folder is mode 700 and `names.toml` and `credentials` are mode 600; `ws setup` fixes any other
 mode and says what it fixed.
 
+Local data that never enters git lives in `~/.local/share/workspace/`: the dictionaries, and
+`projects/<slug>/` for each project's worktrees, logs, locks, deploy files and evidence with real
+data (`ws project new` creates it, mode 700). `~/.cache/workspace/` holds only what can be rebuilt.
+
 ## What protects the repo
 
 Protection starts after `ws setup`: a fresh clone has no git hooks. From then on, the hooks call

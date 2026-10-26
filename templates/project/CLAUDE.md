@@ -10,6 +10,10 @@ As regras comuns (sigilo, commits, idioma e sincronização) estão no `CLAUDE.m
 
 Hosts, URLs, credenciais e nomes reais ficam no arquivo local `~/.config/workspace/private/{{slug}}.md`, fora do controle de versão. Aqui entra só a referência genérica, como "host da réplica".
 
+## Dados locais fora do repo
+
+Worktrees, logs, travas, arquivos de deploy e evidências com dados reais ficam em `~/.local/share/workspace/projects/{{slug}}/`, criada pelo `ws project new`. Nada dali entra no repo; aqui entra só o caminho.
+
 ## Repositórios envolvidos
 
 Uma linha por repositório: o nome e para que ele serve neste projeto. O código vive lá; aqui ele se cita por `arquivo:linha`.
