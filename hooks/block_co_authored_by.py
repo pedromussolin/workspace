@@ -19,11 +19,15 @@ def main() -> int:
         if not isinstance(command, str):
             raise TypeError("tool_input.command is not a string")
     except Exception as error:
-        print(f"Co-Authored-By gate could not read the tool input ({error}); blocking.", file=sys.stderr)
+        print(
+            f"Co-Authored-By gate could not read the tool input ({error}); blocking.",
+            file=sys.stderr,
+        )
         return 2
     if GIT_COMMIT.search(command) and TRAILER.search(command):
         print(
-            "User rule: commits never carry Co-Authored-By. Run the commit again without that line.",
+            "User rule: commits never carry Co-Authored-By. "
+            "Run the commit again without that line.",
             file=sys.stderr,
         )
         return 2
