@@ -42,11 +42,17 @@ This repo sits on a personal GitHub account. These never enter it:
 Masking: the table lives in `~/.config/workspace/names.toml`, read only through `ws mask`. Never
 copy its entries into the repo. Outside the repo (chat, company repos) real names are used.
 
-Enforcement is automatic: `.githooks/pre-commit` runs `ws check-secrets --staged` on the added
-lines (secret patterns, real names, company domains) and fails closed, also without `names.toml`.
-When it blocks, fix the text or mask it (`ws mask --in-place FILE`). Never `git commit --no-verify`.
-A true false positive goes to `.secrets-allow` (path glob, rule, regex), with a `#` reason above
-it, reviewed like any other change.
+Enforcement starts after `ws setup`, which sets `core.hooksPath` (a fresh clone has no hooks) and
+reports a hook that is not executable. The git hooks call `ws check-secrets` (secret patterns, real
+names, company domains) and fail closed, also without `names.toml`: `pre-commit` and
+`pre-merge-commit` check the staged lines, `commit-msg` the message, `pre-push` every pushed commit
+(lines, message, author and committer e-mails). A Claude Code gate (`hooks/block_hook_bypass.py`)
+blocks `--no-verify`, `git commit -n` and `core.hooksPath` overrides, in every repo. When a hook
+blocks, fix the text or mask it (`ws mask --in-place FILE`); never skip the hook. A true false
+positive goes to `.secrets-allow` (path glob, rule, regex) with a `#` reason above it: the file is
+read from the index, an entry excuses only the span it matches, and you say in the reply that you
+added it. The check cannot see names missing from `names.toml` or the content of binary files (a
+staged binary is reported, not read).
 
 ## Private values
 
@@ -73,7 +79,7 @@ repo gets only the generic reference. Never read `~/.config/workspace/credential
 | `skills/` | versioned Claude skills, symlinked into `~/.claude/skills` by `ws setup` |
 | `src/ws/`, `tests/` | the `ws` CLI and its pytest suite |
 | `hooks/` | Claude Code hook scripts, registered in `~/.claude/settings.json` |
-| `.githooks/`, `.secrets-allow` | git pre-commit hook and the reviewed exceptions |
+| `.githooks/`, `.secrets-allow` | git hooks (`pre-commit`, `pre-merge-commit`, `commit-msg`, `pre-push`) and the allowed exceptions |
 | `docs/specs/`, `docs/plans/`, `docs/research/` | designs, implementation plans, research notes |
 
 Heavy local folders of the projects (worktrees, logs, locks, Playwright) stay outside the repo,
