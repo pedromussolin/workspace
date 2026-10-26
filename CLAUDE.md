@@ -1,6 +1,6 @@
 # workspace: common rules
 
-Personal, private repo: planning projects under `projetos/`, versioned Claude skills, and the `ws`
+Personal, private repo: planning projects under `projects/`, versioned Claude skills, and the `ws`
 CLI (Python, uv). Setup and command table: `README.md`. Project rules: the `CLAUDE.md` inside each
 project folder, read when working there.
 
@@ -13,15 +13,20 @@ replication, no "never commit on master". Here the rule is: pull, commit and pus
 
 ## Language
 
-| English (code context) | PT-BR (task/business context) |
-|---|---|
-| `src/`, `tests/`, CLI commands, flags and messages | everything under `projetos/`: folder names, file names and prose |
-| `skills/` (names and `SKILL.md`) | the project template content (`templates/project/`) |
-| `docs/specs/`, root `README.md` and root `CLAUDE.md` | what the automations produce for people: GMUD text, Jira issues and comments, standup |
-| config files (`names.toml`, `config.toml`), hook | commit messages |
+Names are English everywhere: every directory name and file name in the repo, code, CLI commands,
+flags and messages. Content stays in the language of its context:
 
-Chat follows the language the user writes in. Nothing inside `projetos/` is renamed, and migrated
-documents are not rewritten.
+| English | PT-BR |
+|---|---|
+| every directory and file name, `projects/` included | prose under `projects/`: tasks, decisions, evidence, project `README.md` and `CLAUDE.md` |
+| `src/`, `tests/`, CLI commands, flags and messages | the project template content (`templates/project/`) |
+| `skills/` (names and `SKILL.md`) | what the automations produce for people: GMUD text, Jira issues and comments, standup |
+| `docs/specs/`, root `README.md` and root `CLAUDE.md` | commit messages |
+| config files (`names.toml`, `config.toml`), hook | |
+
+A new file takes a short English slug, with the `NN-` prefix for tasks; proper nouns, analogs and
+acronyms stay (`genius`, `gmud-ts-5383.md`). Chat follows the language the user writes in.
+Migrated documents are not rewritten: a file with PT-BR content still has an English name.
 
 ## Confidentiality
 
@@ -33,7 +38,7 @@ This repo sits on a personal GitHub account. These never enter it:
 - end-customer data (tax IDs, names of payers and assignors, contract values) and query dumps;
 - build, test and lint logs of the company repos;
 - company source code, patches included: cite `path/file.py:line` instead. Own generic prototypes
-  in a project's `anexos/` are fine, with local test credentials only;
+  in a project's `attachments/` are fine, with local test credentials only;
 - real names of people, the company, partner brands, customers, administrators and suppliers: use
   the analog, also in file names, anchors, theme keys and cited paths. Numbers and metrics may
   stay;
@@ -82,7 +87,8 @@ repo gets only the generic reference. Never read `~/.config/workspace/credential
 
 | Path | What lives there |
 |---|---|
-| `projetos/<slug>/` | one planning project: `README.md`, `CLAUDE.md`, `CONTINUAR.md`, `decisoes.md`, `tarefas/`, `evidencias/`, `anexos/` |
+| `projects/<slug>/` | one planning project: `README.md`, `CLAUDE.md`, `CONTINUE.md`, `decisions.md`, `tasks/`, `evidence/`, `attachments/` |
+| `projects/standalone/` | tasks that belong to no project: a `README.md` with the task table and `tasks/` |
 | `templates/project/` | template copied by `ws project new <slug>` |
 | `skills/` | versioned Claude skills, symlinked into `~/.claude/skills` by `ws setup` |
 | `src/ws/`, `tests/` | the `ws` CLI and its pytest suite |
