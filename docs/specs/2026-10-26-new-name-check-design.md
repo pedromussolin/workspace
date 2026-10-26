@@ -60,6 +60,10 @@ it.
     committing), so an entry counts once it is committed;
   - it is an analog in `names.toml`.
 - A real name already in `names.toml` is not a new word: the existing check blocks it, as today.
+- The code of the `ws` CLI (`src/`, `tests/`, `hooks/`, `.githooks/`) is not checked: it is
+  English, written by us, and its tests use made-up names on purpose. Over the last 50 commits it
+  was about 70% of the words reported. `ws check-secrets` still reads it for the names of the
+  table. Notes, docs, skills and commit messages are checked.
 - The words of a push are those of the added lines and messages of every pushed commit, even if
   a later commit removes the line: the removed line is in the published history. Commits
   reachable from `ws.scanBaseline` are left out, as in the range check.

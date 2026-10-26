@@ -54,7 +54,7 @@ The check cannot see names missing from `names.toml` or the content of binary fi
 is reported, not read).
 
 A new-word gate covers the first gap: a capitalized word of three letters or more, in an added line
-or a commit message, that the remote state, `.known-words` and the analogs of `names.toml` do not
+(outside the code of `ws`: `src/`, `tests/`, `hooks/`, `.githooks/`) or a commit message, that the remote state, `.known-words` and the analogs of `names.toml` do not
 know may be a real name that has no entry yet. The commit hooks only warn; `pre-push` blocks until
 each word is answered with `ws names add` (real name) or `ws names known` (harmless term). The
 pending list is computed from the unpushed commits, nothing is stored. Design:
