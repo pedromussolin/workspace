@@ -41,9 +41,9 @@ Protection starts after `ws setup`: a fresh clone has no git hooks. From then on
 
 | Hook | Checks |
 |---|---|
-| `pre-commit`, `pre-merge-commit` | the staged added lines (for a merge, every incoming line) |
-| `commit-msg` | the commit message |
-| `pre-push` | every pushed commit: lines, message, author and committer e-mails |
+| `pre-commit`, `pre-merge-commit` | the staged added lines (for a merge, every incoming line); also warns about new words |
+| `commit-msg` | the commit message; also warns about new words |
+| `pre-push` | every pushed commit: lines, message, author and committer e-mails; also blocks on new words |
 
 A Claude Code gate, `hooks/block_hook_bypass.py`, blocks `--no-verify`, `git commit -n` and any
 `core.hooksPath` override, in every repo; `ws setup` checks that it is registered. Exceptions go in
@@ -53,6 +53,13 @@ span it matches, not the rest of the line.
 The check cannot see names missing from `names.toml` or the content of binary files (a staged binary
 is reported, not read).
 
+A new-word gate covers the first gap: a capitalized word of three letters or more, in an added line
+or a commit message, that the remote state, `.known-words` and the analogs of `names.toml` do not
+know may be a real name that has no entry yet. The commit hooks only warn; `pre-push` blocks until
+each word is answered with `ws names add` (real name) or `ws names known` (harmless term). The
+pending list is computed from the unpushed commits, nothing is stored. Design:
+[docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
+
 ## The `ws` command
 
 | Command | What it does |
@@ -60,6 +67,11 @@ is reported, not read).
 | `ws setup` | Sets the git hooks path and checks the hooks, links the skills, checks `~/.config/workspace/` (files and modes) and the Claude Code gates |
 | `ws check-secrets [--staged \| --all \| PATH…]` | Scans for secret patterns, real names and company domains; the git hooks run it |
 | `ws mask [--in-place \| --check] [FILE \| -]` | Replaces real names with analogs; `--check` exits 1 if a real name remains |
+| `ws names check (--staged \| --message FILE \| --range REVS) [--against REV] [--tip REV] [--warn]` | Lists the new words (capitalized words unknown to the remote state, `.known-words` and the analogs); exit 1 when there are any, always 0 with `--warn`; the hooks run it |
+| `ws names pending [--range REVS] [--json]` | The new words of the unpushed commits, with where each appears |
+| `ws names known WORD…` | Appends harmless words to `.known-words`, without repeats; commit the file |
+| `ws names add REAL --analog ANALOG [--case-sensitive]` | Appends a real name and its analog to `names.toml`, keeping its mode and content; refuses a duplicate |
+| `ws names review` | Asks in the terminal about each pending word (real name, harmless, skip), then lists the files and unpushed commits that carry the real names added |
 | `ws project new <slug>` | Copies `templates/project/` into `projetos/<slug>/` |
 | `ws slot [-n N] -- <cmd>` | Runs a heavy command in one of N slots (file lock), so parallel agents do not exhaust memory; the command holds the lock and gets SIGTERM, SIGHUP and SIGINT forwarded, so the slot lasts until it exits |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |

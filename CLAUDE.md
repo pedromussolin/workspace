@@ -54,6 +54,14 @@ read from the index, an entry excuses only the span it matches, and you say in t
 added it. The check cannot see names missing from `names.toml` or the content of binary files (a
 staged binary is reported, not read).
 
+New words: a capitalized word that is new to the repo may be a real name with no entry yet.
+`pre-commit` and `commit-msg` warn about it and `pre-push` blocks until it is answered (`ws names
+pending` lists them). Ask the user in the conversation, all pending words in one question with
+your guess for each ("Acme: real name or harmless term?"), then apply the answer: `ws names add
+REAL --analog ANALOG` and mask what carries it, or `ws names known WORD...` and commit
+`.known-words`. A word goes to `.known-words` only after the user's answer, and the reply says
+so. Never put the question on GitHub (issue, PR): it would carry the real name.
+
 ## Private values
 
 Hosts, URLs, credentials and the real names behind the analogs live in
