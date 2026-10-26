@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project="$(cd "$(dirname "$0")/.." && pwd)"
+PYTHONPATH="$project/src" exec python3 -m ws check-secrets --message "$1"

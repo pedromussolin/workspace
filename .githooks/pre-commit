@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project="$(cd "$(dirname "$0")/.." && pwd)"
-exec uv run --quiet --project "$project" ws check-secrets --staged
+PYTHONPATH="$project/src" exec python3 -m ws check-secrets --staged

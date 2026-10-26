@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Checks what the push would publish: for each commit the added lines, the message and the
+# e-mails. Commits reachable from the ws.scanBaseline ref, when it is set, were accepted as they
+# are and are left out.
+set -euo pipefail
+project="$(cd "$(dirname "$0")/.." && pwd)"
+remote="$1"
+baseline="$(git config --get --default '' ws.scanBaseline)"
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    case "$local_sha" in
+        *[!0]*) ;;
+        *) continue ;;
+    esac
+    excludes="--remotes=$remote"
+    if [[ "$remote_sha" =~ [^0] ]] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        excludes="$remote_sha"
+    fi
+    if [ -n "$baseline" ]; then
+        excludes="$excludes $baseline"
+    fi
+    revs="$local_sha --not $excludes"
+    PYTHONPATH="$project/src" python3 -m ws check-secrets --range "$revs" </dev/null
+done
