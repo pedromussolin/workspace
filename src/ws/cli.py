@@ -471,7 +471,7 @@ def _cmd_names_pending(args: argparse.Namespace) -> int:
         print(json.dumps(listing, ensure_ascii=False, indent=2))
         return 0
     for item in words:
-        print(f"{item.word}: {', '.join(str(place) for place in item.places)}")
+        print(f"{item.word}: {newwords.format_places(item)}")
     return 0
 
 
