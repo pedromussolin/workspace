@@ -3,11 +3,11 @@
 - **TS:** TS-5431 (épico TS-5357).
 - **Repos:** BFF (catálogo de permissões, rotas, lista de migração) e front (abas e botões por escopo). Grupos e
   atribuições são manuais (D128), sem tela de migração de grupos e sem catálogo de perfis.
-- **Status (26/10):** **publicada na `release/20261026`** (deploy de hoje) e na `-sdbx`. Branch
+- **Status (26/10):** **publicada na release** (era a `release/20261026`; virou a `release/20261027`, deploy de produção em 27/10, D132) e na `-sdbx`, na sandbox desde 26/10. Branch
   `feature/TS-5431-escopos-por-area`: BFF `c8d8a2e` (escopos), `cf4ef69` (rota literal no `iam/navigation`),
   `41620f8` (pagamentos dos lotes de liquidação), cada um passando sozinho; front `4ca90019` (`.ai`), `4ddd830e`,
   `2cd370ff`, `a71c946f`, `3ba14aab` (uma por área). Junções: BFF `e96e02d` e `-sdbx` `f375433`; front `9c2b0992` e
-  `-sdbx` `d930f414`. PRs #224, #226, #237 e #239 atualizadas; o merge fica com o Pietro. BFF 2382 testes (2384 na
+  `-sdbx` `d930f414`. PRs #224, #226, #237 e #239 atualizadas (as da `master` foram refeitas em 26/10: BFF #227, front #240); o merge fica com o Pietro. BFF 2382 testes (2384 na
   `-sdbx`); front `validate.sh` ok com 4983 specs nas duas; smoke ok nas 11 rotas mexidas.
 - **Depois (26/10, D131):** grupos por ambiente (`[FRONT-SANDBOX]` na sandbox) com trava no BFF, sem a tela de
   Migração (troca das roles por script) e e-mail fora de produção para a caixa de teste no shared. Branches

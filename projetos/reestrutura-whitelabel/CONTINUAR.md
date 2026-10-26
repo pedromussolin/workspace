@@ -1,34 +1,39 @@
-# Continuar em outro chat ou no Codex (23/10, fim do dia)
+# Continuar em outro chat ou no Codex (26/10)
 
 Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
-mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D127) e o
+mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D132) e o
 `~/.config/workspace/private/reestrutura-whitelabel.md` (nomes reais).
 
 ## Onde está
 
-**Release 20261026 (deploy de 26/10):** as PRs 1, 5, 2, 4 e 3 da tarefa 31 estão commitadas nas branches de
-cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `release/20261026-sdbx` (release +
-`sandbox`). Worktrees em `~/repos/.reestrutura_whitelabel/release-20261026/{front,front-sdbx,bff,bff-sdbx,shared,shared-sdbx}`.
+**Release 20261027 (deploy de produção em 27/10, D132; era a 20261026):** as PRs 1, 5, 2, 4 e 3 da tarefa 31 e as
+tarefas 34 e 35 estão commitadas nas branches de cada tarefa e juntadas na `release/20261027` de cada repo, com a
+cópia `release/20261027-sdbx` (release + `sandbox`). Worktrees em
+`~/repos/.reestrutura_whitelabel/release-20261027/{front,front-sdbx,bff,bff-sdbx,shared,shared-sdbx}`.
 
 | Repo | Para a `master` (aberta) | Para a `sandbox` | Validação da release |
 |---|---|---|---|
-| apl-shared-service | #73 | #74 mergeada | 609 testes |
-| BFF | #224 | #225 mergeada; #226 aberta (D124) | 2068 testes (2070 na `-sdbx`) |
-| front | #237 | #238 mergeada; #239 aberta (D124) | `validate.sh` ok, 4802 testes, smoke ok |
+| apl-shared-service | #76 | #74 e #75 mergeadas | 615 testes |
+| BFF | #227 | #225 e #226 mergeadas | 2438 testes |
+| front | #240 | #238 e #239 mergeadas | `validate.sh` ok, 4994 testes, smoke ok |
 
+- Sandbox com a release desde 26/10, 14h23 (`sand-27e14fb`, `sand-2ab620b`, `sand-45bf159`). A GMUD de 27/10 e o guia
+  do deploy ficam na pasta privada: `deploy/gmud-20261027.md` e `deploy/roteiro-20261027.md`.
+- As PRs #73, #224 e #237 foram fechadas com o link da nova. As branches `release/20261026` e `-sdbx` continuam no
+  GitHub, sem PR aberta: apagar à mão.
 - Ordem do deploy: shared, BFF e front.
 - Antes do BFF: `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no Parameter Store, **numa linha só** (o
-  `entrypoint.sh` lê o Guardian linha a linha) e só com ids reais; a app role `access-control:impersonate`.
+  `entrypoint.sh` lê o Guardian linha a linha) e só com ids reais; a app role `access-control-people:impersonate` (D131).
 - Mudança nova na release vai primeiro na branch da tarefa (ex.: `feature/TS-5425-organizacao-e-grupos`),
-  depois merge na `release/20261026` e, dela, na `-sdbx` (sincronizada antes com `origin/sandbox`). As PRs
+  depois merge na `release/20261027` e, dela, na `-sdbx` (sincronizada antes com `origin/sandbox`). As PRs
   para a `master` se atualizam sozinhas; para a sandbox, abrir PR nova quando a anterior já foi mergeada.
 
 **Tarefas abertas:**
 - [34](tarefas/34-renovacao-tokens-azure.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
-  **Publicada (26/10)** na `release/20261026` e na `-sdbx` (PRs #224, #226, #237 e #239 atualizadas; merge com o
+  **Publicada (26/10)** na release e na `-sdbx` (PRs da `master` #227 e #240; merge com o
   Pietro). Depois do deploy: ler o AADSTS do log `Azure token refresh rejected` e fechar a causa.
 - [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: um escopo por área em todas as páginas
-  (D129, D130), grupos manuais (D128). Publicada na `release/20261026` e na `-sdbx` (26/10); PRs atualizadas. Depois do deploy: Migração e limpeza das roles antigas.
+  (D129, D130), grupos manuais (D128). Publicada na release e na `-sdbx` (26/10); na sandbox desde 26/10. Depois do deploy: Migração e limpeza das roles antigas.
 
 **Sugestão pendente, não pedida pelo Pietro:** o BFF cai no boot se `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
 estiver inválida; o melhor seria subir, registrar o erro e tratar como não configurada. Não aplicar sem ele

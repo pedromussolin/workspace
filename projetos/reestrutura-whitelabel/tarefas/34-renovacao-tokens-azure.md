@@ -2,8 +2,8 @@
 
 - **TS:** TS-5429 (épico TS-5357).
 - **Repo:** apl-credit-whitelabel-api (BFF); o front só se o tratamento do erro temporário mudar.
-- **Status (26/10):** publicada. `fix/TS-5429-renovacao-tokens-azure` em front e BFF, juntada na `release/20261026`
-  e dela na `release/20261026-sdbx`. As PRs da release (BFF #224 e #226, front #237 e #239) foram atualizadas;
+- **Status (26/10):** publicada. `fix/TS-5429-renovacao-tokens-azure` em front e BFF, juntada na release (hoje `release/20261027`)
+  e dela na `-sdbx`. Sandbox desde 26/10 (BFF #226, front #239 mergeadas); produção em 27/10 pelas PRs BFF #227 e front #240 (D132);
   o merge fica com o Pietro. Falta, depois do deploy, ler o AADSTS do log novo e fechar a causa (item 4).
 
 ## Contexto (Pietro, 23/10)
