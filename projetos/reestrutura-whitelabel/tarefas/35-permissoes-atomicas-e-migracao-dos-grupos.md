@@ -9,7 +9,12 @@
   `2cd370ff`, `a71c946f`, `3ba14aab` (uma por área). Junções: BFF `e96e02d` e `-sdbx` `f375433`; front `9c2b0992` e
   `-sdbx` `d930f414`. PRs #224, #226, #237 e #239 atualizadas; o merge fica com o Pietro. BFF 2382 testes (2384 na
   `-sdbx`); front `validate.sh` ok com 4983 specs nas duas; smoke ok nas 11 rotas mexidas.
-- **Deploy:** criar as 57 roles; antes, atribuir à mão as 15 `access-control-*` aos gestores; depois, aplicar as 77
+- **Depois (26/10, D131):** grupos por ambiente (`[FRONT-SANDBOX]` na sandbox) com trava no BFF, sem a tela de
+  Migração (troca das roles por script) e e-mail fora de produção para a caixa de teste no shared. Branches
+  `fix/TS-5431-grupos-por-ambiente` (BFF `06988c0`, `39b9757`; front `ac323e62`, `43dbfd25`) e
+  `fix/TS-5431-email-fora-de-producao` (shared `94e373a`), juntadas nas releases e nas `-sdbx`; PR nova do shared
+  para a sandbox (#75). BFF 2438 testes, front 4994 specs, shared 615.
+- **Deploy (atualizado em D131):** criar as 148 roles, os grupos e copiar as atribuições pelos scripts; antes, atribuir à mão as 15 `access-control-*` aos gestores; depois, aplicar as 77
   linhas da Migração e, conferido, apagar as 17 antigas. O "ver como" passa a usar `access-control-people:impersonate`.
 
 ## Por quê
