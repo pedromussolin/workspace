@@ -2,8 +2,9 @@
 
 - **TS:** TS-5429 (épico TS-5357).
 - **Repo:** apl-credit-whitelabel-api (BFF); o front só se o tratamento do erro temporário mudar.
-- **Status (26/10):** implementada e validada localmente, **sem commit** (revisão do Pietro pendente). Entra na
-  `release/20261026` (PRs de hoje), por merge da `fix/TS-5429-renovacao-tokens-azure` em front e BFF.
+- **Status (26/10):** publicada. `fix/TS-5429-renovacao-tokens-azure` em front e BFF, juntada na `release/20261026`
+  e dela na `release/20261026-sdbx`. As PRs da release (BFF #224 e #226, front #237 e #239) foram atualizadas;
+  o merge fica com o Pietro. Falta, depois do deploy, ler o AADSTS do log novo e fechar a causa (item 4).
 
 ## Contexto (Pietro, 23/10)
 
@@ -80,7 +81,11 @@ a partir da `master`) e ensaio da junção com a release em `ensaio-bff` e `ensa
 - Testes novos: 429, recusa sem código, erro que não é código OAuth, falha do Graph, sessão sem refresh
   token, espera de renovação travada, middleware com sessão renovada e sessão sumida, scripts do Redis.
 
-**Validação:** BFF na branch 1818 testes; ensaiado sobre a `release/20261026`, 2096 testes (o teste do
+**Commits:** BFF `f2ea469`, `ebd0faa`, `74dc55e` (cada um passa sozinho), junção na release `3871d9e` (com o teste do
+"ver como" ajustado) e na `-sdbx` `460aa66`; front `7e93dcbf`, `fde9ccd6`, junção `eb521680` e `-sdbx` `a6a40c70`.
+
+**Validação:** BFF na branch 1818 testes, na release 2096, na `-sdbx` 2098; front `validate.sh` ok com 4814 testes na
+release e na `-sdbx`. Antes: ensaiado sobre a `release/20261026`, 2096 testes (o teste do
 "ver como" que simulava o `refresh_session` antigo foi ajustado na junção). Front: specs de auth 40/40;
 `validate.sh` sobre a release no ensaio.
 

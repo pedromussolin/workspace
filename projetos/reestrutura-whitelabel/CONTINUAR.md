@@ -25,8 +25,8 @@ cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `release
 
 **Tarefas abertas:**
 - [34](tarefas/34-renovacao-tokens-azure.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
-  **Implementada (26/10), sem commit;** vai para a `release/20261026` depois da revisão do Pietro. Ver a
-  seção "O que foi feito" da tarefa.
+  **Publicada (26/10)** na `release/20261026` e na `-sdbx` (PRs #224, #226, #237 e #239 atualizadas; merge com o
+  Pietro). Depois do deploy: ler o AADSTS do log `Azure token refresh rejected` e fechar a causa.
 - [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: permissões atômicas, perfis por
   página e migração dos grupos. Primeiro passo: o levantamento de todas as telas (não feito).
 
