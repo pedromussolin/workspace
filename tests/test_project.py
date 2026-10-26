@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from ws import config
 from ws.cli import main
 from ws.project import new_project
 
@@ -101,3 +102,21 @@ def test_cli_project_new_existing_exits_one(root: Path, monkeypatch, capsys):
 
     assert code == 1
     assert "acme-onboarding" in capsys.readouterr().err
+
+
+def test_creates_the_local_data_folder_outside_the_repo(root: Path):
+    new_project("acme-onboarding", root, TODAY)
+
+    local = config.data_dir() / "projects" / "acme-onboarding"
+    assert local.is_dir()
+    assert local.stat().st_mode & 0o777 == 0o700
+
+
+def test_an_existing_local_data_folder_is_kept(root: Path):
+    local = config.data_dir() / "projects" / "acme-onboarding"
+    local.mkdir(parents=True)
+    (local / "run.log").write_text("kept\n", encoding="utf-8")
+
+    new_project("acme-onboarding", root, TODAY)
+
+    assert (local / "run.log").read_text(encoding="utf-8") == "kept\n"
