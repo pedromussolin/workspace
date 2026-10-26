@@ -17,8 +17,9 @@ cópia `release/20261027-sdbx` (release + `sandbox`). Worktrees em
 | BFF | #227 | #225 e #226 mergeadas | 2438 testes |
 | front | #240 | #238 e #239 mergeadas | `validate.sh` ok, 4994 testes, smoke ok |
 
-- Sandbox com a release desde 26/10, 14h23 (`sand-27e14fb`, `sand-2ab620b`, `sand-45bf159`). A GMUD de 27/10 e o guia
-  do deploy ficam na pasta privada: `deploy/gmud-20261027.md` e `deploy/roteiro-20261027.md`.
+- Sandbox com a release desde 26/10, 14h23 (`sand-27e14fb`, `sand-2ab620b`, `sand-45bf159`). A GMUD de 27/10 é a
+  **GDM-342** (janela 18h–20h, criada pelo MCP); o texto e o guia do deploy ficam na pasta privada:
+  `deploy/gmud-20261027.md` e `deploy/roteiro-20261027.md`.
 - As PRs #73, #224 e #237 foram fechadas com o link da nova. As branches `release/20261026` e `-sdbx` continuam no
   GitHub, sem PR aberta: apagar à mão.
 - Ordem do deploy: shared, BFF e front.
