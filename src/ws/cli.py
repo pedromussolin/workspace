@@ -56,7 +56,11 @@ def _add_slot(subparsers) -> None:
     parser = subparsers.add_parser(
         "slot",
         help="Run a heavy command in one of N slots.",
-        description="Wait for a free slot (a file lock), run the command, release the slot.",
+        description=(
+            "Wait for a free slot (a file lock), run the command, release the slot. The command "
+            "inherits the lock, so the slot stays taken until it exits even if ws is killed; "
+            "SIGTERM, SIGHUP and SIGINT are forwarded to it."
+        ),
         usage="ws slot [-h] [-n N] -- CMD [ARG ...]",
     )
     parser.add_argument(

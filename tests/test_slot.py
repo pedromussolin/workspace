@@ -39,6 +39,38 @@ time.sleep(30)
 """
 
 
+CHILD_THAT_HANDLES_SIGNALS = """
+import signal, sys, time
+record = sys.argv[1]
+def log(text):
+    with open(record, "a") as f:
+        f.write(f"{text} {time.time()}\\n")
+def on_signal(signum, frame):
+    log(f"got-{signum}")
+    time.sleep(0.6)
+    log("child-exit")
+    sys.exit(7)
+for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+    signal.signal(number, on_signal)
+print("ready", flush=True)
+time.sleep(30)
+"""
+
+CHILD_THAT_RUNS_A_WHILE = """
+import sys, time
+print("ready", flush=True)
+time.sleep(0.8)
+with open(sys.argv[1], "a") as f:
+    f.write(f"child-exit {time.time()}\\n")
+"""
+
+RECORD_START = """
+import sys, time
+with open(sys.argv[1], "a") as f:
+    f.write(f"second-start {time.time()}\\n")
+"""
+
+
 def py(code: str, *args: str) -> list[str]:
     return [sys.executable, "-c", code, *args]
 
@@ -172,6 +204,63 @@ def test_ctrl_c_while_command_runs_returns_130_without_traceback(tmp_path):
     _, stderr = proc.communicate(timeout=10)
     assert proc.returncode == 130
     assert "Traceback" not in stderr
+
+
+def start_slot(tmp_path, code: str, *args: str) -> subprocess.Popen[str]:
+    env = {**os.environ, "WS_CACHE_DIR": str(tmp_path)}
+    return subprocess.Popen(
+        [sys.executable, "-m", "ws", "slot", "-n", "1", "--", *py(code, *args)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def read_record(path) -> dict[str, float]:
+    marks = {}
+    for line in path.read_text().splitlines():
+        name, stamp = line.split()
+        marks[name] = float(stamp)
+    return marks
+
+
+@pytest.mark.parametrize(
+    ("signum", "expected_code"),
+    [(signal.SIGTERM, 7), (signal.SIGHUP, 7), (signal.SIGINT, 130)],
+)
+def test_signal_is_forwarded_and_the_slot_lasts_until_the_child_exits(
+    tmp_path, signum, expected_code
+):
+    record = tmp_path / "record.txt"
+    first = start_slot(tmp_path, CHILD_THAT_HANDLES_SIGNALS, str(record))
+    assert first.stdout.readline().strip() == "ready"
+
+    first.send_signal(signum)
+    second = start_slot(tmp_path, RECORD_START, str(record))
+    second.communicate(timeout=10)
+    _, stderr = first.communicate(timeout=10)
+
+    assert (first.returncode, second.returncode) == (expected_code, 0)
+    assert "Traceback" not in stderr
+    marks = read_record(record)
+    assert [name for name in marks if name.startswith("got-")] == [f"got-{int(signum)}"]
+    assert marks["child-exit"] <= marks["second-start"]
+
+
+def test_slot_stays_taken_by_the_child_when_ws_slot_is_killed(tmp_path):
+    record = tmp_path / "record.txt"
+    first = start_slot(tmp_path, CHILD_THAT_RUNS_A_WHILE, str(record))
+    assert first.stdout.readline().strip() == "ready"
+
+    first.kill()
+    first.wait(timeout=10)
+    second = start_slot(tmp_path, RECORD_START, str(record))
+    second.communicate(timeout=10)
+
+    assert second.returncode == 0
+    marks = read_record(record)
+    assert marks["child-exit"] <= marks["second-start"]
 
 
 def test_one_slot_serializes(tmp_path):
