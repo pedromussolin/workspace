@@ -5,6 +5,7 @@ by turning each letter of a term into a character class, so the regex runs on th
 and a replacement keeps the offsets.
 """
 
+import json
 import re
 import tomllib
 import unicodedata
@@ -75,6 +76,50 @@ def load_names(path: Path | None = None) -> NamesTable:
         raise NamesTableMissing(path) from error
     names = tuple(_parse_name(entry, i) for i, entry in enumerate(data.get("names", []), start=1))
     return NamesTable(names, _parse_domains(data.get("blocked_domains", [])))
+
+
+def fold(text: str) -> str:
+    """Lowercase and without accents: the form in which two spellings of a word are compared."""
+    text = text.casefold()
+    if text.isascii():
+        return text
+    decomposed = unicodedata.normalize("NFD", text)
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+def _toml_string(value: str) -> str:
+    # A JSON string is a valid TOML basic string: same escapes, and UTF-8 text stays as is.
+    return json.dumps(value, ensure_ascii=False)
+
+
+def add_name(path: Path, real: str, analog: str, case_sensitive: bool = False) -> None:
+    """Append an entry to the names table, leaving the rest of the file and its mode untouched.
+
+    Raises NamesTableMissing when the file does not exist (it is never created here, so a partial
+    table cannot replace the fail-closed behavior of the check) and ValueError when the real name
+    is empty, already in the table (as a name or alias) or the analog of an entry.
+    """
+    real = real.strip()
+    analog = analog.strip()
+    if not real or not analog:
+        raise ValueError("a real name and an analog are both needed")
+    table = load_names(path)
+    if fold(real) == fold(analog):
+        raise ValueError("the analog must differ from the real name")
+    for name in table.names:
+        if fold(real) in {fold(term) for term in (name.real, *name.aliases)}:
+            raise ValueError("that name is already in the table")
+        if fold(real) == fold(name.analog):
+            raise ValueError("that name is the analog of an existing entry")
+    entry = f"\n[[names]]\nreal = {_toml_string(real)}\nanalog = {_toml_string(analog)}\n"
+    if case_sensitive:
+        entry += "case_sensitive = true\n"
+    text = path.read_text(encoding="utf-8")
+    if text and not text.endswith("\n"):
+        entry = "\n" + entry
+    tomllib.loads(text + entry)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(entry)
 
 
 def _accent_variants() -> dict[str, str]:

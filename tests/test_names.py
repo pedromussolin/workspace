@@ -1,11 +1,15 @@
+import stat
+
 import pytest
 
 from ws.names import (
     Name,
     NamesTable,
     NamesTableMissing,
+    add_name,
     find_blocked_domains,
     find_real_names,
+    fold,
     load_names,
     mask_text,
 )
@@ -175,3 +179,37 @@ def test_invalid_table_is_rejected(tmp_path, content):
     path.write_text(content, encoding="utf-8")
     with pytest.raises(ValueError):
         load_names(path)
+
+
+def test_fold_ignores_case_and_accents():
+    assert fold("Méridia") == fold("MERIDIA") == "meridia"
+    assert fold("Straße") == "strasse"
+    assert fold("Ação") == "acao"
+    assert fold("Me\u0301ridia") == "meridia"
+
+
+def test_add_name_appends_and_keeps_the_content_and_the_mode(names_toml):
+    names_toml.chmod(0o600)
+    before = names_toml.read_text(encoding="utf-8")
+    add_name(names_toml, " Zorblax ", "Zeta", case_sensitive=True)
+    text = names_toml.read_text(encoding="utf-8")
+    assert text.startswith(before)
+    assert text.endswith('\n[[names]]\nreal = "Zorblax"\nanalog = "Zeta"\ncase_sensitive = true\n')
+    assert stat.S_IMODE(names_toml.stat().st_mode) == 0o600
+    assert load_names(names_toml).names[-1] == Name("Zorblax", "Zeta", (), True)
+
+
+def test_add_name_refuses_what_the_table_has_and_changes_nothing(names_toml):
+    before = names_toml.read_text(encoding="utf-8")
+    for real, analog in [("ACME CORP", "x"), ("méridia", "x"), ("Summit Partners", "x"), ("", "x")]:
+        with pytest.raises(ValueError):
+            add_name(names_toml, real, analog)
+    with pytest.raises(ValueError, match="must differ"):
+        add_name(names_toml, "Zorblax", "ZORBLAX")
+    assert names_toml.read_text(encoding="utf-8") == before
+
+
+def test_add_name_does_not_create_the_table(tmp_path):
+    with pytest.raises(NamesTableMissing):
+        add_name(tmp_path / "names.toml", "Zorblax", "Zeta")
+    assert list(tmp_path.iterdir()) == []
