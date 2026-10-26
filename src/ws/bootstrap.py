@@ -1,117 +1,214 @@
-"""Idempotent setup of a workspace clone: git hooks path, skill links, private config and gates."""
+"""Idempotent setup of a workspace clone: it fixes what it can by itself and reports the rest.
+
+It fixes: the git hooks path, the executable bit of the four hooks, the skill links and the folders
+and modes of the private config. It reports, as "needs you": what only the user can settle (a
+missing `names.toml`, a skill link that points elsewhere) and the Claude Code gates, because ws
+never writes `~/.claude/settings.json`: it prints one JSON block that Claude applies after the
+user approves.
+
+With `check` nothing is changed; the changes that setup would make are listed instead.
+"""
 
 import json
 import os
 import stat
 import subprocess
 import textwrap
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ws.config import claude_settings_path
 
 GITHOOKS_DIR = ".githooks"
+HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 
 
+@dataclass
+class SetupResult:
+    """`fixed`: the changes made (with `check`, those setup would make); `needs`: what is left."""
+
+    fixed: list[str] = field(default_factory=list)
+    needs: list[str] = field(default_factory=list)
+
+
+class _Setup:
+    def __init__(self, apply: bool):
+        self.apply = apply
+        self.result = SetupResult()
+
+    def fix(self, message: str, action: Callable[[], None], failure: str) -> bool:
+        """Make a change and record it; with `check`, only record it. False when it failed."""
+        if self.apply:
+            try:
+                action()
+            except OSError as error:
+                self.result.needs.append(f"{failure}: {error}")
+                return False
+        self.result.fixed.append(message)
+        return True
+
+    def need(self, message: str) -> None:
+        self.result.needs.append(message)
+
+
 def run_setup(
-    repo: Path, config: Path, skills_target: Path, settings: Path | None = None
-) -> list[str]:
-    """Wire the clone and return the problems found; an empty list means ok."""
+    repo: Path,
+    config: Path,
+    skills_target: Path,
+    settings: Path | None = None,
+    *,
+    check: bool = False,
+) -> SetupResult:
+    """Wire the clone, fix what can be fixed and return what was done and what is left."""
     if settings is None:
         settings = claude_settings_path()
-    hooks_problems = _set_hooks_path(repo)
-    if not hooks_problems:
-        hooks_problems = _check_git_hooks(repo)
-    return [
-        *hooks_problems,
-        *_link_skills(repo, skills_target),
-        *_check_config(config),
-        *_check_claude_gates(repo, settings),
-    ]
+    setup = _Setup(apply=not check)
+    hooks_path_ok = _set_hooks_path(setup, repo)
+    _fix_hook_bits(setup, repo)
+    if hooks_path_ok:
+        _check_hooks_path(setup, repo)
+    _link_skills(setup, repo, skills_target)
+    _check_config(setup, config)
+    _check_claude_gates(setup, repo, settings)
+    return setup.result
 
 
-def _set_hooks_path(repo: Path) -> list[str]:
-    command = ["git", "-C", str(repo), "config", "core.hooksPath", GITHOOKS_DIR]
-    try:
-        result = subprocess.run(command, capture_output=True, text=True)
-    except OSError as error:
-        return [f"git hooks path: could not run git: {error}"]
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+
+
+def _set_git_hooks_path(repo: Path) -> None:
+    result = _git(repo, "config", "core.hooksPath", GITHOOKS_DIR)
     if result.returncode != 0:
-        return [f"git hooks path: {result.stderr.strip()}"]
-    return []
+        raise OSError(result.stderr.strip())
 
 
-def _check_git_hooks(repo: Path) -> list[str]:
-    """Check what git will really use: the effective hooks path and the executable bits."""
-    problems = []
-    command = ["git", "-C", str(repo), "config", "--get", "--type=path", "core.hooksPath"]
+def _set_hooks_path(setup: _Setup, repo: Path) -> bool:
+    """Point the clone at `.githooks`; True when it does now, so the effective path can be read."""
     try:
-        result = subprocess.run(command, capture_output=True, text=True)
+        probe = _git(repo, "rev-parse", "--git-dir")
+        if probe.returncode != 0:
+            setup.need(f"git hooks path: {probe.stderr.strip()}")
+            return False
+        current = _git(repo, "config", "--local", "--get", "core.hooksPath").stdout.strip()
+        if current == GITHOOKS_DIR:
+            return True
+        done = setup.fix(
+            f"git hooks path: set core.hooksPath to {GITHOOKS_DIR} in {repo}",
+            lambda: _set_git_hooks_path(repo),
+            "git hooks path",
+        )
+        return (
+            done and setup.apply
+        )  # with check nothing was set, so the effective path says nothing
     except OSError as error:
-        return [f"git hooks path: could not run git: {error}"]
+        setup.need(f"git hooks path: could not run git: {error}")
+        return False
+
+
+def _fix_hook_bits(setup: _Setup, repo: Path) -> None:
+    """Git skips a hook that is not executable, so the four known hooks get `chmod +x`."""
+    for name in HOOK_NAMES:
+        hook = repo / GITHOOKS_DIR / name
+        if hook.is_file() and not os.access(hook, os.X_OK):
+            mode = stat.S_IMODE(hook.stat().st_mode)
+            setup.fix(
+                f"hook {hook}: chmod +x",
+                lambda hook=hook, mode=mode: hook.chmod(mode | 0o111),
+                f"hook {hook} is not executable, so git skips it, and chmod +x failed",
+            )
+
+
+def _check_hooks_path(setup: _Setup, repo: Path) -> None:
+    """Check what git will really use: the effective hooks path, which something may override."""
+    command = ["config", "--get", "--type=path", "core.hooksPath"]
+    try:
+        result = _git(repo, *command)
+    except OSError as error:
+        setup.need(f"git hooks path: could not run git: {error}")
+        return
     configured = result.stdout.strip()
     hooks = repo / GITHOOKS_DIR
     if result.returncode != 0 or not configured:
-        problems.append(f"git hooks path: core.hooksPath is not set in {repo}")
+        setup.need(f"git hooks path: core.hooksPath is not set in {repo}")
     elif (repo / configured).resolve() != hooks.resolve():
-        problems.append(
+        setup.need(
             f"git hooks path: core.hooksPath resolves to {(repo / configured).resolve()}, "
             f"not {hooks.resolve()}; something overrides the setting made here "
             "(see: git config --show-origin --get-all core.hooksPath)"
         )
-    if hooks.is_dir():
-        for hook in sorted(path for path in hooks.iterdir() if path.is_file()):
-            if not os.access(hook, os.X_OK):
-                problems.append(f"{hook} is not executable, so git skips it; run: chmod +x {hook}")
-    return problems
 
 
-def _link_skills(repo: Path, skills_target: Path) -> list[str]:
-    skills_target.mkdir(parents=True, exist_ok=True)
+def _link(link: Path, skill: Path) -> None:
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(skill.resolve(), target_is_directory=True)
+
+
+def _link_skills(setup: _Setup, repo: Path, skills_target: Path) -> None:
     source = repo / "skills"
     if not source.is_dir():
-        return []
-    problems = []
+        return
     for skill in sorted(path for path in source.iterdir() if path.is_dir()):
         link = skills_target / skill.name
         if not (link.is_symlink() or link.exists()):
-            link.symlink_to(skill.resolve(), target_is_directory=True)
+            setup.fix(
+                f"skill {skill.name}: link {link}",
+                lambda link=link, skill=skill: _link(link, skill),
+                f"skill {skill.name}: could not link {link}",
+            )
         elif not (link.is_symlink() and link.resolve() == skill.resolve()):
-            problems.append(f"skill {skill.name}: {link} exists and is not a link to this repo")
-    return problems
+            setup.need(f"skill {skill.name}: {link} exists and is not a link to this repo")
 
 
-def _mode_problem(path: Path, expected: int) -> list[str]:
+def _make_private_dir(path: Path) -> None:
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.chmod(0o700)
+
+
+def _fix_mode(setup: _Setup, path: Path, expected: int, label: str) -> None:
     mode = stat.S_IMODE(path.stat().st_mode)
-    if mode == expected:
-        return []
-    return [f"{path} has mode {mode:04o}; run: chmod {expected:o} {path}"]
+    if mode != expected:
+        setup.fix(
+            f"{label} {path}: chmod {expected:o} (from {mode:04o})",
+            lambda: path.chmod(expected),
+            f"{path} has mode {mode:04o} and chmod {expected:o} failed",
+        )
 
 
-def _check_config(config: Path) -> list[str]:
-    config.mkdir(mode=0o700, parents=True, exist_ok=True)
-    problems = _mode_problem(config, 0o700)
+def _check_config(setup: _Setup, config: Path) -> None:
+    if config.exists():
+        _fix_mode(setup, config, 0o700, "config folder")
+    else:
+        setup.fix(
+            f"config folder {config}: create with mode 700",
+            lambda: _make_private_dir(config),
+            f"could not create {config}",
+        )
 
     names = config / "names.toml"
     if names.is_file():
-        problems += _mode_problem(names, 0o600)
+        _fix_mode(setup, names, 0o600, "names table")
     else:
-        problems.append(f"{names} is missing; the secrets hook fails closed without it")
+        setup.need(f"{names} is missing; the secrets hook fails closed without it")
 
     credentials = config / "credentials"
     if credentials.exists():
-        problems += _mode_problem(credentials, 0o600)
+        _fix_mode(setup, credentials, 0o600, "credentials")
 
     private = config / "private"
     if not private.exists():
-        private.mkdir(mode=0o700)
-        private.chmod(0o700)
+        setup.fix(
+            f"private folder {private}: create with mode 700",
+            lambda: _make_private_dir(private),
+            f"could not create {private}",
+        )
     elif private.is_dir():
-        problems += _mode_problem(private, 0o700)
+        _fix_mode(setup, private, 0o700, "private folder")
     else:
-        problems.append(f"{private} exists and is not a folder")
-    return problems
+        setup.need(f"{private} exists and is not a folder")
 
 
 def _hook_entry(repo: Path, script: str) -> dict:
@@ -127,36 +224,38 @@ def _deny_gate() -> dict:
     return {"permissions": {"deny": [DENY_RULE]}}
 
 
-def _problem_with_json(message: str, snippet: dict) -> str:
+def _gates_needed(message: str, snippet: dict) -> str:
     return f"{message}\n{textwrap.indent(json.dumps(snippet, indent=2), '  ')}"
 
 
-def _check_claude_gates(repo: Path, settings_path: Path) -> list[str]:
+def _check_claude_gates(setup: _Setup, repo: Path, settings_path: Path) -> None:
+    """ws never writes the Claude settings: it asks for one block with everything missing."""
+    approval = "ws never writes that file; Claude applies this after you approve"
     try:
         raw = settings_path.read_bytes()
     except FileNotFoundError:
         both = {**_hook_gate(repo), **_deny_gate()}
-        return [
-            _problem_with_json(f"Claude settings {settings_path} not found; create it with:", both)
-        ]
+        message = f"Claude settings {settings_path} not found; {approval}, creating it with:"
+        setup.need(_gates_needed(message, both))
+        return
     except OSError as error:
-        return [f"Claude settings {settings_path} could not be read: {error}"]
+        setup.need(f"Claude settings {settings_path} could not be read: {error}")
+        return
     try:
         settings = json.loads(raw)
     except ValueError:
         settings = None
     if not isinstance(settings, dict):
-        return [f"Claude settings {settings_path} is not a valid JSON object; fix it first"]
+        setup.need(f"Claude settings {settings_path} is not a valid JSON object; fix it first")
+        return
 
-    problems = []
-    for script in HOOK_SCRIPTS:
-        if not _has_hook_gate(settings, script):
-            message = f"Claude Code gate missing in {settings_path}: add this PreToolUse hook"
-            problems.append(_problem_with_json(message, _hook_gate(repo, (script,))))
+    missing_scripts = tuple(s for s in HOOK_SCRIPTS if not _has_hook_gate(settings, s))
+    block: dict = _hook_gate(repo, missing_scripts) if missing_scripts else {}
     if not _has_deny_rule(settings):
-        message = f"Claude Code gate missing in {settings_path}: add this deny rule"
-        problems.append(_problem_with_json(message, _deny_gate()))
-    return problems
+        block.update(_deny_gate())
+    if block:
+        message = f"Claude Code gates missing in {settings_path}; {approval}, adding:"
+        setup.need(_gates_needed(message, block))
 
 
 def _as_dict(value: object) -> dict:

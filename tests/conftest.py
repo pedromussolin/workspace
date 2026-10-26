@@ -69,6 +69,18 @@ def ws_dictionaries(
     return folder
 
 
+@pytest.fixture(autouse=True)
+def no_real_apt(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A guard first on PATH: a test that reaches the real `apt-get` fails instead of downloading.
+
+    `fake_apt` goes in front of it for the tests that exercise the download.
+    """
+    guard = tmp_path_factory.mktemp("apt-guard") / "apt-get"
+    guard.write_text("#!/bin/sh\necho 'tests must not run the real apt-get' >&2\nexit 99\n")
+    guard.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{guard.parent}{os.pathsep}{os.environ['PATH']}")
+
+
 @pytest.fixture
 def git(monkeypatch: pytest.MonkeyPatch) -> Callable[..., subprocess.CompletedProcess[str]]:
     """Runs git in a repo without reading the user's git config."""

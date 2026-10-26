@@ -24,19 +24,36 @@ from ws.config import claude_skills_dir, config_dir, repo_root
 def _add_setup(subparsers) -> None:
     parser = subparsers.add_parser(
         "setup",
-        help="Wire this clone: git hooks path, skill links, private config and Claude Code gates.",
+        help="Wire this clone and fix what can be fixed: hooks, skill links and private config.",
+        description=(
+            "Fixes by itself the git hooks path and the executable bit of the hooks, the skill "
+            "links and the modes of the private config. Prints a `fixed:` line per change and a "
+            "`needs you:` line per "
+            "problem left, among them the Claude Code gates as one JSON block that Claude "
+            "applies after you approve; ws never writes ~/.claude/settings.json. Exits 0 when "
+            "nothing is left."
+        ),
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="read-only, no network: change nothing, list what setup would fix (`would fix:`) "
+        "and what needs you; exit 1 unless everything is already in place",
     )
     parser.set_defaults(handler=_cmd_setup)
 
 
 def _cmd_setup(args: argparse.Namespace) -> int:
-    problems = bootstrap.run_setup(repo_root(), config_dir(), claude_skills_dir())
-    if not problems:
-        print("ok")
-        return 0
-    for problem in problems:
-        print(problem)
-    return 1
+    result = bootstrap.run_setup(repo_root(), config_dir(), claude_skills_dir(), check=args.check)
+    label = "would fix" if args.check else "fixed"
+    for line in result.fixed:
+        print(f"{label}: {line}")
+    for need in result.needs:
+        print(f"needs you: {need}")
+    if result.needs or (args.check and result.fixed):
+        return 1
+    print("ok")
+    return 0
 
 
 def _add_project(subparsers) -> None:
