@@ -24,8 +24,9 @@ PATTERN_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "secret-assignment",
         re.compile(
-            r"""(?<![A-Za-z0-9])(password|passwd|senha|secret|api[_-]?key|token)\b"""
-            r"""["']?\s*[:=]\s*["']?[^\s"'<]{4,}""",
+            r"""(?<![A-Za-z0-9])(?:[A-Za-z0-9]+_)*(?:pg)?"""
+            r"""(?:password|passwd|senha|secret|api[_-]?key|token)(?:_[A-Za-z0-9]+)*"""
+            r"""["']?\s*[:=]\s*["']?(?![0-9]+\b)[^\s"'<]{4,}""",
             re.IGNORECASE,
         ),
     ),
@@ -33,7 +34,15 @@ PATTERN_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("url-credentials", re.compile(r"://[^\s/@]+@")),
     ("io-host", re.compile(r"\b[\w-]+(?:\.[\w-]+)*\.io\b")),
     ("private-ip", re.compile(r"\b10(?:\.\d{1,3}){3}\b")),
-    ("home-path", re.compile(r"/home/[A-Za-z_][\w.-]*")),
+    (
+        "home-path",
+        re.compile(
+            r"/home/[A-Za-z_][\w.-]*"
+            r"|/mnt/[a-z]/(?i:users)/[A-Za-z_][\w.-]*"
+            r"|\b[A-Za-z]:[\\/]+(?i:users)[\\/]+[A-Za-z_][\w.-]*"
+            r"|\\\\+(?:wsl\.localhost|wsl\$)\\+[^\\\s]+\\+home\\+[A-Za-z_][\w.-]*"
+        ),
+    ),
 )
 KNOWN_RULES = frozenset(rule for rule, _ in PATTERN_RULES) | {"real-name", "blocked-domain"}
 

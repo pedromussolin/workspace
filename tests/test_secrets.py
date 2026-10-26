@@ -23,12 +23,25 @@ SAMPLES = [
     ("secret-assignment", "client_secret = abcd1234"),
     ("secret-assignment", "DB_PASSWORD: abcd1234"),
     ("secret-assignment", "AZURE_CLIENT_SECRET=abcd1234"),
+    ("secret-assignment", "PGPASSWORD=hunter22 psql -h replica -c 'select 1'"),
+    ("secret-assignment", "SECRET_KEY=abcd1234"),
+    ("secret-assignment", "AWS_SECRET_ACCESS_KEY=abcd1234"),
+    ("secret-assignment", "JWT_SECRET_KEY=abcd1234"),
+    ("secret-assignment", "export DB_PASSWORD_PROD=abcd1234"),
+    ("secret-assignment", "token_limit = abc12345"),
     ("token-prefix", "export X=" + "ghp_" + "a1" * 12),
     ("token-prefix", "ATATT" + "3xFf" * 8),
     ("url-credentials", "clone https://user:pass@host.example/repo.git"),
     ("io-host", "see api.service.io for details"),
     ("private-ip", "server at 10.1.2.3"),
     ("home-path", "cd /home/someone/work"),
+    ("home-path", "cd /mnt/c/Users/someone/Desktop"),
+    ("home-path", "cd /mnt/d/users/someone"),
+    ("home-path", "C:\\Users\\someone\\Documents"),
+    ("home-path", "C:/Users/someone/Documents"),
+    ("home-path", '"C:\\\\Users\\\\someone"'),
+    ("home-path", "\\\\wsl.localhost\\Distro\\home\\someone\\repos"),
+    ("home-path", "\\\\wsl$\\Distro\\home\\someone"),
     ("real-name", "ping Méridia about it"),
     ("blocked-domain", "open https://www.ACME-CORP.example/page"),
 ]
@@ -53,6 +66,12 @@ def test_each_rule_fires(table, rule, line):
         "a brilliant idea",
         "the tokenizer: spacy",
         "token_count = 12345",
+        "token_limit = 4096",
+        "max_tokens: 4096",
+        "the tokens: a list",
+        'docker run -v "$PWD":/proto image',
+        "see C:\\Users\\<name>\\Desktop and /mnt/c/Users/<name>",
+        "the C:\\Windows\\System32 folder and /mnt/c/Program Files",
         "Acmeville is a town",
         "see 110.1.2.3 and 10.1.2",
         "https://example.org/path@v2",
@@ -74,10 +93,25 @@ def test_prose_passes(table, line):
         "SECRET_KEY=<valor>",
         "API_TOKEN=<valor>",
         "DB_PASSWORD: <senha>",
+        "PGPASSWORD=<senha> psql -h <replica-host>",
+        "AWS_SECRET_ACCESS_KEY=<chave>",
+        "JWT_SECRET_KEY=<valor>",
     ],
 )
 def test_placeholder_passes(table, line):
     assert rules_of(line, table) == []
+
+
+def test_placeholder_passes_and_real_value_fails(table):
+    assert rules_of("SECRET_KEY=<valor>", table) == []
+    assert rules_of("SECRET_KEY=abcd1234", table) == ["secret-assignment"]
+    assert rules_of("PGPASSWORD=<senha> psql", table) == []
+    assert rules_of("PGPASSWORD=hunter22 psql", table) == ["secret-assignment"]
+
+
+@pytest.mark.parametrize("line", ["acme_theme: x", "AcmeTheme", "ACME_API_URL=x", "acme2"])
+def test_name_inside_an_identifier_fails(table, line):
+    assert rules_of(line, table) == ["real-name"]
 
 
 def test_capitalized_partner_word_fails_but_prose_passes(table):
@@ -125,6 +159,8 @@ ATLASSIAN_TOKEN = "ATATT" + "3xFf" * 8
         (f"export X={GITHUB_TOKEN}", "ghp_***"),
         (f"auth {ATLASSIAN_TOKEN}", "ATAT***"),
         ("clone https://user:pass@host.example/repo.git", "://***@"),
+        ("PGPASSWORD=hunter22 psql -h x", "PGPASSWORD=***"),
+        ("export AWS_SECRET_ACCESS_KEY=abcd1234", "AWS_SECRET_ACCESS_KEY=***"),
     ],
 )
 def test_secret_findings_never_carry_the_value(table, line, redacted):
