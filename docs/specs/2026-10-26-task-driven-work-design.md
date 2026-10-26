@@ -1,7 +1,7 @@
 # Task-driven work — design
 
 - **Date:** 2026-10-26
-- **Status:** v1, waiting for review. Agreed in conversation on 2026-10-26, section by section.
+- **Status:** v1, approved on 2026-10-26, after agreeing on it section by section.
 - **Scope:** subprojects 2 (GMUD) and 3 (Jira board) of the foundation spec, merged into one work
   cycle. The cycle and the platform model are designed here; phase A is designed in detail.
   Phases B, C and D each get their own detailed section or spec before they are built.
