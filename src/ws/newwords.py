@@ -10,6 +10,10 @@ A word is known (compared lowercased and without accents) when it appears in the
 pushed state, is listed in `.known-words` or is an analog in `names.toml`. A real name that is
 already in `names.toml` is not reported: `ws check-secrets` blocks it.
 
+The common-word dictionaries (`ws.dictionary`) clear a word only at the start of a sentence: in the
+middle of one, a capitalized ordinary word is probably a name (a brand named after a common word),
+so it is still reported, and a word cleared in one place is reported where it appears mid-sentence.
+
 Every function here reads or reports; the hooks and `ws names` decide what to do with the result.
 Errors are never swallowed here, so callers can fail closed.
 """
@@ -20,7 +24,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from ws import secrets
+from ws import dictionary, secrets
 from ws.names import NamesTable, fold, real_name_matches
 
 KNOWN_WORDS_FILE = ".known-words"
@@ -40,6 +44,12 @@ MIN_LETTERS = 3
 LETTER_RUNS = re.compile(rf"[^\W\d_]{{{MIN_LETTERS},}}")
 SINGLE_WORD = re.compile(r"[^\W\d_]+")
 SYMLINK_MODE = "120000"
+# What may come before the first word of a sentence in its line: a heading, a quote, a list or
+# ordered item, a table cell, emphasis or an opening quote or bracket (case a); or the stop that
+# ends the previous sentence: a period, colon, `!`, `?` or table pipe (case b). The first group is
+# possessive so a long run of spaces cannot make the match quadratic.
+LINE_START = re.compile(r"[\s>#*\-+|`\"'(\[]*+(\d+[.)]\s*)?[\s*_`\"'(\[]*")
+AFTER_STOP = re.compile(r"[.:!?|]\s*[*_`\"'(\[]*$")
 # Where the places of a word are listed in a report; the rest is counted.
 REPORT_PLACES = 3
 DEFAULT_BASES = ("@{upstream}", "origin/main")
@@ -71,9 +81,14 @@ class Known:
 
     table: NamesTable
     words: frozenset[str]
+    common: frozenset[str] = frozenset()
 
     def is_known(self, word: str) -> bool:
         return fold(word) in self.words or bool(real_name_matches(word, self.table))
+
+    def is_common_at_start(self, word: str, before: str) -> bool:
+        """An ordinary word at the start of a sentence; `before` is the line text ahead of it."""
+        return fold(word) in self.common and at_sentence_start(before)
 
 
 def _parts(run: str) -> list[str]:
@@ -94,18 +109,29 @@ def _parts(run: str) -> list[str]:
     return parts
 
 
+def _nfc(text: str) -> str:
+    return text if text.isascii() else unicodedata.normalize("NFC", text)
+
+
+def word_spans(text: str) -> Iterator[tuple[str, int]]:
+    """Each word of three letters or more with its column; `text` must already be NFC."""
+    for match in LETTER_RUNS.finditer(text):
+        column = match.start()
+        for part in _parts(match.group()):
+            if len(part) >= MIN_LETTERS:
+                yield part, column
+            column += len(part)
+
+
 def words_of(text: str) -> Iterator[str]:
     """The words of three letters or more; digits, underscores and camelCase edges split them."""
-    if not text.isascii():
-        text = unicodedata.normalize("NFC", text)
-    for run in LETTER_RUNS.findall(text):
-        for part in _parts(run):
-            if len(part) >= MIN_LETTERS:
-                yield part
+    for word, _ in word_spans(_nfc(text)):
+        yield word
 
 
-def capitalized_words(text: str) -> Iterator[str]:
-    return (word for word in words_of(text) if word[0].isupper())
+def at_sentence_start(before: str) -> bool:
+    """Whether the text ahead of a word in its line leaves the word at the start of a sentence."""
+    return LINE_START.fullmatch(before) is not None or AFTER_STOP.search(before) is not None
 
 
 def parse_known_words(text: str) -> frozenset[str]:
@@ -181,7 +207,7 @@ def vocabulary(repo: Path, rev: str) -> frozenset[str]:
 def make_known(repo: Path, table: NamesTable, against: str | None, listed: frozenset[str]) -> Known:
     """`against` is the revision whose text is the vocabulary; None means nothing is pushed."""
     pushed = frozenset() if against is None else vocabulary(repo, against)
-    return Known(table, pushed | listed | _analog_words(table))
+    return Known(table, pushed | listed | _analog_words(table), dictionary.load())
 
 
 def resolve_base(repo: Path) -> str | None:
@@ -199,10 +225,15 @@ def _text_hits(
     path: str, text: str, only_lines: set[int] | None, known: Known, commit: str = ""
 ) -> Iterator[tuple[str, Place]]:
     # Only "\n" ends a line, as in git, so the numbers match the diff.
-    for number, line in enumerate(text.split("\n"), start=1):
+    for number, raw in enumerate(text.split("\n"), start=1):
         if only_lines is None or number in only_lines:
-            for word in capitalized_words(line):
-                if not known.is_known(word):
+            line = _nfc(raw)
+            for word, column in word_spans(line):
+                if (
+                    word[0].isupper()
+                    and not known.is_known(word)
+                    and not known.is_common_at_start(word, line[:column])
+                ):
                     yield word, Place(path, number, commit)
 
 
@@ -284,9 +315,22 @@ def format_places(item: NewWord, limit: int = REPORT_PLACES) -> str:
     return f"{shown} (+{more} more)" if more > 0 else shown
 
 
-def format_report(words: list[NewWord], blocking: bool) -> list[str]:
+def missing_dictionaries_note(missing: Iterable[dictionary.Source]) -> str:
+    packages = ", ".join(source.package for source in missing)
+    return (
+        f"Common-word dictionaries not found ({packages}), so ordinary words at the start of a "
+        "sentence are reported too; `ws setup` installs them."
+    )
+
+
+def format_report(
+    words: list[NewWord], blocking: bool, missing: Iterable[dictionary.Source] = ()
+) -> list[str]:
     lines = [f"{len(words)} new word(s), not in the pushed state, .known-words or names.toml:"]
     lines.extend(f"  {item.word}: {format_places(item)}" for item in words)
+    missing = list(missing)
+    if missing:
+        lines.append(missing_dictionaries_note(missing))
     lines.append(
         "Ask the user about each word: a real name goes in with `ws names add REAL --analog "
         "ANALOG`, a harmless one with `ws names known WORD...` (`ws names review` asks in the "

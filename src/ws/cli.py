@@ -6,7 +6,18 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from ws import bootstrap, config, gittools, names, newwords, project, review, secrets, slot
+from ws import (
+    bootstrap,
+    config,
+    dictionary,
+    gittools,
+    names,
+    newwords,
+    project,
+    review,
+    secrets,
+    slot,
+)
 from ws.config import claude_skills_dir, config_dir, repo_root
 
 
@@ -410,8 +421,15 @@ def _names_scope(args: argparse.Namespace, repo: Path) -> tuple[list[str], str |
 
 
 def _print_new_words(words: list[newwords.NewWord], blocking: bool, stream) -> None:
-    for line in newwords.format_report(words, blocking):
+    for line in newwords.format_report(words, blocking, dictionary.missing()):
         print(line, file=stream)
+
+
+def _note_missing_dictionaries(words: list[newwords.NewWord]) -> None:
+    """Tell, on stderr, that the list is longer than it needs to be; stdout stays the list."""
+    missing = dictionary.missing()
+    if words and missing:
+        print(newwords.missing_dictionaries_note(missing), file=sys.stderr)
 
 
 def _run_names_check(args: argparse.Namespace) -> int:
@@ -472,6 +490,7 @@ def _cmd_names_pending(args: argparse.Namespace) -> int:
         return 0
     for item in words:
         print(f"{item.word}: {newwords.format_places(item)}")
+    _note_missing_dictionaries(words)
     return 0
 
 
@@ -504,6 +523,7 @@ def _cmd_names_review(args: argparse.Namespace) -> int:
     try:
         repo = secrets.repo_toplevel(Path.cwd())
         words, revs = _pending(args, repo)
+        _note_missing_dictionaries(words)
         return review.run_review(repo, words, revs)
     except (names.NamesTableMissing, RuntimeError, ValueError, OSError) as error:
         print(f"ws names review: {error}", file=sys.stderr)

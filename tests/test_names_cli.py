@@ -327,3 +327,62 @@ def test_review_without_a_names_table_exits_2(unpushed, tmp_path, monkeypatch, c
     monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "no-config"))
     assert main(["names", "review"]) == 2
     assert "names table not found" in capsys.readouterr().err
+
+
+NOTE = "Common-word dictionaries not found (wamerican, wbrazilian)"
+
+
+def remove_dictionaries(folder):
+    for path in folder.iterdir():
+        path.unlink()
+
+
+def test_check_report_names_the_missing_dictionaries(unpushed, ws_dictionaries, ws_config, capsys):
+    args = ["names", "check", "--range", "origin/main..HEAD", "--against", "origin/main"]
+    assert main(args) == 1
+    assert NOTE not in capsys.readouterr().out
+    remove_dictionaries(ws_dictionaries)
+    assert main(args) == 1
+    out = capsys.readouterr().out
+    assert NOTE in out
+    assert "`ws setup` installs them" in out
+
+
+def test_the_warning_of_the_commit_hooks_also_names_the_missing_dictionaries(
+    repo, git, ws_dictionaries, ws_config, monkeypatch, capsys
+):
+    commit(repo, git, "base", {"a.md": "fine\n"})
+    (repo / "a.md").write_text("fine\nZorblax\n", encoding="utf-8")
+    git(repo, "add", "a.md")
+    remove_dictionaries(ws_dictionaries)
+    monkeypatch.chdir(repo)
+    assert main(["names", "check", "--staged", "--against", "HEAD", "--warn"]) == 0
+    assert NOTE in capsys.readouterr().err
+
+
+def test_pending_keeps_its_list_on_stdout_and_notes_the_missing_dictionaries_on_stderr(
+    unpushed, ws_dictionaries, ws_config, capsys
+):
+    assert main(["names", "pending"]) == 0
+    captured = capsys.readouterr()
+    assert NOTE not in captured.err
+    remove_dictionaries(ws_dictionaries)
+    assert main(["names", "pending"]) == 0
+    again = capsys.readouterr()
+    assert again.out == captured.out
+    assert NOTE in again.err
+    assert main(["names", "pending", "--json"]) == 0
+    as_json = capsys.readouterr()
+    assert json.loads(as_json.out)
+    assert as_json.err == ""
+
+
+def test_pending_says_nothing_about_dictionaries_when_nothing_is_pending(
+    repo, git, ws_dictionaries, ws_config, monkeypatch, capsys
+):
+    base = commit(repo, git, "base", {"a.md": "fine\n"})
+    git(repo, "update-ref", "refs/remotes/origin/main", base)
+    remove_dictionaries(ws_dictionaries)
+    monkeypatch.chdir(repo)
+    assert main(["names", "pending"]) == 0
+    assert capsys.readouterr().err == ""
