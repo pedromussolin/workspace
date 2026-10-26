@@ -3,9 +3,10 @@
 - **TS:** TS-5431 (épico TS-5357).
 - **Repos:** BFF (catálogo de permissões, rotas, lista de migração) e front (abas e botões por escopo). Grupos e
   atribuições são manuais (D128), sem tela de migração de grupos e sem catálogo de perfis.
-- **Status (26/10):** desenho fechado (D128 a D130), levantamento das telas feito, 57 roles novas listadas.
-  Branch `feature/TS-5431-escopos-por-area` (front e BFF), a partir da `release/20261026`; implementação não
-  começada. Levantamento completo e a lista das roles (com nomes reais) em
+- **Status (26/10):** implementada e validada localmente, **sem commit** (revisão do Pietro pendente). Branch
+  `feature/TS-5431-escopos-por-area` (front e BFF), a partir da `release/20261026`. BFF 2382 testes; front
+  `validate.sh` ok com 4983 specs; smoke ok nas 11 rotas mexidas. Regras novas no `.ai/rules/permissions.md`
+  do front e na skill `new-page`. Levantamento completo e a lista das roles (com nomes reais) em
   `~/repos/.reestrutura_whitelabel/agentes/ts5431/` (`levantamento/`, `roles-ts5431.md`, `app-roles-ts5431.json`).
 - Fora da `release/20261026`.
 
