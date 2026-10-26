@@ -9,7 +9,7 @@
 1. **Baseline** antes de mexer:
    - rodar `npm ci`, `npm run build`, `npm run lint` e `npm test` (Karma,
      Chrome headless);
-   - registrar o resultado em `evidencias/baseline-<data>.md`, com falhas e
+   - registrar o resultado em `evidence/baseline-<data>.md`, com falhas e
      avisos que já existem.
 2. **`core/`:** mover `auth/` (guards, interceptor, `iam/`, `return-url`),
    `http/base-api.service.ts`, `utils/api-error.ts` e `theme/`. Criar
@@ -26,7 +26,7 @@
    - mover header, sidebar, breadcrumbs, layout, utility-sidebar e
      context-sidebar;
    - criar o shell como rota-mãe, que convive com o `<app-layout>` antigo
-     até as tarefas de área (ver [arquitetura-alvo](../arquitetura-alvo.md#rotas)).
+     até as tarefas de área (ver [target-architecture](../target-architecture.md#rotas)).
 5. **Aliases** `@core`, `@shared`, `@layouts`, `@features` no
    `tsconfig.json`.
 
@@ -82,15 +82,15 @@ Diferenças de comportamento, todas intencionais:
 
 ### Validação
 
-Baseline em [evidencias/baseline-2026-10-10.md](../evidencias/baseline-2026-10-10.md).
+Baseline em [evidence/baseline-2026-10-10.md](../evidence/baseline-2026-10-10.md).
 
 | Checagem | Antes (`d0bc3de`) | Depois |
 |---|---|---|
 | `npm run build` | passa | passa |
 | `npm run lint` | 73 erros / 286 avisos | 71 erros / 285 avisos (nenhum novo) |
 | Testes | não compilavam (depois do conserto: 249, 95 falhando) | 263 testes, 88 falhando, nenhuma falha nova |
-| Smoke com BFF falso ([smoke.mjs](../anexos/scripts/smoke.mjs)) | — | 29 rotas em desktop e celular, sem erro no console. O shell persiste na navegação interna |
-| Regressão visual (prints da master × branch) | — | ver [evidencias/regressao-visual-ts-5358.md](../evidencias/regressao-visual-ts-5358.md) |
+| Smoke com BFF falso ([smoke.mjs](../attachments/scripts/smoke.mjs)) | — | 29 rotas em desktop e celular, sem erro no console. O shell persiste na navegação interna |
+| Regressão visual (prints da master × branch) | — | ver [evidence/visual-regression-ts-5358.md](../evidence/visual-regression-ts-5358.md) |
 
 Não validado: login real no Azure e a sessão expirando de verdade. Precisam
 do BFF; testar na sandbox.

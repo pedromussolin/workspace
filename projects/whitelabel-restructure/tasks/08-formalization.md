@@ -3,7 +3,7 @@
 - **TS:** TS-5365 · **Branch:** `refact/TS-5365-formalizacao-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
 - **Status:** publicada (15/10), sem merge em ambiente
 - **Depende de:** 04
-- **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
+- **Passos e critério de pronto:** [area-playbook.md](area-playbook.md)
 
 ## Telas e rotas
 
@@ -117,7 +117,7 @@ padronizado`).
 
 **Situação:** 3 commits a mais, sem push.
 - Os specs da Formalização passam (150 de 150).
-- O `validar-leva.sh` passa:
+- O `validate-batch.sh` passa:
   - build ok;
   - lint 58/279;
   - 818 testes, nenhuma falha nova e 22 da base corrigidas;

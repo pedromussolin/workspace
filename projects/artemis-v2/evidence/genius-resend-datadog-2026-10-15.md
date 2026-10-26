@@ -1,7 +1,7 @@
 # Reenvio para a Genius em produção — 15/10/2026
 
 Logs e APM do Datadog sobre envio, reenvio e retorno de lotes da Genius. Base
-da [tarefa 08](../tarefas/08-genius-reenvio-e-logs.md).
+da [tarefa 08](../tasks/08-genius-resend-and-logs.md).
 
 - Ambiente: `env:production`, serviços `platform-cessao` (API) e
   `platform-cessao-worker` (Celery e consumer do RabbitMQ).

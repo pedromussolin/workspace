@@ -1,7 +1,7 @@
 # Instruções comuns aos agentes do controle de acesso (tarefa 26, TS-5405)
 
-Você faz UMA parte do plano `tarefas/26-controle-de-acesso-ux-plano.md` (leia também a spec
-`tarefas/26-controle-de-acesso-ux.md`), junto com outros agentes que trabalham ao mesmo tempo. Escreva
+Você faz UMA parte do plano `tasks/26-access-control-ux-plan.md` (leia também a spec
+`tasks/26-access-control-ux.md`), junto com outros agentes que trabalham ao mesmo tempo. Escreva
 em PT-BR.
 
 ## Onde
@@ -59,7 +59,7 @@ falta de memória.
 - A API responde com `page.route`, a partir de
   `~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json` (cópia na sua pasta; não edite o
   original). Para as rotas novas, monte respostas fictícias no formato do plano. Veja como
-  `~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
+  `~/repos/workspace/projects/whitelabel-restructure/attachments/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
   `iam/paths`.
 - `playwright-core` vem de `~/repos/.reestrutura_whitelabel/pw/node_modules`, via `createRequire`.
 - Prints em `~/repos/.reestrutura_whitelabel/evidencias/26/<sua-parte>/`.

@@ -1,7 +1,7 @@
 # Fechamento de lote no Datadog — 09/10/2026
 
 Onde vai o tempo do `POST /liquidacao/` e do que vem depois dele (esteira).
-Base da [tarefa 03](../tarefas/03-fechamento-assincrono-e-429.md).
+Base da [tarefa 03](../tasks/03-async-closing-and-429.md).
 
 - Ambiente: `env:production`, serviço `platform-cessao`, 30 dias até 09/10.
 - Só ~51% das requisições têm span guardado (4.135 spans contra 8.080 logs

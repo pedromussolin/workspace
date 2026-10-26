@@ -1,8 +1,8 @@
 # Continuar em outro chat ou no Codex (26/10)
 
 Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
-mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D132) e o
-`~/.config/workspace/private/reestrutura-whitelabel.md` (nomes reais).
+mesmo), o README (tabela de Tarefas), o `decisions.md` (D108 a D132) e o
+`~/.config/workspace/private/whitelabel-restructure.md` (nomes reais).
 
 ## Onde está
 
@@ -30,10 +30,10 @@ cópia `release/20261027-sdbx` (release + `sandbox`). Worktrees em
   para a `master` se atualizam sozinhas; para a sandbox, abrir PR nova quando a anterior já foi mergeada.
 
 **Tarefas abertas:**
-- [34](tarefas/34-renovacao-tokens-azure.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
+- [34](tasks/34-azure-token-renewal.md), TS-5429: renovação dos tokens do Azure derruba a sessão.
   **Publicada (26/10)** na release e na `-sdbx` (PRs da `master` #227 e #240; merge com o
   Pietro). Depois do deploy: ler o AADSTS do log `Azure token refresh rejected` e fechar a causa.
-- [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: um escopo por área em todas as páginas
+- [35](tasks/35-atomic-permissions-and-group-migration.md), TS-5431: um escopo por área em todas as páginas
   (D129, D130), grupos manuais (D128). Publicada na release e na `-sdbx` (26/10); na sandbox desde 26/10. Depois do deploy: Migração e limpeza das roles antigas.
 
 **Sugestão pendente, não pedida pelo Pietro:** o BFF cai no boot se `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
@@ -69,16 +69,16 @@ A documentação do Codex foi para a `main` (aqui não se usa branch).
 
 O limite semanal acabou no meio da tarefa 31. Ponto de partida para quem continuar (Claude ou
 Codex): leia o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md`
-tem o mesmo), o README (tabela de Tarefas), o `decisoes.md` (D108 a D122) e o
-`~/.config/workspace/private/reestrutura-whitelabel.md` (nomes reais).
+tem o mesmo), o README (tabela de Tarefas), o `decisions.md` (D108 a D122) e o
+`~/.config/workspace/private/whitelabel-restructure.md` (nomes reais).
 
 | PR | TS | Tarefa | Onde | Estado |
 |---|---|---|---|---|
-| 1 | TS-5424 | [31](tarefas/31-ajustes-visuais-e-padroes.md) | front `~/repos/apl-credit-whitelabel-wt/31`, `feature/TS-5424-ajustes-visuais-e-padroes` | 21 commits locais, aprovados; falta publicar e abrir a PR contra a master |
+| 1 | TS-5424 | [31](tasks/31-visual-adjustments-and-patterns.md) | front `~/repos/apl-credit-whitelabel-wt/31`, `feature/TS-5424-ajustes-visuais-e-padroes` | 21 commits locais, aprovados; falta publicar e abrir a PR contra a master |
 | 5 | TS-5427 | 31 | front `~/repos/apl-credit-whitelabel-wt/32`, `feature/TS-5427-funil-e-cards-orquestrador` (sobre a PR 1) | 5 commits locais; **em revisão, fora dos commits:** Faixas em px, valor desembolsado em 18 px e centralizado. Falta o ok do Pietro, encaixar nos commits, publicar e abrir a PR contra a branch da PR 1 |
 | 2 | TS-5425 | 31 (seção "Andamento") | BFF `~/repos/apl-credit-whitelabel-api-wt/33`; front `~/repos/apl-credit-whitelabel-wt/33` + `agentes/t5425/front-a` e `front-b` | sem commit; ver o passo a passo na tarefa 31 |
-| 4 | TS-5416 | [32](tarefas/32-envio-por-subfluxo.md) | shared e BFF `*-wt/32`; front `*-wt/34` | implementada localmente; revisão e smoke pendentes |
-| 3 | TS-5426 | [33](tarefas/33-ver-como.md) | BFF `*-wt/34`; front `*-wt/35` | implementada sobre a PR 2; revisão e smoke pendentes |
+| 4 | TS-5416 | [32](tasks/32-send-by-subflow.md) | shared e BFF `*-wt/32`; front `*-wt/34` | implementada localmente; revisão e smoke pendentes |
+| 3 | TS-5426 | [33](tasks/33-view-as.md) | BFF `*-wt/34`; front `*-wt/35` | implementada sobre a PR 2; revisão e smoke pendentes |
 
 Ordem sugerida: fechar a PR 2, depois a PR 4, depois a PR 3. Nada se commita nos repos da empresa
 sem a revisão do Pietro, e nada se publica sem ele pedir.
@@ -89,7 +89,7 @@ sem a revisão do Pietro, e nada se publica sem ele pedir.
 
 Ponto de partida para um chat novo que vai fazer a última tarefa antes do deploy (24), **enquanto
 outro chat termina a R59 e a 27**. Leia isto, o `CLAUDE.md` desta pasta, o README (Tarefas e
-Situação), o `decisoes.md` e o `~/.config/workspace/private/reestrutura-whitelabel.md` (local).
+Situação), o `decisions.md` e o `~/.config/workspace/private/whitelabel-restructure.md` (local).
 
 ## Onde está cada coisa
 
@@ -104,12 +104,12 @@ Cadeia do front: `release/20261016` → 25 (TS-5395) → 26 (TS-5405) → 27 (TS
 | 26 | BFF | `~/repos/apl-credit-whitelabel-api-wt/26` | `feature/TS-5405-controle-de-acesso-ux` | `0446d9b` | publicada |
 | 27 | front | `~/repos/apl-credit-whitelabel-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `3e05c4f6` | publicada (com a 26 e a R59, por merge) |
 | 27 | BFF | `~/repos/apl-credit-whitelabel-api-wt/27` | `feature/TS-5407-organizacao-e-cliente` | `fa7c287` | publicada |
-| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `91b75672` | **publicada (20/10)** (POLI no portal e mascotes; `tarefas/28-*`; portas 4600–4699) |
+| 28 | front | `~/repos/apl-credit-whitelabel-wt/28` | `feature/TS-5406-poli-mascote` | `91b75672` | **publicada (20/10)** (POLI no portal e mascotes; `tasks/28-*`; portas 4600–4699) |
 
 As worktrees 26 e 27 do front usam o `node_modules` da 25 (link). O README diz quando a R59 e a 27
 forem commitadas e publicadas.
 
-**Publicada em 20/10: R60, a home nova** ([tarefas/25-home-parceiros.md](tarefas/25-home-parceiros.md)),
+**Publicada em 20/10: R60, a home nova** ([tasks/25-partners-home.md](tasks/25-partners-home.md)),
 na `refact/TS-5395-refinamento-visual` (`aae6a159`), e por merge na 26 e na 27. A home passa a ser uma só para todos: a saudação no topo, para a
 organização interna a **seção da POLI compacta logo abaixo** (não ocupa mais a altura da tela) e,
 para todos, o painel do dia (`home-panel/`: cartões por módulo, acesso rápido, recentes).
@@ -167,19 +167,19 @@ conflito esperado:
   - Branch publicada recebe o que veio de baixo por **merge**, nunca por rebase com force push.
 - **Portas:** 4300 e 8765 são do portal local do Pietro (servindo a worktree 27, que tem tudo: 25, R59, 26 e 27). O outro chat
   usa 4510–4599 nos agentes e 4591/8791 no smoke. Use 4600–4699 e, no smoke, uma cópia com as
-  portas trocadas: `sed 's/4300/46XX/g; s/8765/87XX/g' anexos/scripts/smoke.mjs > <cópia>`.
+  portas trocadas: `sed 's/4300/46XX/g; s/8765/87XX/g' attachments/scripts/smoke.mjs > <cópia>`.
 - **Máquina:** comando pesado (`ng build`, `ng test`, `ng lint`, Playwright) passa pelo
   `~/repos/.reestrutura_whitelabel/ng-slot.sh`, que deixa dois de cada vez entre todos os chats.
 
 ## Ferramentas
 
-- **Validar:** `anexos/scripts/validar-leva.sh <worktree> [rotas]` com `BASE=<ponta da base>`,
+- **Validar:** `attachments/scripts/validate-batch.sh <worktree> [rotas]` com `BASE=<ponta da base>`,
   `BASE_FALHAS=$HOME/repos/.reestrutura_whitelabel/base-vazia-falhas.txt` e `BASE_LINT=20/162`.
   Confere commits (72 caracteres, sem `Co-Authored-By`, cada um compilando sozinho), build, lint,
   testes e smoke (o smoke usa 4300/8765: com o portal no ar, rode a cópia em outras portas).
-- **Portal local:** `anexos/scripts/portal-local.sh <worktree>` (`BUILD=1` refaz o build). Em
+- **Portal local:** `attachments/scripts/local-portal.sh <worktree>` (`BUILD=1` refaz o build). Em
   http://localhost:4300/__marcas escolhe a marca e a visão (parceiro ou interna).
-- **Agentes:** até cinco, com pastas separadas e um brief como `anexos/agentes/brief-acesso.md`;
+- **Agentes:** até cinco, com pastas separadas e um brief como `attachments/agents/access-brief.md`;
   rascunho em `~/repos/.reestrutura_whitelabel/agentes/<parte>/`, nunca em `/tmp`. Atenção: o
   `ng test --include` compila todos os specs da worktree, então dois agentes na mesma worktree
   derrubam um ao outro se um deixar spec quebrado.

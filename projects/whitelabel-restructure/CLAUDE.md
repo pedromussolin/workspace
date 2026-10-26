@@ -19,13 +19,13 @@ projeto.
 - Os nomes reais viram análogos: "Poliedro" para a empresa e as marcas "Dots", "Cerys" e "Viva".
   Vale também em nomes de arquivo, chaves de tema e caminhos citados.
 - Endereços internos viram `<url-da-sandbox>`, "host da sandbox" etc.
-- Protótipos próprios em `anexos/` (prévia, ícones, scripts) são permitidos. Os dados de cliente
+- Protótipos próprios em `attachments/` (prévia, ícones, scripts) são permitidos. Os dados de cliente
   da prévia são fictícios.
 
 ## Valores reais fora do repo
 
 Alguns valores ficam no arquivo local
-`~/.config/workspace/private/reestrutura-whitelabel.md`, fora do controle de versão:
+`~/.config/workspace/private/whitelabel-restructure.md`, fora do controle de versão:
 - a URL da sandbox;
 - a tabela de nomes reais × análogos;
 - onde estão os logs brutos.
@@ -42,10 +42,10 @@ empresa), use os nomes reais.
     que falta).
   - Cada tarefa tem "Status" no topo e "O que foi feito" quando sai do
     papel.
-- **Decisões:** decisão tomada vai para `decisoes.md`, com data, quem
+- **Decisões:** decisão tomada vai para `decisions.md`, com data, quem
   decidiu e o motivo.
 - **Validação:** o passo a passo e os números de base ficam em
-  `tarefas/roteiro-de-area.md`.
+  `tasks/area-playbook.md`.
 
 As regras de git dos repos da empresa (branch e commit com `TS-…`, sem push
 pelo Claude) estão no `~/repos/CLAUDE.md` e não valem para este repo.

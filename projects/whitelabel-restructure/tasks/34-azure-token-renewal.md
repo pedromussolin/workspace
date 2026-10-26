@@ -44,7 +44,7 @@ Nos logs de produção de 23/10 há recusas 400 do Azure na renovação, inclusi
 
 ## Regras
 
-As da [32](32-envio-por-subfluxo.md): git do `~/repos/CLAUDE.md`, commit só depois da revisão do
+As da [32](32-send-by-subflow.md): git do `~/repos/CLAUDE.md`, commit só depois da revisão do
 Pietro, Python em inglês, log com mensagem fixa e dimensões no `extra`, validar local antes.
 
 ## O que foi feito (23 a 26/10)

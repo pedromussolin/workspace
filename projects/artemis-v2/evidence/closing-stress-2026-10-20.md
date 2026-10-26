@@ -3,7 +3,7 @@
 Simulação de pressão maior que a de produção sobre o fechamento novo. Compara
 o código em produção (`master` `f19ef2cef`) com a fase 1 de robustez (branch
 `fix/TS-5377-robustez-fechamento-lote`, ver
-[tarefa 03](../tarefas/03-fechamento-assincrono-e-429.md)). Os dois rodam com
+[tarefa 03](../tasks/03-async-closing-and-429.md)). Os dois rodam com
 concorrência 16, o padrão desde 20/10.
 
 ## Conclusão
@@ -54,8 +54,8 @@ concorrência 16, o padrão desde 20/10.
 - **Falhas injetadas** só depois de o simulador avisar que a rajada começou:
   pausar o worker, matar o worker com `kill -9`, pausar o Redis e segurar
   pagamentos em outra transação.
-- **Arquivos** em [anexos/estresse](../anexos/estresse) (`compose.yml`,
-  `gen.sql`, `driver.py`, `run.sh`, `resumo.py`). Credenciais só de teste
+- **Arquivos** em [attachments/stress](../attachments/stress) (`compose.yml`,
+  `gen.sql`, `driver.py`, `run.sh`, `summary.py`). Credenciais só de teste
   local.
 
 **Ressalvas:**
@@ -105,7 +105,7 @@ comparação.
 ## Como repetir
 
 ```bash
-cd anexos/estresse   # copiar para fora do repo antes, por causa de results/ e logs/
+cd attachments/stress   # copiar para fora do repo antes, por causa de results/ e logs/
 # compose.yml: CODE_DIR, WW_DIR (westworld da versão do requirements) no .env
 docker compose up -d db redis rabbit driver
 docker compose exec -T driver sh -c "cd /app && python /estresse/schema.py"
@@ -113,5 +113,5 @@ docker compose exec -T db psql -U teste -d platform-cessao -q -f - < gen.sql
 MASTER=<cópia da master> BRANCH=<cópia da branch> ./run.sh base-c16 escala-branch \
   trava16-branch trava16-master parado16-branch parado16-master \
   mortotrava-branch mortotrava-master redis16-branch redis16-master
-python3 resumo.py results
+python3 summary.py results
 ```

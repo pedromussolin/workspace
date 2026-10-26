@@ -87,7 +87,7 @@ diferente e o mesmo nome (A1.3). [C]
 | Renegociação | contratos novos (ocorrência `12`) e os pagamentos do proc_id (ocorrência `10`) no mesmo arquivo | não gera arquivo: a westworld responde 200 sem enviar (`cnab_500_liquidacao_genius.py:105-115`) |
 
 No repasse, o nome e o conteúdo são os do parceiro, então um reenvio sai
-idêntico. Ver B13 em [bugs-encontrados.md](../bugs-encontrados.md) para o risco
+idêntico. Ver B13 em [bugs-found.md](../bugs-found.md) para o risco
 de usar só o primeiro arquivo.
 
 #### Como o nome é formado
@@ -318,7 +318,7 @@ DIA 11  lote C, novo: nenhuma reserva do dia 11 → 001
   (`cnab_500_liquidacao_genius.py:354`).
 
 **A3. Retorno reprocessado em laço.** [C] no código e no Datadog; [H] no
-efeito sobre as parcelas. Detalhe na [evidência de 15/10](../evidencias/genius-reenvio-datadog-2026-10-15.md).
+efeito sobre as parcelas. Detalhe na [evidência de 15/10](../evidence/genius-resend-datadog-2026-10-15.md).
 - O consumer do RabbitMQ processa o `.RET` inteiro dentro do callback e só dá
   ack no fim (`consumer/__init__.py:54-65`). Com `pika.BlockingConnection`
   (`consumer/messaging/consumer.py:9-12`), a conexão não troca heartbeat
@@ -352,7 +352,7 @@ efeito sobre as parcelas. Detalhe na [evidência de 15/10](../evidencias/genius-
 **B3. `size mismatch 0 != N` pode deixar um `.REM` vazio no SFTP.** [C] no
 Datadog: o único caso em 30 dias foi num arquivo enviado por 5 lotes ao
 mesmo tempo (B13, repasse); um `putfo` truncou o arquivo enquanto outro
-conferia o tamanho ([evidência de 15/10](../evidencias/genius-reenvio-datadog-2026-10-15.md)).
+conferia o tamanho ([evidência de 15/10](../evidence/genius-resend-datadog-2026-10-15.md)).
 - O 0 é o tamanho remoto depois da escrita: abertura e escrita foram aceitas,
   mas o arquivo ficou vazio. Isso não bate com "servidor recusa sobrescrever",
   que falharia na abertura. Causas possíveis: o servidor trunca e descarta a
@@ -408,9 +408,9 @@ conferia o tamanho ([evidência de 15/10](../evidencias/genius-reenvio-datadog-2
   `size mismatch in put! 0 != N` (08/09). Ver B3 para a leitura do número.
 - 3 × `Falha ao conectar no SFTP da genius: timed out`.
 - 4.863 × `Retorno da Genius nao e utf-8 valido; lendo como cp1252`.
-- Fonte e consultas: [baseline-datadog-2026-10-05.md](../evidencias/baseline-datadog-2026-10-05.md).
+- Fonte e consultas: [baseline-datadog-2026-10-05.md](../evidence/baseline-datadog-2026-10-05.md).
 
-**15/10/2026, 30 dias (logs desde 16/09)**, na [evidência de 15/10](../evidencias/genius-reenvio-datadog-2026-10-15.md):
+**15/10/2026, 30 dias (logs desde 16/09)**, na [evidência de 15/10](../evidence/genius-resend-datadog-2026-10-15.md):
 
 - A2 confirmado: 31 nomes de arquivo usados por mais de um lote (66 lotes),
   por três mecanismos: reenvio de outro dia (7 nomes), dois lotes novos no
@@ -441,7 +441,7 @@ conferia o tamanho ([evidência de 15/10](../evidencias/genius-reenvio-datadog-2
 | 8 | **Novo:** limpar o item do Redis da liquidação depois do processamento e remover todos os itens do id na cessão | B5 | cessão |
 | 9 | **Novo:** detectar `.RET` alterado depois de lido: ao marcar recebido, guardar data e tamanho do arquivo no item e, por alguns dias, alertar se mudarem. Sem reprocessar sozinho: uma correção da Genius precisa de alguém olhando. Depende de a Genius reemitir com o mesmo nome. Alternativa levantada em 14/10, voltar todos os itens para `pendente` e varrer o SFTP: **não recomendada**, porque a Lambda não distingue o `.RET` reemitido do já lido (não guarda data nem tamanho) e republicaria todos os retornos, reaplicando decisões a lotes já concluídos; na cessão o item já foi apagado | A1.1 | listener |
 
-A estimativa (36 h em [estimativa.md](../estimativa.md)) não cobre as
+A estimativa (36 h em [estimate.md](../estimate.md)) não cobre as
 propostas 7, 8 e 9 nem a mudança de modelo que a D13 pode exigir. Revisar quando
 as decisões fecharem.
 
@@ -560,7 +560,7 @@ A definir:
 
 ### Pendentes
 
-Registradas em [decisoes.md](../decisoes.md).
+Registradas em [decisions.md](../decisions.md).
 
 - **D12 — Arquivo já existe no destino antes do envio:** (a) falhar com erro
   claro; (b) sobrescrever e logar o que existia; (c) apagar antes de enviar.
@@ -633,7 +633,7 @@ marcadas com ★ são as que mais mudam a implementação.
 
 | # | Pergunta | Como a resposta muda a implementação | Destrava |
 |---|---|---|---|
-| N12 ★ | Nos produtos em que repassamos o arquivo do parceiro, podemos renomear o arquivo antes de enviar à Genius? O nome original é usado pelo parceiro, pela Genius ou pela operação (conciliação, tela da [tarefa 06](06-nome-do-cnab-na-tela.md))? | Se não pode renomear, o modo repasse não tem nome único: o reenvio precisa ser bloqueado ou tratado à parte | D13, D4 |
+| N12 ★ | Nos produtos em que repassamos o arquivo do parceiro, podemos renomear o arquivo antes de enviar à Genius? O nome original é usado pelo parceiro, pela Genius ou pela operação (conciliação, tela da [tarefa 06](06-cnab-name-on-screen.md))? | Se não pode renomear, o modo repasse não tem nome único: o reenvio precisa ser bloqueado ou tratado à parte | D13, D4 |
 | N13 | As mesmas regras valem para cessão e liquidação? A cessão é reenviada na prática? | Se a cessão não é reenviada, a correção começa pela liquidação | escopo |
 
 ## Perguntas para a Genius
@@ -722,7 +722,7 @@ marcadas com ★ são as que mais mudam a implementação.
 - 14/10/2026: mapeados os gatilhos do envio (rotas, agendamentos, callbacks)
   nos dois fluxos.
 - 14/10/2026: mapeado o conteúdo do CNAB nos dois fluxos e modos; hipótese
-  B13 registrada em bugs-encontrados.md.
+  B13 registrada em bugs-found.md.
 - 14/10/2026: revisado o mapeamento de casos do Heitor; a alternativa "voltar
   todos para pendente" foi registrada como não recomendada na proposta 9;
   entraram duas hipóteses (envio com falha aparente, `.RET` lido pela metade)
@@ -737,7 +737,7 @@ marcadas com ★ são as que mais mudam a implementação.
   envio no item (preferir a hora do servidor SFTP), a data do `.RET` confiável
   (G8) e alarme de "sem retorno" (N10). Não cobre A1.3 nem A2.
 - 14/10/2026: D15 decidida pelo filtro por data (I2); movida para "Tomadas"
-  aqui e em decisoes.md.
+  aqui e em decisions.md.
 - 15/10/2026: mapa do fluxo completo (cessão e liquidação, com as tabelas de
   cada etapa) em [08-analise-fluxo-genius.md](08-analise-fluxo-genius.md),
   base para avaliar o refactor.

@@ -2,7 +2,7 @@
 
 Medição da aba de lotes reais depois da réplica (TS-5279, 07/10) e do
 `statement_timeout` de 120 s por consulta (hotfix `0ef1d4f`, 06/10). Base da
-[tarefa 12](../tarefas/12-lotes-reais-lotes-antes-dos-valores.md).
+[tarefa 12](../tasks/12-real-batches-before-values.md).
 
 - Ambiente: `env:production`. Janela: 6 dias até 14/10/2026, 19h40 UTC.
 - Durações convertidas de nanossegundos.
@@ -59,7 +59,7 @@ fazem a mesma checagem (parcela → contrato → processo deletado).
 ## Atualização de 20/10/2026
 
 Mesmas consultas, de 14/10 19h40 a 20/10 18h50 UTC. Usada na
-[análise do PR de lotes reais](../tarefas/12-analise-pr-lotes-reais.md).
+[análise do PR de lotes reais](../tasks/12-real-batches-pr-analysis.md).
 
 | Status da rota | Chamadas | p50 | p95 | Máximo |
 |---|---|---|---|---|

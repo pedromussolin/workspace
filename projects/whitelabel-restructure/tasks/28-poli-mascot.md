@@ -2,7 +2,7 @@
 
 - **TS:** TS-5406 · **Branch:** `feature/TS-5406-poli-mascote` (só front)
 - **Status:** **publicada** (20/10), 8 commits sobre a `6303b2e5`, ponta `91b75672`. Plano em
-  [28-poli-mascote-plano.md](28-poli-mascote-plano.md)
+  [28-poli-mascot-plan.md](28-poli-mascot-plan.md)
 - **Depende de:** a 26 (TS-5405). A branch nasce da `feature/TS-5405-controle-de-acesso-ux`
   (`6303b2e5`), na worktree `apl-credit-whitelabel-wt/28`. Quando a R59 da 25 for publicada, entra
   por merge a `refact/TS-5395-refinamento-visual` (ela mexe no shell e na sidebar).
@@ -143,7 +143,7 @@ Fora estas, as matrizes de pixels e as fases das ações ficam iguais às do art
   - componente: desenho, clique e modo parado;
   - serviço: padrão pelo sistema, escolha salva e comandos;
   - troca de mascote, rotas, shell, página da POLI, chat e Home.
-- **`validar-leva.sh`** com a base `6303b2e5`, rotas `/home /poli-chat /legal-poli-chat`.
+- **`validate-batch.sh`** com a base `6303b2e5`, rotas `/home /poli-chat /legal-poli-chat`.
 - **Prints:** POLI vazia, POLI com conversa, POLI com a coluna recolhida e Home. Em claro, escuro,
   Dots e celular, com e sem *reduced motion*. Conferir os quatro personagens contra o
   `spritesheet.png` e o artefato.

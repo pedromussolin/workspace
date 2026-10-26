@@ -8,7 +8,7 @@
 
 Replicar para a Dayvale o fluxo feito para a Genius (fechamento, conciliação,
 envio e retorno), já corrigindo o que deu errado na Genius
-([08](08-genius-reenvio-e-logs.md), [09](09-lote-automatico-voltis.md)).
+([08](08-genius-resend-and-logs.md), [09](09-voltis-automatic-batch.md)).
 Dayvale é a prioridade antes do BGT (ata de 23/09).
 
 ## O que já existe
@@ -41,7 +41,7 @@ TS-5233), **sem merge** em 05/10/2026 — 37 arquivos, +4.094 linhas:
   Synkia? Se sim, o polling precisa de limite e backoff desde o início.
 - Gestão de rejeitadas: o motivo da rejeição vem da Dayvale? (oportunidade
   da ata)
-- Fechamento por proc_id ([02](02-fechar-lote-por-proc-id.md)) precisa estar
+- Fechamento por proc_id ([02](02-close-batch-by-proc-id.md)) precisa estar
   definido antes, porque a granularidade do lote decide o arquivo enviado.
 
 ## Próximo passo

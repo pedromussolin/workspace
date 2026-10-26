@@ -71,12 +71,12 @@ conteúdo:
 
 A maior parte já existe e só muda de lugar, com os nomes reais (vai para o
 repo da empresa):
-- [arquitetura-alvo.md](../arquitetura-alvo.md),
-  [design-system.md](../design-system.md) e [decisoes.md](../decisoes.md)
+- [target-architecture.md](../target-architecture.md),
+  [design-system.md](../design-system.md) e [decisions.md](../decisions.md)
   → `regras/` e `referencias/`;
-- [roteiro-de-area.md](roteiro-de-area.md) → `receitas/nova-tela.md` e
+- [area-playbook.md](area-playbook.md) → `receitas/nova-tela.md` e
   `regras/`;
-- `anexos/scripts/smoke.mjs` → `scripts/`, sem URL da sandbox nem dado
+- `attachments/scripts/smoke.mjs` → `scripts/`, sem URL da sandbox nem dado
   real;
 - as regras de git e de comunicação do `CLAUDE.md` da pasta de
   repositórios.
@@ -151,7 +151,7 @@ sem push. A estrutura usa nomes padrão (D26):
   - lista as origens externas, para a CSP.
 
 **Validação:**
-- `validar-leva.sh`: ok. Build ok; lint 20/163; **1.820 testes, nenhuma
+- `validate-batch.sh`: ok. Build ok; lint 20/163; **1.820 testes, nenhuma
   falha**;
 - smoke sem erro em claro, escuro, Dots e celular;
 - `validate.sh` com `SKIP_AUDIT=1`: ok;

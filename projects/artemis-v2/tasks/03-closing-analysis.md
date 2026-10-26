@@ -1,11 +1,11 @@
 # 03 — Análise do fechamento de lote (`POST /liquidacao/`)
 
-Base da [tarefa 03](03-fechamento-assincrono-e-429.md). Data: 09/10/2026.
+Base da [tarefa 03](03-async-closing-and-429.md). Data: 09/10/2026.
 
 - **Código:** platform-cessao `origin/master` `6bb61114e` (as linhas citadas
   são as mesmas da branch local). BFF e front: `master`.
 - **Produção:** Datadog, 30 dias até 09/10
-  ([evidência](../evidencias/fechamento-lote-datadog-2026-10-09.md)). As
+  ([evidência](../evidence/batch-closing-datadog-2026-10-09.md)). As
   contagens de spans (trechos cronometrados de uma requisição) são amostradas e
   valem como piso.
 - **Legenda:** **[C]** comprovado no código ou no Datadog; **[H]** hipótese a
@@ -30,7 +30,7 @@ Base da [tarefa 03](03-fechamento-assincrono-e-429.md). Data: 09/10/2026.
 
 ## 1. Estimativa revisada
 
-Horas no mesmo critério da [estimativa.md](../estimativa.md): **Dev** = código
+Horas no mesmo critério da [estimate.md](../estimate.md): **Dev** = código
 e testes; **Val** = validação em ambiente, liberação e acompanhamento. Os itens
 (P1, P2...) são detalhados na seção 8.
 
@@ -39,17 +39,17 @@ e testes; **Val** = validação em ambiente, liberação e acompanhamento. Os it
 | Etapa | Itens | Dev | Val | Total | Depende de | Risco |
 |---|---|---|---|---|---|---|
 | 0. Levantamentos | L1 dono da varredura, L2 produtos por modo, L3 medir na réplica o UPDATE único com o maior grupo real, L4 decisão D9 | 6 | 0 | 6 | infra (L1), DBA (L3), negócio (L4) | sem L4, a etapa 2 não começa |
-| 1. Ganhos rápidos | adiados em 13/10 (só mexem no legado; ver `depois-da-v2.md`) | 0 | 0 | 0 | — | — |
+| 1. Ganhos rápidos | adiados em 13/10 (só mexem no legado; ver `after-v2.md`) | 0 | 0 | 0 | — | — |
 | 2. Fechar numa instrução | P5 regra única + UPDATE por grupo, P7 medição | 14 | 5 | 19 | D9 | médio: muda a regra de elegibilidade |
 | 3. Clique sem espera e sem 429 | P8 **assíncrono** (D10, 09/10): fila dedicada, marca no Redis, endpoint de status, polling na tela, BFF | 28 | 7 | 35 | contrato com Rafael Frankl (varredura) | médio |
 | **Total** | | **48** | **12** | **60** | | |
 
 A estimativa anterior era 38 h. A diferença vem das etapas 1 e 2, que não
 existiam, e do assíncrono escolhido na D10 (+20 h sobre o cenário síncrono).
-P1, P3 e P4 (10 h) saíram em 13/10 para `depois-da-v2.md`, porque a
+P1, P3 e P4 (10 h) saíram em 13/10 para `after-v2.md`, porque a
 TS-5377 segue o `refact.py` e não mexe no legado. O P2 (6 h) foi cortado em 13/10: a rota passa a devolver 202 e ninguém lê a
 resposta atual. Os índices (P6, 12 h) saíram em 13/10 e foram para
-[depois-da-v2.md](../depois-da-v2.md).
+[after-v2.md](../after-v2.md).
 
 ### Opcionais (fora do total)
 
@@ -103,7 +103,7 @@ O beat é o agendador do Celery: dispara tarefas em horário fixo.
    pagamentos.
    - O aviso "Corrida detectada" teve 115.226 ocorrências em 30 dias, sendo
      107.487 em 13/09, no originador 1513 / fundo 26.
-   - O [baseline de 05/10](../evidencias/baseline-datadog-2026-10-05.md)
+   - O [baseline de 05/10](../evidence/baseline-datadog-2026-10-05.md)
      contou 3.939 com outra busca. Vale reconferir a consulta, mas a ordem de
      grandeza já mostra o desperdício.
 
@@ -142,7 +142,7 @@ Efeitos práticos:
 
 - **Contrato com cessão não concluída:**
   - sozinho no grupo, o pagamento **não fecha**: aparece na tela, mas o
-    fechamento devolve 400 (bug [B4](../bugs-encontrados.md));
+    fechamento devolve 400 (bug [B4](../bugs-found.md));
   - acompanhado de um pagamento válido, ele **entra** no lote;
   - num produto que acumula, ele **entra sempre**, no lote vigente.
 - **Produto:** quando o produto da liquidação é diferente do produto da
@@ -703,13 +703,13 @@ B.
     `contrato_transacao` de liquidação.
 
 Fica como opcional (O3), mas vale registrar o bug em
-[bugs-encontrados.md](../bugs-encontrados.md).
+[bugs-found.md](../bugs-found.md).
 
 ## 6. Índices (adiado)
 
 Decidido em 13/10: criar ou alterar índices fica para depois da V2. O
 diagnóstico, os candidatos, os riscos e as consultas para medir estão em
-[depois-da-v2.md](../depois-da-v2.md#índices-para-o-fechamento-de-lote).
+[after-v2.md](../after-v2.md#índices-para-o-fechamento-de-lote).
 
 Sem os índices, a busca dos pagamentos pendentes continua sendo o maior custo
 do fechamento. O que a tarefa 03 reduz é o número de buscas (P1), a segunda
@@ -985,7 +985,7 @@ requisição** (assíncrono, D10).
 1. **L1–L4 e etapa 1 (P1–P4) em paralelo.** Não mudam regra nem contrato, e
    mudam os números de produção já na primeira entrega.
 2. **Medir de novo** com as consultas da
-   [evidência](../evidencias/fechamento-lote-datadog-2026-10-09.md).
+   [evidência](../evidence/batch-closing-datadog-2026-10-09.md).
 3. **Etapa 2 (P5 e P7)**, com a D9 decidida.
 4. **Etapa 3 (P8)**, com a concorrência e o TTL calibrados pelo P7 e o
    contrato combinado com o Rafael Frankl.
@@ -994,7 +994,7 @@ requisição** (assíncrono, D10).
 
 - **Automático legado (caminho B):** fecha o originador inteiro a cada
   pagamento e gera a maior parte das corridas. É assunto da
-  [02](02-fechar-lote-por-proc-id.md) e da
-  [11](11-fechamento-por-horario-de-corte.md).
+  [02](02-close-batch-by-proc-id.md) e da
+  [11](11-closing-by-cutoff-time.md).
 - **Varredura (Rafael Frankl, Mercato Libero):** se for só para "fechar o
   que sobrou", a tarefa 11 a substitui. Combinar com ele.

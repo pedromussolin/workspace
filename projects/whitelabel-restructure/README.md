@@ -4,7 +4,7 @@ Pasta de trabalho do épico **[FRONT] Reestrutura whitelabel** (apl-credit-white
 Cada tarefa tem um arquivo com escopo, inventário, critérios de aceite e
 validação. A ideia é revisar o desenho **antes** de abrir cada branch.
 
-> **Chat novo?** Comece por [CONTINUAR.md](CONTINUAR.md): onde está cada branch, o que outro chat
+> **Chat novo?** Comece por [CONTINUE.md](CONTINUE.md): onde está cada branch, o que outro chat
 > ainda está fazendo e como trabalhar ao mesmo tempo.
 
 - Pedido de 10/10/2026 (Pietro Nett).
@@ -23,16 +23,16 @@ validação. A ideia é revisar o desenho **antes** de abrir cada branch.
 
 | Arquivo | Para que serve |
 |---|---|
-| [decisoes.md](decisoes.md) | Decisões tomadas e pendentes, com quem decide |
-| [arquitetura-alvo.md](arquitetura-alvo.md) | Estrutura de pastas, regras de dependência, rotas e integração com o BFF |
-| [achados.md](achados.md) | Defeitos e código morto encontrados no caminho, fora do objetivo do épico |
+| [decisions.md](decisions.md) | Decisões tomadas e pendentes, com quem decide |
+| [target-architecture.md](target-architecture.md) | Estrutura de pastas, regras de dependência, rotas e integração com o BFF |
+| [findings.md](findings.md) | Defeitos e código morto encontrados no caminho, fora do objetivo do épico |
 | [design-system.md](design-system.md) | Tokens de cor, temas claro/escuro, componentes próprios e ícones |
-| `tarefas/` | Uma tarefa por arquivo (lista abaixo) e o [roteiro comum das áreas](tarefas/roteiro-de-area.md) |
-| `evidencias/` | Baseline de build, lint e testes (10/10) e a regressão visual da 01. A validação de cada fatia seguinte fica na seção "O que foi feito" da tarefa |
-| `anexos/icones/` | Fonte dos ícones SVG próprios, o mapa Material → novo e o script que gera a página de revisão |
+| `tasks/` | Uma tarefa por arquivo (lista abaixo) e o [roteiro comum das áreas](tasks/area-playbook.md) |
+| `evidence/` | Baseline de build, lint e testes (10/10) e a regressão visual da 01. A validação de cada fatia seguinte fica na seção "O que foi feito" da tarefa |
+| `attachments/icons/` | Fonte dos ícones SVG próprios, o mapa Material → novo e o script que gera a página de revisão |
 
 Proposta dos ícones para revisão: https://claude.ai/artifact/Hi6hgNKrGGRgofWWHh3Dds
-Prévia das telas (marcas, claro/escuro, celular): https://claude.ai/artifact/5rUQj8R3zYrg3Zry4U9Bod (fonte em `anexos/previa/`, `node build.mjs`)
+Prévia das telas (marcas, claro/escuro, celular): https://claude.ai/artifact/5rUQj8R3zYrg3Zry4U9Bod (fonte em `attachments/preview/`, `node build.mjs`)
 
 As referências de código (`arquivo:linha`) e o inventário apontam para o
 commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
@@ -42,41 +42,41 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 
 | # | Tarefa | Branch | Depende de | Status | TS |
 |---|---|---|---|---|---|
-| 01 | [Estrutura base](tarefas/01-estrutura-base.md) | `refact/TS-5358-estrutura-base-front` | — | **publicada** (15/10) | TS-5358 |
-| 02 | [Temas claro e escuro](tarefas/02-temas-claro-escuro.md) | `feature/TS-5359-temas-claro-escuro` | 01 | **publicada** (15/10) | TS-5359 |
-| 03 | [Componentes: ícones, botões e formulário](tarefas/03-componentes-formulario.md) | `feature/TS-5360-componentes-formulario` | 02 | **publicada** (15/10) | TS-5360 |
-| 04 | [Componentes: overlay, tabela e shell novo](tarefas/04-componentes-overlay-tabela.md) | `feature/TS-5361-componentes-overlay-tabela` | 03 | **publicada** (15/10; de novo em 19/10) | TS-5361 |
-| 05 | [Pré-Trade](tarefas/05-pre-trade.md) | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5362 |
-| 06 | [Lotes, cessão e detalhe do contrato](tarefas/06-lotes.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5363 |
-| 07 | [Report Transfer](tarefas/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5364 |
-| 08 | [Formalização](tarefas/08-formalizacao.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10; de novo em 19/10) | TS-5365 |
-| 09 | [Controladoria e gestão](tarefas/09-controladoria.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5366 |
-| 10 | [Orquestrador](tarefas/10-orquestrador.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5367 |
-| 11 | [Onboarding, usuários, clientes e simulação](tarefas/11-onboarding-usuarios.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
-| 12 | [Páginas gerais](tarefas/12-paginas-gerais.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5369 |
-| 13 | [Remove Angular Material](tarefas/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12, 14, 15 | **publicada** (19/10) | TS-5370 |
-| 14 | [Docs da API autenticada](tarefas/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | **publicada** (19/10) | TS-5371 |
-| 15 | [Vitrine do design system](tarefas/15-vitrine-design-system.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **publicada** (19/10) | TS-5372 |
-| 16 | [E2E, cobertura e regressão visual](tarefas/16-testes-e2e-cobertura.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
-| 17 | [Pasta `.ai`: desenvolver com IA](tarefas/17-pasta-ai.md) | `chore/TS-5389-pasta-ai` | 13 | **publicada** (19/10); aceite cumprido | TS-5389 |
-| 20 | [Devcontainer do front mais leve](tarefas/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | **publicada** (19/10) | TS-5387 |
-| 19 | [Controle de acesso pelo portal](tarefas/19-controle-de-acesso.md) | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 / `origin/master` | **publicada** (19/10) | TS-5390 |
-| 18 | [Segurança do front](tarefas/18-seguranca.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **publicada** (19/10) | TS-5386 |
-| 21 | [Permissões por ação](tarefas/21-permissoes-por-acao.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) e `fix/TS-5391-brechas-de-permissao` (BFF) | 19 / `origin/master` | **publicada** (19/10) | TS-5391 |
-| 22 | [Observabilidade e logs](tarefas/22-observabilidade-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **publicada** (19/10) | TS-5392 |
-| 23 | [Ilustrações próprias](tarefas/23-ilustracoes.md) | `feature/TS-5393-ilustracoes` | 13 | **publicada** (19/10) | TS-5393 |
-| 25 | [Refinamento visual e de design](tarefas/25-refinamento-visual.md) | `refact/TS-5395-refinamento-visual` | `release/20261016` | **publicada** (20/10): rodada 1 (26 commits), revisão de 19/10 (R51–R58), R59, o ajuste dos testes do seletor, a R60 (home nova), a R61 (teste local) e a R62 (revisão da prévia); ponta `b8a02a7f` | TS-5395 |
-| 26 | [Controle de acesso: organização e UX/UI](tarefas/26-controle-de-acesso-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **publicada** (19/10): 2 commits no front, 3 no BFF | TS-5405 |
-| 27 | [Organização e cliente da pessoa no controle de acesso](tarefas/27-organizacao-e-cliente.md) | `feature/TS-5407-organizacao-e-cliente` (front e BFF) | 26 | **publicada** (20/10): 2 commits no BFF, 2 no front, mais os merges | TS-5407 |
-| 28 | [POLI dentro do portal, com mascotes animados](tarefas/28-poli-mascote.md) | `feature/TS-5406-poli-mascote` | 26 | **publicada** (20/10): 8 commits, ponta `91b75672` | TS-5406 |
-| 29 | [Segurança e alinhamento com a infraestrutura](tarefas/29-seguranca-infra.md) | `fix/TS-5411-seguranca-bff` e `fix/TS-5411-seguranca-front` | `master` (e a 27, para o que só existe no épico) | **publicada** (20/10): leva do deploy; escopo do parceiro (D99), TSE e cessão em andamento | TS-5411 |
-| 30 | [Nomes e docstrings dos testes do BFF em inglês](tarefas/30-testes-do-bff-em-ingles.md) | a criar | `master`, depois do deploy de 21/10 | **aberta** (21/10) | a criar |
-| 31 | [Ajustes visuais e padrões de design](tarefas/31-ajustes-visuais-e-padroes.md) | `feature/TS-5424-ajustes-visuais-e-padroes` (PR 1), `feature/TS-5427-funil-e-cards-orquestrador` (PR 5), `feature/TS-5425-organizacao-e-grupos` (PR 2) | `master` | **em andamento** (23/10): PR 1 e PR 5 commitadas (locais); PR 2 implementada; revisão e smoke pendentes | TS-5424, TS-5427, TS-5425 |
-| 32 | [Enviar agora escolhendo os subfluxos](tarefas/32-envio-por-subfluxo.md) (PR 4 da 31) | `feature/TS-5416-envio-por-subfluxo` | `master`; front sobre a PR 1 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5416 |
-| 33 | ["Ver como" outra pessoa](tarefas/33-ver-como.md) (PR 3 da 31) | `feature/TS-5426-ver-como` | PR 2 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5426 |
-| 34 | [Renovação dos tokens do Azure derruba a sessão](tarefas/34-renovacao-tokens-azure.md) | `fix/TS-5429-renovacao-tokens-azure` (front e BFF) | `master`; entra na `release/20261027` | **publicada** (26/10): na release e na `-sdbx`, na sandbox desde 26/10; produção em 27/10 (D132) | TS-5429 |
-| 35 | [Um escopo por área em todas as páginas e migração manual dos grupos](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md) | `feature/TS-5431-escopos-por-area` (front e BFF) | `release/20261027` | **publicada na release 20261027** (26/10): 57 roles novas em 9 páginas (D129, D130); na sandbox desde 26/10; produção em 27/10 (D132) | TS-5431 |
-| 24 | [Deploy da reestruturação](tarefas/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção** (21/10, 19:29): front `prod-f7bb2d8`, BFF `prod-bb877db`; falta a conferência (7.4) e o pós-deploy (8) | TS-5394 |
+| 01 | [Estrutura base](tasks/01-base-structure.md) | `refact/TS-5358-estrutura-base-front` | — | **publicada** (15/10) | TS-5358 |
+| 02 | [Temas claro e escuro](tasks/02-light-dark-themes.md) | `feature/TS-5359-temas-claro-escuro` | 01 | **publicada** (15/10) | TS-5359 |
+| 03 | [Componentes: ícones, botões e formulário](tasks/03-form-components.md) | `feature/TS-5360-componentes-formulario` | 02 | **publicada** (15/10) | TS-5360 |
+| 04 | [Componentes: overlay, tabela e shell novo](tasks/04-overlay-table-components.md) | `feature/TS-5361-componentes-overlay-tabela` | 03 | **publicada** (15/10; de novo em 19/10) | TS-5361 |
+| 05 | [Pré-Trade](tasks/05-pre-trade.md) | `refact/TS-5362-pre-trade-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5362 |
+| 06 | [Lotes, cessão e detalhe do contrato](tasks/06-batches.md) | `refact/TS-5363-lotes-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5363 |
+| 07 | [Report Transfer](tasks/07-report-transfer.md) | `refact/TS-5364-report-transfer-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5364 |
+| 08 | [Formalização](tasks/08-formalization.md) | `refact/TS-5365-formalizacao-nova-arquitetura` | 04 | **publicada** (15/10; de novo em 19/10) | TS-5365 |
+| 09 | [Controladoria e gestão](tasks/09-controllership.md) | `refact/TS-5366-controladoria-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5366 |
+| 10 | [Orquestrador](tasks/10-orchestrator.md) | `refact/TS-5367-orquestrador-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5367 |
+| 11 | [Onboarding, usuários, clientes e simulação](tasks/11-user-onboarding.md) | `refact/TS-5368-onboarding-usuarios-nova-arquitetura` | 04 | **publicada** (15/10) | TS-5368 |
+| 12 | [Páginas gerais](tasks/12-general-pages.md) | `refact/TS-5369-paginas-gerais-nova-arquitetura` | 04 | **publicada** (19/10) | TS-5369 |
+| 13 | [Remove Angular Material](tasks/13-remove-angular-material.md) | `chore/TS-5370-remove-angular-material` | 01–12, 14, 15 | **publicada** (19/10) | TS-5370 |
+| 14 | [Docs da API autenticada](tasks/14-docs-api.md) | `feature/TS-5371-docs-api-autenticada` (front e BFF) | 04 | **publicada** (19/10) | TS-5371 |
+| 15 | [Vitrine do design system](tasks/15-design-system-showcase.md) | `feature/TS-5372-vitrine-design-system` (front e BFF) | 04 | **publicada** (19/10) | TS-5372 |
+| 16 | [E2E, cobertura e regressão visual](tasks/16-e2e-test-coverage.md) | `test/TS-?-e2e-cobertura-regressao-visual` | 01 | **adiada** (Pietro faz depois, com o time de infraestrutura) | — |
+| 17 | [Pasta `.ai`: desenvolver com IA](tasks/17-ai-folder.md) | `chore/TS-5389-pasta-ai` | 13 | **publicada** (19/10); aceite cumprido | TS-5389 |
+| 20 | [Devcontainer do front mais leve](tasks/20-devcontainer.md) | `chore/TS-5387-devcontainer` | `master` (independente do épico) | **publicada** (19/10) | TS-5387 |
+| 19 | [Controle de acesso pelo portal](tasks/19-access-control.md) | `feature/TS-5390-controle-de-acesso` (front e BFF) | 13 / `origin/master` | **publicada** (19/10) | TS-5390 |
+| 18 | [Segurança do front](tasks/18-security.md) | `fix/TS-5386-seguranca-front` | `master` (independente do épico) | **publicada** (19/10) | TS-5386 |
+| 21 | [Permissões por ação](tasks/21-permissions-by-action.md) | `feature/TS-5391-permissoes-por-acao` (front e BFF) e `fix/TS-5391-brechas-de-permissao` (BFF) | 19 / `origin/master` | **publicada** (19/10) | TS-5391 |
+| 22 | [Observabilidade e logs](tasks/22-observability-logs.md) | `feature/TS-5392-observabilidade` (BFF e front) | 17 + 18 / `origin/master` | **publicada** (19/10) | TS-5392 |
+| 23 | [Ilustrações próprias](tasks/23-illustrations.md) | `feature/TS-5393-ilustracoes` | 13 | **publicada** (19/10) | TS-5393 |
+| 25 | [Refinamento visual e de design](tasks/25-visual-refinement.md) | `refact/TS-5395-refinamento-visual` | `release/20261016` | **publicada** (20/10): rodada 1 (26 commits), revisão de 19/10 (R51–R58), R59, o ajuste dos testes do seletor, a R60 (home nova), a R61 (teste local) e a R62 (revisão da prévia); ponta `b8a02a7f` | TS-5395 |
+| 26 | [Controle de acesso: organização e UX/UI](tasks/26-access-control-ux.md) | `feature/TS-5405-controle-de-acesso-ux` (front e BFF) | 25 (front) / `release/20261016` (BFF) | **publicada** (19/10): 2 commits no front, 3 no BFF | TS-5405 |
+| 27 | [Organização e cliente da pessoa no controle de acesso](tasks/27-organization-and-client.md) | `feature/TS-5407-organizacao-e-cliente` (front e BFF) | 26 | **publicada** (20/10): 2 commits no BFF, 2 no front, mais os merges | TS-5407 |
+| 28 | [POLI dentro do portal, com mascotes animados](tasks/28-poli-mascot.md) | `feature/TS-5406-poli-mascote` | 26 | **publicada** (20/10): 8 commits, ponta `91b75672` | TS-5406 |
+| 29 | [Segurança e alinhamento com a infraestrutura](tasks/29-security-infra.md) | `fix/TS-5411-seguranca-bff` e `fix/TS-5411-seguranca-front` | `master` (e a 27, para o que só existe no épico) | **publicada** (20/10): leva do deploy; escopo do parceiro (D99), TSE e cessão em andamento | TS-5411 |
+| 30 | [Nomes e docstrings dos testes do BFF em inglês](tasks/30-bff-tests-in-english.md) | a criar | `master`, depois do deploy de 21/10 | **aberta** (21/10) | a criar |
+| 31 | [Ajustes visuais e padrões de design](tasks/31-visual-adjustments-and-patterns.md) | `feature/TS-5424-ajustes-visuais-e-padroes` (PR 1), `feature/TS-5427-funil-e-cards-orquestrador` (PR 5), `feature/TS-5425-organizacao-e-grupos` (PR 2) | `master` | **em andamento** (23/10): PR 1 e PR 5 commitadas (locais); PR 2 implementada; revisão e smoke pendentes | TS-5424, TS-5427, TS-5425 |
+| 32 | [Enviar agora escolhendo os subfluxos](tasks/32-send-by-subflow.md) (PR 4 da 31) | `feature/TS-5416-envio-por-subfluxo` | `master`; front sobre a PR 1 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5416 |
+| 33 | ["Ver como" outra pessoa](tasks/33-view-as.md) (PR 3 da 31) | `feature/TS-5426-ver-como` | PR 2 | **implementada localmente; revisão e smoke pendentes** (23/10) | TS-5426 |
+| 34 | [Renovação dos tokens do Azure derruba a sessão](tasks/34-azure-token-renewal.md) | `fix/TS-5429-renovacao-tokens-azure` (front e BFF) | `master`; entra na `release/20261027` | **publicada** (26/10): na release e na `-sdbx`, na sandbox desde 26/10; produção em 27/10 (D132) | TS-5429 |
+| 35 | [Um escopo por área em todas as páginas e migração manual dos grupos](tasks/35-atomic-permissions-and-group-migration.md) | `feature/TS-5431-escopos-por-area` (front e BFF) | `release/20261027` | **publicada na release 20261027** (26/10): 57 roles novas em 9 páginas (D129, D130); na sandbox desde 26/10; produção em 27/10 (D132) | TS-5431 |
+| 24 | [Deploy da reestruturação](tasks/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção** (21/10, 19:29): front `prod-f7bb2d8`, BFF `prod-bb877db`; falta a conferência (7.4) e o pós-deploy (8) | TS-5394 |
 
 ## Situação em 16/10
 

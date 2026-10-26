@@ -2,10 +2,10 @@
 
 - **Status:** ideia levantada pelo Pietro em 06/10/2026; precisa de desenho.
 - **Repos:** platform-cessao (principal), BFF e front (bypass na tela).
-- **Decisões:** [D8](../decisoes.md).
-- **Relacionadas:** [02](02-fechar-lote-por-proc-id.md),
-  [03](03-fechamento-assincrono-e-429.md),
-  [09](09-lote-automatico-voltis.md), [10](10-adm-dayvale.md).
+- **Decisões:** [D8](../decisions.md).
+- **Relacionadas:** [02](02-close-batch-by-proc-id.md),
+  [03](03-async-closing-and-429.md),
+  [09](09-voltis-automatic-batch.md), [10](10-dayvale-administrator.md).
 
 ## Problema
 

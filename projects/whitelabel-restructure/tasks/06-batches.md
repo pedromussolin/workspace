@@ -3,7 +3,7 @@
 - **TS:** TS-5363 · **Branch:** `refact/TS-5363-lotes-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
 - **Status:** commits feitos, sem push (13/10)
 - **Depende de:** 04
-- **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
+- **Passos e critério de pronto:** [area-playbook.md](area-playbook.md)
 
 ## Telas e rotas
 

@@ -1,22 +1,22 @@
 # Depois da V2 — possibilidades
 
 Melhorias levantadas durante a V2 que **ficaram para depois** de concluir as
-tarefas. Não estão na [estimativa](estimativa.md) nem no calendário. Cada
+tarefas. Não estão na [estimativa](estimate.md) nem no calendário. Cada
 item diz de onde veio, quando foi adiado e o que falta para retomar.
 
 | Item | Origem | Adiado em | Para retomar |
 |---|---|---|---|
-| P1 — Q1 recebe a origem pedida | [tarefa 03](tarefas/03-analise-do-fechamento.md#problemas), 5 h | 13/10/2026 | substituição do legado pelo `refact.py`; só afeta a rota antiga, o Atlas, a varredura e o automático |
-| P3 — trava expirada (`@max_calls`) não vira 500 | [tarefa 03](tarefas/03-analise-do-fechamento.md#8-proposta-consolidada), 3 h | 13/10/2026 | idem; vale também para as outras 3 rotas com o decorator |
-| P4 — `EXISTS` em vez de `lote.pagamentos` na `esteira_baixar` | [tarefa 03](tarefas/03-analise-do-fechamento.md#8-proposta-consolidada), 2 h | 13/10/2026 | idem; esteira compartilhada por todos os fluxos |
-| [Índices para o fechamento de lote](#índices-para-o-fechamento-de-lote) | [tarefa 03](tarefas/03-analise-do-fechamento.md), antigo P6 (12 h) | 13/10/2026 | DBA; medir o efeito das etapas 1 e 2 da tarefa 03 antes |
+| P1 — Q1 recebe a origem pedida | [tarefa 03](tasks/03-closing-analysis.md#problemas), 5 h | 13/10/2026 | substituição do legado pelo `refact.py`; só afeta a rota antiga, o Atlas, a varredura e o automático |
+| P3 — trava expirada (`@max_calls`) não vira 500 | [tarefa 03](tasks/03-closing-analysis.md#8-proposta-consolidada), 3 h | 13/10/2026 | idem; vale também para as outras 3 rotas com o decorator |
+| P4 — `EXISTS` em vez de `lote.pagamentos` na `esteira_baixar` | [tarefa 03](tasks/03-closing-analysis.md#8-proposta-consolidada), 2 h | 13/10/2026 | idem; esteira compartilhada por todos os fluxos |
+| [Índices para o fechamento de lote](#índices-para-o-fechamento-de-lote) | [tarefa 03](tasks/03-closing-analysis.md), antigo P6 (12 h) | 13/10/2026 | DBA; medir o efeito das etapas 1 e 2 da tarefa 03 antes |
 
 ## Índices para o fechamento de lote
 
 As consultas Q1 (agrupamento) e Q2 (busca de ids) estão descritas na
-[análise da tarefa 03](tarefas/03-analise-do-fechamento.md#2-as-duas-consultas).
+[análise da tarefa 03](tasks/03-closing-analysis.md#2-as-duas-consultas).
 Retomar depois que a tarefa 03 estiver em produção, comparando os números com
-a [evidência de 09/10](evidencias/fechamento-lote-datadog-2026-10-09.md): o
+a [evidência de 09/10](evidence/batch-closing-datadog-2026-10-09.md): o
 P1 e o UPDATE único reduzem o número de buscas, e o que sobrar é o custo que
 um índice atacaria.
 
@@ -67,7 +67,7 @@ ainda não medimos.
 #### Riscos
 
 - **Escrita mais cara:** todo índice pesa no INSERT e no UPDATE. A entrada de
-  pagamentos já custa 1,1 s por INSERT em `liquidacao_processo` ([baseline](evidencias/baseline-datadog-2026-10-05.md)).
+  pagamentos já custa 1,1 s por INSERT em `liquidacao_processo` ([baseline](evidence/baseline-datadog-2026-10-05.md)).
   - O índice parcial só é mexido enquanto o pagamento está pendente, o que
     reduz o efeito. Medir antes e depois.
 - **Criação:** o `CONCURRENTLY` não pode rodar dentro de transação e, se
@@ -108,7 +108,7 @@ tarefas atuais acabarem, junto com os outros itens deste documento.
 
 - **Problema:** o acúmulo (`acumula_liquidacoes`) vincula o pagamento ao lote
   vigente quando a liquidação vira `cadastrado`, sem olhar a cessão. Detalhes
-  em [B12](bugs-encontrados.md#b12--acúmulo-de-liquidações-ignora-o-estado-da-cessão-importante).
+  em [B12](bugs-found.md#b12--acúmulo-de-liquidações-ignora-o-estado-da-cessão-importante).
 - **Correção proposta:** em `insert_pagamento_into_lote`, só vincular se a
   cessão do contrato estiver `cadastrado`; senão o pagamento fica sem lote e
   entra pelo fechamento novo (D9 revista). Atenção: o lote vigente passa a

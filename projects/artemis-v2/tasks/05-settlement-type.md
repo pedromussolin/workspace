@@ -63,7 +63,7 @@ GROUP BY 1;
 
 Se o banco tiver o tipo certo e a tela mostrar errado, é só exibição. Se o
 banco tiver o tipo errado, o problema está na regra do produto da Dots — aí
-vale olhar as regras com a [consulta de configs](../anexos/sql/configs_produto_fundo.sql).
+vale olhar as regras com a [consulta de configs](../attachments/sql/product_fund_configs.sql).
 
 ## Proposta
 
@@ -74,7 +74,7 @@ vale olhar as regras com a [consulta de configs](../anexos/sql/configs_produto_f
 
 ## Relacionado
 
-- [B3 — Cancelamento gravado como liquidação](../bugs-encontrados.md): usa o
+- [B3 — Cancelamento gravado como liquidação](../bugs-found.md): usa o
   mesmo campo.
 
 ## Validação

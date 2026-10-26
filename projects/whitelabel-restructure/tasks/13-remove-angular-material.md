@@ -202,7 +202,7 @@ resolução de `$PRIV/resolucoes/`):
   - Com isso, a tabela inteira da Formalização cabe em 1440 px com a
     sidebar aberta.
   - **O Pietro pode querer voltar atrás:** `git revert 4bd8380f`. Ver
-    `decisoes.md`.
+    `decisions.md`.
   - **Mudança visível para a PR:** no desktop, as páginas ficam um pouco
     mais largas.
 - O smoke continua sem erro (Formalização, Pré-Trade, Lotes de Liquidação,

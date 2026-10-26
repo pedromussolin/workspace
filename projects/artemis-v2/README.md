@@ -5,7 +5,7 @@ problema, as evidências, a proposta, os riscos e como vamos provar que
 funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 
 - Início do desenvolvimento: 05/10/2026 (Pietro Nett e Heitor Shim).
-- Ata da reunião de descoberta: [ata-2026-09-23.md](ata-2026-09-23.md).
+- Ata da reunião de descoberta: [minutes-2026-09-23.md](minutes-2026-09-23.md).
 - Escopo inicial: tela de **lotes de liquidação** (fake e reais) da
   platform-cessao, ou seja, todo o fechamento e a conciliação dos lotes.
 - Ponto principal: **performance**. A DBA revisa as queries; a parte de
@@ -19,14 +19,14 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 
 | Arquivo | Para que serve |
 |---|---|
-| [decisoes.md](decisoes.md) | Decisões tomadas e pendentes, com quem decide |
-| [evidencias/baseline-datadog-2026-10-05.md](evidencias/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
-| [evidencias/lotes-reais-datadog-2026-10-14.md](evidencias/lotes-reais-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
-| [evidencias/varredura-datadog-2026-10-14.md](evidencias/varredura-datadog-2026-10-14.md) | Varredura com 4 chaves e 1 rodada: fim das chamadas longas, saldo ainda inconclusivo |
-| [bugs-encontrados.md](bugs-encontrados.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
-| [depois-da-v2.md](depois-da-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
-| `tarefas/` | Uma tarefa por arquivo (lista abaixo) |
-| `anexos/` | Protótipos e SQL citados nas tarefas |
+| [decisions.md](decisions.md) | Decisões tomadas e pendentes, com quem decide |
+| [evidence/baseline-datadog-2026-10-05.md](evidence/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
+| [evidence/real-batches-datadog-2026-10-14.md](evidence/real-batches-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
+| [evidence/sweep-datadog-2026-10-14.md](evidence/sweep-datadog-2026-10-14.md) | Varredura com 4 chaves e 1 rodada: fim das chamadas longas, saldo ainda inconclusivo |
+| [bugs-found.md](bugs-found.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
+| [after-v2.md](after-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
+| `tasks/` | Uma tarefa por arquivo (lista abaixo) |
+| `attachments/` | Protótipos e SQL citados nas tarefas |
 
 Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 
@@ -42,18 +42,18 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 
 | # | Tarefa | Repos | Depende de | Status | TS |
 |---|---|---|---|---|---|
-| 12 | [Lotes reais: buscar os lotes antes dos valores](tarefas/12-lotes-reais-lotes-antes-dos-valores.md) | cessão | D21 | **prioridade máxima** (14/10); mapeada | a definir |
-| 01 | [Réplica de leitura no init do SQLAlchemy](tarefas/01-replica-de-leitura.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
-| 02 | [Dois modos de fechamento: chave ou proc_id](tarefas/02-fechar-lote-por-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
-| 03 | [Fechamento: mais rápido, sem espera e sem 429](tarefas/03-fechamento-assincrono-e-429.md) | cessão, BFF, front, argocd | — | em produção (cessão 19/10, BFF e front 20/10); [casos e plano de 20/10](tarefas/03-casos-pos-producao.md) | TS-5377 |
-| 04 | [Performance das listagens de lotes](tarefas/04-performance-listagens.md) | cessão, front | revisão da DBA | mapeado | a definir |
-| 05 | [Tipo de baixa na tabela de pagamentos](tarefas/05-tipo-de-baixa.md) | cessão, front | — | mapeado | a definir |
-| 06 | [Nome do CNAB na tela](tarefas/06-nome-do-cnab-na-tela.md) | cessão, BFF, front | decisão D4 | mapeado | a definir |
-| 07 | [Filtro por identificador de contrato](tarefas/07-filtro-identificador-contrato.md) | cessão, BFF, front | — | mapeado | a definir |
-| 08 | [Genius: reenvio e logs de erro](tarefas/08-genius-reenvio-e-logs.md) | cessão, westworld, listener | D12–D16 | mapeado (revisado 13/10) | a definir |
-| 09 | [Lote automático da Voltis](tarefas/09-lote-automatico-voltis.md) | cessão | configs do produto | aguardando dados | a definir |
-| 11 | [Fechamento automático por horário de corte, com bypass](tarefas/11-fechamento-por-horario-de-corte.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
-| 10 | [Fluxo da Genius para a Dayvale](tarefas/10-adm-dayvale.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
+| 12 | [Lotes reais: buscar os lotes antes dos valores](tasks/12-real-batches-before-values.md) | cessão | D21 | **prioridade máxima** (14/10); mapeada | a definir |
+| 01 | [Réplica de leitura no init do SQLAlchemy](tasks/01-read-replica.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
+| 02 | [Dois modos de fechamento: chave ou proc_id](tasks/02-close-batch-by-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
+| 03 | [Fechamento: mais rápido, sem espera e sem 429](tasks/03-async-closing-and-429.md) | cessão, BFF, front, argocd | — | em produção (cessão 19/10, BFF e front 20/10); [casos e plano de 20/10](tasks/03-post-production-cases.md) | TS-5377 |
+| 04 | [Performance das listagens de lotes](tasks/04-listing-performance.md) | cessão, front | revisão da DBA | mapeado | a definir |
+| 05 | [Tipo de baixa na tabela de pagamentos](tasks/05-settlement-type.md) | cessão, front | — | mapeado | a definir |
+| 06 | [Nome do CNAB na tela](tasks/06-cnab-name-on-screen.md) | cessão, BFF, front | decisão D4 | mapeado | a definir |
+| 07 | [Filtro por identificador de contrato](tasks/07-contract-identifier-filter.md) | cessão, BFF, front | — | mapeado | a definir |
+| 08 | [Genius: reenvio e logs de erro](tasks/08-genius-resend-and-logs.md) | cessão, westworld, listener | D12–D16 | mapeado (revisado 13/10) | a definir |
+| 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | cessão | configs do produto | aguardando dados | a definir |
+| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
+| 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
 
 ## Fases propostas
 
@@ -70,7 +70,7 @@ A ordem prioriza o que tira carga do banco e o que causa erro em produção.
 2. **Fechamento confiável**
    - 03 Fechamento mais rápido e assíncrono, sem 429 nem 500 por clique repetido.
    - 11 Fechamento por horário de corte, com bypass.
-   - Bugs B1–B5 de [bugs-encontrados.md](bugs-encontrados.md).
+   - Bugs B1–B5 de [bugs-found.md](bugs-found.md).
 3. **Acabamento da tela**
    - 05 Tipo de baixa, 06 nome do CNAB, 07 filtro por contrato.
 4. **Integrações com as ADMs**

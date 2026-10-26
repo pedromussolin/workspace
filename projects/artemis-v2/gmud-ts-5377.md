@@ -3,7 +3,7 @@
 > **Status (22/10/2026):** já executada em produção em 19/10/2026; registrar
 > como retroativa. Falta: os itens "a confirmar" marcados abaixo.
 > A fase 1 de robustez (subiu em 20/10) tem GMUD própria:
-> [gmud-ts-5377-fase1.md](gmud-ts-5377-fase1.md).
+> [gmud-ts-5377-phase1.md](gmud-ts-5377-phase1.md).
 
 Tipo: Mudança não programada (já executada em 19/10/2026)
 
@@ -20,7 +20,7 @@ a ser assíncrono, em fila dedicada
   de 7,1 min; houve 71 erros 500 (49 deles pela trava de 10 min expirando, com o
   lote já criado) e 89 erros 429 por clique repetido. O BFF desiste em 120 s e
   o operador não sabia se o lote fechou. Fonte e consultas:
-  `evidencias/fechamento-lote-datadog-2026-10-09.md`.
+  `evidence/batch-closing-datadog-2026-10-09.md`.
 - **Como foi para produção:** em 19/10/2026, na `release/20261019` da
   cessão (PR #2670). A release levou também a TS-5207, de outro dev.
 
@@ -167,7 +167,7 @@ em -03:00). A ordem real foi Portal, BFF, cessão, worker.
    (tela aberta); 14:28:41 UTC, primeiro pedido de fechamento; 14:29:07 UTC,
    primeiro "Fechamento de lote fake concluído", `closed`.
 6. **Acompanhamento** pelo roteiro
-   `evidencias/acompanhamento-fechamento-assincrono.md`: pedidos × conclusões,
+   `evidence/async-closing-monitoring.md`: pedidos × conclusões,
    descartes, falhas, trava perdida. Resultado nas Evidências.
 
 ## Plano de Rollback
@@ -248,7 +248,7 @@ descartável do código atual:
     BFF sem 4xx/5xx nas rotas de lote fake (só um 401 de sessão expirada);
   - pod do worker sem reinício fora dos deploys; os 6 avisos de cada partida são
     o aviso do Celery por rodar como root e a mensagem de variáveis OK;
-  - comparação com a rota antiga: `evidencias/fechamento-assincrono-datadog-2026-10-20.md`
+  - comparação com a rota antiga: `evidence/async-closing-datadog-2026-10-20.md`
     (clique de 5,0 s para 0,25 s; 429 de 11,7% para 0; 500 de 4,9% para 0).
 - **Sandbox (14/10/2026, 19:08 UTC)**, `sand-e7e26d6` (cessão) e `sand-4b5309a`
   (BFF): clique no Portal, 202 em 270 ms no BFF (trace

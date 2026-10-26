@@ -1,7 +1,7 @@
 # Bugs encontrados no mapeamento
 
 Achados durante o mapeamento de 05/10/2026 que ainda não têm tarefa. Cada um
-diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
+diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 
 ## B1 — Filtro com mais de um status volta vazio
 
@@ -121,7 +121,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
 - **Validar:** contar lotes `concluido` com contratos de parcelas todas
   fechadas e sem `contrato_transacao` de liquidação ou cancelamento.
 - **Correção:** enfileirar depois do commit. Relacionado ao B3 (mesma task) e
-  ao opcional O3 da [tarefa 03](tarefas/03-analise-do-fechamento.md).
+  ao opcional O3 da [tarefa 03](tasks/03-closing-analysis.md).
 
 ## B9 — Parceiro sem `internal_id` enxerga todos os produtos (segurança)
 
@@ -175,7 +175,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   sem lote, aparece na listagem fake e cai no fechamento novo. Muda o
   comportamento de todos os produtos que acumulam, então precisa de aval do
   negócio. Fica fora da TS-5377 (legado intocado). Ver
-  [depois-da-v2.md](depois-da-v2.md#acúmulo-de-liquidações-e-a-cessão-b12).
+  [after-v2.md](after-v2.md#acúmulo-de-liquidações-e-a-cessão-b12).
 
 ## B13 — Repasse para a Genius usa só o primeiro arquivo do parceiro
 
@@ -193,10 +193,10 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   do mesmo fundo em segundos, todos com data anterior ao envio (arquivo do
   parceiro). Esses lotes concentram avisos de recusa sem pagamento
   correspondente. Ver
-  [evidência](evidencias/genius-reenvio-datadog-2026-10-15.md#2-mesmo-nome-de-arquivo-em-lotes-diferentes).
+  [evidência](evidence/genius-resend-datadog-2026-10-15.md#2-mesmo-nome-de-arquivo-em-lotes-diferentes).
 - **Validar:** contar lotes de fundos da Genius em modo repasse com mais de um
   proc_id (liquidação) ou com contratos de mais de um arquivo (cessão).
-- **Relacionado:** [tarefa 02](tarefas/02-fechar-lote-por-proc-id.md) (fechar
+- **Relacionado:** [tarefa 02](tasks/02-close-batch-by-proc-id.md) (fechar
   por proc_id daria um arquivo por lote) e D3 (decidida em 13/10: um lote por
   proc_id e fundo).
 - **Correção:** depende da validação; se existir, montar o arquivo a partir de
@@ -217,11 +217,11 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
 - **Confirmado:** leitura do código (20/10/2026, `f19ef2cef`). Só em produto
   com `acumula_liquidacoes`, durante remessa em processamento.
 - **Validar:** consulta 3 de
-  [anexos/sql/grupos_pendentes_fechamento_novo.sql](anexos/sql/grupos_pendentes_fechamento_novo.sql);
+  [attachments/sql/new_closing_pending_groups.sql](attachments/sql/new_closing_pending_groups.sql);
   lotes com `data_atualizacao` de pagamento posterior ao fechamento.
 - **Correção:** atribuir ao vigente com UPDATE guardado (`IS NULL`) e conferir
   o rowcount, ou na mesma transação que grava `cadastrado`. Ver
-  [03-casos-pos-producao.md](tarefas/03-casos-pos-producao.md#3-corridas-com-outros-caminhos-que-fecham-lote).
+  [03-post-production-cases.md](tasks/03-post-production-cases.md#3-corridas-com-outros-caminhos-que-fecham-lote).
 
 ## B15 — Lote vigente fechado e alimentado sem trava (corrida)
 
@@ -301,7 +301,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   claim no Redis já evita fechamento duplo) e contar os terminais num contador
   do Redis incrementado depois do commit, em vez de contar no banco. Avaliar o
   backstop para todo produto com `fechar_lote_por_proc_id`.
-- **Onde entra:** item 4 da [tarefa 02](tarefas/02-fechar-lote-por-proc-id.md)
+- **Onde entra:** item 4 da [tarefa 02](tasks/02-close-batch-by-proc-id.md)
   (automático por proc_id), não no fechamento novo da TS-5377: este só aceita
   chave `origem:` (`api/liquidacao/refact.py:203-207`); a linha `proc` segue no
   legado (decisão de 13/10). O gatilho pode ir antes, sozinho.

@@ -2,14 +2,14 @@
 
 Roteiro para conferir, no Datadog, se o fechamento novo está fechando, em
 quanto tempo e se algum pedido se perdeu. Base da
-[análise de 20/10](../tarefas/03-casos-pos-producao.md).
+[análise de 20/10](../tasks/03-post-production-cases.md).
 
 - **No ar:** cessão e worker desde 19/10 21:45 UTC (`prod-f19ef2c`); BFF
   (`prod-fe2bee2`) e front desde 20/10 ~12:26 UTC (primeira chamada a
   `close/status` às 12:26:39 UTC).
 - **Primeiro dia (20/10):** 25 pedidos e 25 fechados, sem falha; uma espera
   de 25 s por trava de outra transação no fundo 209. Ver
-  [evidência de 20/10](fechamento-assincrono-datadog-2026-10-20.md).
+  [evidência de 20/10](async-closing-datadog-2026-10-20.md).
 - Durações do APM vêm em nanossegundos; `duration_ms` do log, em milissegundos.
 
 ## Conferência rápida (a cada rodada)

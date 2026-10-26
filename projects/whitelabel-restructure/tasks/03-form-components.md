@@ -8,7 +8,7 @@
 
 | Novo (`shared/ui`) | Substitui | Componentes atuais reescritos em cima dele |
 |---|---|---|
-| `app-icon` + registro dos 148 SVGs ([anexos/icones](../anexos/icones/)) | `mat-icon` | todos |
+| `app-icon` + registro dos 148 SVGs ([attachments/icons](../attachments/icons/)) | `mat-icon` | todos |
 | `app-button`, `app-icon-button` | `mat-button`, `mat-icon-button` | `components/button` |
 | `app-field` + estilos de `input`/`textarea` | `mat-form-field`, `matInput` | `text-input`, `textbox`, `forms/*` |
 | `app-select`, `app-multiselect`, `app-combobox` | `mat-select`, `mat-autocomplete` | `select`, `select-list`, `multiselect`, `combobox` |

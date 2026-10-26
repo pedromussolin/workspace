@@ -2,7 +2,7 @@
 
 Data: 10/10/2026. Prints da master (`d0bc3de`) e da branch
 `refact/TS-5358-estrutura-base-front` (`b38f4c0`), feitos com
-[anexos/scripts/smoke.mjs](../anexos/scripts/smoke.mjs):
+[attachments/scripts/smoke.mjs](../attachments/scripts/smoke.mjs):
 
 - build de produção servido localmente, com um BFF falso: sessão válida,
   todas as rotas liberadas e listas vazias;

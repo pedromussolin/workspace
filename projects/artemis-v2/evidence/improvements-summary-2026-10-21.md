@@ -19,14 +19,14 @@ de Brasília (14h10 UTC).
 As consultas novas da TS-5383 (`788d1d5df137d8b`, `db8a1f03fb515cca`,
 `4856ef7a427ac6f6`, `9cc782411e60f129`) aparecem a partir das 23h UTC de
 20/10, junto com a `prod-2eb8faa`. Isso corrige a "noite de 20/10" da
-[evidência da réplica](lotes-reais-replica-2026-10-20.md): o deploy foi com a
+[evidência da réplica](real-batches-replica-2026-10-20.md): o deploy foi com a
 fase 1.
 
 ## Fechamento de lote fake
 
 Rota nova pela tela desde 20/10 12:26 UTC. "Antes" é a rota antiga pela
 tela, 30 dias até 19/10 21:45 UTC, da
-[evidência de 20/10](fechamento-assincrono-datadog-2026-10-20.md).
+[evidência de 20/10](async-closing-datadog-2026-10-20.md).
 
 | Métrica | Antes | Agora (20/10 12:26 a 21/10 14:10 UTC) |
 |---|---|---|
@@ -62,7 +62,7 @@ O "Agora" vem dos logs (completos). O "Antes" vem de spans amostrados
 - Réplica, 20/10: a página do fundo 209 que dava 500 passou de mais de 60 s
   para 0,4 s, e os irmãos de mais de 120 s para 0,1 s. O detalhe do lote
   1837116 (1.744 remessas) passou de mais de 60 s (e 414 na tela) para
-  34 ms ([evidência](lotes-reais-replica-2026-10-20.md)).
+  34 ms ([evidência](real-batches-replica-2026-10-20.md)).
 
 ## Pontos a acompanhar
 

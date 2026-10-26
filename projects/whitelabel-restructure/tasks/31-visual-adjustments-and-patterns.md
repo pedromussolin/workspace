@@ -3,7 +3,7 @@
 - **TS:** TS-5424 · **Branch:** `feature/TS-5424-ajustes-visuais-e-padroes` (worktree
   `~/repos/apl-credit-whitelabel-wt/31`, da `master` `f7bb2d84`)
 - **Status:** **PR 1 em andamento** (23/10): decisões D108 a D118; quatro agentes no front (pacotes A
-  a D, briefs em `anexos/agentes/brief-31.md`); barra do celular e `app-card flush` feitos por mim.
+  a D, briefs em `attachments/agents/brief-31.md`); barra do celular e `app-card flush` feitos por mim.
 - **Depende de:** 24 (deploy de 21/10)
 
 ## Por quê
@@ -297,12 +297,12 @@ PR 3 = TS-5426, PR 4 = TS-5416 (já existia: "executar rota unitária"), PR 5 = 
   - `validate.sh` do front junto: ok (build, lint, check-patterns, 4598 testes, audit).
   - Falta: smoke do controle de acesso com o front junto, revisão do Pietro, commits (front e BFF) e
     incluir `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS` no roteiro de deploy.
-- **PR 3 e PR 4:** tarefas [33](33-ver-como.md) e [32](32-envio-por-subfluxo.md).
+- **PR 3 e PR 4:** tarefas [33](33-view-as.md) e [32](32-send-by-subflow.md).
 - Ainda não publicadas nem abertas as PRs.
 
 ## Decisões
 
-D108 a D118 (23/10), no `decisoes.md`. Em aberto:
+D108 a D118 (23/10), no `decisions.md`. Em aberto:
 - **A4:** respondida pela infraestrutura (D121): um grupo de instituição por pessoa, cada um com
   `org_type` e `internal_client_id`; a Visaggio usa `plgn`. Segue a recomendação de ler e mudar a
   organização pelo grupo. Os IDs de cliente estão no `privado.md`.
@@ -355,4 +355,4 @@ Ainda a levantar (pedido de 21/10): vazio, erro, cabeçalho de página, filtros,
   Ajustes finais da PR 5 conferidos: build development, tipos, lint/padrões e
   testes puros do funil passaram; os 10 arquivos pendentes continuam sem commit.
 - PR 2 conserva a tabela de páginas do contrato. Revisão local com os 23 códigos
-  e as diferenças de rótulos no relatório local indicado no CONTINUAR.
+  e as diferenças de rótulos no relatório local indicado no CONTINUE.

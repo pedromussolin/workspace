@@ -17,7 +17,7 @@ resultado (D12).
 
 ## Escopo
 
-1. **Bibliotecas** ([A17](../achados.md)). Em 15/10, o
+1. **Bibliotecas** ([A17](../findings.md)). Em 15/10, o
    `npm audit --omit=dev` acusava 12 falhas (9 altas e 3 moderadas), todas
    com correção sem versão major:
    - `@angular/*` 20.3.11 → 20.3.34, que corrige 8 das altas. CLI, `cdk` e
@@ -25,7 +25,7 @@ resultado (D12).
    - `dompurify`, `markdown-it` e `linkify-it`, usados no markdown do chat;
    - `moment`: atualizar agora. Ele sai de vez na 13, com o datepicker
      próprio.
-2. **Cabeçalhos do nginx** ([A16](../achados.md)):
+2. **Cabeçalhos do nginx** ([A16](../findings.md)):
    - antes de tudo, confirmar com a infraestrutura o que o gateway já
      envia, inclusive HSTS;
    - repetir os cabeçalhos de segurança em todo `location` que tem
@@ -44,7 +44,7 @@ resultado (D12).
    - os estilos dos componentes pedem `style-src 'unsafe-inline'` ou nonce;
    - depois de um ciclo na sandbox sem violação, vira
      `Content-Security-Policy`.
-4. **Permissão em todas as rotas** ([A10](../achados.md)):
+4. **Permissão em todas as rotas** ([A10](../findings.md)):
    - `/pdd` ganha o `iamGuard`. O BFF já libera a rota com `pdd:read` (e
      `admin:read`) no `FRONTEND_ROUTE_PERMISSIONS`, então não há escopo
      novo a decidir (conferido em 15/10);
@@ -52,7 +52,7 @@ resultado (D12).
      guard.
 5. **Checagem contínua:**
    - `npm audit --omit=dev --audit-level=moderate` entra no `validar.sh` da
-     `.ai/` ([17](17-pasta-ai.md));
+     `.ai/` ([17](17-ai-folder.md));
    - no pipeline, entra com a infraestrutura (D9, tarefa 16).
 6. **Regras na `.ai/fronteiras.md`:**
    - `bypassSecurityTrust*` só com conteúdo estático do próprio código,

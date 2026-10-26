@@ -1,6 +1,6 @@
 # Protótipo da réplica de leitura
 
-Usado na [tarefa 01](../../tarefas/01-replica-de-leitura.md). Não é o código
+Usado na [tarefa 01](../../tasks/01-read-replica.md). Não é o código
 final: a versão do repo vai usar a config da cessão e testes sem banco.
 
 ## Como rodar os testes
@@ -8,7 +8,7 @@ final: a versão do repo vai usar a config da cessão e testes sem banco.
 A réplica é simulada por uma segunda conexão ao mesmo banco com
 `default_transaction_read_only=on`, que recusa qualquer escrita.
 
-Rodar a partir desta pasta (`anexos/replica`).
+Rodar a partir desta pasta (`attachments/replica`).
 
 ```bash
 docker network create rwsplit-net

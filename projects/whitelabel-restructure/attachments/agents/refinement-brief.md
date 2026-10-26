@@ -1,6 +1,6 @@
 # Instruções comuns aos agentes do refinamento visual (tarefa 25)
 
-Você faz UM pacote de itens da tarefa 25 (`tarefas/25-refinamento-visual.md`) no front, junto com
+Você faz UM pacote de itens da tarefa 25 (`tasks/25-visual-refinement.md`) no front, junto com
 outros agentes que trabalham ao mesmo tempo **na mesma worktree**. Escreva em PT-BR.
 
 ## Onde
@@ -64,7 +64,7 @@ por falta de memória.
   portas.
 - A API responde com `page.route`, a partir de
   `~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json`. Veja como
-  `~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
+  `~/repos/workspace/projects/whitelabel-restructure/attachments/scripts/smoke.mjs` monta o BFF falso, o `env.js` e o
   `iam/paths` (inclua as rotas de que precisar).
 - `playwright-core` vem de `~/repos/.reestrutura_whitelabel/pw/node_modules`, via `createRequire`.
 - Prints em `~/repos/.reestrutura_whitelabel/evidencias/25-rodada1/<pasta-do-pacote>/`.

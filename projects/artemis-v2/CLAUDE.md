@@ -13,7 +13,7 @@ projeto.
 
 Os nomes reais viram análogos, por exemplo "Mercato Libero", "Genius", "Dayvale" e "Rafael
 Frankl", inclusive em nomes de arquivo, âncoras e caminhos de código citados. Protótipos próprios
-e genéricos em `anexos/` são permitidos, com credenciais só de teste local.
+e genéricos em `attachments/` são permitidos, com credenciais só de teste local.
 
 ## Valores reais fora do repo
 
@@ -29,13 +29,13 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 | Arquivo | Para que serve |
 |---|---|
 | `README.md` | visão geral, lista de tarefas, fases e glossário |
-| `decisoes.md` | decisões pendentes e tomadas, com dono, data e motivo |
-| `estimativa.md` | horas por tarefa, capacidade e calendário |
-| `tarefas/NN-*.md` | uma tarefa por arquivo; análises longas em `NN-analise-*.md` |
-| `evidencias/` | números de produção (Datadog) com data e as consultas para medir de novo |
-| `bugs-encontrados.md` | bugs achados que ainda não viraram tarefa (B1, B2...) |
-| `depois-da-v2.md` | melhorias adiadas para depois da V2 |
-| `anexos/` | SQL e protótipos citados nas tarefas |
+| `decisions.md` | decisões pendentes e tomadas, com dono, data e motivo |
+| `estimate.md` | horas por tarefa, capacidade e calendário |
+| `tasks/NN-*.md` | uma tarefa por arquivo; análises longas em `NN-analise-*.md` |
+| `evidence/` | números de produção (Datadog) com data e as consultas para medir de novo |
+| `bugs-found.md` | bugs achados que ainda não viraram tarefa (B1, B2...) |
+| `after-v2.md` | melhorias adiadas para depois da V2 |
+| `attachments/` | SQL e protótipos citados nas tarefas |
 
 ## Como escrever
 
@@ -51,13 +51,13 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 
 ## Como manter
 
-- **Decisão tomada:** mover de "Pendentes" para "Tomadas" em `decisoes.md`,
+- **Decisão tomada:** mover de "Pendentes" para "Tomadas" em `decisions.md`,
   com data, quem decidiu e o motivo. Atualizar as tarefas que a citam.
-- **Escopo mudou:** atualizar a tarefa, a análise e `estimativa.md` (linha da
+- **Escopo mudou:** atualizar a tarefa, a análise e `estimate.md` (linha da
   tarefa, totais, calendário e "O que mudou").
-- **Item adiado:** levar para `depois-da-v2.md`, com origem, data e o que falta
+- **Item adiado:** levar para `after-v2.md`, com origem, data e o que falta
   para retomar.
-- **Bug achado:** registrar em `bugs-encontrados.md` com onde, efeito, como
+- **Bug achado:** registrar em `bugs-found.md` com onde, efeito, como
   foi confirmado, como validar e a correção proposta.
 - Antes de afirmar algo sobre o comportamento do sistema, conferir no código
   atual ou no Datadog.
@@ -84,7 +84,7 @@ regras do `CLAUDE.md` da raiz.
   existentes não mudam até a substituição.
 - **Fechamento de lote:** assíncrono (D10), com marca no Redis por linha da
   tela e polling no front; a proteção contra fechar em dobro é o
-  `WHERE liquidacao_lote_id IS NULL`. Ver `tarefas/03-*`.
+  `WHERE liquidacao_lote_id IS NULL`. Ver `tasks/03-*`.
 - **Regra para entrar em lote (D9):** exige a cessão do contrato `cadastrado`
   (revisão de 14/10) e usa o produto da liquidação.
 - **Logs como eventos:** mensagem fixa, dimensões no `extra`, um INFO por

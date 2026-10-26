@@ -8,9 +8,9 @@ fazer.
 
 ```
 Continuar o épico de refatoração do front (apl-credit-whitelabel).
-Contexto em ~/repos/workspace/projetos/reestrutura-whitelabel: README (seção "Situação"),
-decisoes.md, tarefas/roteiro-de-area.md (validação com os scripts) e
-anexos/agentes/brief-comum.md (instruções dos agentes).
+Contexto em ~/repos/workspace/projects/whitelabel-restructure: README (seção "Situação"),
+decisions.md, tasks/area-playbook.md (validação com os scripts) e
+attachments/agents/common-brief.md (instruções dos agentes).
 
 Próxima leva, em paralelo, com agentes Opus 5.5 em xhigh, modo completo:
 - 13 Remove Angular Material (TS-5370), junto com a passada de
@@ -23,9 +23,9 @@ Próxima leva, em paralelo, com agentes Opus 5.5 em xhigh, modo completo:
 
 Base da 13: <"as branches 01–12, 14 e 15 já estão na sandbox: nasce da
 origin/sandbox" OU "ainda não juntei: nasce do merge de teste local
-(merge-teste.sh)">.
+(merge-test.sh)">.
 
-Decisões já tomadas (registre em decisoes.md):
+Decisões já tomadas (registre em decisions.md):
 - D13 (ícone more-vertical): <aprovado / outro ícone>;
 - A13 (contraste da Dots e da Cerys): <...>;
 - D20 (Node): <22 / 20>; D21 (IA fora do contêiner): <sim / não>;
@@ -34,7 +34,7 @@ Decisões já tomadas (registre em decisoes.md):
 Fluxo:
 1. Antes de disparar, prepare as worktrees, os dados de smoke e tudo o que
    puder adiantar.
-2. Na revisão, rode o validar-leva.sh e o merge-teste.sh (FULL=1) e olhe
+2. Na revisão, rode o validate-batch.sh e o merge-test.sh (FULL=1) e olhe
    os prints.
 3. Correção em peça comum fica num commit isolado, que eu levo para as
    outras branches.
@@ -48,8 +48,8 @@ Otimize o que puder no fluxo.
 
 ```
 Continuar o épico de refatoração do front (apl-credit-whitelabel).
-Contexto em ~/repos/workspace/projetos/reestrutura-whitelabel: README (seção "Situação"),
-decisoes.md, tarefas/roteiro-de-area.md e anexos/agentes/brief-comum.md.
+Contexto em ~/repos/workspace/projects/whitelabel-restructure: README (seção "Situação"),
+decisions.md, tasks/area-playbook.md e attachments/agents/common-brief.md.
 
 Próxima leva, com agentes Opus 5.5 em xhigh, modo completo:
 - 17 Pasta .ai (<TS da 17>), que fecha depois da 13 (usa as regras de
@@ -58,7 +58,7 @@ Próxima leva, com agentes Opus 5.5 em xhigh, modo completo:
   (leitura: catálogo, pessoas, grupos e diferença entre código e Azure) e,
   se der, o lote (fatia 2) pronto no código, com o Graph falso nos testes.
 
-Decisões da 19 (registre em decisoes.md):
+Decisões da 19 (registre em decisions.md):
 - D16 (quem usa): <escopo próprio de escrita / admin:read>;
 - D17 (atribuir a grupos): <licença P1/P2 confirmada / só pessoas / ainda
   não sei>;
@@ -70,7 +70,7 @@ Decisões da 19 (registre em decisoes.md):
 Se a 5ª leva deixou pendência no README, comece por ela.
 
 Mesmo fluxo da leva anterior:
-- revisão com o validar-leva.sh, o merge-teste.sh (FULL=1) e os prints;
+- revisão com o validate-batch.sh, o merge-test.sh (FULL=1) e os prints;
 - commits sem push, com a lista exata de branches para eu publicar;
 - tudo documentado no workspace.
 ```
@@ -79,8 +79,8 @@ Mesmo fluxo da leva anterior:
 
 ```
 Continuar o épico de refatoração do front de onde o chat anterior parou.
-Leia ~/repos/workspace/projetos/reestrutura-whitelabel (README "Situação", a tarefa em
-andamento e roteiro-de-area.md) e confira o estado real antes de agir:
+Leia ~/repos/workspace/projects/whitelabel-restructure (README "Situação", a tarefa em
+andamento e area-playbook.md) e confira o estado real antes de agir:
 - git log e status das worktrees em ~/repos/apl-credit-whitelabel-wt/ e
   ~/repos/apl-credit-whitelabel-api-wt/;
 - os logs em ~/repos/.reestrutura_whitelabel/logs/.

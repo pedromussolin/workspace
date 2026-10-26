@@ -42,10 +42,10 @@ ilustração. A decisão D44 diz se ele ganha a ilustração.
    A 404 fica de fora (D48).
 
    O Pietro escolhe a direção, como fez com os ícones. Fonte em
-   `anexos/ilustracoes/` (`node build.mjs`).
+   `attachments/illustrations/` (`node build.mjs`).
 
    Proposta publicada em 16/10: https://claude.ai/artifact/6yYiWAnpGjYuJ5pumuCPZ9.
-   Para republicar, publique o `proposta.html` gerado no mesmo artifact.
+   Para republicar, publique o `proposal.html` gerado no mesmo artifact.
 2. **Regras do conjunto:**
    - **Sem personagens:** nenhuma pessoa, mascote ou rosto.
    - **Formas da interface:** cartões, linhas de tabela, filtros, cadeado,
@@ -115,7 +115,7 @@ para a `.ai/` da 17.
 | `file-upload` (nova) | 2.106 B |
 | `login-backdrop` (nova, 1440×900) | 2.509 B |
 
-O gerador está em `anexos/ilustracoes/cenas-portal.mjs`.
+O gerador está em `attachments/illustrations/portal-scenes.mjs`.
 
 **Mudanças visíveis para a PR:**
 - **Acesso negado:** a cena nas cores da marca, e o título passa a
@@ -133,7 +133,7 @@ O gerador está em `anexos/ilustracoes/cenas-portal.mjs`.
   escuro.
 
 **Validação:**
-- `validar-leva.sh` ok: build ok, lint 20/163, 1.876 testes, sem falha nova
+- `validate-batch.sh` ok: build ok, lint 20/163, 1.876 testes, sem falha nova
   (o acordeão instável é o A27, que a 13 corrige);
 - smoke sem sessão do login, claro e escuro, sem erro;
 - prints conferidos nas 4 marcas.

@@ -2,8 +2,8 @@
 
 Medições na réplica de leitura de produção (Postgres 17.9), sessão somente
 leitura, uma consulta por vez, com `statement_timeout` de 60 a 120 s. Base
-da [tarefa 12](../tarefas/12-lotes-reais-lotes-antes-dos-valores.md) e da
-[análise do PR](../tarefas/12-analise-pr-lotes-reais.md).
+da [tarefa 12](../tasks/12-real-batches-before-values.md) e da
+[análise do PR](../tasks/12-real-batches-pr-analysis.md).
 
 Parâmetros de uma chamada que deu 500 hoje (log "Buscando lotes reais de
 liquidação paginados", 18:12:58 UTC): fundo 209, só o dia 20/10, sem

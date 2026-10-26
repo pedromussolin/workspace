@@ -39,4 +39,4 @@ Frozen since 2026-10-26: these items move only when a real case shows up.
 | Item | Why it waits | Fix when picked up |
 |---|---|---|
 | `skills/change-request/references/tests.md` keeps the old 12-minute Docker recipe | a faster recipe exists in the user's notes | update the recipe |
-| `projetos/reestrutura-whitelabel/CONTINUAR.md` "Leia antes" does not name the root `CLAUDE.md` | the project is active in another chat; the project `CLAUDE.md` already points there | one line, when that chat is idle |
+| `projects/whitelabel-restructure/CONTINUE.md` "Leia antes" does not name the root `CLAUDE.md` | the project is active in another chat; the project `CLAUDE.md` already points there | one line, when that chat is idle |

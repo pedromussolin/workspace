@@ -1,7 +1,7 @@
 # Instruções comuns aos agentes da organização e cliente (tarefa 27, TS-5407)
 
-Você faz uma parte do plano `tarefas/27-organizacao-e-cliente-plano.md` (leia também a spec
-`tarefas/27-organizacao-e-cliente.md`), ao mesmo tempo que outro agente. Escreva em PT-BR.
+Você faz uma parte do plano `tasks/27-organization-and-client-plan.md` (leia também a spec
+`tasks/27-organization-and-client.md`), ao mesmo tempo que outro agente. Escreva em PT-BR.
 
 ## Onde
 

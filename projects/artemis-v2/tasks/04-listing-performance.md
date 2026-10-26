@@ -3,7 +3,7 @@
 - **Status:** mapeado; a revisão de queries é com a DBA.
 - **14/10/2026:** a parte de lotes reais (`lotes_das_remessas` e o filtro de
   fundo da página) saiu daqui para a
-  [tarefa 12](12-lotes-reais-lotes-antes-dos-valores.md), que passou na
+  [tarefa 12](12-real-batches-before-values.md), que passou na
   frente. Aqui ficam lotes fake, `pagamentos/query` e métricas.
 - **Repos:** platform-cessao (e front, se mudar quando os lotes irmãos são
   carregados).
@@ -35,7 +35,7 @@ O gargalo mudou de lugar.
 - O filtro de soft delete acrescenta dois `NOT EXISTS` correlacionados
   (`cessao/database/listeners.py:779`).
 - Evidência: num trace de 575 s, 565 s foram nela; 25 h de banco em 7 dias,
-  p95 de 12,3 min ([baseline](../evidencias/baseline-datadog-2026-10-05.md)).
+  p95 de 12,3 min ([baseline](../evidence/baseline-datadog-2026-10-05.md)).
 - Efeito: 18% das cargas da aba de lotes reais terminam em 504.
 
 ### Lotes fake — `get_lotes_fake`
@@ -74,6 +74,6 @@ O gargalo mudou de lugar.
 ## Validação
 
 - Comparar p95 e taxa de 504 das rotas `real-batches`, `fake-batches` e
-  `payments` com o [baseline](../evidencias/baseline-datadog-2026-10-05.md).
+  `payments` com o [baseline](../evidence/baseline-datadog-2026-10-05.md).
 - `EXPLAIN (ANALYZE, BUFFERS)` antes e depois para cada consulta alterada,
   anexado aqui.

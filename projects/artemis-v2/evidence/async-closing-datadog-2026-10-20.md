@@ -1,8 +1,8 @@
 # Fechamento assíncrono no Datadog — 20/10/2026 (primeiro dia)
 
 O que rodou pela rota nova (TS-5377) no primeiro dia de uso em produção.
-Base: [roteiro de acompanhamento](acompanhamento-fechamento-assincrono.md) e
-[casos de 20/10](../tarefas/03-casos-pos-producao.md).
+Base: [roteiro de acompanhamento](async-closing-monitoring.md) e
+[casos de 20/10](../tasks/03-post-production-cases.md).
 
 - **Período:** 20/10, 00:00 a 17:55 UTC. Os fechamentos foram de 14:28 a
   17:25 UTC (11:28 a 14:25 em Brasília).
@@ -57,7 +57,7 @@ Como ler:
   números do "Agora" vêm dos logs (completos).
 - **"Duração" no legado** é o tempo da requisição na cessão. Inclui montar a
   resposta depois do commit, que chegava a 99% do tempo nos grupos grandes
-  ([evidência de 09/10](fechamento-lote-datadog-2026-10-09.md)). O lote
+  ([evidência de 09/10](batch-closing-datadog-2026-10-09.md)). O lote
   ficava pronto antes do fim, mas a cessão seguia ocupada, e é isso que a
   linha mede.
 - **"1,5 s sem a espera por trava":** p50 dos 11 fechamentos que não pegaram
@@ -105,7 +105,7 @@ O pico foi de 13 fechamentos simultâneos, às 14:29.
 
 - O BFF leva ~220 ms a mais que a cessão nas duas rotas. É a consulta de
   produtos do usuário a cada chamada (sem cache, ver o relatório do BFF em
-  [03-casos-pos-producao.md](../tarefas/03-casos-pos-producao.md)).
+  [03-post-production-cases.md](../tasks/03-post-production-cases.md)).
 - Nenhuma chamada ao `consolidate` legado pela tela. O `POST /liquidacao/`
   teve só 4 chamadas, todas do Atlas.
 
@@ -184,7 +184,7 @@ Velocidade nos fechamentos sem espera por trava:
 `GET /liquidacao/lotes/reais`: 19 respostas 500 hoje, todas em ~120 s
 (`statement_timeout`). Quatro delas foram logo depois da primeira rajada,
 entre 14:29:48 e 14:31:57 UTC. É o problema da
-[tarefa 12](../tarefas/12-lotes-reais-lotes-antes-dos-valores.md), não do
+[tarefa 12](../tasks/12-real-batches-before-values.md), não do
 fechamento, mas o usuário cai nele ao conferir o lote que acabou de fechar.
 
 ## Consultas para repetir

@@ -14,7 +14,7 @@ só se sobrar tempo.
 
 ## Como portar
 
-O porte segue o [roteiro das áreas](../../tarefas/roteiro-de-area.md): os passos 4 a 7, a "Regra
+O porte segue o [roteiro das áreas](../../tasks/area-playbook.md): os passos 4 a 7, a "Regra
 de ouro" e o "Pronto quando". Não é só trocar o visual.
 
 - **Lógica:** sai do componente para modelo, regras e visão (`*.view.ts`, funções puras

@@ -155,7 +155,7 @@ Depois de um ciclo, o dono de cada área revisa quem precisa da nova, a
 `CFG_PERMISSIONS_LEGACY_ROLES` desliga e as roles antigas que sobraram saem
 pela tela da 19. Isso fica na 24.
 
-## Decisões (tomadas em 16/10, ver `decisoes.md`)
+## Decisões (tomadas em 16/10, ver `decisions.md`)
 
 D27 a D33 aprovadas como recomendadas; D28 com a regra do admin (D55).
 
@@ -290,7 +290,7 @@ na lista da 24.
 
 **Validação:**
 - `check-patterns` limpo;
-- `validar-leva.sh` ok: os 18 commits compilam sozinhos, build ok, lint
+- `validate-batch.sh` ok: os 18 commits compilam sozinhos, build ok, lint
   20/163, 2.117 testes sem falha nova, smoke de 8 rotas no claro, no escuro
   e na Dots;
 - prints da página inteira (Permissões com o detalhe aberto, plano e prévia

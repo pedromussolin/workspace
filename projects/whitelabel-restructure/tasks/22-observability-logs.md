@@ -274,7 +274,7 @@ do RUM só envia dados, e a chave de API não vai ao navegador):
 | `DD_RUM_TRACE_SAMPLE_RATE` | `100` |
 
 **Validação:**
-- `validar-leva.sh` ok: os 12 commits do agente compilam sozinhos;
+- `validate-batch.sh` ok: os 12 commits do agente compilam sozinhos;
 - `validate.sh` ok: audit 0, 1.968 testes passando;
 - `check-patterns` limpo;
 - imagem de produção com um BFF falso:

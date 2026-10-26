@@ -10,7 +10,7 @@
 > - decidir o que fazer com a cauda lenta que a medição mostrou (seção Risco).
 >
 > A fase 1 da TS-5377 foi no mesmo deploy da TS-5383 e tem GMUD própria
-> ([gmud-ts-5377-fase1.md](gmud-ts-5377-fase1.md)); não é repetida aqui.
+> ([gmud-ts-5377-phase1.md](gmud-ts-5377-phase1.md)); não é repetida aqui.
 
 Tipo: Mudança não programada (já executada em 20/10/2026)
 
@@ -368,7 +368,7 @@ Banco (`service:postgres`, instância da cessão), por `resource_hash`:
 - **O hotfix não mudou a latência típica e não era esse o objetivo:** ele faz o
   detalhe abrir em lote com milhares de remessas. O erro 414 não aparece no
   Datadog (a URL é recusada antes do BFF); a evidência do estado anterior é a
-  de 20/10 (`evidencias/lotes-reais-replica-2026-10-20.md`).
+  de 20/10 (`evidence/real-batches-replica-2026-10-20.md`).
 - Lote 1837116 (1.744 remessas): 5 chamadas no BFF `prod-ccb8306`, todas 200,
   p95 1,1 s, máximo 5,3 s.
 - Rejeitados pela tela (`rejected=true`): 3 chamadas em `prod-ccb8306`
@@ -385,7 +385,7 @@ Banco (`service:postgres`, instância da cessão), por `resource_hash`:
   20/10 23:05 UTC. BFF: sem 5xx nas rotas de liquidação; 3 respostas 404 em
   `real-batches/cnab` (ver Risco) e 4 respostas 401 (token, sem relação).
 
-**Réplica** (20/10; `evidencias/lotes-reais-replica-2026-10-20.md`)
+**Réplica** (20/10; `evidence/real-batches-replica-2026-10-20.md`)
 
 | Caso | Antes | Depois |
 |---|---|---|

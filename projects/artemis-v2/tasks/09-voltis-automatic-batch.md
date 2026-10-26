@@ -2,7 +2,7 @@
 
 - **Status:** aguardando as configs do produto e a explicação do bug.
 - **Repos:** platform-cessao.
-- **Relacionada:** [11](11-fechamento-por-horario-de-corte.md) — hipótese: pagamentos em remessas separadas fechando cedo demais no fechamento em tempo de execução.
+- **Relacionada:** [11](11-closing-by-cutoff-time.md) — hipótese: pagamentos em remessas separadas fechando cedo demais no fechamento em tempo de execução.
 
 ## Contexto
 
@@ -15,10 +15,10 @@ integração com Voltis".
 
 Rodar as consultas com o `produto_id` e o `fundo_id` da Voltis:
 
-- [anexos/sql/configs_produto_fundo.sql](../anexos/sql/configs_produto_fundo.sql)
+- [attachments/sql/product_fund_configs.sql](../attachments/sql/product_fund_configs.sql)
   — um JSON com produto, `produto_config`, `produto_fundo`, fundo, contas,
   regras de liquidação e lotes vigentes.
-- [anexos/sql/remessas_recentes.sql](../anexos/sql/remessas_recentes.sql) —
+- [attachments/sql/recent_remittances.sql](../attachments/sql/recent_remittances.sql) —
   remessas dos últimos dias, quantos pagamentos ficaram sem lote e em quais
   lotes foram parar. Filtra por colunas com índice, mas rodar na réplica ou
   em horário calmo.
@@ -46,7 +46,7 @@ E em `produto_fundo.conciliacao_liquidacao`: modo de conciliação
   `backstop_sem_registro` nos últimos 30 dias. Então, se a Voltis usa o caminho
   por proc_id, o problema não é a falta desse registro.
 - O caminho legado tenta fechar a cada pagamento quando todos os estados são
-  terminais; daí os 3.939 avisos de corrida (ver [tarefa 02](02-fechar-lote-por-proc-id.md)).
+  terminais; daí os 3.939 avisos de corrida (ver [tarefa 02](02-close-batch-by-proc-id.md)).
 
 ## Hipóteses a testar quando os dados chegarem
 
@@ -55,7 +55,7 @@ E em `produto_fundo.conciliacao_liquidacao`: modo de conciliação
 2. A flag está desligada e o caminho legado fecha cedo ou fecha misturando
    remessas.
 3. O lote fecha, mas trava na conciliação (`conciliacao_manual`) ou no
-   retorno da Genius ([tarefa 08](08-genius-reenvio-e-logs.md)).
+   retorno da Genius ([tarefa 08](08-genius-resend-and-logs.md)).
 
 ## Próximo passo
 

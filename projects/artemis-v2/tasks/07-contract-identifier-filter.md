@@ -2,7 +2,7 @@
 
 - **Status:** mapeado, aguardando D5.
 - **Repos:** platform-cessao, BFF, front.
-- **Decisão:** [D5](../decisoes.md) — igualdade, prefixo ou "contém".
+- **Decisão:** [D5](../decisions.md) — igualdade, prefixo ou "contém".
 
 ## Como está hoje
 

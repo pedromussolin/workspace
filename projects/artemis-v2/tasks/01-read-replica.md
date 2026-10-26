@@ -4,7 +4,7 @@
   `7469008` na master da platform-cessao). Variável da réplica já no
   Parameter Store; pendente: conferência no Datadog e medição pós-deploy (ver "Como foi feito").
 - **Repos:** platform-cessao.
-- **Decisões:** [D1 (tomada) e D2 (pendente)](../decisoes.md).
+- **Decisões:** [D1 (tomada) e D2 (pendente)](../decisions.md).
 
 ## Problema
 
@@ -56,7 +56,7 @@ class SessaoComReplica(SignallingSession):
         return super().get_bind(mapper, clause)
 ```
 
-Protótipo completo: [anexos/replica/routing.py](../anexos/replica/routing.py).
+Protótipo completo: [attachments/replica/routing.py](../attachments/replica/routing.py).
 
 ### Regras de roteamento
 
@@ -130,13 +130,13 @@ ou no papel do banco usado pela réplica (DBA). Só afeta quem lê da réplica.
    - decorator `@le_da_replica` nos GETs escolhidos (se D1 = a);
    - testes.
 3. Provisionar a variável no Parameter Store (staging → sandbox → produção).
-4. Medir de novo com o [baseline](../evidencias/baseline-datadog-2026-10-05.md).
+4. Medir de novo com o [baseline](../evidence/baseline-datadog-2026-10-05.md).
 
 ## Validação
 
 Feita no protótipo (Postgres 13.10 descartável; réplica simulada com conexão
 `default_transaction_read_only=on`, que recusa qualquer escrita), 15 testes
-passando — [anexos/replica/test_routing.py](../anexos/replica/test_routing.py):
+passando — [attachments/replica/test_routing.py](../attachments/replica/test_routing.py):
 
 - GET lê da réplica; POST e contexto sem requisição (Celery) leem do primário.
 - Depois de `add` + `flush` num GET, a sessão vê o próprio dado (primário).
@@ -222,4 +222,4 @@ da URI configurada ou do papel do banco (D2).
     TS-5279 (até `02682ad`), 5 testes passando; falta push e novo PR.
 - Depois de corrigir, conferir no Datadog que os spans `postgres` das 5 rotas mostram
   o host da réplica.
-- Medir de novo com o [baseline](../evidencias/baseline-datadog-2026-10-05.md).
+- Medir de novo com o [baseline](../evidence/baseline-datadog-2026-10-05.md).

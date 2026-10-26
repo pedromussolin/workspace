@@ -2,13 +2,13 @@
 
 Efeito da mudança combinada com Rafael Frankl em 13/10: a varredura passou a
 mandar as quatro chaves (produto, originador, fundo e origem) e a rodar uma
-vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tarefas/03-analise-do-fechamento.md#respostas-do-rafael-1310).
+vez por dia em vez de quatro. Base: [tarefa 03, respostas do Rafael](../tasks/03-closing-analysis.md#respostas-do-rafael-1310).
 
 - Ambiente: `env:production`, serviço `platform-cessao`, rota `POST /liquidacao/`.
 - Chamadas da varredura: IP da EC2 de automações, `python-requests`.
 - Antes: 8 dias úteis de 01/10 a 13/10. Depois: só 14/10 (um dia).
 - Tempo de servidor da rota é quase todo espera de SQL
-  ([evidência de 09/10](fechamento-lote-datadog-2026-10-09.md)), então serve
+  ([evidência de 09/10](batch-closing-datadog-2026-10-09.md)), então serve
   de medida do custo no banco.
 
 ## Alerta (15/10): produtos 15 e 581 sem fechamento desde a mudança
@@ -158,7 +158,7 @@ Custo no banco desprezível perto da varredura (minutos no mês contra ~54 min
 por dia). O mesmo efeito colateral é bem maior nas outras chamadas da tela e
 do Atlas: em 14/10, 54 chamadas geraram 358 tentativas vazias (até 30 numa
 chamada). É o problema descrito na
-[análise da tarefa 03, seção 5](../tarefas/03-analise-do-fechamento.md#5-fechar-o-grupo-numa-instrução-proposta-b).
+[análise da tarefa 03, seção 5](../tasks/03-closing-analysis.md#5-fechar-o-grupo-numa-instrução-proposta-b).
 
 ## Consultas para medir de novo
 

@@ -120,7 +120,7 @@ Passos **como foram feitos** em 20/10/2026 (UTC; o git estava em -03:00).
    - Conferido: primeiro log em `prod-a1d5abd` às 23:07:38.
 4. **Portal:** sem deploy (a tag do Portal só mudou no hotfix, 21/10 00:33).
 5. **Acompanhamento** pelo roteiro
-   `evidencias/acompanhamento-fechamento-assincrono.md`: pedidos ×
+   `evidence/async-closing-monitoring.md`: pedidos ×
    conclusões, motivos de falha, "Trava do fechamento de lote fake perdida",
    "Fechamento de lote fake descartado". Resultado nas Evidências.
 
@@ -185,7 +185,7 @@ Testado em 22/10 numa cópia descartável do código atual:
   - limites em Postgres 13 real: espera por trava vira "em uso", consulta
     longa vira "tempo limite", e o `SET LOCAL` não vaza para a transação
     seguinte.
-- **Estresse local** (`evidencias/estresse-fechamento-2026-10-20.md`),
+- **Estresse local** (`evidence/closing-stress-2026-10-20.md`),
   código de produção × esta mudança, concorrência 16:
 
   | Cenário | Produção | Esta mudança |

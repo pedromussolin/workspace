@@ -14,7 +14,7 @@ mesmo tempo, cada um na sua worktree. Escreva o relatório em PT-BR.
   `rules/angular.md`: código e comentário novos em inglês; texto de tela e descrição de teste em
   português.
 - **No BFF** (`apl-credit-whitelabel-api`), nome de teste, docstring e comentário de teste também são em
-  inglês, porque são código ([tarefa 30](../../tarefas/30-testes-do-bff-em-ingles.md)). Só as mensagens que o
+  inglês, porque são código ([tarefa 30](../../tasks/30-bff-tests-in-english.md)). Só as mensagens que o
   teste confere ficam no idioma em que o código as produz.
 - As telas de referência são o Pré-Trade e os Lotes de Liquidação (`.ai/context/reference-screens.md`).
 - **Só edite as pastas e arquivos da sua lista.** Se precisar mudar algo fora dela, não mexa:
@@ -47,8 +47,8 @@ São 23 GB de RAM e 8 CPUs, divididos entre cinco agentes.
 
   ```bash
   P=<primeira porta da sua faixa>; B=$((P+1))
-  sed "s/4300/$P/g; s/8765/$B/g" ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke.mjs > ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs
-  cp ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/smoke-escrita.mjs ~/repos/.reestrutura_whitelabel/agentes/<pacote>/
+  sed "s/4300/$P/g; s/8765/$B/g" ~/repos/workspace/projects/whitelabel-restructure/attachments/scripts/smoke.mjs > ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs
+  cp ~/repos/workspace/projects/whitelabel-restructure/attachments/scripts/smoke-write.mjs ~/repos/.reestrutura_whitelabel/agentes/<pacote>/
   SERVE=1 FIXTURES=~/repos/.reestrutura_whitelabel/smoke-dados/todas-acesso-21.json \
     PW_DIR=~/repos/.reestrutura_whitelabel/pw/node_modules \
     node ~/repos/.reestrutura_whitelabel/agentes/<pacote>/smoke-$P.mjs <seu dist>/browser "$(mktemp -d -p ~/repos/.reestrutura_whitelabel/agentes/<pacote>)"

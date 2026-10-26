@@ -10,7 +10,7 @@ O problema, o objetivo e o escopo do projeto, em poucas linhas. Todo termo técn
 
 ## Tarefas
 
-Uma tarefa por arquivo em `tarefas/`; esta tabela é o índice.
+Uma tarefa por arquivo em `tasks/`; esta tabela é o índice.
 
 | # | Tarefa | Status |
 |---|---|---|

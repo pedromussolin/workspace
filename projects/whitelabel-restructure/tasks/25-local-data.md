@@ -37,7 +37,7 @@ Pessoa e grupo citados por e-mail ou nome são achados nos dados; não achados: 
 - Contadores da resposta (`total`, `pagination.total_count`) acompanham.
 - Sem regra: responde como hoje e avisa ("escrita sem efeito: <método> <caminho>").
 
-## 1. BFF falso (portal local, `anexos/scripts/smoke.mjs`)
+## 1. BFF falso (portal local, `attachments/scripts/smoke.mjs`)
 
 - As mudanças vão para uma cópia dos dados em `$PRIV/smoke-dados/alteracoes/<nome-do-arquivo>.json`:
   sobrevivem a recarregar e a reiniciar o portal. Com a cópia, ela vale mais que o arquivo original.
@@ -68,8 +68,8 @@ mudança, e o `__reset` voltando.
 
 ## O que foi feito
 
-**Parte 1 (20/10):** regras em `anexos/scripts/smoke-escrita.mjs` (funções puras e o `createDataStore`),
-usadas pelo `smoke.mjs`; 30 testes em `smoke-escrita.test.mjs` (`node --test`). Prévia e aplicar usam
+**Parte 1 (20/10):** regras em `attachments/scripts/smoke-write.mjs` (funções puras e o `createDataStore`),
+usadas pelo `smoke.mjs`; 30 testes em `smoke-write.test.mjs` (`node --test`). Prévia e aplicar usam
 as mesmas regras sobre uma cópia, então `create_role` seguido de `assign_role` no mesmo lote funciona.
 Os contadores, as permissões herdadas e os `holders` são derivados a cada escrita (rodar a derivação
 sobre os dados atuais não muda nenhuma das 135 chaves). No aplicar, `blocked` vira `failed` com o

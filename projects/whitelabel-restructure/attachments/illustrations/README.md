@@ -8,15 +8,15 @@ A página não encontrada (404) fica simples, sem ilustração.
 
 | Arquivo | O que é |
 |---|---|
-| `ilustracoes.mjs` | Fonte da verdade: direções, cenas, miolo de cada SVG, cores das marcas e a regra das variáveis `--illu-*` |
+| `illustrations.mjs` | Fonte da verdade: direções, cenas, miolo de cada SVG, cores das marcas e a regra das variáveis `--illu-*` |
 | `svg/<direção>/<cena>.svg` | Um arquivo por ilustração (gerado) |
-| `proposta.tpl.html` | Modelo da página de comparação |
-| `proposta.html` | A página gerada, para publicar como artifact |
+| `proposal.tpl.html` | Modelo da página de comparação |
+| `proposal.html` | A página gerada, para publicar como artifact |
 | `build.mjs` | Gera os SVGs e a página e confere as regras: sem cor fixa, sem texto, sem `filter`, sem `id`, traço entre 1,75 e 2 e menos de 4 KB |
 | `sheet.mjs` | Folha de contato num Chromium headless, com o peso visual de cada cena (área pintada e contraste) |
 
 ```bash
-cd anexos/ilustracoes
+cd attachments/illustrations
 node build.mjs
 # os prints vão para uma pasta fora do repo
 PW_DIR=~/repos/.reestrutura_whitelabel/pw/node_modules node sheet.mjs <pasta> [a|b|c] [--guias] [--escala=2]
@@ -43,11 +43,11 @@ precisa de `id`, e o `id` se repete quando a mesma ilustração aparece duas vez
 
 ## Conjunto do portal (tarefa 23)
 
-`cenas-portal.mjs` gera as 6 cenas que estão no `app-illustration`:
+`portal-scenes.mjs` gera as 6 cenas que estão no `app-illustration`:
 - as 4 da direção A, idênticas à proposta;
 - `file-upload`, o envio de arquivo do chat;
 - `login-backdrop`, o fundo do login, com `viewBox` 1440×900 em `slice`.
 
-Rode `node cenas-portal.mjs`. Ele confere as regras do conjunto e escreve
+Rode `node portal-scenes.mjs`. Ele confere as regras do conjunto e escreve
 `scenes.json` e `preview.html`, que não são versionados.
 

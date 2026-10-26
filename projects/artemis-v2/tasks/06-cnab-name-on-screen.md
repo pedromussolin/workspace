@@ -2,7 +2,7 @@
 
 - **Status:** mapeado, aguardando D4.
 - **Repos:** platform-cessao, BFF, front.
-- **Decisão:** [D4](../decisoes.md) — qual nome mostrar.
+- **Decisão:** [D4](../decisions.md) — qual nome mostrar.
 
 ## Como está hoje
 
@@ -44,9 +44,9 @@ Limites:
 - Qual nome a operação usa para conversar com a ADM? Provavelmente o de
   saída (b).
 - Para a Genius, o nome de saída também é o que o listener usa para achar o
-  `.RET` — salvar isso ajuda a [tarefa 08](08-genius-reenvio-e-logs.md).
+  `.RET` — salvar isso ajuda a [tarefa 08](08-genius-resend-and-logs.md).
 - Mostrar no detalhe (ao abrir a linha) evita custo na listagem, que já é o
-  gargalo ([tarefa 04](04-performance-listagens.md)).
+  gargalo ([tarefa 04](04-listing-performance.md)).
 
 ## Validação
 

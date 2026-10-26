@@ -30,12 +30,12 @@ seguem, ambas por causa do **fundo** (o lote não tem fundo próprio, quem tem
 
 O PR `feature/ajuste-rota-liquidacao-lote-real` mexe só na página (19% dos
 500) e não nos irmãos (81%). Análise e recomendação em
-[12-analise-pr-lotes-reais.md](12-analise-pr-lotes-reais.md).
+[12-real-batches-pr-analysis.md](12-real-batches-pr-analysis.md).
 
 ## Evidência
 
 Detalhe e consultas para repetir em
-[evidencias/lotes-reais-datadog-2026-10-14.md](../evidencias/lotes-reais-datadog-2026-10-14.md).
+[evidence/real-batches-datadog-2026-10-14.md](../evidence/real-batches-datadog-2026-10-14.md).
 Seis dias até 14/10, depois da réplica e do limite de 120 s:
 
 - `GET /liquidacao/lotes/reais`: 749 chamadas, **146 com 500 (19,5%)**, todas
@@ -78,7 +78,7 @@ Onde está o custo:
 ## Proposta
 
 SQL de cada passo, com `EXPLAIN` e checagem de equivalência, em
-[anexos/sql/lotes_reais_lotes_antes_dos_valores.sql](../anexos/sql/lotes_reais_lotes_antes_dos_valores.sql).
+[attachments/sql/real_batches_before_values.sql](../attachments/sql/real_batches_before_values.sql).
 
 ### Visão em etapas (20/10)
 
@@ -217,7 +217,7 @@ A DBA mandou duas consultas:
 
 ## Medição na réplica (20/10)
 
-Detalhe em [evidencias/lotes-reais-replica-2026-10-20.md](../evidencias/lotes-reais-replica-2026-10-20.md).
+Detalhe em [evidence/real-batches-replica-2026-10-20.md](../evidence/real-batches-replica-2026-10-20.md).
 Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
 
 | Parte | Atual | PR | Proposta |
@@ -264,7 +264,7 @@ Chamada que falhou hoje: fundo 209, dia 20/10, sem produto.
 ## Fora do escopo
 
 - Carregar os lotes irmãos sob demanda (proposta 1 da
-  [tarefa 04](04-performance-listagens.md)): muda o contrato com o front.
+  [tarefa 04](04-listing-performance.md)): muda o contrato com o front.
 - Lotes fake, `pagamentos/query` e métricas: continuam na tarefa 04.
 
 ## Riscos

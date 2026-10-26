@@ -2,7 +2,7 @@
 
 - **TS:** TS-5416 (já existia como "executar rota unitária").
 - **Repos:** apl-shared-service, apl-credit-whitelabel-api (BFF) e apl-credit-whitelabel (front).
-- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A14.
+- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-visual-adjustments-and-patterns.md), item A14.
 - **Branches:** `feature/TS-5416-envio-por-subfluxo` nos três. Shared e BFF saem da `master`; o front
   sai da `feature/TS-5424-ajustes-visuais-e-padroes` (a PR 1 mexe no envio de relatórios). Sempre
   `--no-track` ao criar a partir de outra branch, e `git pull`/`fetch` antes.

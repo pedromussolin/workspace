@@ -5,16 +5,16 @@ paralelo em outras worktrees. Não mexa fora das suas worktrees.
 
 ## Antes de tudo, leia
 
-No workspace do épico (`~/repos/workspace/projetos/reestrutura-whitelabel/`, só leitura: não edite nem commite nada lá):
+No workspace do épico (`~/repos/workspace/projects/whitelabel-restructure/`, só leitura: não edite nem commite nada lá):
 1. `README.md` (seções "Ordem e branches" e "Situação").
-2. `tarefas/roteiro-de-area.md`: passos, regra de ouro e critério de pronto.
-3. O arquivo da sua tarefa em `tarefas/`.
-4. `arquitetura-alvo.md`, `design-system.md`, `decisoes.md` (as "Tomadas" valem como requisito) e os
-   achados citados na tarefa (`achados.md`).
-5. `anexos/spec-visual/pre-trade-lotes-sidebar.md` e `anexos/icones/material-para-novo.json`.
+2. `tasks/area-playbook.md`: passos, regra de ouro e critério de pronto.
+3. O arquivo da sua tarefa em `tasks/`.
+4. `target-architecture.md`, `design-system.md`, `decisions.md` (as "Tomadas" valem como requisito) e os
+   achados citados na tarefa (`findings.md`).
+5. `attachments/visual-spec/pre-trade-batches-sidebar.md` e `attachments/icons/material-to-new.json`.
 
 Os documentos do workspace usam nomes mascarados (marcas, empresa, parceiros). A equivalência está
-em `~/.config/workspace/private/reestrutura-whitelabel.md`. No código, use os nomes reais que já estão lá.
+em `~/.config/workspace/private/whitelabel-restructure.md`. No código, use os nomes reais que já estão lá.
 
 ## Referência de implementação
 
@@ -97,13 +97,13 @@ de vez em quando. Nada de lint nem suíte inteira no meio.
 **No fim, antes do relatório (obrigatório):**
 
 ```bash
-FIXTURES=<dados fictícios da tarefa> ~/repos/workspace/projetos/reestrutura-whitelabel/anexos/scripts/validar-leva.sh <sua-worktree-do-front> <rota> [rota ...]
+FIXTURES=<dados fictícios da tarefa> ~/repos/workspace/projects/whitelabel-restructure/attachments/scripts/validate-batch.sh <sua-worktree-do-front> <rota> [rota ...]
 ```
 
 Ele confere commits (72 caracteres, trailers, cada commit compila), roda build, lint e a suíte inteira
 contra a base da 04, e faz o smoke em claro (desktop e celular), escuro e Dots. O smoke acusa erro
 de página, de console e rolagem lateral. Para abas e visões sem URL, use `SCENES` (ver o cabeçalho
-de `anexos/scripts/smoke.mjs`).
+de `attachments/scripts/smoke.mjs`).
 
 Depois, **abra os prints** (ferramenta Read) em `~/repos/.reestrutura_whitelabel/logs/<branch>/prints/`,
 pelo menos desktop claro, celular e escuro, e corrija o que estiver errado. Fique atento a texto
@@ -116,5 +116,5 @@ entregue com `RESULTADO: ok` e os prints conferidos.
 2. O que mudou, curto.
 3. **Mudanças visíveis para a PR** (antes → depois).
 4. Peças novas em `shared/ui` (com sha) e pedidos de ajuste em peças comuns.
-5. A saída do `validar-leva.sh` e o que você conferiu nos prints.
+5. A saída do `validate-batch.sh` e o que você conferiu nos prints.
 6. O que não deu para exercitar e por quê; defeitos encontrados; dúvidas.

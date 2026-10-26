@@ -35,11 +35,11 @@ branch:
 - **Worktree:** `~/repos/apl-credit-whitelabel-wt/25`, branch
   `refact/TS-5395-refinamento-visual`, igual à `release/20261016` (`082111a5`),
   com `node_modules` e build prontos.
-- **Portal local:** `anexos/scripts/portal-local.sh ~/repos/apl-credit-whitelabel-wt/25`
+- **Portal local:** `attachments/scripts/local-portal.sh ~/repos/apl-credit-whitelabel-wt/25`
   (http://localhost:4300), com os dados fictícios de acesso, liquidação e
   Pré-Trade. `BUILD=1` refaz o build depois de cada rodada.
-  - Pare o portal antes do `validar-leva.sh`, que usa as mesmas portas.
-- **Validação da rodada:** `validar-leva.sh` com
+  - Pare o portal antes do `validate-batch.sh`, que usa as mesmas portas.
+- **Validação da rodada:** `validate-batch.sh` com
   `BASE=082111a5`, `BASE_FALHAS=$PRIV/base-vazia-falhas.txt`,
   `BASE_LINT=20/163` e os dados `todas-acesso-21.json`. A base passa com
   2.210 testes, audit 0 e smoke ok.
@@ -47,7 +47,7 @@ branch:
 ## Como funciona a rodada
 
 1. **Revisão:** o Pietro navega no portal local, com dados fictícios
-   (`anexos/scripts/portal-local.sh`, ver o README), e anota o que mudar.
+   (`attachments/scripts/local-portal.sh`, ver o README), e anota o que mudar.
    - Pode ser por tela, por componente ou geral (cor, espaçamento,
      tipografia, densidade).
    - Print com marcação ajuda.
@@ -57,7 +57,7 @@ branch:
    - mudança em token ou componente comum vale para todas as telas e
      entra primeiro;
    - em lote, com agentes, um por grupo de telas.
-4. **Validação:** junção completa (`validar-leva.sh` com smoke), prints
+4. **Validação:** junção completa (`validate-batch.sh` com smoke), prints
    antes e depois nas 4 marcas, claro e escuro e celular.
 5. **Volta para o Pietro** com os prints e o portal local já atualizado.
 
@@ -131,7 +131,7 @@ Decisões da rodada 1 (16/10, Pietro):
 | R40 | Consolidado de Caixa, analítico | A tabela dentro do accordion ficava com margem e faixa cinza solta: `contentFlush` no `app-accordion-item`, tabela de borda a borda | `shared/ui/accordion`, `features/cash-consolidation` | feito |
 | R41 | Detalhes do contrato | "Grosseira": topo com os fatos principais, dados gerais em grupos numa grade de rótulo e valor, mesmo estilo nos acordeões; dados fictícios para validar | `features/assignment-batches/contract-details` | feito (pacote H: resumo no topo, grupos em app-detail-list, mesmo estilo nos acordeões; dados fictícios) |
 | R42 | Usuários | Rodapé da paginação mais alto e em outro formato: paginador padrão, mesma altura em todas as tabelas | `shared/ui/table`, `features/users` | feito (rodapé de paginação com 52 px no desktop e 88 px no celular em todas as tabelas) |
-| R43 | Portal local | Escolher a marca sem reiniciar: `http://localhost:4300/__marcas` (cookie; as marcas vêm do `themes.ts` da worktree) | `anexos/scripts/smoke.mjs` | feito |
+| R43 | Portal local | Escolher a marca sem reiniciar: `http://localhost:4300/__marcas` (cookie; as marcas vêm do `themes.ts` da worktree) | `attachments/scripts/smoke.mjs` | feito |
 | R44 | Segmentado | Barra de rolagem aparecia ao ativar uma opção (o negrito alargava o texto) | `shared/ui/toggle-group` | feito |
 | R45 | Multiselect | Lista aberta mais estreita que o campo | `shared/ui/select` | feito |
 | R46 | Docs da API | Conteúdo centralizado e mais largo, com margem igual dos dois lados | `features/api-docs` | feito |
@@ -148,8 +148,8 @@ Decisões da rodada 1 (16/10, Pietro):
 | R57 | Consolidado de Caixa, analítico | Uma tabela por acordeão: cada uma media as colunas pelo próprio conteúdo e elas não se alinhavam entre as seções | `features/cash-consolidation/analytic`, `.ai/rules/components.md` | feito: R$ mm e % PL com `width="25%"`, Descrição à esquerda |
 | R58 | Menu | Envio de Relatórios (de Operações) e Monitoramento BGT (de Admin) num grupo novo, Produtos, em Módulos | `layouts/app-shell/navigation.ts`, `.ai/rules/architecture.md` | feito: rotas e permissões iguais; a trilha diz "Produtos" |
 | R59 | Marca da sessão | A marca sai da organização da sessão (Poliedro, Dots, Cerys; `client` fica com a Poliedro), e o seletor de marca (fora de produção) simula a organização: cores, logo e home. Antes do login, a marca do endereço (`THEME_KEY`). Permissão, menu, dados e o acesso à assistente seguem a organização real (D69) | `core/theme`, `layouts/app-shell`, `features/general/home`, `.ai` | feito e publicado (20/10): `b9e2a9a8`; os testes do seletor de visão passaram a medir em relação à página (`5a915319`), porque na suíte inteira a janela fica rolada por outros specs |
-| R60 | Home dos parceiros | "Seja bem-vindo(a)!" com Seguro, Integrado e Intuitivo não servia para nada: vira o painel da operação do dia (resumo por módulo liberado, acesso rápido, continuar de onde parou). Desenho e plano em [25-home-parceiros.md](25-home-parceiros.md) | `features/general/home`, `home-summary` de três módulos, `core/navigation`, shell | feito e publicado (20/10): `11d4b9ad` (resumos), `0ec34255` (home), `aae6a159` (`.ai`); levado à 26 e à 27 por merge |
-| R61 | Teste local | Sair e entrar no portal local sem Azure (feito no `smoke.mjs`); mudanças guardadas nos testes locais: no BFF falso (padrão) e no navegador (`MOCK_API`, só front). Desenho em [25-dados-locais.md](25-dados-locais.md) | `anexos/scripts/smoke.mjs`; front: `core/http/mock-api`, `generate-env.js`, `angular.json` (development), `app.config`, `auth.service` | feito e publicado (20/10): BFF falso no workspace; navegador em `b8a02a7f` (`npm run start:mock`); na 26, o `access-control.json` entrou na lista do mock (`ffe3db72`) |
+| R60 | Home dos parceiros | "Seja bem-vindo(a)!" com Seguro, Integrado e Intuitivo não servia para nada: vira o painel da operação do dia (resumo por módulo liberado, acesso rápido, continuar de onde parou). Desenho e plano em [25-partners-home.md](25-partners-home.md) | `features/general/home`, `home-summary` de três módulos, `core/navigation`, shell | feito e publicado (20/10): `11d4b9ad` (resumos), `0ec34255` (home), `aae6a159` (`.ai`); levado à 26 e à 27 por merge |
+| R61 | Teste local | Sair e entrar no portal local sem Azure (feito no `smoke.mjs`); mudanças guardadas nos testes locais: no BFF falso (padrão) e no navegador (`MOCK_API`, só front). Desenho em [25-local-data.md](25-local-data.md) | `attachments/scripts/smoke.mjs`; front: `core/http/mock-api`, `generate-env.js`, `angular.json` (development), `app.config`, `auth.service` | feito e publicado (20/10): BFF falso no workspace; navegador em `b8a02a7f` (`npm run start:mock`); na 26, o `access-control.json` entrou na lista do mock (`ffe3db72`) |
 | R62 | Revisão da prévia (20/10) | Home: a seção da POLI fica compacta (título "POLI AI" no topo, a caixa e o aviso do modelo centralizados; sai o `poli-footer`). Acordeão dentro de acordeão aberto não herda mais o aberto (os estados usam só o filho direto). Orquestrador: os totais ("Todos os flows") e cada subflow ou grupo de processos num cartão com título e "N execuções". Aba do navegador: "<marca> - Portal de crédito" | `features/general/home`, `shared/ui/accordion`, `features/orchestrator`, `core/theme`, `index.html` | feito e publicado (20/10): `88ba625b`, `fde61b17`, `226fc9d0`, `145b8ff1`; 2.921 testes na 25, 3.177 na 26 e 3.306 na 27 |
 
 ## Auditoria da rodada 1 (V3 a V41)
@@ -204,7 +204,7 @@ V13 (R7), V28 (R12), V29 (R6), V12 tamanho de página (decidido: fica), parte da
 455 arquivos. Vários arquivos misturam itens (o mesmo `table.component.scss` tem centro, recuo,
 densidade, cabeçalho e barra de rolagem), e o `git add -p` interativo não roda aqui. Por isso o
 plano agrupa por arquivo, na ordem em que cada commit compila sozinho: peças comuns primeiro, telas
-depois, `.ai` no fim. O `validar-leva.sh` confere a compilação de cada commit.
+depois, `.ai` no fim. O `validate-batch.sh` confere a compilação de cada commit.
 
 | # | Commit | Arquivos | Itens |
 |---|---|---|---|

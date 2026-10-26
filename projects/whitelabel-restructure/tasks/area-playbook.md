@@ -22,7 +22,7 @@ específico dela: telas, serviços, fluxos críticos e armadilhas.
    breadcrumbs passam a vir da rota.
 4. **Componentes** (`refact`): trocar `mat-*` pelos componentes de
    `shared/ui` e `mat-icon` por `app-icon`, usando
-   [material-para-novo.json](../anexos/icones/material-para-novo.json).
+   [material-to-new.json](../attachments/icons/material-to-new.json).
 5. **Tokens** (`refact`): trocar cores fixas por tokens semânticos e apagar
    os `::ng-deep` que miravam classes do Material.
 6. **Organização** (`refact`), sem mudar comportamento, usabilidade nem lógica:
@@ -65,7 +65,7 @@ Toda tela segue os estilos e os componentes definidos por nós:
 - `npm run build` e `npm run lint` passam sem erro novo em relação ao
   baseline da 01.
 - Os specs da área passam, inclusive os que já falhavam no
-  [baseline](../evidencias/baseline-2026-10-10.md). A correção deles vai num
+  [baseline](../evidence/baseline-2026-10-10.md). A correção deles vai num
   commit `test` separado, **antes** da refatoração. Spec que mudou de lugar
   continua testando a mesma coisa.
 - `grep -r "@angular/material" features/<área>` não retorna nada.
@@ -79,13 +79,13 @@ Toda tela segue os estilos e os componentes definidos por nós:
 ## Como validar uma leva (comandos)
 
 **Desde a 4ª leva, dois scripts fazem tudo isto:**
-- `anexos/scripts/validar-leva.sh <worktree> [rota ...]` confere:
+- `attachments/scripts/validate-batch.sh <worktree> [rota ...]` confere:
   - commits: 72 caracteres, trailers e se cada um compila sozinho;
   - build, lint e a suíte inteira contra a base da 04;
   - smoke em claro, escuro, Dots e celular, com `FIXTURES` e `SCENES`.
   - Os agentes rodam o script antes de entregar, e eu rodo de novo na
     revisão.
-- `anexos/scripts/merge-teste.sh <repo>` junta todas as áreas sobre a 04
+- `attachments/scripts/merge-test.sh <repo>` junta todas as áreas sobre a 04
   numa worktree descartável e confere `tsc`. Com `FULL=1`, roda também
   build e testes. Conflito conhecido tem resolução automática por branch.
 - **O que fica fora do repo,** em `~/repos/.reestrutura_whitelabel/`:
@@ -95,7 +95,7 @@ Toda tela segue os estilos e os componentes definidos por nós:
   - o `playwright-core`;
   - os dados de smoke que vêm do código da empresa (ex.: o OpenAPI do BFF);
   - as resoluções de conflito.
-- **As instruções comuns aos agentes** estão em `anexos/agentes/brief-comum.md`.
+- **As instruções comuns aos agentes** estão em `attachments/agents/common-brief.md`.
   O pedido de cada agente traz só o que é da tarefa dele.
 
 Os passos abaixo são o que os scripts fazem, para referência.
@@ -128,10 +128,10 @@ Comandos:
    - Compare essa lista com a da 04, gerada com o mesmo comando na branch da 04.
 2. **Smoke:** a navegação com dados fictícios (mock) pelas 29 rotas.
    - Instale uma vez: `npm i playwright-core` numa pasta qualquer.
-   - Rode `PW_DIR=<pasta>/node_modules node anexos/scripts/smoke.mjs <dist>/browser <pasta-prints>`.
+   - Rode `PW_DIR=<pasta>/node_modules node attachments/scripts/smoke.mjs <dist>/browser <pasta-prints>`.
    - O mock não tem os escopos de lotes, então essa tela abre em "sem permissão".
 3. **Juntar os commits:**
-   [anexos/scripts/juntar-branch.py](../anexos/scripts/juntar-branch.py) monta
+   [attachments/scripts/merge-branch.py](../attachments/scripts/merge-branch.py) monta
    a branch final a partir da worktree do agente.
    - Os agentes Sonnet costumam passar de 72 caracteres no assunto do commit.
    - Os assuntos encurtados vão no mapa `R` do script.
@@ -139,7 +139,7 @@ Comandos:
    variável de ambiente:
    - `SCHEME=dark` (escuro), `THEME_KEY=<chave real da marca>` e
      `NO_SESSION=1` (tela de login);
-   - `FIXTURES=anexos/smoke-dados/<área>.json`, com dados fictícios por
+   - `FIXTURES=attachments/smoke-data/<área>.json`, com dados fictícios por
      caminho da API;
    - `SCENES='[["nome","/rota","texto de um app-toggle"]]'`, para abas e
      visões sem URL própria (print da página inteira).

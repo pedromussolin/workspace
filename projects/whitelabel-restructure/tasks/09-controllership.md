@@ -3,7 +3,7 @@
 - **TS:** TS-5366 · **Branch:** `refact/TS-5366-controladoria-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)
 - **Status:** em andamento (15/10, 3ª leva)
 - **Depende de:** 04
-- **Passos e critério de pronto:** [roteiro-de-area.md](roteiro-de-area.md)
+- **Passos e critério de pronto:** [area-playbook.md](area-playbook.md)
 
 ## Telas e rotas
 
@@ -150,7 +150,7 @@ final é idêntico, arquivo por arquivo.
 | Lint | 51 erros / 272 avisos |
 | Testes | 830, com 75 falhando, nenhuma falha nova. As 2 falhas da base da área foram corrigidas |
 | Commits | todos compilam sozinhos (`tsc` de app e specs em cada um) |
-| Smoke | com dados fictícios (`anexos/smoke-dados/controladoria.json`): as cinco telas e as abas do PDD e do CERC, em claro, escuro, Dots e celular, sem erro de página, de console nem rolagem lateral |
+| Smoke | com dados fictícios (`attachments/smoke-data/controllership.json`): as cinco telas e as abas do PDD e do CERC, em claro, escuro, Dots e celular, sem erro de página, de console nem rolagem lateral |
 | Merge | entra sem conflito com todas as outras áreas |
 
 Não deu para exercitar com o BFF real: exportação do caixa (Excel/CSV),

@@ -120,7 +120,7 @@ O E2E roda no WebKit, que é o motor do Safari (tarefa 16).
   pelo código do componente (D10). As cores vêm dos tokens no CSS, então a
   troca de esquema não precisa redesenhar o gráfico.
 - O seletor fica no menu do usuário (rodapé da sidebar), com Claro / Escuro / Sistema. Ele só aparece na
-  tarefa 13 (ver [decisoes.md](decisoes.md)).
+  tarefa 13 (ver [decisions.md](decisions.md)).
 
 ## Componentes próprios (`shared/ui`)
 
@@ -153,10 +153,10 @@ apaga os que sobrarem.
 - São 148 SVGs próprios: grade de 24 px, traço de 1,75, pontas e junções
   arredondadas, cor `currentColor`.
 - Eles substituem os 179 nomes do Material usados no front.
-- Fonte e scripts ficam em [anexos/icones/](anexos/icones/). A página de
+- Fonte e scripts ficam em [attachments/icons/](attachments/icons/). A página de
   revisão é https://claude.ai/artifact/Hi6hgNKrGGRgofWWHh3Dds.
 - O nome é um tipo fechado (`IconName`). Nome inexistente dá erro de
   compilação.
-- Na migração de cada área, [material-para-novo.json](anexos/icones/material-para-novo.json)
+- Na migração de cada área, [material-to-new.json](attachments/icons/material-to-new.json)
   diz qual ícone novo usar para cada nome antigo.
-- Para regenerar os SVGs e a página: `cd anexos/icones && node build.mjs`.
+- Para regenerar os SVGs e a página: `cd attachments/icons && node build.mjs`.

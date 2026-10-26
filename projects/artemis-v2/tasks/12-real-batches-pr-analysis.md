@@ -5,8 +5,8 @@
   `f19ef2c` (19/10). **[C]**
 - **Arquivos:** `cessao/api/liquidacao/repository.py` e o teste dele. Linhas
   abaixo contra `79e7c2d`.
-- **Análise:** 20/10/2026. Base: [tarefa 12](12-lotes-reais-lotes-antes-dos-valores.md)
-  e [evidência](../evidencias/lotes-reais-datadog-2026-10-14.md) (seção de 20/10).
+- **Análise:** 20/10/2026. Base: [tarefa 12](12-real-batches-before-values.md)
+  e [evidência](../evidence/real-batches-datadog-2026-10-14.md) (seção de 20/10).
 
 ## Conclusão
 
@@ -22,7 +22,7 @@ piorar o caso que hoje funciona. Duas peças pequenas valem aproveitar, com
 também passou de 60 s; a do fundo pelo 1º pagamento levou 0,1 s. O
 `OFFSET 0` faz o que promete, mas os lotes de outros fundos do dia somam
 ~340 mil pagamentos lidos um a um. **[C]** Ver
-[evidência](../evidencias/lotes-reais-replica-2026-10-20.md).
+[evidência](../evidence/real-batches-replica-2026-10-20.md).
 
 ## O que o PR muda
 

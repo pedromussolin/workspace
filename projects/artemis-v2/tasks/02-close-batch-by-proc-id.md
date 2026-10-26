@@ -2,9 +2,9 @@
 
 - **Status:** desenho alinhado com o Pietro em 06/10/2026; D3 adiada.
 - **Repos:** platform-cessao (principal), BFF e front (fechamento manual).
-- **Decisões:** [D3](../decisoes.md) (adiada), [D7](../decisoes.md) (acúmulo).
-- **Relacionadas:** [03](03-fechamento-assincrono-e-429.md) (mesma rota),
-  [11](11-fechamento-por-horario-de-corte.md) (automático por corte).
+- **Decisões:** [D3](../decisions.md) (adiada), [D7](../decisions.md) (acúmulo).
+- **Relacionadas:** [03](03-async-closing-and-429.md) (mesma rota),
+  [11](11-closing-by-cutoff-time.md) (automático por corte).
 
 ## Regra combinada
 
@@ -107,7 +107,7 @@ fundo ou origem, a linha esconde isso.
      24 h ou que não entrou pelo upload). Hoje o `claim_fechamento` só aceita
      `processando`, então o manual nunca conseguiria a trava nesses casos;
    - se o Redis falhar ou a chave tiver sido removida (ver memória do Redis em
-     [bugs-encontrados.md](../bugs-encontrados.md)), o fechamento segue: quem
+     [bugs-found.md](../bugs-found.md)), o fechamento segue: quem
      garante que um pagamento não entra em dois lotes é o
      `WHERE liquidacao_lote_id IS NULL` do UPDATE;
    - no modo por chave não há portão no Redis; a proteção é o mesmo guard do

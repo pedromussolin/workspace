@@ -16,7 +16,7 @@ mascotes em pixel art andam sobre a barra de digitar da POLI e da Home, reagindo
 
 **Stack:** Angular 20 (signals, OnPush, zone.js com `eventCoalescing`: o intervalo do mascote roda fora da zona), Karma/Jasmine, `shared/ui`.
 
-**Spec:** [28-poli-mascote.md](28-poli-mascote.md) (D80–D88). Leia antes. Ajustes da revisão de
+**Spec:** [28-poli-mascot.md](28-poli-mascot.md) (D80–D88). Leia antes. Ajustes da revisão de
 20/10 (tamanho dos mascotes e troca como botão de configuração): D87 e D88, na spec.
 
 ## Restrições globais
@@ -160,7 +160,7 @@ Na worktree 28. Não toca em `shared/ui/mascot/`: usa o contrato. Enquanto o A n
 
 1. Copiar `shared/ui/mascot/` e a vitrine do A para a 28; `tsc`, os specs das duas frentes e o
    build.
-2. `validar-leva.sh` com `BASE=6303b2e5`, `BASE_FALHAS` da base vazia e `BASE_LINT=20/162`, rotas
+2. `validate-batch.sh` com `BASE=6303b2e5`, `BASE_FALHAS` da base vazia e `BASE_LINT=20/162`, rotas
    `/home /poli-chat /legal-poli-chat`, numa cópia do smoke com as portas trocadas para 4690/8790.
 3. Prints com e sem *reduced motion* (`page.emulateMedia({ reducedMotion })`); conferir os quatro
    personagens e as reações.

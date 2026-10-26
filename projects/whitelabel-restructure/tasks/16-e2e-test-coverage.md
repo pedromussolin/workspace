@@ -3,7 +3,7 @@
 > **Adiada (11/10/2026):** workflows, E2E, cobertura no CI e CI/CD ficam para depois; o Pietro vai fazer com o time de infraestrutura. D9 segue em aberto.
 
 - **TS:** a criar · **Branch:** `test/TS-?-e2e-cobertura-regressao-visual`
-- **Status:** adiada. O Pietro faz depois, com o time de infraestrutura. O protótipo do smoke já roda: [anexos/scripts/smoke.mjs](../anexos/scripts/smoke.mjs)
+- **Status:** adiada. O Pietro faz depois, com o time de infraestrutura. O protótipo do smoke já roda: [attachments/scripts/smoke.mjs](../attachments/scripts/smoke.mjs)
 - **Depende de:** 01. Decisão D9.
 
 ## Escopo
@@ -27,7 +27,7 @@
    - Karma com `--code-coverage`;
    - limite mínimo para `shared/ui` e `core/` (proposta: 80% de linhas);
    - o resto do projeto sobe junto com as tarefas de área.
-4. **CI** (ver [achados.md](../achados.md) A9):
+4. **CI** (ver [findings.md](../findings.md) A9):
    - incluir `refact/*`, `chore/*`, `fix/*` e `test/*` nos gatilhos;
    - job com testes unitários, cobertura e E2E (D9).
 

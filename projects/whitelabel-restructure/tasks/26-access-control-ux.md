@@ -239,7 +239,7 @@ Pedido do Pietro em 19/10, revisando a tela `/access-control` (tarefas 19 e 21):
   1. BFF e as peças comuns do front (modal, diálogo de mudança, seletores, store e data-access), em
      paralelo;
   2. as abas em paralelo (Permissões, Pessoas, Grupos, Em lote + Migração);
-  3. revisão, validação (`validar-leva.sh` e smoke) e plano de commits para o Pietro aprovar.
+  3. revisão, validação (`validate-batch.sh` e smoke) e plano de commits para o Pietro aprovar.
 - Commits só depois da revisão, em PT-BR, `tipo(TS-5405): …`, sem `Co-Authored-By`.
 
 ## O que foi feito (19/10/2026)

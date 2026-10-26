@@ -15,7 +15,7 @@ front troca o lote como caminho de toda escrita por um diálogo de mudança que 
 **Stack:** BFF FastAPI 0.117 / Pydantic 2.12 / pytest; front Angular 20 (signals, OnPush, CDK),
 Karma/Jasmine, componentes de `shared/ui`.
 
-**Spec:** [26-controle-de-acesso-ux.md](26-controle-de-acesso-ux.md) — leia antes; este plano não
+**Spec:** [26-access-control-ux.md](26-access-control-ux.md) — leia antes; este plano não
 repete o desenho.
 
 ## Restrições globais
@@ -434,7 +434,7 @@ Caminhos relativos a `src/app/features/access-control/`.
   (padrão lista + modal do controle de acesso), `.ai/rules/components.md` se nascer regra nova.
 
 - [ ] **Passo 1:** dados fictícios das rotas novas (um `holders` por permissão usada no smoke).
-- [ ] **Passo 2:** `validar-leva.sh` na worktree do front (build, lint igual à base, suíte inteira)
+- [ ] **Passo 2:** `validate-batch.sh` na worktree do front (build, lint igual à base, suíte inteira)
   e o smoke de `/access-control` em claro, escuro, celular e outra marca.
 - [ ] **Passo 3:** `pytest tests/unit -q` e ruff/black no BFF.
 - [ ] **Passo 4:** prints no portal local e plano de commits para o Pietro.

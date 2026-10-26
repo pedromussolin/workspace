@@ -14,7 +14,7 @@ Pessoas, o modal da pessoa e o Em lote, usando o diálogo de mudança direta da 
 **Stack:** BFF FastAPI 0.117 / Pydantic 2.12 / pytest; front Angular 20 (signals, OnPush),
 Karma/Jasmine, `shared/ui`.
 
-**Spec:** [27-organizacao-e-cliente.md](27-organizacao-e-cliente.md) (D64–D68). Leia antes.
+**Spec:** [27-organization-and-client.md](27-organization-and-client.md) (D64–D68). Leia antes.
 
 ## Restrições globais
 

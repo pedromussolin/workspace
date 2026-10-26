@@ -4,7 +4,7 @@ Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
 
-Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefas do `README.md` e o `decisoes.md`. Os valores reais (hosts, usuários de banco, nomes por trás dos análogos) estão no arquivo local `~/.config/workspace/private/artemis-v2.md`.
+Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefas do `README.md` e o `decisions.md`. Os valores reais (hosts, usuários de banco, nomes por trás dos análogos) estão no arquivo local `~/.config/workspace/private/artemis-v2.md`.
 
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
@@ -17,7 +17,7 @@ Situação das tarefas, pela tabela do `README.md` (última edição em 20/10):
 | Tarefa | Situação |
 |---|---|
 | 01, réplica de leitura | concluída (PR #2628, 07/10; variável no Parameter Store), TS-5279 |
-| 03, fechamento mais rápido e assíncrono | em produção (cessão 19/10, BFF e front 20/10), TS-5377; casos e plano de 20/10 em `tarefas/03-casos-pos-producao.md` |
+| 03, fechamento mais rápido e assíncrono | em produção (cessão 19/10, BFF e front 20/10), TS-5377; casos e plano de 20/10 em `tasks/03-post-production-cases.md` |
 | 12, lotes reais: buscar os lotes antes dos valores | **prioridade máxima** (14/10); mapeada; depende da D21 |
 | 02, dois modos de fechamento (chave ou proc_id) | desenho alinhado |
 | 04, 05, 06, 07 | mapeadas (a 04 espera a revisão da DBA; a 06 espera a decisão D4) |
@@ -37,7 +37,7 @@ O que o histórico de commits registra depois disso (20 a 22/10):
 - **22/10:** a GMUD da TS-5377 de 19/10 virou retroativa; a GMUD da fase 1 recebeu o uso em produção e o rollback; a GMUD da TS-5383 recebeu o hotfix do detalhe pelo `lote_id`; as prioridades das GMUDs e o ambiente da Viva na TS-5383 foram registrados; os testes de 22/10 das GMUDs da TS-5377 e da TS-5383 foram registrados.
 - **Último commit da pasta (22/10):** status das GMUDs da TS-5377 sem pendência de teste.
 
-As GMUDs estão em `gmud-ts-5377.md`, `gmud-ts-5377-fase1.md`, `gmud-ts-5383.md` e `gmud-ts-5279.md`.
+As GMUDs estão em `gmud-ts-5377.md`, `gmud-ts-5377-phase1.md`, `gmud-ts-5383.md` e `gmud-ts-5279.md`.
 
 ## Branches e worktrees
 
@@ -45,6 +45,6 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. Abrir `decisoes.md` e ver se a D21 já está tomada: a tarefa 12, a de prioridade máxima, depende dela, e a premissa dela foi validada na réplica em 20/10.
-2. Ler `tarefas/12-lotes-reais-lotes-antes-dos-valores.md` e seguir a tarefa 12 a partir de "mapeada", sem abrir branch antes de estressar o desenho (é o objetivo desta pasta).
+1. Abrir `decisions.md` e ver se a D21 já está tomada: a tarefa 12, a de prioridade máxima, depende dela, e a premissa dela foi validada na réplica em 20/10.
+2. Ler `tasks/12-real-batches-before-values.md` e seguir a tarefa 12 a partir de "mapeada", sem abrir branch antes de estressar o desenho (é o objetivo desta pasta).
 3. Atualizar o `README.md`: ele ainda não registra a TS-5383, as GMUDs nem o que mudou de 20 a 22/10. Fazer isso junto com o primeiro commit do dia, depois de conferir o estado real.

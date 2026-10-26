@@ -36,7 +36,7 @@
 - **Fase 1 de robustez: em produção desde 20/10 ~23:06 UTC** (cessão
   `prod-2eb8faa`, BFF `prod-a1d5abd`), branches
   `fix/TS-5377-robustez-fechamento-lote`. GMUD retroativa em
-  [gmud-ts-5377-fase1.md](../gmud-ts-5377-fase1.md).
+  [gmud-ts-5377-phase1.md](../gmud-ts-5377-phase1.md).
   - **Cessão (`refact.py`, task, schema, viewer):**
     - `SET LOCAL statement_timeout` (480 s) e `lock_timeout` (60 s),
       configuráveis por `FAKE_BATCH_CLOSING_STATEMENT_TIMEOUT_MS` e
@@ -63,7 +63,7 @@
     - scripts Lua em Redis 6.2 real (18 cenários);
     - limites de banco em Postgres 13 real (trava, tempo e `SET LOCAL` sem
       vazar).
-  - **Estresse (20/10):** [evidencias/estresse-fechamento-2026-10-20.md](../evidencias/estresse-fechamento-2026-10-20.md).
+  - **Estresse (20/10):** [evidence/closing-stress-2026-10-20.md](../evidence/closing-stress-2026-10-20.md).
     Com falha (trava externa, worker parado ou morto) a `master` perdeu
     pedidos sem aviso e a branch nenhum. O teste achou trava órfã com o Redis
     lento (E1), corrigida na branch com trava e pedido num script Lua só.
@@ -71,10 +71,10 @@
     que chega logo depois de um fechamento (E2).
   - **Ordem de deploy:** cessão (API e worker juntos), depois o BFF. O
     resultado no formato antigo, sem `job_id`, não bloqueia o novo.
-- **Casos depois da implantação (20/10):** [03-casos-pos-producao.md](03-casos-pos-producao.md)
+- **Casos depois da implantação (20/10):** [03-post-production-cases.md](03-post-production-cases.md)
   — revisão de todos os caminhos (tempo, fechamento perdido, corridas com o
   legado, tela) e plano em fases; acompanhamento em
-  [evidencias/acompanhamento-fechamento-assincrono.md](../evidencias/acompanhamento-fechamento-assincrono.md).
+  [evidence/async-closing-monitoring.md](../evidence/async-closing-monitoring.md).
 - **Pendências depois da implantação (19/10)** — retomar por aqui:
   1. ~~**R16**~~ — **20/10: 16 virou o padrão, por enquanto** (decisão do Pietro).
      Histórico: **R16, concorrência 16 no worker de produção.** O values pede 2; o pod
@@ -112,22 +112,22 @@
   5. **Fora da TS-5377:** "Erro na esteira 'NoneType' object is not
      iterable" em `estados_cessao.py:82` (`_existe_callback`), logo após
      lote criado pela varredura; apareceu em 13, 15, 16 e 19/10. Causa
-     levantada em 20/10: [B18](../bugs-encontrados.md); não impede o lote de
+     levantada em 20/10: [B18](../bugs-found.md); não impede o lote de
      seguir.
   6. ~~**Implantação:** faltam BFF e front~~ — no ar em 20/10 (BFF
      `prod-fe2bee2`). vivo-production sem worker (sem Portal lá).
-- **Revisão antes de produção (15/10):** [03-revisao-pre-producao.md](03-revisao-pre-producao.md).
+- **Revisão antes de produção (15/10):** [03-pre-production-review.md](03-pre-production-review.md).
   Bloqueios R1–R6 (worker de produção, ordem de deploy, deploy que mata o
   fechamento em andamento, limites de tempo em grupos grandes, fundo da
   parcela × processo, B9); médios R7–R15.
-- **Análise completa:** [03-analise-do-fechamento.md](03-analise-do-fechamento.md)
+- **Análise completa:** [03-closing-analysis.md](03-closing-analysis.md)
   (mapa do fluxo, consultas, síncrono × assíncrono, estimativa).
-- **Evidências:** [Datadog, 09/10/2026](../evidencias/fechamento-lote-datadog-2026-10-09.md).
-- **Decisões:** [D6](../decisoes.md) (rota em lote), **D9** (regra de
+- **Evidências:** [Datadog, 09/10/2026](../evidence/batch-closing-datadog-2026-10-09.md).
+- **Decisões:** [D6](../decisions.md) (rota em lote), **D9** (regra de
   elegibilidade), **D10** (assíncrono, decidida em 09/10).
-- **Relacionadas:** [02](02-fechar-lote-por-proc-id.md) (mesmo UPDATE no modo
-  por proc_id), [04](04-performance-listagens.md) (revisão de queries com a DBA),
-  [11](11-fechamento-por-horario-de-corte.md) (substitui varredura e
+- **Relacionadas:** [02](02-close-batch-by-proc-id.md) (mesmo UPDATE no modo
+  por proc_id), [04](04-listing-performance.md) (revisão de queries com a DBA),
+  [11](11-closing-by-cutoff-time.md) (substitui varredura e
   automático legado).
 
 ## Item original
@@ -183,7 +183,7 @@ Primeiro deixar cada fechamento barato; depois tirá-lo da requisição
 Seguindo o `refact.py`, o fluxo novo nasce em rota própria, só para o front,
 e o legado não muda. P1, P3 e P4 mexem só no legado (rota antiga, Atlas,
 varredura, esteira compartilhada) e foram para
-[depois-da-v2.md](../depois-da-v2.md). A rota nova não usa a Q1: a linha da
+[after-v2.md](../after-v2.md). A rota nova não usa a Q1: a linha da
 tela já traz fundo e origem.
 
 1. ~~**P1:** a Q1 recebe a origem~~ — adiado em 13/10.
@@ -196,7 +196,7 @@ tela já traz fundo e origem.
 5. **P5:** regra única (D9) e um UPDATE que procura e marca os pagamentos de
    uma vez, sem trazer ids ao Python.
 6. ~~**P6:** índices~~ — adiado em 13/10 para
-   [depois-da-v2.md](../depois-da-v2.md).
+   [after-v2.md](../after-v2.md).
 7. **P7:** um log por fechamento, com duração e quantidade de pagamentos.
    Calibra a concorrência da fila e o TTL da marca.
 
@@ -250,11 +250,11 @@ tela já traz fundo e origem.
   linha é só marcada como apagada) é injetado pelo ORM e não vale para
   `text()`. O `contrato_processo.data_delete IS NULL` precisa estar explícito.
 - **Permissão:** o BFF só checa o papel, não se o produto é do parceiro
-  ([B5](../bugs-encontrados.md)).
+  ([B5](../bugs-found.md)).
 
 ## Validação
 
-Comparar com a [evidência de 09/10](../evidencias/fechamento-lote-datadog-2026-10-09.md),
+Comparar com a [evidência de 09/10](../evidence/batch-closing-datadog-2026-10-09.md),
 usando as mesmas consultas.
 
 **Testes**

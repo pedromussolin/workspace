@@ -38,7 +38,7 @@
 - **21/10, primeira subida na sandbox:** o BFF novo morria por falta de memória (usa ~128 MiB, o limite era 128 MiB,
   igual em produção); recursos do BFF passam a 256/512 MiB e 100m/500m de CPU (sandbox agora, produção no deploy da noite).
   O Guardian do front funciona no pod, mas entrega os valores entre aspas: correção no `entrypoint.sh` (`e426aca9`, PR #231)
-- **21/10, rodada de correções na release (front):** 5 pacotes por agentes ([brief](../anexos/agentes/brief-release-21-10.md)):
+- **21/10, rodada de correções na release (front):** 5 pacotes por agentes ([brief](../attachments/agents/brief-release-21-10.md)):
   - sai "Hoje na sua operação" da home;
   - o contador de produtos vai para fora da tabela e volta a contar a busca;
   - o carregando do Consolidado de Caixa segue o padrão das tabelas;
@@ -52,12 +52,12 @@
   - a tabela de agendamentos não cabe a 1440 px com o menu aberto (faltam 195 px);
   - as colunas da visão "Por parceiro" não se alinham entre os grupos.
 - **21/10 (TS-5193):** a área do Orquestrador refeita pelo dev (aba Visão do produto e Execuções por produto) é portada para
-  a base nova e entra no deploy da noite ([brief](../anexos/agentes/brief-5193.md)). As PRs dele não são mergeadas.
+  a base nova e entra no deploy da noite ([brief](../attachments/agents/brief-5193.md)). As PRs dele não são mergeadas.
   - O BFF chama rotas novas do serviço de orquestração, que só existem numa PR aberta desse serviço.
   - Essa PR precisa subir na sandbox e em produção antes do BFF.
   - Feito: front e BFF portados, validados e nas PRs para a sandbox (front #232, junto das correções; BFF #219). Entra no deploy da noite (D107).
 - **21/10 (TS-5129):** a aba de ativos pendentes da Conciliação de registros, feita por outro dev na estrutura antiga
-  (front e BFF), é portada para a base nova ([brief](../anexos/agentes/brief-5129.md)).
+  (front e BFF), é portada para a base nova ([brief](../attachments/agents/brief-5129.md)).
   - O BFF do dev exige 4 variáveis novas para a consulta à registradora. No porte, elas ficam opcionais.
   - O pré-aquecimento do cache roda em cada réplica; o porte o trava a uma réplica por dia.
   - Entra no deploy da noite (D107). As variáveis da registradora vão para o Parameter Store da sandbox e de produção.
@@ -146,7 +146,7 @@ leitura passa por uma máscara.
 Os scripts do Pietro leem e gravam variáveis de verdade. Para eu usá-los sem
 ver valor nenhum:
 
-1. **Wrapper próprio** (`anexos/scripts/env-sem-valor.sh`):
+1. **Wrapper próprio** (`attachments/scripts/env-without-value.sh`):
    - roda o script do Pietro com a saída inteira redirecionada para
      `$PRIV/env/<repo>-<ambiente>.raw` (permissão 600), sem passar pela
      tela;
@@ -286,7 +286,7 @@ Sem a transição, a ordem no deploy é:
 
 ## Pendência vinda da 27 (19/10)
 
-- **Perguntas à infraestrutura** (lista completa em [27](27-organizacao-e-cliente.md#perguntas-para-a-infraestrutura)):
+- **Perguntas à infraestrutura** (lista completa em [27](27-organization-and-client.md#perguntas-para-a-infraestrutura)):
   como o `org_type` e o `internal_client_id` são gravados no usuário e como chegam ao token, e se o
   app do BFF pode receber `User.ReadWrite.All`.
 - **Variáveis do BFF após a PR 2 (TS-5425)** (sandbox, staging e produção): substituir

@@ -142,6 +142,6 @@ Application, senão os membros não ganham o departamento.
 
 ## Regras
 
-As da [32](32-envio-por-subfluxo.md): git do `~/repos/CLAUDE.md`, commit só depois da revisão do
+As da [32](32-send-by-subflow.md): git do `~/repos/CLAUDE.md`, commit só depois da revisão do
 Pietro, Python em inglês, log com mensagem fixa e dimensões no `extra`, `.ai/` do front, validar local
 antes.

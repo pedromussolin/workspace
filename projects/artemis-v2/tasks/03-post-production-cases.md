@@ -29,7 +29,7 @@ Datadog; **[H]** = hipótese, com o jeito de validar.
   parado, sem esteira.
 - **Hoje o risco é baixo.** O uso é pela tela, com grupos pequenos e ~49
   fechamentos por dia. Basta acompanhar pelo
-  [roteiro](../evidencias/acompanhamento-fechamento-assincrono.md).
+  [roteiro](../evidence/async-closing-monitoring.md).
 - **Antes de virar o jeito padrão** (varredura, Atlas, automático, grupos de
   100–600 mil), a fase 1 do plano é obrigatória. As corridas antigas do lote
   vigente (B14, B15) também precisam de guarda, porque a rota nova as herda.
@@ -42,7 +42,7 @@ Datadog; **[H]** = hipótese, com o jeito de validar.
 - **Primeiro dia:** 25 pedidos e 25 fechados (52.139 pagamentos), sem falha.
   Onze fechamentos do fundo 209 esperaram até 25 s por uma trava de outra
   transação. Ver a
-  [evidência de 20/10](../evidencias/fechamento-assincrono-datadog-2026-10-20.md).
+  [evidência de 20/10](../evidence/async-closing-datadog-2026-10-20.md).
 - **R16 continua.** O pod do worker (sem reinício desde 19/10 21:45) imprime
   `CELERY_WORKER_CONCURRENCY=16` dentro do `start` do `entrypoint.sh`, que
   roda depois da carga da configuração (`entrypoint.sh:60`). O values
@@ -50,7 +50,7 @@ Datadog; **[H]** = hipótese, com o jeito de validar.
 - **Linhas `proc:`** seguem pelo `consolidate` legado. O BFF não manda o
   proc_id (`business.py:346-355` do BFF), então o fechamento é por produto,
   originador, fundo e origem. É o comportamento antigo; fechar por proc_id é
-  a [tarefa 02](02-fechar-lote-por-proc-id.md).
+  a [tarefa 02](02-close-batch-by-proc-id.md).
 
 ## Estado em 26/10
 
@@ -109,7 +109,7 @@ Código conferido: cessão `b15aa94`, BFF `bb877db`, front `f7bb2d84`, argocd
     resultado. O backend do Postgres segue com o UPDATE e os locks até
     terminar [H]. Validar em `pg_stat_activity`.
 - **O que fazer:**
-  - rodar a [SQL dos grupos pendentes](../anexos/sql/grupos_pendentes_fechamento_novo.sql)
+  - rodar a [SQL dos grupos pendentes](../attachments/sql/new_closing_pending_groups.sql)
     (consultas 1 e 2) na réplica;
   - pôr `SET LOCAL statement_timeout`/`lock_timeout` abaixo do soft limit,
     com motivo claro ("grupo grande demais"). O helper já existe:
@@ -190,9 +190,9 @@ O que muda se a varredura, o Atlas e o automático passarem por esta rota:
 
 **Fase 0 — hoje, sem deploy**
 
-1. Acompanhar pelo [roteiro](../evidencias/acompanhamento-fechamento-assincrono.md):
+1. Acompanhar pelo [roteiro](../evidence/async-closing-monitoring.md):
    pedidos × conclusões, duração e descartes.
-2. Rodar a [SQL dos grupos](../anexos/sql/grupos_pendentes_fechamento_novo.sql)
+2. Rodar a [SQL dos grupos](../attachments/sql/new_closing_pending_groups.sql)
    na réplica (fecha o L3 e responde à D20).
 3. R16: conferir se o Parameter Store de produção define
    `CELERY_WORKER_CONCURRENCY`.
@@ -265,4 +265,4 @@ contagem e R26.
 - `esteira_baixar` com lote vazio só registra warning e não falha [C].
 - O erro "Erro na esteira 'NoneType' object is not iterable" existe desde
   06/10 (19 vezes até 19/10) e não vem da TS-5377. Causa em
-  [B18](../bugs-encontrados.md).
+  [B18](../bugs-found.md).

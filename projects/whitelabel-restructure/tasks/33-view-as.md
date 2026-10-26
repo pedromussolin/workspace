@@ -2,7 +2,7 @@
 
 - **TS:** TS-5426.
 - **Repos:** apl-credit-whitelabel-api (BFF) e apl-credit-whitelabel (front).
-- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-ajustes-visuais-e-padroes.md), item A8.
+- **Status (23/10):** implementação local concluída; revisão e smoke pendentes. Diagnóstico em [31](31-visual-adjustments-and-patterns.md), item A8.
 - **Depende da PR 2 (TS-5425):** a organização e o cliente da outra pessoa vêm do grupo de
   instituição (D121, D122). As branches saem das da PR 2 (`feature/TS-5425-organizacao-e-grupos`,
   front e BFF) depois que ela estiver junta e validada: `feature/TS-5426-ver-como`, `--no-track`.
@@ -32,7 +32,7 @@
 
 ## Regras
 
-As mesmas da [32](32-envio-por-subfluxo.md) (git, commit só depois da revisão do Pietro, Python em
+As mesmas da [32](32-send-by-subflow.md) (git, commit só depois da revisão do Pietro, Python em
 inglês, logs, `.ai/` do front, validar local antes). Segurança: mexe em sessão, então a revisão é
 mais cuidadosa (spec das rotas, teste de que toda escrita é bloqueada simulando).
 
