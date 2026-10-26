@@ -286,11 +286,12 @@ diz como foi confirmado; ao virar tarefa, mover para `tarefas/`.
   commitados e só fecha se a conta bater o total do Redis
   (`database/models.py:5549-5583`). A rede de segurança (beat das 19h UTC,
   `backstop_por_proc_id`) só roda para produto com `baixa_por_agendamento`
-  ligado (`tasks/liquidacao_lote.py:240-245`).
-- **Efeito:** se o último processo da remessa termina rejeitado, ou se os
-  últimos cadastrados commitam juntos e cada um não vê os outros, ninguém vê a
-  conta completa e o lote fica fake até alguém fechar pela tela. Não há log
-  quando o portão não abre.
+  ligado (`tasks/liquidacao_lote.py:240-245`). Linhas da `master` `b15aa94`.
+- **Efeito:** **[C]** se o último processo da remessa termina rejeitado,
+  ninguém vê a conta completa e o lote fica fake até alguém fechar pela tela.
+  **[H]** o mesmo vale quando os últimos cadastrados commitam juntos e cada um
+  não vê os outros; validar comparando a ordem de término das remessas que
+  não fecharam sozinhas. Não há log quando o portão não abre.
 - **Confirmado:** réplica e Datadog (26/10/2026), produto da Dots: remessa
   de 6.972 com 6.808 cadastrados e 164 rejeitados, nenhum em processamento e
   nenhum lote. O último a terminar foi um rejeitado, 152 ms depois do último
