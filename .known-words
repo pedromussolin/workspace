@@ -1,0 +1,10 @@
+# Harmless capitalized words (tools, products, acronyms) that `ws names check` should not report
+# as new. One word per line; lines starting with # are comments, so a reason goes above it.
+#
+# The check compares lowercase and without accents, so `Celery` also covers `CELERY` and `celery`.
+# A word is also known when it already appears in the text of the pushed state (origin/main),
+# and when it is an analog in names.toml, so only words that are new to the repo belong here.
+#
+# Only harmless words go in this file, and only after the user answered for each one: a real name
+# goes to names.toml with `ws names add`, never here. The file is read from the commit being
+# pushed (from the index when committing), so an entry counts once it is committed.
