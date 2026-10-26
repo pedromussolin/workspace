@@ -1,5 +1,7 @@
+import json
 import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -88,3 +90,73 @@ def repo(tmp_path: Path, git: Callable[..., subprocess.CompletedProcess[str]]) -
     path.mkdir()
     git(path, "init", "-q")
     return path
+
+
+FAKE_APT_GET = """\
+#!{python}
+import json, os, pathlib, sys
+
+DICTIONARIES = {{"wamerican": "flange\\ngizmo\\n", "wbrazilian": "porca\\narruela\\n"}}
+with open(os.environ["FAKE_TOOLS_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps({{"tool": "apt-get", "args": sys.argv[1:], "cwd": os.getcwd()}}) + "\\n")
+if os.environ.get("FAKE_APT_FAIL"):
+    print("W: some warning", file=sys.stderr)
+    print("E: Unable to locate package wamerican", file=sys.stderr)
+    sys.exit(100)
+assert sys.argv[1] == "download", sys.argv
+for package in sys.argv[2:]:
+    pathlib.Path(f"{{package}}_1.0_all.deb").write_text(DICTIONARIES[package], encoding="utf-8")
+"""
+
+FAKE_DPKG = """\
+#!{python}
+import json, os, pathlib, sys
+
+FILENAMES = {{"wamerican": "american-english", "wbrazilian": "brazilian"}}
+with open(os.environ["FAKE_TOOLS_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps({{"tool": "dpkg", "args": sys.argv[1:], "cwd": os.getcwd()}}) + "\\n")
+if os.environ.get("FAKE_DPKG_FAIL"):
+    print("dpkg-deb: error: not a Debian format archive", file=sys.stderr)
+    sys.exit(2)
+assert sys.argv[1] == "-x", sys.argv
+deb, destination = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+target = destination / "usr" / "share" / "dict" / FILENAMES[deb.name.split("_")[0]]
+target.parent.mkdir(parents=True)
+mode = os.environ.get("FAKE_DPKG_MODE", "")
+if mode == "empty":
+    target.write_text("", encoding="utf-8")
+elif mode == "symlink":
+    target.symlink_to(os.environ["FAKE_DPKG_LINK"])
+else:
+    target.write_text(deb.read_text(encoding="utf-8"), encoding="utf-8")
+"""
+
+
+class FakeApt:
+    """Fake `apt-get` and `dpkg` first on PATH: no test ever reaches the network."""
+
+    def __init__(self, folder: Path):
+        self.folder = folder
+        self.log = folder / "calls.jsonl"
+
+    def calls(self) -> list[dict]:
+        if not self.log.exists():
+            return []
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
+
+@pytest.fixture
+def fake_apt(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> FakeApt:
+    """The fake tools, working: `apt-get download` leaves one .deb per package, `dpkg -x` unpacks.
+
+    Set FAKE_APT_FAIL, FAKE_DPKG_FAIL or FAKE_DPKG_MODE (`empty`, `symlink` with FAKE_DPKG_LINK)
+    to make them fail.
+    """
+    fake = FakeApt(tmp_path_factory.mktemp("fake-apt"))
+    for name, template in (("apt-get", FAKE_APT_GET), ("dpkg", FAKE_DPKG)):
+        script = fake.folder / name
+        script.write_text(template.format(python=sys.executable), encoding="utf-8")
+        script.chmod(0o755)
+    monkeypatch.setenv("FAKE_TOOLS_LOG", str(fake.log))
+    monkeypatch.setenv("PATH", f"{fake.folder}{os.pathsep}{os.environ['PATH']}")
+    return fake
