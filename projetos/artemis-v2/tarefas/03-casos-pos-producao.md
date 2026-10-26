@@ -52,6 +52,38 @@ Datadog; **[H]** = hipótese, com o jeito de validar.
   originador, fundo e origem. É o comportamento antigo; fechar por proc_id é
   a [tarefa 02](02-fechar-lote-por-proc-id.md).
 
+## Estado em 26/10
+
+Código conferido: cessão `b15aa94`, BFF `bb877db`, front `f7bb2d84`, argocd
+`f5225da`.
+
+- **Desde a fase 1** (20/10 23:10 UTC até 26/10 ~18:00 UTC) [C, Datadog,
+  logs "Fechamento de lote fake solicitado" e "concluído"]: 130 pedidos e 130
+  fechados, todos `closed` na primeira tentativa. Espera na fila de no máximo
+  171 ms. Duração p50 3,7 s, p95 59 s, máximo 130 s. Maior grupo: 34.809
+  pagamentos. Os seis acima de 60 s são do produto 1901 (13 a 35 mil
+  pagamentos, 170 a 290 por segundo).
+- **Fechados pela fase 1:** R8 (status "interrompido"), R9, R14, R17, R18,
+  R19 (`acks_late`), R23 e R28.
+- **Ainda abertos** [C, código]:
+  - linhas por proc_id fora do fluxo novo: a rota recusa o produto
+    (`refact.py:498`) e o front manda a linha ao legado (`close-batches.ts:75`).
+    Inclui o B19;
+  - fase 2 do front: R24 (só recarrega na transição local
+    `closing→closed`, `close-batches.ts:507-535`), R25 (status com erro tenta
+    de novo a cada 4 s, sem aviso, `close-batches.ts:503`), R11 (Excluir
+    habilitado durante o fechamento, `close-batches.html:115`) e R7 (a rota
+    enfileira sem conferir se há pagamento apto, `refact.py:489-520`);
+  - D19 / R26: o UPDATE não filtra data e fecha os pendentes de todas as
+    datas da chave;
+  - worker: uma réplica, probes `test date`, values com concorrência 2 e
+    produção com 16 (R16);
+  - espera por trava de até 44 s em 21/10 com limite de 30 s, sem explicação
+    (GMUD da fase 1);
+  - fase 3 inteira. No ritmo do produto 1901, o limite de 480 s corta grupos
+    acima de ~80 a 140 mil pagamentos; a varredura fecha grupos de 25 a 137
+    mil por dia no produto 15 (D20).
+
 ## 1. Tempo de execução
 
 - **Sem medida do grupo grande.** O L3 nunca foi medido. Referência do legado
