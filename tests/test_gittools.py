@@ -111,6 +111,91 @@ def test_assemble_stops_on_conflict(repo):
     assert git(repo, "rev-parse", "--verify", "CHERRY_PICK_HEAD") == wip_sha
 
 
+def test_assemble_reports_an_empty_pick(repo):
+    branch_from_main(repo, "wip")
+    wip_sha = commit(repo, "b.txt", "b\n", "wip: add b")
+    git(repo, "switch", "-q", "main")
+    commit(repo, "b.txt", "b\n", "feat: add b on main")
+
+    with pytest.raises(gittools.EmptyCherryPick) as exc:
+        gittools.assemble(repo, "main", "wip", "final", {})
+
+    assert exc.value.sha == wip_sha
+    assert git(repo, "branch", "--show-current") == "final"
+    assert gittools.conflicted_files(repo) == []
+    assert git(repo, "rev-parse", "--verify", "CHERRY_PICK_HEAD") == wip_sha
+
+
+def test_assemble_refuses_merge_commits_before_switching(repo):
+    branch_from_main(repo, "side")
+    commit(repo, "s.txt", "s\n", "feat: add s")
+    branch_from_main(repo, "wip")
+    commit(repo, "w.txt", "w\n", "feat: add w")
+    git(repo, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+    with pytest.raises(gittools.GitError, match="merge commits"):
+        gittools.assemble(repo, "main", "wip", "final", {})
+
+    assert git(repo, "branch", "--list", "final") == ""
+    assert git(repo, "branch", "--show-current") == "wip"
+
+
+def test_assemble_refuses_a_dirty_work_tree_before_switching(repo):
+    branch_from_main(repo, "wip")
+    commit(repo, "b.txt", "b\n", "feat: add b")
+    (repo / "untracked.txt").write_text("not tracked\n")
+    (repo / "a.txt").write_text("changed\n")
+
+    with pytest.raises(gittools.GitError, match="uncommitted"):
+        gittools.assemble(repo, "main", "wip", "final", {})
+
+    assert git(repo, "branch", "--list", "final") == ""
+    assert git(repo, "branch", "--show-current") == "wip"
+    git(repo, "checkout", "--", "a.txt")
+    assert gittools.assemble(repo, "main", "wip", "final", {}) == ["feat: add b"]
+
+
+def test_assemble_refuses_staged_changes_before_switching(repo):
+    branch_from_main(repo, "wip")
+    commit(repo, "b.txt", "b\n", "feat: add b")
+    (repo / "a.txt").write_text("changed\n")
+    git(repo, "add", "a.txt")
+
+    with pytest.raises(gittools.GitError, match="uncommitted"):
+        gittools.assemble(repo, "main", "wip", "final", {})
+
+    assert git(repo, "branch", "--list", "final") == ""
+
+
+def test_assemble_subjects_may_be_keyed_by_sha(repo):
+    branch_from_main(repo, "wip")
+    first = commit(repo, "b.txt", "b\n", "wip")
+    second = commit(repo, "c.txt", "c\n", "wip")
+    commit(repo, "d.txt", "d\n", "wip: add d")
+
+    subjects = gittools.assemble(
+        repo,
+        "main",
+        "wip",
+        "final",
+        {first: "feat: add b", second[:8].upper(): "feat: add c", "wip: add d": "feat: add d"},
+    )
+
+    assert subjects == ["feat: add b", "feat: add c", "feat: add d"]
+
+
+def test_assemble_sha_key_wins_over_subject_key(repo):
+    branch_from_main(repo, "wip")
+    commit(repo, "b.txt", "b\n", "wip")
+    second = commit(repo, "c.txt", "c\n", "wip")
+
+    subjects = gittools.assemble(
+        repo, "main", "wip", "final", {"wip": "feat: generic", second[:7]: "feat: specific"}
+    )
+
+    assert subjects == ["feat: generic", "feat: specific"]
+
+
 def test_rehearsal_clean_merge_runs_check(repo, tmp_path, capsys):
     for name, filename in (("feat/x", "x.txt"), ("feat/y", "y.txt")):
         branch_from_main(repo, name)
@@ -243,6 +328,36 @@ def test_cli_assemble_conflict_exits_1(repo, capsys):
     assert "a.txt" in err
     assert "git cherry-pick --continue" in err
     assert "git cherry-pick --abort" in err
+
+
+def test_cli_assemble_empty_pick_suggests_skip(repo, capsys):
+    branch_from_main(repo, "wip")
+    wip_sha = commit(repo, "b.txt", "b\n", "wip: add b")
+    git(repo, "switch", "-q", "main")
+    commit(repo, "b.txt", "b\n", "feat: add b on main")
+
+    code = cli.main(
+        ["git", "assemble", "--repo", str(repo), "--base", "main", "--from", "wip", "--to", "final"]
+    )
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert wip_sha in err
+    assert "git cherry-pick --skip" in err
+    assert "--continue" not in err
+
+
+def test_cli_assemble_dirty_work_tree_exits_1(repo, capsys):
+    branch_from_main(repo, "wip")
+    commit(repo, "b.txt", "b\n", "feat: add b")
+    (repo / "a.txt").write_text("changed\n")
+
+    code = cli.main(
+        ["git", "assemble", "--repo", str(repo), "--base", "main", "--from", "wip", "--to", "final"]
+    )
+
+    assert code == 1
+    assert "uncommitted" in capsys.readouterr().err
 
 
 def test_cli_assemble_long_subject_exits_1(repo, capsys):

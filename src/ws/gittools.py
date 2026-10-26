@@ -2,10 +2,12 @@
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
 MAX_SUBJECT_LENGTH = 72
+SHA_KEY = re.compile(r"[0-9a-fA-F]{4,40}")
 
 
 class GitError(Exception):
@@ -17,6 +19,14 @@ class CherryPickConflict(Exception):
 
     def __init__(self, sha: str) -> None:
         super().__init__(f"conflict while cherry-picking {sha}")
+        self.sha = sha
+
+
+class EmptyCherryPick(Exception):
+    """A cherry-pick stopped because its changes are already in the base; the repo is left as is."""
+
+    def __init__(self, sha: str) -> None:
+        super().__init__(f"cherry-picking {sha} produced an empty commit")
         self.sha = sha
 
 
@@ -48,12 +58,14 @@ def conflicted_files(repo: Path) -> list[str]:
 
 
 def load_subjects(path: Path) -> dict[str, str]:
-    """Read a JSON object mapping old subjects to new subjects."""
+    """Read a JSON object mapping old subjects (or commit shas) to new subjects."""
     data = json.loads(path.read_text())
     if not isinstance(data, dict) or not all(
         isinstance(key, str) and isinstance(value, str) for key, value in data.items()
     ):
-        raise ValueError(f"{path}: expected a JSON object mapping old subjects to new subjects")
+        raise ValueError(
+            f"{path}: expected a JSON object mapping old subjects or shas to new subjects"
+        )
     return data
 
 
@@ -70,30 +82,55 @@ def _replace_subject(message: str, subject: str) -> str:
     return subject + newline + body
 
 
+def _final_subject(sha: str, subject: str, subjects: dict[str, str]) -> str:
+    """The new subject of a commit: a sha key (full or abbreviated) wins over its old subject."""
+    for key, replacement in subjects.items():
+        if SHA_KEY.fullmatch(key) and sha.startswith(key.lower()):
+            return replacement
+    return subjects.get(subject, subject)
+
+
+def _nothing_staged(repo: Path) -> bool:
+    return _git(repo, "diff", "--cached", "--quiet", check=False).returncode == 0
+
+
 def assemble(
     repo: Path, base: str, source: str, target: str, subjects: dict[str, str]
 ) -> list[str]:
     """Cherry-pick `base..source` onto a new branch `target` cut from `base`, oldest first.
 
-    `subjects` maps an old subject to its replacement; only the first line of the message is
-    replaced. Subjects are checked before anything changes, so a rejected run leaves the repo
-    untouched.
+    `subjects` maps an old subject, or a commit sha (full or abbreviated, which wins), to its
+    replacement; only the first line of the message is replaced. Subjects, merge commits in the
+    range and a dirty work tree are checked before anything changes, so a rejected run leaves
+    the repo untouched.
     """
     shas = _git(repo, "rev-list", "--topo-order", "--reverse", f"{base}..{source}").stdout.split()
     final_subjects = []
     for sha in shas:
         subject = _message(repo, sha).partition("\n")[0]
-        final_subjects.append(subjects.get(subject, subject))
+        final_subjects.append(_final_subject(sha, subject, subjects))
     too_long = [s for s in final_subjects if len(s) > MAX_SUBJECT_LENGTH]
     if too_long:
         raise SubjectTooLong(too_long)
+    merges = _git(repo, "rev-list", "--merges", f"{base}..{source}").stdout.split()
+    if merges:
+        listed = ", ".join(sha[:10] for sha in merges)
+        raise GitError(
+            f"{base}..{source} has merge commits ({listed}); cherry-pick cannot replay them"
+        )
+    if _git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip():
+        raise GitError("the work tree has uncommitted changes; commit or stash them first")
 
     _git(repo, "switch", "-c", target, "--no-track", base)
     for sha, final_subject in zip(shas, final_subjects, strict=True):
         picked = _git(repo, "cherry-pick", sha, check=False)
         if picked.returncode != 0:
-            if _in_progress(repo, "CHERRY_PICK_HEAD"):
+            if not _in_progress(repo, "CHERRY_PICK_HEAD"):
+                raise GitError(f"git cherry-pick {sha}: {picked.stderr.strip()}")
+            if conflicted_files(repo):
                 raise CherryPickConflict(sha)
+            if _nothing_staged(repo):
+                raise EmptyCherryPick(sha)
             raise GitError(f"git cherry-pick {sha}: {picked.stderr.strip()}")
         message = _message(repo, "HEAD")
         if message.partition("\n")[0] != final_subject:

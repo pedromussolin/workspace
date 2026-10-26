@@ -102,7 +102,7 @@ def _add_git(subparsers) -> None:
         "--subjects",
         type=Path,
         metavar="FILE.json",
-        help="JSON object mapping old commit subjects to new ones.",
+        help="JSON object mapping old commit subjects, or shas (full or abbreviated), to new ones.",
     )
     assemble.set_defaults(handler=_cmd_git_assemble)
 
@@ -142,6 +142,17 @@ def _cmd_git_assemble(args: argparse.Namespace) -> int:
         print(f"Subjects longer than {limit} characters; nothing was changed:", file=sys.stderr)
         for subject in exc.subjects:
             print(f"  ({len(subject)}) {subject}", file=sys.stderr)
+        return 1
+    except gittools.EmptyCherryPick as exc:
+        print(
+            f"Cherry-picking {exc.sha} gave an empty commit: it is already in the base.",
+            file=sys.stderr,
+        )
+        print(
+            "Run `git cherry-pick --skip` to drop it (then pick the remaining commits by hand), "
+            "or `git cherry-pick --abort`.",
+            file=sys.stderr,
+        )
         return 1
     except gittools.CherryPickConflict as exc:
         files = ", ".join(gittools.conflicted_files(repo))
