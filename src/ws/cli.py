@@ -3,8 +3,9 @@
 import argparse
 import sys
 from datetime import date
+from pathlib import Path
 
-from ws import bootstrap, project, slot
+from ws import bootstrap, config, gittools, project, slot
 from ws.config import claude_skills_dir, config_dir, repo_root
 
 
@@ -78,12 +79,101 @@ def _cmd_slot(args: argparse.Namespace) -> int:
     return slot.run_in_slot(args.cmd, slots, slot.default_lock_dir())
 
 
+def _add_git(subparsers) -> None:
+    git = subparsers.add_parser("git", help="Git helpers for assembling branches.")
+    git_commands = git.add_subparsers(dest="git_command", required=True)
+
+    assemble = git_commands.add_parser(
+        "assemble", help="Cherry-pick a work-in-progress branch over a base into a clean branch."
+    )
+    assemble.add_argument("--repo", help="Repository path (default: current git top level).")
+    assemble.add_argument("--base", required=True, help="Base the final branch starts from.")
+    assemble.add_argument(
+        "--from", dest="source", required=True, metavar="WIP", help="Branch to cherry-pick."
+    )
+    assemble.add_argument(
+        "--to", dest="target", required=True, metavar="FINAL", help="Branch to create."
+    )
+    assemble.add_argument(
+        "--subjects",
+        type=Path,
+        metavar="FILE.json",
+        help="JSON object mapping old commit subjects to new ones.",
+    )
+    assemble.set_defaults(handler=_cmd_git_assemble)
+
+    rehearsal = git_commands.add_parser(
+        "merge-rehearsal", help="Merge branches over a base in a throwaway worktree."
+    )
+    rehearsal.add_argument("--repo", help="Repository path (default: current git top level).")
+    rehearsal.add_argument("--base", required=True, help="Base the merges start from.")
+    rehearsal.add_argument(
+        "--worktree",
+        type=Path,
+        help="Worktree to use (default: <cache>/merge-rehearsal/<repo name>).",
+    )
+    rehearsal.add_argument(
+        "--resolutions",
+        type=Path,
+        help="Directory with executable <branch, / as _>.sh conflict resolution scripts.",
+    )
+    rehearsal.add_argument("--check", help="Command to run in the worktree after the merges.")
+    rehearsal.add_argument("branches", nargs="+", metavar="BRANCH", help="Branches to merge.")
+    rehearsal.set_defaults(handler=_cmd_git_merge_rehearsal)
+
+
+def _repo_arg(args: argparse.Namespace) -> Path:
+    if args.repo:
+        return Path(args.repo).resolve()
+    return gittools.toplevel(Path.cwd())
+
+
+def _cmd_git_assemble(args: argparse.Namespace) -> int:
+    try:
+        repo = _repo_arg(args)
+        subjects = gittools.load_subjects(args.subjects) if args.subjects else {}
+        final_subjects = gittools.assemble(repo, args.base, args.source, args.target, subjects)
+    except gittools.SubjectTooLong as exc:
+        limit = gittools.MAX_SUBJECT_LENGTH
+        print(f"Subjects longer than {limit} characters; nothing was changed:", file=sys.stderr)
+        for subject in exc.subjects:
+            print(f"  ({len(subject)}) {subject}", file=sys.stderr)
+        return 1
+    except gittools.CherryPickConflict as exc:
+        files = ", ".join(gittools.conflicted_files(repo))
+        print(f"Conflict while cherry-picking {exc.sha}.", file=sys.stderr)
+        print(f"Conflicted files: {files}", file=sys.stderr)
+        print(
+            "Resolve it and run `git cherry-pick --continue`, or `git cherry-pick --abort`.",
+            file=sys.stderr,
+        )
+        return 1
+    except (gittools.GitError, OSError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    print("\n".join(final_subjects))
+    return 0
+
+
+def _cmd_git_merge_rehearsal(args: argparse.Namespace) -> int:
+    try:
+        repo = _repo_arg(args)
+        worktree = args.worktree or config.cache_dir() / "merge-rehearsal" / repo.name
+        return gittools.merge_rehearsal(
+            repo, args.base, args.branches, worktree, args.resolutions, args.check
+        )
+    except (gittools.GitError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     _add_setup(subparsers)
     _add_project(subparsers)
     _add_slot(subparsers)
+    _add_git(subparsers)
     return parser
 
 
