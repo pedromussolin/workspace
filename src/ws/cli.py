@@ -107,7 +107,13 @@ def _add_git(subparsers) -> None:
     assemble.set_defaults(handler=_cmd_git_assemble)
 
     rehearsal = git_commands.add_parser(
-        "merge-rehearsal", help="Merge branches over a base in a throwaway worktree."
+        "merge-rehearsal",
+        help="Merge branches over a base in a throwaway worktree.",
+        description=(
+            "Merge the branches over the base in a throwaway worktree, apply known conflict "
+            "resolutions and run a check. The worktree is a fresh checkout with no dependencies "
+            "installed (no node_modules, no virtualenv): the check must install what it needs."
+        ),
     )
     rehearsal.add_argument("--repo", help="Repository path (default: current git top level).")
     rehearsal.add_argument("--base", required=True, help="Base the merges start from.")
@@ -119,9 +125,15 @@ def _add_git(subparsers) -> None:
     rehearsal.add_argument(
         "--resolutions",
         type=Path,
-        help="Directory with executable <branch, / as _>.sh conflict resolution scripts.",
+        help=(
+            "Directory with executable <branch, / as _>.sh conflict resolution scripts; "
+            "each must stage what it resolves and exit 0."
+        ),
     )
-    rehearsal.add_argument("--check", help="Command to run in the worktree after the merges.")
+    rehearsal.add_argument(
+        "--check",
+        help="Shell command to run in the worktree after the merges; nothing is installed there.",
+    )
     rehearsal.add_argument("branches", nargs="+", metavar="BRANCH", help="Branches to merge.")
     rehearsal.set_defaults(handler=_cmd_git_merge_rehearsal)
 

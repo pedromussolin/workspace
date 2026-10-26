@@ -149,6 +149,34 @@ def _resolution_script(resolutions: Path | None, branch: str) -> Path | None:
     return None
 
 
+def _common_dir(path: Path) -> Path:
+    output = _git(path, "rev-parse", "--git-common-dir").stdout.strip()
+    return (path / output).resolve()
+
+
+def _require_worktree_of(repo: Path, worktree: Path) -> None:
+    """Fail unless `worktree` is a linked worktree of `repo`, not another repo or its main tree."""
+    try:
+        top = toplevel(worktree).resolve()
+        same_repo = top == worktree and _common_dir(worktree) == _common_dir(repo)
+        main_top = toplevel(repo).resolve()
+    except GitError:
+        same_repo, top, main_top = False, worktree, repo
+    if not same_repo:
+        raise GitError(f"{worktree} exists but is not a worktree of {repo}; use another --worktree")
+    if top == main_top:
+        raise GitError(f"{worktree} is the main work tree of {repo}; use another --worktree")
+
+
+def _prepare_worktree(repo: Path, base: str, worktree: Path) -> None:
+    if worktree.exists() and any(worktree.iterdir()):
+        _require_worktree_of(repo, worktree)
+        return
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    _git(repo, "worktree", "prune")
+    _git(repo, "worktree", "add", "--detach", str(worktree), base)
+
+
 def merge_rehearsal(
     repo: Path,
     base: str,
@@ -159,14 +187,13 @@ def merge_rehearsal(
 ) -> int:
     """Merge `branches` over `base` in a throwaway worktree, resolve known conflicts, run `check`.
 
-    A resolution script runs inside the worktree and must stage what it resolved; the merge is
-    then committed. Returns 0 on success, 1 when a conflict has no resolution, or the exit code
-    of `check`.
+    A resolution script runs inside the worktree, must stage what it resolved and must exit 0;
+    the merge is then committed. Returns 0 on success, 1 when a conflict has no working
+    resolution, or the exit code of `check`. The worktree is a fresh checkout: no dependencies
+    are installed in it.
     """
     worktree = worktree.resolve()
-    if not worktree.exists():
-        worktree.parent.mkdir(parents=True, exist_ok=True)
-        _git(repo, "worktree", "add", "--detach", str(worktree), base)
+    _prepare_worktree(repo, base, worktree)
     _git(worktree, "merge", "--abort", check=False)
     _git(worktree, "checkout", "--detach", base)
 
@@ -180,7 +207,12 @@ def merge_rehearsal(
         files = conflicted_files(worktree)
         script = _resolution_script(resolutions, branch)
         if script is not None:
-            subprocess.run([str(script)], cwd=worktree, check=False)
+            ran = subprocess.run([str(script)], cwd=worktree, check=False)
+            if ran.returncode != 0:
+                print(f"CONFLICT {branch}: {', '.join(files)}")
+                print(f"(resolution script {script.name} exited with code {ran.returncode})")
+                print(f"(worktree stopped at the conflict: {worktree})")
+                return 1
             if not conflicted_files(worktree):
                 _git(worktree, "add", "-A")
                 _git(worktree, "commit", "--no-edit")

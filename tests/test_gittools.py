@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -279,6 +280,81 @@ def test_rehearsal_script_that_leaves_conflict_returns_1(
     assert "CONFLICT feat/two: a.txt" in capsys.readouterr().out
 
 
+def test_rehearsal_script_that_fails_is_a_conflict_even_if_it_staged_everything(
+    repo, conflicting_branches, tmp_path, capsys
+):
+    resolutions = tmp_path / "resolutions"
+    write_script(resolutions, "feat_two.sh", "printf 'merged\\n' > a.txt\ngit add a.txt\nexit 3\n")
+    worktree = tmp_path / "rehearsal"
+
+    code = gittools.merge_rehearsal(
+        repo, "main", ["feat/one", "feat/two"], worktree, resolutions, "exit 0"
+    )
+
+    assert code == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "ok feat/one",
+        "CONFLICT feat/two: a.txt",
+        "(resolution script feat_two.sh exited with code 3)",
+        f"(worktree stopped at the conflict: {worktree})",
+    ]
+    assert git(worktree, "rev-parse", "--verify", "MERGE_HEAD")
+
+
+def make_other_repo(tmp_path: Path) -> Path:
+    other = tmp_path / "elsewhere" / "acme"
+    other.mkdir(parents=True)
+    git(other, "init", "-q", "-b", "main")
+    git(other, "config", "user.name", "Test")
+    git(other, "config", "user.email", "test@example.com")
+    commit(other, "a.txt", "base\n", "chore: initial commit")
+    return other
+
+
+def test_rehearsal_refuses_a_worktree_of_another_repo(repo, tmp_path):
+    worktree = tmp_path / "rehearsal"
+    assert gittools.merge_rehearsal(repo, "main", [], worktree, None, None) == 0
+    other = make_other_repo(tmp_path)
+
+    with pytest.raises(gittools.GitError, match="not a worktree of"):
+        gittools.merge_rehearsal(other, "main", [], worktree, None, None)
+
+    assert git(worktree, "rev-parse", "--git-common-dir") == str(repo / ".git")
+
+
+def test_rehearsal_refuses_a_folder_that_is_not_a_worktree(repo, tmp_path):
+    folder = tmp_path / "plain"
+    folder.mkdir()
+    (folder / "notes.txt").write_text("mine\n")
+
+    with pytest.raises(gittools.GitError, match="not a worktree of"):
+        gittools.merge_rehearsal(repo, "main", [], folder, None, None)
+
+    assert (folder / "notes.txt").read_text() == "mine\n"
+
+
+def test_rehearsal_refuses_the_main_work_tree(repo):
+    with pytest.raises(gittools.GitError, match="main work tree"):
+        gittools.merge_rehearsal(repo, "main", [], repo, None, None)
+
+    assert git(repo, "branch", "--show-current") == "main"
+
+
+def test_rehearsal_recreates_a_worktree_deleted_by_hand(repo, tmp_path):
+    worktree = tmp_path / "rehearsal"
+    assert gittools.merge_rehearsal(repo, "main", [], worktree, None, None) == 0
+    shutil.rmtree(worktree)
+
+    assert gittools.merge_rehearsal(repo, "main", [], worktree, None, "test -f a.txt") == 0
+
+
+def test_rehearsal_uses_an_existing_empty_folder(repo, tmp_path):
+    worktree = tmp_path / "rehearsal"
+    worktree.mkdir()
+
+    assert gittools.merge_rehearsal(repo, "main", [], worktree, None, "test -f a.txt") == 0
+
+
 def test_rehearsal_unknown_branch_raises(repo, tmp_path):
     with pytest.raises(gittools.GitError):
         gittools.merge_rehearsal(repo, "main", ["feat/missing"], tmp_path / "rehearsal", None, None)
@@ -395,6 +471,37 @@ def test_cli_merge_rehearsal_uses_default_worktree(repo, capsys):
     assert code == 0
     assert capsys.readouterr().out.splitlines() == ["ok feat/x"]
     assert (config.cache_dir() / "merge-rehearsal" / "acme" / "x.txt").is_file()
+
+
+def test_cli_merge_rehearsal_help_says_no_dependencies_are_installed(capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["git", "merge-rehearsal", "--help"])
+
+    assert exc.value.code == 0
+    assert "no dependencies installed" in " ".join(capsys.readouterr().out.split())
+
+
+def test_cli_merge_rehearsal_foreign_worktree_exits_1(repo, tmp_path, capsys):
+    worktree = tmp_path / "rehearsal"
+    assert gittools.merge_rehearsal(repo, "main", [], worktree, None, None) == 0
+    other = make_other_repo(tmp_path)
+
+    code = cli.main(
+        [
+            "git",
+            "merge-rehearsal",
+            "--repo",
+            str(other),
+            "--base",
+            "main",
+            "--worktree",
+            str(worktree),
+            "feat/x",
+        ]
+    )
+
+    assert code == 1
+    assert "not a worktree of" in capsys.readouterr().err
 
 
 def test_cli_defaults_repo_to_current_git_toplevel(repo, monkeypatch, capsys):
