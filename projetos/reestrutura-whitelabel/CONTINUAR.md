@@ -28,7 +28,7 @@ cada tarefa e juntadas na `release/20261026` de cada repo, com a cópia `release
   **Publicada (26/10)** na `release/20261026` e na `-sdbx` (PRs #224, #226, #237 e #239 atualizadas; merge com o
   Pietro). Depois do deploy: ler o AADSTS do log `Azure token refresh rejected` e fechar a causa.
 - [35](tarefas/35-permissoes-atomicas-e-migracao-dos-grupos.md), TS-5431: um escopo por área em todas as páginas
-  (D129, D130), grupos manuais (D128). Implementada e validada (26/10), sem commit; falta a revisão do Pietro.
+  (D129, D130), grupos manuais (D128). Publicada na `release/20261026` e na `-sdbx` (26/10); PRs atualizadas. Depois do deploy: Migração e limpeza das roles antigas.
 
 **Sugestão pendente, não pedida pelo Pietro:** o BFF cai no boot se `CFG_ACCESS_CONTROL_INSTITUTION_GROUPS`
 estiver inválida; o melhor seria subir, registrar o erro e tratar como não configurada. Não aplicar sem ele

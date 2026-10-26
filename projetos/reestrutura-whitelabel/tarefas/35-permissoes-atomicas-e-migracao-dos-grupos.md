@@ -3,12 +3,14 @@
 - **TS:** TS-5431 (épico TS-5357).
 - **Repos:** BFF (catálogo de permissões, rotas, lista de migração) e front (abas e botões por escopo). Grupos e
   atribuições são manuais (D128), sem tela de migração de grupos e sem catálogo de perfis.
-- **Status (26/10):** implementada e validada localmente, **sem commit** (revisão do Pietro pendente). Branch
-  `feature/TS-5431-escopos-por-area` (front e BFF), a partir da `release/20261026`. BFF 2382 testes; front
-  `validate.sh` ok com 4983 specs; smoke ok nas 11 rotas mexidas. Regras novas no `.ai/rules/permissions.md`
-  do front e na skill `new-page`. Levantamento completo e a lista das roles (com nomes reais) em
-  `~/repos/.reestrutura_whitelabel/agentes/ts5431/` (`levantamento/`, `roles-ts5431.md`, `app-roles-ts5431.json`).
-- Fora da `release/20261026`.
+- **Status (26/10):** **publicada na `release/20261026`** (deploy de hoje) e na `-sdbx`. Branch
+  `feature/TS-5431-escopos-por-area`: BFF `c8d8a2e` (escopos), `cf4ef69` (rota literal no `iam/navigation`),
+  `41620f8` (pagamentos dos lotes de liquidação), cada um passando sozinho; front `4ca90019` (`.ai`), `4ddd830e`,
+  `2cd370ff`, `a71c946f`, `3ba14aab` (uma por área). Junções: BFF `e96e02d` e `-sdbx` `f375433`; front `9c2b0992` e
+  `-sdbx` `d930f414`. PRs #224, #226, #237 e #239 atualizadas; o merge fica com o Pietro. BFF 2382 testes (2384 na
+  `-sdbx`); front `validate.sh` ok com 4983 specs nas duas; smoke ok nas 11 rotas mexidas.
+- **Deploy:** criar as 57 roles; antes, atribuir à mão as 15 `access-control-*` aos gestores; depois, aplicar as 77
+  linhas da Migração e, conferido, apagar as 17 antigas. O "ver como" passa a usar `access-control-people:impersonate`.
 
 ## Por quê
 
