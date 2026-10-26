@@ -43,7 +43,7 @@ Masking: the table lives in `~/.config/workspace/names.toml`, read only through 
 copy its entries into the repo. Outside the repo (chat, company repos) real names are used.
 
 Enforcement starts after `ws setup`, which sets `core.hooksPath` (a fresh clone has no hooks) and
-reports a hook that is not executable. The git hooks call `ws check-secrets` (secret patterns, real
+makes the hooks executable. The git hooks call `ws check-secrets` (secret patterns, real
 names, company domains) and fail closed, also without `names.toml`: `pre-commit` and
 `pre-merge-commit` check the staged lines, `commit-msg` the message, `pre-push` every pushed commit
 (lines, message, author and committer e-mails). A Claude Code gate (`hooks/block_hook_bypass.py`)

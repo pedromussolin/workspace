@@ -30,7 +30,6 @@ Frozen since 2026-10-26: these items move only when a real case shows up.
 | The bypass gate misses `xargs git …`, `find -exec git …`, git aliases and quoted operators | best effort; `pre-push` scans every pushed commit | none planned |
 | The bypass gate blocks plain reads such as `git config core.hooksPath` and `git grep -e --no-verify` | workaround: `git config --get`, or `--` before the pattern | allow read-only `git config` forms |
 | `ws slot` overrides an inherited ignored SIGINT, and Ctrl+C reaches the child twice | harmless for build and test commands | keep `SIG_IGN` when inherited; do not forward SIGINT from a tty |
-| `ws setup` flags every non-executable file in `.githooks/`, prints one JSON block per missing gate, and creates `~/.claude/skills` even with no skills | cosmetic | check only hook names; merge the JSON blocks |
 | The `check-secrets` tail line suggests `.secrets-allow` for a co-author trailer finding, which cannot be allowed | cosmetic | a rule-specific hint |
 | README `ws check-secrets` row omits `--message` and `--range` | docs drift | update the row |
 | The Claude `Read` deny rule does not cover `cat` of `~/.config/workspace/credentials` | the file does not exist yet | subproject 2, with the credentials |
