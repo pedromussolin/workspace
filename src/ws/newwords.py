@@ -4,6 +4,8 @@ A real name that is not in `names.toml` yet looks like any other capitalized wor
 lists every capitalized word of the added lines and of the commit messages that is not already
 known. The pending list is computed each time; nothing is stored.
 
+The code of the ws CLI is not checked (see SKIPPED_PATHS); notes, docs and messages are.
+
 A word is known (compared lowercased and without accents) when it appears in the text of the
 pushed state, is listed in `.known-words` or is an analog in `names.toml`. A real name that is
 already in `names.toml` is not reported: `ws check-secrets` blocks it.
@@ -41,6 +43,9 @@ SYMLINK_MODE = "120000"
 # Where the places of a word are listed in a report; the rest is counted.
 REPORT_PLACES = 3
 DEFAULT_BASES = ("@{upstream}", "origin/main")
+# The code of the ws CLI: English, written by us, and its tests use made-up names on purpose. It
+# is left out of this check only; ws check-secrets still reads it for the names of the table.
+SKIPPED_PATHS = ("src/", "tests/", "hooks/", ".githooks/")
 
 
 @dataclass(frozen=True)
@@ -204,6 +209,8 @@ def _text_hits(
 def _file_hits(
     name: str, data: bytes, only_lines: set[int] | None, known: Known, commit: str = ""
 ) -> Iterator[tuple[str, Place]]:
+    if name.startswith(SKIPPED_PATHS):
+        return
     text = secrets._decode(data)
     if text is None:
         return

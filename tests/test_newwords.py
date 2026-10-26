@@ -67,6 +67,28 @@ def test_an_identifier_gives_each_of_its_words(repo, git, table):
     assert words(new_in_last_commit(repo, table)) == ["ZORBLAX", "API"]
 
 
+def test_the_code_of_the_cli_is_not_checked_but_notes_and_messages_are(repo, git, table):
+    commit(repo, git, "base", {"a.md": "fine\n"})
+    code = {
+        path: "Zorblax\n" for path in ("src/ws/x.py", "tests/t.py", "hooks/h.py", ".githooks/g")
+    }
+    commit(repo, git, "Quuxmark", {**code, "projetos/p/decisoes.md": "Frobnitz\n"})
+    assert words(new_in_last_commit(repo, table)) == ["Quuxmark", "Frobnitz"]
+
+
+def test_staged_check_skips_the_code_of_the_cli(repo, git, table):
+    commit(repo, git, "base", {"a.md": "fine\n"})
+    for name in ("src/ws/x.py", "docs/a.md"):
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"Zorblax in {path.stem}\n", encoding="utf-8")
+        git(repo, "add", name)
+    found = check_staged(repo, table, "HEAD")
+    assert [(item.word, [str(place) for place in item.places]) for item in found] == [
+        ("Zorblax", ["docs/a.md:1"])
+    ]
+
+
 def test_a_sentence_start_word_is_known_through_its_lowercase_form(repo, git, table):
     commit(repo, git, "base", {"a.md": "depois de tudo\n"})
     commit(repo, git, "two", {"a.md": "depois de tudo\nDepois chegou o Zorblax\n"})
