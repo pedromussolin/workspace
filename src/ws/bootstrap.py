@@ -1,6 +1,7 @@
 """Idempotent setup of a workspace clone: git hooks path, skill links, private config and gates."""
 
 import json
+import os
 import stat
 import subprocess
 import textwrap
@@ -8,6 +9,7 @@ from pathlib import Path
 
 from ws.config import claude_settings_path
 
+GITHOOKS_DIR = ".githooks"
 HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 
@@ -18,8 +20,11 @@ def run_setup(
     """Wire the clone and return the problems found; an empty list means ok."""
     if settings is None:
         settings = claude_settings_path()
+    hooks_problems = _set_hooks_path(repo)
+    if not hooks_problems:
+        hooks_problems = _check_git_hooks(repo)
     return [
-        *_set_hooks_path(repo),
+        *hooks_problems,
         *_link_skills(repo, skills_target),
         *_check_config(config),
         *_check_claude_gates(repo, settings),
@@ -27,7 +32,7 @@ def run_setup(
 
 
 def _set_hooks_path(repo: Path) -> list[str]:
-    command = ["git", "-C", str(repo), "config", "core.hooksPath", ".githooks"]
+    command = ["git", "-C", str(repo), "config", "core.hooksPath", GITHOOKS_DIR]
     try:
         result = subprocess.run(command, capture_output=True, text=True)
     except OSError as error:
@@ -35,6 +40,31 @@ def _set_hooks_path(repo: Path) -> list[str]:
     if result.returncode != 0:
         return [f"git hooks path: {result.stderr.strip()}"]
     return []
+
+
+def _check_git_hooks(repo: Path) -> list[str]:
+    """Check what git will really use: the effective hooks path and the executable bits."""
+    problems = []
+    command = ["git", "-C", str(repo), "config", "--get", "--type=path", "core.hooksPath"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True)
+    except OSError as error:
+        return [f"git hooks path: could not run git: {error}"]
+    configured = result.stdout.strip()
+    hooks = repo / GITHOOKS_DIR
+    if result.returncode != 0 or not configured:
+        problems.append(f"git hooks path: core.hooksPath is not set in {repo}")
+    elif (repo / configured).resolve() != hooks.resolve():
+        problems.append(
+            f"git hooks path: core.hooksPath resolves to {(repo / configured).resolve()}, "
+            f"not {hooks.resolve()}; something overrides the setting made here "
+            "(see: git config --show-origin --get-all core.hooksPath)"
+        )
+    if hooks.is_dir():
+        for hook in sorted(path for path in hooks.iterdir() if path.is_file()):
+            if not os.access(hook, os.X_OK):
+                problems.append(f"{hook} is not executable, so git skips it; run: chmod +x {hook}")
+    return problems
 
 
 def _link_skills(repo: Path, skills_target: Path) -> list[str]:

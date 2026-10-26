@@ -78,6 +78,47 @@ def test_sets_hooks_path(env):
     assert _git(env.repo, "config", "core.hooksPath") == ".githooks"
 
 
+def _write_hooks(repo: Path, modes: dict[str, int]) -> None:
+    hooks = repo / ".githooks"
+    hooks.mkdir()
+    for name, mode in modes.items():
+        (hooks / name).write_text("#!/bin/sh\n", encoding="utf-8")
+        (hooks / name).chmod(mode)
+
+
+def test_accepts_executable_hooks(env):
+    _write_hooks(env.repo, {"pre-commit": 0o755, "commit-msg": 0o755})
+
+    assert _setup(env) == []
+
+
+def test_reports_every_hook_file_that_is_not_executable(env):
+    _write_hooks(
+        env.repo,
+        {"pre-commit": 0o755, "commit-msg": 0o644, "pre-push": 0o644, "helper.sh": 0o600},
+    )
+
+    problems = _setup(env)
+
+    assert len(problems) == 3
+    for name in ("commit-msg", "pre-push", "helper.sh"):
+        assert any(str(env.repo / ".githooks" / name) in p for p in problems)
+    assert all("not executable" in p and "chmod +x" in p for p in problems)
+    assert not any("pre-commit" in p for p in problems)
+
+
+def test_reports_hooks_path_that_resolves_elsewhere(env, tmp_path, monkeypatch):
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "elsewhere"))
+
+    problems = _setup(env)
+
+    assert len(problems) == 1
+    assert str(tmp_path / "elsewhere") in problems[0]
+    assert str((env.repo / ".githooks").resolve()) in problems[0]
+
+
 def test_reports_repo_that_is_not_a_git_repository(env, tmp_path):
     not_a_repo = tmp_path / "plain"
     not_a_repo.mkdir()
