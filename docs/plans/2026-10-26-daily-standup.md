@@ -10,6 +10,8 @@
 
 **Spec:** `docs/specs/2026-10-26-task-driven-work-design.md` (section "Phase A in detail").
 
+**Changes of 27/10 (user):** no repo list and no e-mail in the config. The standup reads every git repo under `~/repos`, and the author is each repo's `git config user.email`. PRs come from one GitHub search. Later idea, not in this plan: each project's `CLAUDE.md` already lists its repos ("Repositórios envolvidos"), which could group the standup by project.
+
 ## Global Constraints
 
 - Runtime code uses the standard library only; `uv` only, never `pip`.
@@ -24,10 +26,10 @@
 
 ## Review Focus
 
-1. A repo in the config that does not exist or is not a git repo: a warning names it, the other repos are still collected (Task 4).
+1. A repo root in the config that does not exist: a warning names it, the other roots are still collected; a folder under a root that is not a git repo is skipped silently (Task 4).
 2. A card with no parent epic: `epic_key` and `epic_title` are null and the skill groups it under "Sem épico" (Task 3, Task 6).
 3. A PR or commit naming several keys, such as `chore(TS-101, TS-102): …`: each key gets the evidence (Task 4, Task 5).
-4. A commit on the user's branch by another author, or by the user under a second e-mail: only `author_emails` count, and every listed e-mail counts (Task 4).
+4. A commit by another author does not count; the user's e-mail is each repo's own `git config user.email`, so a repo set to another git account uses that account's e-mail, and a repo with no `user.email` is a warning (Task 4).
 5. Jira answers 401 (bad token) or more than one page: a clear one-line error and exit 1 for the first, every page read for the second (Task 3).
 
 ---
@@ -120,7 +122,7 @@ def test_task_to_json_uses_plain_values():
 - Consumes: `ws.config.config_dir()`.
 - Produces:
   - `@dataclass(frozen=True) class JiraConfig`: `site: str`, `email: str`, `status_overrides: dict[str, str]`.
-  - `@dataclass(frozen=True) class StandupConfig`: `repos: tuple[Path, ...]` (`~` expanded), `author_emails: tuple[str, ...]`, `stale_workdays: int` (default 3).
+  - `@dataclass(frozen=True) class StandupConfig`: `repo_roots: tuple[Path, ...]` (`~` expanded; default `(Path.home() / "repos",)` when absent), `stale_workdays: int` (default 3). No e-mail: the author comes from each repo's git config (Task 4).
   - `@dataclass(frozen=True) class UserConfig`: `jira: JiraConfig`, `standup: StandupConfig`.
   - `load_config() -> UserConfig`; `class ConfigMissing(Exception)` (has `.path`); `class ConfigInvalid(ValueError)`.
   - `load_jira_token() -> str` (raises `ConfigMissing` when the file or key is absent); `save_jira_token(value: str) -> Path`.
@@ -137,16 +139,15 @@ email = "<you>@<company>"
 "In Validation" = "validation"
 "Cancelada" = "cancelled"
 
-[standup]
-repos = ["~/repos/<repo>", "..."]
-author_emails = ["<git user.email>", "..."]
+[standup]  # optional, these are the defaults
+repo_roots = ["~/repos"]
 stale_workdays = 3
 ```
 
 `credentials` format: `[jira]` / `token = "<token>"`, written with `json.dumps` for the string (valid TOML basic string), file mode 600, folder 700.
 
 - [ ] **Step 1: Write the failing tests:**
-  - `test_load_config_reads_every_field`: asserts `repos` expanded from `~`, overrides dict, `stale_workdays` 3 when absent;
+  - `test_load_config_reads_every_field`: asserts `repo_roots` expanded from `~`, overrides dict, `stale_workdays` 3 when absent, and `repo_roots` defaults to `~/repos` when `[standup]` is absent;
   - `test_missing_config_raises_config_missing_with_path`;
   - `test_override_to_unknown_status_is_invalid` (`"X" = "doing"` raises `ConfigInvalid`);
   - `test_save_token_writes_600_in_700_folder_and_load_reads_it`;
@@ -212,17 +213,18 @@ stale_workdays = 3
  "warnings": ["..."]}
 ```
 
-  - Commits: `git -C REPO log --all --since=<since> --author=<email>` once per e-mail, deduplicated by sha. `last_activity` uses the same query from `workdays_before(today, stale_workdays)`.
+  - Repos: every direct child folder of each `repo_roots` entry that is a git repo (has a `.git` folder or file), hidden folders skipped, and the workspace repo itself (`repo_root()`) skipped, since its planning reaches the standup through `CONTINUE.md`; sorted by name. A root that does not exist adds a warning naming it.
+  - Commits: per repo, the author is `git -C REPO config user.email` (the effective value, so `includeIf` and per-repo accounts work); unset adds a warning naming the repo and its commits are skipped. `git -C REPO log --all --since=<since> --author=<email> --fixed-strings`, deduplicated by sha. `last_activity` uses the same query from `workdays_before(today, stale_workdays)`.
   - Branches: local branches (`refs/heads`) whose name has a key.
-  - PRs: in each repo, `gh pr list --author @me --state all --search "updated:>=<since>" --json number,title,state,mergedAt,headRefName,url --limit 50`. Keys come from the title and `headRefName`. If `gh` fails, add one warning `gh: PRs left out (<first stderr line>)` and stop calling it.
+  - PRs: one call for every repo of the user's GitHub account: `gh api graphql` with the search `is:pr author:@me updated:>=<since>` (`type: ISSUE`, `first: 100`), reading `number`, `title`, `state` (lowercased), `mergedAt`, `headRefName`, `url` and `repository.name` (the `repo` field). Keys come from the title and `headRefName`. If `gh` fails, add one warning `gh: PRs left out (<first stderr line>)`; if `issueCount` is over 100, a warning says only the first 100 were read.
   - Next steps: for each `projects/*/CONTINUE.md` under `workspace`, the text under the heading `## Próximo passo` until the next `## `; a file without it adds a warning naming the project.
   - CLI: `ws standup collect [--today YYYY-MM-DD]` prints the JSON.
 
 - [ ] **Step 1: Write the failing tests** (throwaway repos through the `repo`/`git` fixtures; a fake `gh` script on `PATH` that prints fixed JSON or exits 1):
   - `test_window_on_monday_starts_friday`;
-  - `test_only_listed_authors_count_and_every_listed_email_counts` (Review Focus 4);
+  - `test_author_is_each_repos_git_email` (Review Focus 4: two repos with different `user.email`, each counts its own; another author's commit does not; a repo without `user.email` is a warning);
   - `test_keys_from_subject_and_branch`, `test_several_keys_in_one_title` (Review Focus 3: `chore(TS-101, TS-102): x` → `["TS-101", "TS-102"]`);
-  - `test_missing_repo_is_a_warning_and_others_are_collected` (Review Focus 1);
+  - `test_repos_found_under_roots_and_missing_root_is_a_warning` (Review Focus 1: a non-git folder and a hidden folder are skipped);
   - `test_gh_failure_is_one_warning`;
   - `test_next_steps_from_continue_and_warning_without_section`;
   - `test_last_activity_uses_the_stale_window`.
@@ -286,10 +288,12 @@ stale_workdays = 3
 - Rules: write only from the JSON; never call a write tool; state every warning; ask before calling a stuck card a blocker.
 
 - [ ] **Step 1: Write `SKILL.md`** (under 150 lines) and the README rows and section.
-- [ ] **Step 2: Live check.** Create `config.toml` with the user's values (they confirm the repo list and e-mails), then say "bom dia" in a new session. Expected: the five headings, every Ontem line traceable, no Jira write.
+- [ ] **Step 2: Live check.** Create `config.toml` with the user's values (the Jira site and e-mail; repos and git e-mails come from `~/repos` and git config), then say "bom dia" in a new session. Expected: the five headings, every Ontem line traceable, no Jira write.
 - [ ] **Step 3: Commit** — `feat: skill daily com standup, status e tarefas abertas`, then `docs: README com config.toml e os comandos do standup`.
 
 ### Task 7: Eval suite
+
+> **27/10:** only step 1 runs now; steps 2–6 wait for a later session (the user's call: the standup first, the evals after).
 
 **Files:**
 - Create: `.claude-plugin/plugin.json` (`{"name": "workspace", "mcpServers": {"atlassian": {"command": "false"}}}`; the server exists only so its tools can be mocked), `evals/` (five cases, mocks, a probe case)
