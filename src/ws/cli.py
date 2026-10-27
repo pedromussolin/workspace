@@ -12,6 +12,7 @@ from ws import (
     config,
     dictionary,
     gittools,
+    jira,
     names,
     newwords,
     project,
@@ -19,6 +20,7 @@ from ws import (
     secrets,
     slot,
     userconfig,
+    workdays,
 )
 from ws.config import claude_skills_dir, config_dir, repo_root
 
@@ -578,6 +580,48 @@ def _cmd_config_token_jira(args: argparse.Namespace) -> int:
     return 0
 
 
+def _iso_date(text: str) -> date:
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a date; use YYYY-MM-DD") from None
+
+
+def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("task", help="Tasks from the tracker.")
+    commands = parser.add_subparsers(dest="task_command", required=True)
+    listing = commands.add_parser(
+        "list",
+        help="Print my Jira tasks as compact cards (JSON), read through the REST API.",
+    )
+    listing.add_argument(
+        "--since",
+        type=_iso_date,
+        metavar="YYYY-MM-DD",
+        help="Include tasks finished since this day (default: the previous workday).",
+    )
+    listing.set_defaults(handler=_cmd_task_list)
+
+
+def _cmd_task_list(args: argparse.Namespace) -> int:
+    since = args.since or workdays.previous_workday(date.today())
+    try:
+        settings = userconfig.load_config().jira
+        client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws task list: {error}", file=sys.stderr)
+        return 2
+    try:
+        account_id = client.myself()["accountId"]
+        issues = client.search(jira.my_tasks_jql(since), jira.FIELDS)
+        cards = [jira.card_from_issue(issue, account_id) for issue in issues]
+    except (jira.JiraError, KeyError, ValueError) as error:
+        print(f"ws task list: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps({"platform": "jira", "cards": cards}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -589,6 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_check_secrets(subparsers)
     _add_names(subparsers)
     _add_config(subparsers)
+    _add_task(subparsers)
     return parser
 
 
