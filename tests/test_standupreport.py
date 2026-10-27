@@ -311,3 +311,54 @@ def test_card_key_repeated_in_tasks_gives_one_today_entry():
     task = make_task("TS-101", Status.IN_PROGRESS)
     report = build_report(make_activity(), [task, task], TODAY, 3)
     assert [entry["key"] for entry in report["today"]] == ["TS-101"]
+
+
+def four_yesterday_activity():
+    commits = [make_commit(f"s{n}", "2026-10-26", f"passo {n}", [f"TS-10{n}"]) for n in range(1, 5)]
+    prs = [make_pr(9, ["TS-104"], "2026-10-26T12:00:00Z")]
+    return make_activity(commits=commits, prs=prs)
+
+
+def test_report_without_top_keeps_whole_lists_and_zero_more():
+    tasks = [make_task("TS-104", Status.IN_PROGRESS)]
+    report = build_report(four_yesterday_activity(), tasks, TODAY, 3)
+    assert len(report["yesterday"]) == 4
+    assert report["more"] == {"yesterday": 0, "today": 0}
+    assert [move["key"] for move in report["moves"]] == ["TS-104"]
+
+
+def test_report_top_cuts_yesterday_but_moves_keep_the_cut_suggestion():
+    tasks = [make_task("TS-104", Status.IN_PROGRESS)]
+    report = build_report(four_yesterday_activity(), tasks, TODAY, 3, top=2)
+    assert [entry["key"] for entry in report["yesterday"]] == ["TS-101", "TS-102"]
+    assert report["more"] == {"yesterday": 2, "today": 0}
+    assert len(report["moves"]) == 1
+    move = report["moves"][0]
+    assert set(move) == {"key", "from", "to"}
+    assert move["key"] == "TS-104"
+
+
+def test_report_top_cuts_today_and_never_next_steps_or_blockers():
+    tasks = [make_task(f"TS-20{n}", Status.IN_PROGRESS) for n in range(1, 4)]
+    steps = [{"repo": "app", "text": "TS-299 revisar"}]
+    report = build_report(make_activity(next_steps=steps), tasks, TODAY, 3, top=1)
+    assert len(report["today"]) == 1
+    assert report["more"] == {"yesterday": 0, "today": 2}
+    assert report["next_steps"] == steps
+
+
+def test_report_moves_is_empty_without_suggestions():
+    report = build_report(make_activity(), None, TODAY, 3)
+    assert report["moves"] == []
+
+
+def test_cli_top_flag_and_invalid_values(ws_config, tmp_path, capsys):
+    args = write_files(tmp_path, four_yesterday_activity())
+    assert main([*args, "--top", "2"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["yesterday"]) == 2
+    assert payload["more"] == {"yesterday": 2, "today": 0}
+    for bad in ("0", "-1"):
+        with pytest.raises(SystemExit) as error:
+            main([*args, "--top", bad])
+        assert error.value.code == 2

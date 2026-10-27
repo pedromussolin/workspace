@@ -71,7 +71,11 @@ def _suggestion(found: dict) -> dict:
 
 
 def build_report(
-    activity: dict, tasks: list[Task] | None, today: date, stale_workdays: int
+    activity: dict,
+    tasks: list[Task] | None,
+    today: date,
+    stale_workdays: int,
+    top: int | None = None,
 ) -> dict:
     cards = {task.key: task for task in tasks or []}
     yesterday = _yesterday(activity, cards)
@@ -129,6 +133,20 @@ def build_report(
         )
     shown = {entry["key"] for entry in today_entries}
 
+    moves = [
+        {"key": entry["key"], "from": entry["suggestion"]["from"], "to": entry["suggestion"]["to"]}
+        for entry in (*yesterday, *today_entries)
+        if entry["suggestion"]
+    ]
+    more = {"yesterday": 0, "today": 0}
+    if top is not None:
+        more = {
+            "yesterday": max(len(yesterday) - top, 0),
+            "today": max(len(today_entries) - top, 0),
+        }
+        yesterday = yesterday[:top]
+        today_entries = today_entries[:top]
+
     keyless = [commit for commit in activity["commits"] if not commit["keys"]]
     return {
         "window": activity["window"],
@@ -139,6 +157,8 @@ def build_report(
             step for step in activity["next_steps"] if not shown & set(keys_in(step["text"]))
         ],
         "blockers": blockers,
+        "more": more,
+        "moves": moves,
         "keyless": {
             "commits": len(keyless),
             "repos": sorted({commit["repo"] for commit in keyless}),

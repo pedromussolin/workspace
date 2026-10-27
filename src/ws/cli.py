@@ -703,7 +703,21 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         metavar="YYYY-MM-DD",
         help="day to run the standup for (default: today)",
     )
+    report.add_argument(
+        "--top",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="keep only the first N entries of yesterday and today (default: all)",
+    )
     report.set_defaults(handler=_cmd_standup_report)
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
 
 
 def _cmd_standup_collect(args: argparse.Namespace) -> int:
@@ -744,7 +758,7 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
                 for card in cards
             ]
         result = standupreport.build_report(
-            activity, tasks, args.today or date.today(), stale_workdays
+            activity, tasks, args.today or date.today(), stale_workdays, args.top
         )
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         print(f"ws standup report: {error}", file=sys.stderr)
