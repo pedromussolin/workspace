@@ -59,8 +59,8 @@ Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5,
 
 Status on 2026-10-27 (afternoon): **3 done** (`ws checkpoint` and the skill, on `main`); **1 done**
 (`ws card` and the `/card` skill; the `ask` rules and the hook are installed; the first real write
-waits for the user's Jira API key); **2 designed** (`docs/specs/2026-10-27-release-design.md`, with
-decisions to confirm); 4–7 not started. Each one
+waits for the user's Jira API key); **2 designed, every decision taken**
+(`docs/specs/2026-10-27-release-design.md`; next: the implementation plan); 4–7 not started. Each one
 follows "script first" (root `CLAUDE.md`): the `ws` command does the deterministic part, the skill
 decides, asks and writes the prose.
 
