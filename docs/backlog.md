@@ -40,3 +40,15 @@ Frozen since 2026-10-26: these items move only when a real case shows up.
 |---|---|---|
 | `skills/change-request/references/tests.md` keeps the old 12-minute Docker recipe | a faster recipe exists in the user's notes | update the recipe |
 | `projects/whitelabel-restructure/CONTINUE.md` "Leia antes" does not name the root `CLAUDE.md` | the project is active in another chat; the project `CLAUDE.md` already points there | one line, when that chat is idle |
+
+## Subagents: model and effort per role
+
+Decided with the user on 2026-10-27, after the phase A plan picked a model and an effort per task
+by hand. The common practice is a fixed model per role, in configuration, chosen by the
+orchestrator by role name; routing by a classifier belongs to the API layer, not to coding agents.
+
+| Item | Why it waits | Fix when picked up |
+|---|---|---|
+| Agent definitions per role, versioned in the repo | phase A first | `agents/<role>.md` with `model`, `effort` and tools in the frontmatter (light implementer, implementer, reviewer, final reviewer), linked into `~/.claude/agents` by `ws setup` like the skills |
+| The role of each task stays in the plan | already done by hand in the phase A plan ("Execution" table) | the plan template names a role per task instead of a model; no skill, since a skill would keep the rule as prose |
+| A hard rule against a subagent that inherits the orchestrator's model | today it depends on remembering to set `model` | a Claude Code `PreToolUse` hook on `Agent` that blocks a call with neither a role nor a `model` |
