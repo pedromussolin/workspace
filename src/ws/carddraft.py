@@ -16,7 +16,7 @@ REQUIRED = {
     "worklog": {"key", "time"},
 }
 OPTIONAL = {
-    "create": {"start"},
+    "create": set(),
     "edit": {"title", "priority", "start", "due", "epic"},
     "move": set(),
     "comment": set(),

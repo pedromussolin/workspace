@@ -63,6 +63,12 @@ class World:
             [
                 {"id": "31", "name": "Validar", "to": {"name": "Em Validação"}, "fields": {}},
                 {
+                    "id": "21",
+                    "name": "Iniciar",
+                    "to": {"name": "Em Andamento", "statusCategory": {"key": "indeterminate"}},
+                    "fields": {},
+                },
+                {
                     "id": "41",
                     "name": "Concluir",
                     "to": {"name": "Done"},
@@ -212,16 +218,28 @@ def passing(path, capsys):
 
 
 def test_draft_accepts_toml_dates_and_strings():
-    raw = (
-        b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\n'
-        b'due = 2026-10-31\nstart = "2026-10-28"\n+++\n# T\n\nx\n'
-    )
+    raw = b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\ndue = 2026-10-31\n+++\n# T\n\nx\n'
 
     draft = parse_draft(raw)
 
     assert draft.values["due"] == date(2026, 10, 31)
-    assert draft.values["start"] == date(2026, 10, 28)
     assert draft.title == "T"
+
+
+def test_draft_edit_still_accepts_a_start_date():
+    raw = b'+++\nop = "edit"\nkey = "TS-1"\nstart = "2026-10-28"\n+++\n'
+
+    assert parse_draft(raw).values["start"] == date(2026, 10, 28)
+
+
+def test_draft_create_refuses_a_start_key():
+    raw = (
+        b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\n'
+        b"due = 2026-10-31\nstart = 2026-10-28\n+++\n# T\n\nx\n"
+    )
+
+    with pytest.raises(DraftError, match="unknown key 'start' for op create"):
+        parse_draft(raw)
 
 
 @pytest.mark.parametrize(
@@ -252,7 +270,7 @@ def test_draft_errors(raw, message):
 
 
 def test_create_check_passes_and_builds_the_request(world, capsys):
-    verdict = passing(create_draft(start=date(2026, 10, 28)), capsys)
+    verdict = passing(create_draft(), capsys)
 
     assert verdict["resolved"]["sprint"] == {
         "id": 55,
@@ -276,17 +294,22 @@ def test_create_check_passes_and_builds_the_request(world, capsys):
         "parent": {"key": "TS-100"},
         "priority": {"name": "High"},
         "assignee": {"accountId": "acc-me"},
-        START_FIELD: "2026-10-28",
         "duedate": "2026-10-31",
         SPRINT_FIELD: 55,
     }
     assert world.writes() == []
 
 
-def test_create_start_defaults_to_today_in_the_users_zone(world, capsys):
-    verdict = passing(create_draft(start=None), capsys)
+def test_create_sends_no_start_date_and_the_preview_has_none(world, capsys):
+    verdict = passing(create_draft(), capsys)
 
-    assert verdict["requests"][0]["body"]["fields"][START_FIELD] == "2026-10-27"
+    assert START_FIELD not in verdict["requests"][0]["body"]["fields"]
+    out, _ = preview(create_draft(), capsys)
+    assert "Início" not in out and "Data de início" not in out
+
+
+def test_create_with_a_start_key_is_refused_by_check(world, capsys):
+    assert "unknown key 'start'" in problems(create_draft(start=date(2026, 10, 28)), capsys)
 
 
 @pytest.mark.parametrize(
@@ -363,10 +386,8 @@ def test_create_priority_must_be_allowed(world, capsys):
 
 
 def test_create_dates(world, capsys):
-    assert "after due" in problems(create_draft(start=date(2026, 11, 2)), capsys)
-    passing(create_draft(start=date(2026, 10, 31)), capsys)
-    assert "before today" in problems(create_draft(due=date(2026, 10, 26), start=None), capsys)
-    passing(create_draft(due=date(2026, 10, 27), start=None), capsys)
+    assert "before today" in problems(create_draft(due=date(2026, 10, 26)), capsys)
+    passing(create_draft(due=date(2026, 10, 27)), capsys)
 
 
 def test_create_needs_exactly_one_active_sprint(world, capsys):
@@ -388,13 +409,12 @@ def test_create_warns_when_the_active_sprint_ended(world, capsys):
 def test_today_comes_from_the_jira_time_zone_not_the_machine(world, capsys, monkeypatch):
     monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
 
-    verdict = passing(create_draft(due=date(2026, 10, 27), start=None), capsys)
+    verdict = passing(create_draft(due=date(2026, 10, 27)), capsys)
 
     assert verdict["resolved"]["today"] == "2026-10-27"
-    assert verdict["requests"][0]["body"]["fields"][START_FIELD] == "2026-10-27"
 
     world.set_myself("Asia/Tokyo")
-    assert "before today" in problems(create_draft(due=date(2026, 10, 27), start=None), capsys)
+    assert "before today" in problems(create_draft(due=date(2026, 10, 27)), capsys)
 
 
 def test_invalid_time_zone_from_jira_is_exit_3(world, capsys):
@@ -576,6 +596,210 @@ def test_move_has_no_body(world, capsys):
     path = make_draft("m.md", "move", "texto\n", key="TS-101", to="Em Validação")
 
     assert "no body" in problems(path, capsys)
+
+
+def start_move(name="m.md"):
+    return make_draft(name, "move", key="TS-101", to="Em Andamento")
+
+
+def test_move_to_in_progress_with_no_start_date_adds_the_start_request(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+
+    verdict = passing(start_move(), capsys)
+
+    assert verdict["requests"] == [
+        {
+            "method": "POST",
+            "path": "/rest/api/3/issue/TS-101/transitions",
+            "body": {"transition": {"id": "21"}},
+        },
+        {
+            "method": "PUT",
+            "path": "/rest/api/3/issue/TS-101",
+            "body": {"fields": {START_FIELD: "2026-10-27"}},
+        },
+    ]
+
+
+def test_move_to_in_progress_with_a_start_date_sends_only_the_transition(world, capsys):
+    verdict = passing(start_move(), capsys)
+
+    assert [r["path"] for r in verdict["requests"]] == ["/rest/api/3/issue/TS-101/transitions"]
+
+
+def test_move_to_another_status_never_adds_the_start_request(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+
+    verdict = passing(path, capsys)
+
+    assert len(verdict["requests"]) == 1
+
+
+def test_move_start_date_is_today_in_the_users_zone(world, capsys, monkeypatch):
+    world.set_card("TS-101", **{START_FIELD: None})
+    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
+
+    verdict = passing(start_move(), capsys)
+
+    assert verdict["requests"][1]["body"] == {"fields": {START_FIELD: "2026-10-27"}}
+
+
+def test_move_follows_the_status_overrides_for_in_progress(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    config.write_text(
+        config.read_text() + '\n[jira.status_overrides]\n"Em Validação" = "in_progress"\n',
+        encoding="utf-8",
+    )
+    world.set_card("TS-101", **{START_FIELD: None})
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+
+    verdict = passing(path, capsys)
+
+    assert [r["method"] for r in verdict["requests"]] == ["POST", "PUT"]
+
+
+def test_move_override_can_take_an_in_progress_category_out(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    config.write_text(
+        config.read_text() + '\n[jira.status_overrides]\n"Em Andamento" = "blocked"\n',
+        encoding="utf-8",
+    )
+    world.set_card("TS-101", **{START_FIELD: None})
+
+    verdict = passing(start_move(), capsys)
+
+    assert len(verdict["requests"]) == 1
+
+
+def test_move_with_a_due_date_in_the_past_warns_but_does_not_refuse(world, capsys):
+    world.set_card("TS-101", duedate="2026-10-20", **{START_FIELD: None})
+
+    verdict = passing(start_move(), capsys)
+
+    assert len(verdict["requests"]) == 2
+    assert any("2026-10-20" in warning and "start" in warning for warning in verdict["warnings"])
+
+
+def test_move_with_a_due_date_today_or_later_has_no_warning(world, capsys):
+    world.set_card("TS-101", duedate="2026-10-27", **{START_FIELD: None})
+
+    assert passing(start_move(), capsys)["warnings"] == []
+
+
+def test_move_preview_shows_the_start_date_and_both_requests(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+
+    out, _ = preview(start_move(), capsys)
+
+    assert "Data de início: hoje, 27/10" in out
+    assert "POST /rest/api/3/issue/TS-101/transitions" in out
+    assert "PUT /rest/api/3/issue/TS-101" in out
+
+
+def test_move_preview_without_the_start_request_has_no_start_line(world, capsys):
+    out, _ = preview(start_move(), capsys)
+
+    assert "Data de início" not in out
+
+
+def test_one_code_sends_the_transition_then_the_start_date_once(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    path = start_move()
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+
+    assert approve(path, code) == 0
+
+    assert [(r["method"], r["path"]) for r in world.writes()] == [
+        ("POST", "/rest/api/3/issue/TS-101/transitions"),
+        ("PUT", "/rest/api/3/issue/TS-101"),
+    ]
+    assert world.writes()[1]["body"] == {"fields": {START_FIELD: "2026-10-27"}}
+    assert "Aplicado: m.md" in capsys.readouterr().out
+    assert (data_dir() / "cards" / "done" / "m.md").exists()
+    assert approve(path, code) == 1
+    assert len(world.writes()) == 2
+
+
+def test_a_start_date_set_since_the_preview_refuses_the_move(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    path = start_move()
+    _, code = preview(path, capsys)
+    world.set_card("TS-101", **{START_FIELD: "2026-10-26"})
+
+    assert approve(path, code) == 1
+    assert world.writes() == []
+
+
+def test_the_move_code_covers_the_current_start_date(world, capsys):
+    _, with_date = preview(start_move(), capsys)
+    world.set_card("TS-101", **{START_FIELD: "2026-10-20"})
+    _, other_date = preview(start_move(), capsys)
+
+    assert with_date != other_date
+
+
+def test_a_failing_start_request_reports_the_transition_as_applied(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (
+        400,
+        json.dumps({"errorMessages": ["nope"]}),
+    )
+    drafts = data_dir() / "cards" / "drafts"
+    make_draft("1-comment.md", "comment", "Primeiro.\n", key="TS-101")
+    make_draft("2-move.md", "move", key="TS-101", to="Em Andamento")
+    make_draft("3-worklog.md", "worklog", key="TS-101", time="1h")
+    _, code = preview(drafts, capsys)
+    capsys.readouterr()
+
+    assert approve(drafts, code) == 3
+
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert [r["path"].rsplit("/", 1)[1] for r in world.writes()] == [
+        "comment",
+        "transitions",
+        "TS-101",
+    ]
+    assert "Já aplicados: 1-comment.md" in text
+    assert "2-move.md: a transição foi aplicada, mas a data de início não" in text
+    assert "o Jira recusou" in text and "nope" in text
+    assert "Não enviados: 3-worklog.md" in text
+    assert [p.name for p in (data_dir() / "cards" / "uncertain").iterdir()] == ["2-move.md"]
+    assert sorted(p.name for p in drafts.iterdir()) == ["3-worklog.md"]
+
+
+def test_a_start_request_with_an_uncertain_result_follows_the_uncertain_rules(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (500, "{}")
+    path = start_move()
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+
+    assert approve(path, code) == 3
+
+    text = capsys.readouterr().out
+    assert "a transição foi aplicada, mas a data de início não" in text
+    assert "m.md: resultado incerto" in text
+    assert len(world.writes()) == 2
+    assert [p.name for p in (data_dir() / "cards" / "uncertain").iterdir()] == ["m.md"]
+
+
+def test_a_failing_transition_never_sends_the_start_request(world, capsys):
+    world.set_card("TS-101", **{START_FIELD: None})
+    world.fake.routes[("POST", "/rest/api/3/issue/TS-101/transitions")] = (
+        400,
+        json.dumps({"errorMessages": ["nope"]}),
+    )
+    path = start_move()
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+
+    assert approve(path, code) == 3
+
+    assert [r["path"].rsplit("/", 1)[1] for r in world.writes()] == ["transitions"]
+    assert "a transição foi aplicada" not in capsys.readouterr().out
 
 
 def test_comment_converts_the_body(world, capsys):
@@ -1149,7 +1373,7 @@ def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsy
 
     assert main(["card", "check", str(create_draft())]) == 2
     err = capsys.readouterr().err
-    for name in ["board_id", "issue_type", "start_date_field", "sprint_field"]:
+    for name in ["board_id", "issue_type", "sprint_field"]:
         assert name in err
     capsys.readouterr()
     assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 0
@@ -1458,7 +1682,8 @@ def test_a_pending_record_that_is_a_symlink_is_refused(world, capsys, tmp_path):
 
 
 def test_a_day_rollover_between_preview_and_approve_says_so(world, capsys, monkeypatch):
-    path = create_draft(start=None)
+    world.set_card("TS-101", **{START_FIELD: None})
+    path = make_draft("m.md", "move", key="TS-101", to="Em Andamento")
     monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
     _, code = preview(path, capsys)
     monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
@@ -1472,7 +1697,7 @@ def test_a_day_rollover_between_preview_and_approve_says_so(world, capsys, monke
 
 
 def test_a_day_rollover_does_not_matter_when_nothing_depends_on_today(world, capsys, monkeypatch):
-    path = create_draft(start=date(2026, 10, 27))
+    path = create_draft()
     monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
     _, code = preview(path, capsys)
     monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
@@ -1571,7 +1796,7 @@ def test_an_odd_answer_to_a_write_does_not_turn_a_success_into_an_error(world, c
 
 def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys, monkeypatch):
     forged = cardrules.Verdict(
-        request={"method": "DELETE", "path": "/rest/api/3/issue/TS-101", "body": {}},
+        requests=[{"method": "DELETE", "path": "/rest/api/3/issue/TS-101", "body": {}}],
         preview=["forjado"],
         resolved={"today": "2026-10-27"},
     )

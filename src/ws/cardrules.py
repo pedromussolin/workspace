@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 from ws.adf import AdfError, foreign_nodes, to_adf
 from ws.carddraft import Draft
-from ws.jira import JiraClient, JiraError
+from ws.jira import CATEGORY_STATUS, JiraClient, JiraError
+from ws.taskmodel import Status
 from ws.userconfig import JiraConfig
 
 MAX_SUMMARY = 255
@@ -26,8 +27,13 @@ class Verdict:
     warnings: list[str] = field(default_factory=list)
     resolved: dict = field(default_factory=dict)
     preview: list[str] = field(default_factory=list)
-    request: dict | None = None
+    requests: list[dict] = field(default_factory=list)
     before: dict = field(default_factory=dict)
+
+    @property
+    def request(self) -> dict | None:
+        """The first request, the one that defines the draft (a create, an edit, a transition)."""
+        return self.requests[0] if self.requests else None
 
 
 def fold(text: str) -> str:
@@ -205,7 +211,7 @@ def check(ctx: Context, draft: Draft) -> Verdict:
         "worklog": _worklog,
     }[draft.op](ctx, draft, verdict)
     if verdict.problems:
-        verdict.request = None
+        verdict.requests = []
     return verdict
 
 
@@ -292,9 +298,7 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             f"priority {values['priority']!r} is not allowed; the project accepts "
             f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
         )
-    start = values.get("start", ctx.today)
     due = values["due"]
-    verdict.problems.extend(_dates_problems(start, due))
     if due < ctx.today:
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
     sprint = ctx.sprint(verdict)
@@ -309,11 +313,10 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         "parent": {"key": epic["key"]},
         "priority": {"name": values["priority"]},
         "assignee": {"accountId": ctx.account_id},
-        settings.start_date_field: start.isoformat(),
         "duedate": due.isoformat(),
         settings.sprint_field: sprint["id"],
     }
-    verdict.request = {"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}
+    verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
     sprint_end = verdict.resolved["sprint"]["end_date"]
     verdict.preview = [
         f"Criar card no projeto {ctx.project} ({settings.issue_type})",
@@ -322,7 +325,6 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         f"Prioridade: {values['priority']}",
         f"Responsável: {ctx.name}",
         f"Sprint: {sprint.get('name')}" + (f" (termina em {sprint_end})" if sprint_end else ""),
-        f"Início: {start.isoformat()}",
         f"Prazo: {due.isoformat()}",
         "Descrição:",
         *[f"  {line}" for line in adf_text(description).splitlines()],
@@ -429,11 +431,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         verdict.problems.append("the draft changes nothing on the card")
     if verdict.problems:
         return
-    verdict.request = {
-        "method": "PUT",
-        "path": f"/rest/api/3/issue/{key}",
-        "body": {"fields": changes},
-    }
+    verdict.requests = [
+        {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": {"fields": changes}}
+    ]
     verdict.before = before
     verdict.preview = lines
 
@@ -481,15 +481,57 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     destination = (chosen.get("to") or {}).get("name")
     verdict.resolved["transition"] = {"id": chosen.get("id"), "to": destination}
     verdict.before = {"status": verdict.resolved["card"]["status"]}
-    verdict.request = {
-        "method": "POST",
-        "path": f"/rest/api/3/issue/{key}/transitions",
-        "body": {"transition": {"id": chosen.get("id")}},
-    }
+    verdict.requests = [
+        {
+            "method": "POST",
+            "path": f"/rest/api/3/issue/{key}/transitions",
+            "body": {"transition": {"id": chosen.get("id")}},
+        }
+    ]
     verdict.preview = [
         f"Mover o card {key}",
         f"Status: {verdict.resolved['card']['status']} -> {destination}",
     ]
+    if _starts_work(ctx, chosen.get("to") or {}):
+        _add_start_date(ctx, key, current, verdict)
+
+
+def _starts_work(ctx: Context, destination: dict) -> bool:
+    name = destination.get("name") or ""
+    overrides = ctx.settings.status_overrides
+    if name in overrides:
+        return overrides[name] == Status.IN_PROGRESS
+    category = (destination.get("statusCategory") or {}).get("key")
+    return CATEGORY_STATUS.get(category) == Status.IN_PROGRESS
+
+
+def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> None:
+    """Moving to in progress is when the task starts: an empty start date becomes today, sent
+    right after the transition under the same approval."""
+    field_name = ctx.settings.start_date_field
+    if not field_name:
+        verdict.warnings.append(
+            "start_date_field is not in config.toml [jira]; the start date will not be set"
+        )
+        return
+    old_start = _parse_day(current.get(field_name))
+    verdict.before[field_name] = old_start.isoformat() if old_start else None
+    if old_start:
+        return
+    due = _parse_day(current.get("duedate"))
+    if due and ctx.today > due:
+        verdict.warnings.append(
+            f"the start date (today, {ctx.today.isoformat()}) is after the due date "
+            f"{due.isoformat()}"
+        )
+    verdict.requests.append(
+        {
+            "method": "PUT",
+            "path": f"/rest/api/3/issue/{key}",
+            "body": {"fields": {field_name: ctx.today.isoformat()}},
+        }
+    )
+    verdict.preview.append(f"Data de início: hoje, {ctx.today.strftime('%d/%m')}")
 
 
 def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
@@ -498,11 +540,9 @@ def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     body = _convert(draft.body, "comment", verdict)
     if current is None or body is None:
         return
-    verdict.request = {
-        "method": "POST",
-        "path": f"/rest/api/3/issue/{key}/comment",
-        "body": {"body": body},
-    }
+    verdict.requests = [
+        {"method": "POST", "path": f"/rest/api/3/issue/{key}/comment", "body": {"body": body}}
+    ]
     verdict.preview = [f"Comentar no card {key}", *[f"  {x}" for x in adf_text(body).splitlines()]]
 
 
@@ -532,11 +572,9 @@ def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     body: dict = {"timeSpent": spent, "started": started}
     if comment:
         body["comment"] = comment
-    verdict.request = {
-        "method": "POST",
-        "path": f"/rest/api/3/issue/{key}/worklog",
-        "body": body,
-    }
+    verdict.requests = [
+        {"method": "POST", "path": f"/rest/api/3/issue/{key}/worklog", "body": body}
+    ]
     verdict.preview = [f"Lançar horas no card {key}", f"Tempo: {spent}", f"Início: {started}"]
     if comment:
         verdict.preview.extend(["Comentário:", *[f"  {x}" for x in adf_text(comment).splitlines()]])

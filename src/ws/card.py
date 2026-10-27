@@ -49,7 +49,7 @@ class Plan:
 
     @property
     def requests(self) -> list[dict]:
-        return [verdict.request for verdict in self.verdicts]
+        return [request for verdict in self.verdicts for request in verdict.requests]
 
     @property
     def befores(self) -> list[dict]:
@@ -130,7 +130,7 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
             continue
         op, values = item.draft.op, item.draft.values
         if op == "create":
-            needed |= {"board_id", "issue_type", "start_date_field", "sprint_field"}
+            needed |= {"board_id", "issue_type", "sprint_field"}
         if op == "edit":
             if "priority" in values:
                 needed.add("issue_type")
@@ -234,7 +234,7 @@ def _print_verdict(verdict: Verdict) -> None:
         "problems": verdict.problems,
         "warnings": verdict.warnings,
         "resolved": verdict.resolved,
-        "requests": [verdict.request] if verdict.request else [],
+        "requests": verdict.requests,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
@@ -326,10 +326,10 @@ def _preview(argument: str, loaded: list[Loaded]) -> int:
             print(f"  {line}")
         for warning in verdict.warnings:
             print(f"  Aviso: {warning}")
-        request = verdict.request
-        print(f"  Requisição: {request['method']} {request['path']}")
-        body = json.dumps(request["body"], ensure_ascii=False, indent=2)
-        print("\n".join(f"    {line}" for line in body.splitlines()))
+        for request in verdict.requests:
+            print(f"  Requisição: {request['method']} {request['path']}")
+            body = json.dumps(request["body"], ensure_ascii=False, indent=2)
+            print("\n".join(f"    {line}" for line in body.splitlines()))
     print(f"\nCódigo de aprovação: {code}")
     print(f"Para aplicar: ws card apply {shlex.quote(argument)} --approve {code}")
     return 0
@@ -504,18 +504,21 @@ def _send_all(settings, client: JiraClient, plan: Plan) -> int:
     applied: list[str] = []
     applied_paths: list[Path] = []
     for index, (item, verdict) in enumerate(zip(plan.loaded, plan.verdicts, strict=True)):
-        request = verdict.request
-        try:
-            answer = _send(client, request)
-        except JiraError as error:
-            _report_failure(settings, plan, index, error, applied)
-            _drop_records_for([*applied_paths, item.path])
-            return 3
-        except Exception as error:
-            unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
-            _report_failure(settings, plan, index, unknown, applied)
-            _drop_records_for([*applied_paths, item.path])
-            return 3
+        answer = None
+        for sent, request in enumerate(verdict.requests):
+            try:
+                reply = _send(client, request)
+            except JiraError as error:
+                _report_failure(settings, plan, index, error, applied, sent)
+                _drop_records_for([*applied_paths, item.path])
+                return 3
+            except Exception as error:
+                unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
+                _report_failure(settings, plan, index, unknown, applied, sent)
+                _drop_records_for([*applied_paths, item.path])
+                return 3
+            if sent == 0:
+                answer = reply
         applied_paths.append(item.path)
         applied.append(item.path.name)
         _report_applied(site, item, verdict, answer)
@@ -550,11 +553,16 @@ def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
 
 
-def _report_failure(settings, plan: Plan, index: int, error: JiraError, applied: list[str]) -> None:
+def _report_failure(
+    settings, plan: Plan, index: int, error: JiraError, applied: list[str], sent: int = 0
+) -> None:
+    """`sent` counts the requests of this draft that already succeeded."""
     item, verdict = plan.loaded[index], plan.verdicts[index]
     kept = _keep_aside(item.path)
     if applied:
         print(f"Já aplicados: {', '.join(applied)}")
+    if sent:
+        print(f"{item.path.name}: a transição foi aplicada, mas a data de início não")
     if error.uncertain:
         print(f"{item.path.name}: resultado incerto: confira no Jira ({error})")
         if verdict.request["path"] == "/rest/api/3/issue":
