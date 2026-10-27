@@ -58,8 +58,11 @@ one: card titles must not land in whatever folder the session is in. Never read
 4. **Report.** Run
    `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json`
    (without the `--cards` part when there are no cards). It prints one JSON: `jira`, `yesterday`,
-   `today`, `next_steps`, `blockers`, `keyless` and `warnings` (the fields are used below). If it
-   fails, say so with its stderr and stop: the text comes only from the report.
+   `today`, `next_steps`, `blockers`, `keyless` and `warnings` (the fields are used below). If the
+   run with `--cards` fails (a malformed `cards.json` or a rejected config), run it again with only
+   `--activity`, write the standup from that report (`jira` false) and add the first run's stderr
+   to the final warnings line. If the run without `--cards` fails, say so with its stderr and
+   stop: the text comes only from the report.
 5. **Write the text** with the template below, from the report only.
 
 ## Output (PT-BR)

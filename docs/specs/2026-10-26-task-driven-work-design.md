@@ -123,6 +123,7 @@ N lives in the local config.
 |---|---|
 | `ws task list` fails (no config or API key, or a Jira error) | the Atlassian MCP fallback |
 | Both fail | the standup from git alone, with a line saying Jira was unavailable |
+| `ws standup report` fails with the cards | the standup from the activity alone, with the error |
 | `gh` is not authenticated | PRs left out, with a line saying so |
 | Any other gap | stated in the text, never filled in |
 
