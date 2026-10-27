@@ -20,6 +20,7 @@ from ws import (
     secrets,
     slot,
     standup,
+    standupreport,
     taskmodel,
     taskstatus,
     userconfig,
@@ -684,6 +685,25 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         help="day to run the standup for (default: today)",
     )
     collected.set_defaults(handler=_cmd_standup_collect)
+    report = commands.add_parser(
+        "report",
+        help="Group the activity by task: yesterday, today, blockers.",
+        description=(
+            "Turns the output of `ws standup collect` into JSON grouped by task. With --cards "
+            "(the output of `ws task list`) it adds titles, statuses, status suggestions and "
+            "blockers, and needs config.toml; without it the report comes from the activity alone."
+        ),
+    )
+    report.add_argument("--activity", type=Path, required=True, help="output of standup collect")
+    report.add_argument("--cards", type=Path, default=None, help="cards file; absent: no Jira")
+    report.add_argument(
+        "--today",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="day to run the standup for (default: today)",
+    )
+    report.set_defaults(handler=_cmd_standup_report)
 
 
 def _cmd_standup_collect(args: argparse.Namespace) -> int:
@@ -705,6 +725,36 @@ def _cmd_standup_collect(args: argparse.Namespace) -> int:
         return 1
     if missing:
         result["warnings"].insert(0, missing)
+    print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+    return 0
+
+
+def _cmd_standup_report(args: argparse.Namespace) -> int:
+    stale_workdays = userconfig.DEFAULT_STALE_WORKDAYS
+    try:
+        tasks = None
+        if args.cards is not None:
+            config = userconfig.load_config()
+            stale_workdays = config.standup.stale_workdays
+        activity = json.loads(args.activity.read_text(encoding="utf-8"))
+        if args.cards is not None:
+            cards = json.loads(args.cards.read_text(encoding="utf-8"))["cards"]
+            tasks = [
+                jira.task_from_card(card, config.jira.site, config.jira.status_overrides)
+                for card in cards
+            ]
+        result = standupreport.build_report(
+            activity, tasks, args.today or date.today(), stale_workdays
+        )
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws standup report: {error}", file=sys.stderr)
+        return 2
+    except KeyError as error:
+        print(f"ws standup report: invalid input: missing key {error}", file=sys.stderr)
+        return 2
+    except (OSError, AttributeError, TypeError, ValueError) as error:
+        print(f"ws standup report: invalid input: {error}", file=sys.stderr)
+        return 2
     print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
     return 0
 

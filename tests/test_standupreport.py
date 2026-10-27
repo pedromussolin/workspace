@@ -1,0 +1,242 @@
+import json
+from datetime import UTC, date, datetime
+
+from ws.cli import main
+from ws.config import config_dir
+from ws.standupreport import build_report
+from ws.taskmodel import Status, Task
+
+TODAY = date(2026, 10, 27)
+JIRA_CONFIG = '[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+
+
+def make_task(key: str, status: Status, title: str = "Titulo de exemplo", updated=None) -> Task:
+    return Task(
+        ref=f"jira:{key}",
+        key=key,
+        title=title,
+        url=f"https://example.atlassian.net/browse/{key}",
+        status=status,
+        epic_key=None,
+        epic_title=None,
+        requested_by_other=False,
+        updated=updated or datetime(2026, 10, 26, 9, 0, tzinfo=UTC),
+    )
+
+
+def make_commit(sha: str, day: str, subject: str, keys: list[str], repo: str = "app") -> dict:
+    return {"repo": repo, "sha": sha, "date": day, "subject": subject, "keys": keys}
+
+
+def make_pr(number: int, keys: list[str], updated_at: str, merged: bool = True) -> dict:
+    return {
+        "repo": "app",
+        "number": number,
+        "title": f"PR {number}",
+        "state": "merged" if merged else "open",
+        "merged_at": updated_at if merged else None,
+        "updated_at": updated_at,
+        "url": f"https://example.com/app/pull/{number}",
+        "keys": keys,
+    }
+
+
+def make_activity(**overrides) -> dict:
+    activity = {
+        "window": {"since": "2026-10-26", "until": "2026-10-27"},
+        "commits": [],
+        "branches": [],
+        "prs": [],
+        "last_activity": {},
+        "next_steps": [],
+        "warnings": [],
+    }
+    activity.update(overrides)
+    return activity
+
+
+def test_key_with_commits_and_merged_pr_is_one_entry_with_r2_suggestion():
+    commits = [make_commit(f"s{n}", "2026-10-26", f"passo {n}", ["TS-101"]) for n in range(7)]
+    commits[3] = make_commit("s3", "2026-10-27", "passo recente", ["TS-101"])
+    activity = make_activity(commits=commits, prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    report = build_report(activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3)
+    assert report["jira"] is True
+    assert len(report["yesterday"]) == 1
+    entry = report["yesterday"][0]
+    assert entry["key"] == "TS-101"
+    assert entry["commits"] == 7
+    assert len(entry["subjects"]) == 5
+    assert entry["subjects"][0] == "passo recente"
+    assert entry["prs"] == [{"ref": "app#7", "state": "merged", "title": "PR 7"}]
+    assert entry["status"] == "in_progress"
+    assert entry["url"] == "https://example.atlassian.net/browse/TS-101"
+    assert entry["suggestion"]["rule"] == "R2"
+    assert set(entry["suggestion"]) == {"from", "to", "rule", "evidence"}
+    assert [(e["key"], e["suggestion"]) for e in report["today"]] == [("TS-101", None)]
+
+
+def test_pr_updated_in_window_without_commit_is_listed_and_older_is_not():
+    activity = make_activity(
+        prs=[
+            make_pr(7, ["TS-101"], "2026-10-26T08:00:00Z", merged=False),
+            make_pr(8, ["TS-102"], "2026-10-25T23:00:00Z", merged=False),
+        ]
+    )
+    report = build_report(activity, [], TODAY, 3)
+    assert [entry["key"] for entry in report["yesterday"]] == ["TS-101"]
+    assert report["yesterday"][0]["commits"] == 0
+
+
+def test_yesterday_is_ordered_by_latest_activity():
+    activity = make_activity(
+        commits=[
+            make_commit("a", "2026-10-26", "um", ["TS-101"]),
+            make_commit("b", "2026-10-27", "dois", ["TS-102"]),
+        ]
+    )
+    report = build_report(activity, [], TODAY, 3)
+    assert [entry["key"] for entry in report["yesterday"]] == ["TS-102", "TS-101"]
+
+
+def test_key_without_card_takes_the_pr_title_or_null():
+    activity = make_activity(
+        commits=[make_commit("a", "2026-10-26", "ajuste", ["TS-102"])],
+        prs=[make_pr(7, ["TS-101"], "2026-10-26T08:00:00Z", merged=False)],
+    )
+    report = build_report(activity, None, TODAY, 3)
+    by_key = {entry["key"]: entry for entry in report["yesterday"]}
+    assert by_key["TS-101"]["title"] == "PR 7"
+    assert by_key["TS-102"]["title"] is None
+    assert by_key["TS-101"]["status"] is None
+    assert by_key["TS-101"]["url"] is None
+
+
+def test_today_has_in_progress_and_named_todo_and_trims_next_steps():
+    activity = make_activity(
+        last_activity={"TS-101": "2026-10-26"},
+        next_steps=[
+            {"project": "proj-a", "text": "continuar TS-102 amanhã"},
+            {"project": "proj-b", "text": "revisar o desenho"},
+        ],
+    )
+    tasks = [
+        make_task("TS-101", Status.IN_PROGRESS),
+        make_task("TS-102", Status.TODO),
+        make_task("TS-103", Status.TODO),
+    ]
+    report = build_report(activity, tasks, TODAY, 3)
+    assert [(e["key"], e["next_step"]) for e in report["today"]] == [
+        ("TS-101", None),
+        ("TS-102", "continuar TS-102 amanhã"),
+    ]
+    assert report["next_steps"] == [{"project": "proj-b", "text": "revisar o desenho"}]
+
+
+def test_stuck_card_is_a_blocker_and_not_in_today():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    tasks = [make_task("TS-101", Status.IN_PROGRESS, updated=old)]
+    report = build_report(make_activity(), tasks, TODAY, 3)
+    assert report["blockers"] == [
+        {
+            "key": "TS-101",
+            "title": "Titulo de exemplo",
+            "url": "https://example.atlassian.net/browse/TS-101",
+            "updated": "2026-10-20",
+            "workdays": 3,
+        }
+    ]
+    assert report["today"] == []
+
+
+def test_r1_through_a_branch_only_adds_a_today_entry():
+    activity = make_activity(
+        branches=[{"repo": "app", "name": "feature/TS-101-x", "keys": ["TS-101"]}]
+    )
+    report = build_report(activity, [make_task("TS-101", Status.TODO)], TODAY, 3)
+    assert report["yesterday"] == []
+    assert len(report["today"]) == 1
+    entry = report["today"][0]
+    assert entry["next_step"] is None
+    assert entry["suggestion"]["rule"] == "R1"
+    assert entry["suggestion"]["evidence"] == "feature/TS-101-x"
+
+
+def test_keyless_counts_commits_and_sorted_unique_repos():
+    activity = make_activity(
+        commits=[
+            make_commit("a", "2026-10-26", "x", [], repo="zeta"),
+            make_commit("b", "2026-10-26", "y", [], repo="alfa"),
+            make_commit("c", "2026-10-26", "z", [], repo="zeta"),
+            make_commit("d", "2026-10-26", "w", ["TS-101"], repo="beta"),
+        ]
+    )
+    report = build_report(activity, None, TODAY, 3)
+    assert report["keyless"] == {"commits": 3, "repos": ["alfa", "zeta"]}
+
+
+def write_files(tmp_path, activity, cards=None):
+    activity_file = tmp_path / "activity.json"
+    activity_file.write_text(json.dumps(activity))
+    args = ["standup", "report", "--activity", str(activity_file), "--today", "2026-10-27"]
+    if cards is not None:
+        cards_file = tmp_path / "cards.json"
+        cards_file.write_text(json.dumps({"platform": "jira", "cards": cards}))
+        args += ["--cards", str(cards_file)]
+    return args
+
+
+def test_cli_without_cards_needs_no_config(ws_config, tmp_path, capsys):
+    activity = make_activity(commits=[make_commit("a", "2026-10-26", "ajuste", ["TS-101"])])
+    code = main(write_files(tmp_path, activity))
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert code == 0
+    assert payload["jira"] is False
+    assert payload["today"] == [] and payload["blockers"] == []
+    assert [entry["key"] for entry in payload["yesterday"]] == ["TS-101"]
+    assert ", " not in out and ": " not in out
+
+
+def test_cli_with_cards_and_config(ws_config, tmp_path, capsys):
+    (config_dir() / "config.toml").write_text(JIRA_CONFIG, encoding="utf-8")
+    card = {
+        "key": "TS-101",
+        "title": "Titulo de exemplo",
+        "status_name": "In Progress",
+        "status_category": "indeterminate",
+        "epic_key": None,
+        "epic_title": None,
+        "reporter_is_me": True,
+        "updated": "2026-10-26T09:00:00+00:00",
+    }
+    activity = make_activity(last_activity={"TS-101": "2026-10-26"})
+    code = main(write_files(tmp_path, activity, [card]))
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["jira"] is True
+    assert [entry["key"] for entry in payload["today"]] == ["TS-101"]
+
+
+def test_cli_with_cards_and_no_config_exits_2(ws_config, tmp_path, capsys):
+    code = main(write_files(tmp_path, make_activity(), []))
+    assert code == 2
+    assert "config.toml" in capsys.readouterr().err
+
+
+def test_cli_malformed_activity_exits_2_without_traceback(ws_config, tmp_path, capsys):
+    activity_file = tmp_path / "activity.json"
+    activity_file.write_text("{not json")
+    assert main(["standup", "report", "--activity", str(activity_file)]) == 2
+    assert "invalid input" in capsys.readouterr().err
+    activity_file.write_text(json.dumps({"window": {"since": "2026-10-26"}}))
+    assert main(["standup", "report", "--activity", str(activity_file)]) == 2
+    err = capsys.readouterr().err
+    assert "invalid input" in err and "Traceback" not in err
+    assert main(["standup", "report", "--activity", str(tmp_path / "missing.json")]) == 2
+
+
+def test_cli_malformed_card_exits_2(ws_config, tmp_path, capsys):
+    (config_dir() / "config.toml").write_text(JIRA_CONFIG, encoding="utf-8")
+    code = main(write_files(tmp_path, make_activity(), [{"key": "TS-101"}]))
+    assert code == 2
+    assert "card is missing" in capsys.readouterr().err
