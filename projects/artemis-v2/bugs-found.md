@@ -309,6 +309,34 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   beat lê esse campo). Fecha às 19h UTC, depois do corte padrão da
   conciliação (14h BRT): o lote cairia na conciliação manual.
 
+## B20 — Rotas do BFF sem o escopo do parceiro
+
+- **Onde:** `src/modules/operations/liquidation_batches/viewer.py` do BFF
+  (`bb877db`). Usam `scope` só as rotas de fundos, contrato, listagens fake e
+  real, consolidate e fechamento. Checam só o papel: pagamentos (`:78`),
+  exportação de rejeitados (`:135`), exportação de lotes fake (`:245`),
+  exclusão (`:258`), saldo (`:456`), extrato (`:476`), CNAB (`:496`) e as três
+  da conciliação (`:523-565`).
+- **Efeito:** **[H]** um usuário de parceiro com o papel de leitura consulta
+  pagamentos, saldo, extrato e CNAB de remessa ou lote de outro parceiro,
+  passando o id; com o papel de exclusão, exclui lote fake de produto que não
+  é dele. Validar com um usuário de parceiro no sandbox.
+- **Correção:** `scope.ensure_assignment_product` em toda rota que recebe
+  produto; nas que recebem lote, remessa ou identificador, conferir o produto
+  do recurso antes de responder. A exclusão entra na fase 2 (A2 do
+  [plano](tasks/02-03-implementation-plan.md)); o resto é tarefa própria.
+
+## B21 — Lotes reais sem pagamento no produto 1505
+
+- **Onde:** réplica, 27/10/2026, consulta 4 de
+  [proc_id_batches_profile.sql](attachments/sql/proc_id_batches_profile.sql):
+  2 dos 30 lotes do 1505 criados de 21 a 27/10 não têm nenhum pagamento.
+- **Efeito:** **[C]** lote vazio na tela de lotes reais. **[H]** causas
+  possíveis: exclusão de pagamento depois do fechamento (B16) ou lote criado
+  sem a guarda do rowcount. Validar pela data dos lotes contra os logs de
+  exclusão e de criação.
+- **Correção:** depende da causa; a B16 (C3 do plano) cobre a primeira.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
