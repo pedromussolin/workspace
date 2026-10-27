@@ -33,11 +33,21 @@ prompt of Claude Code itself.
   edits `~/.claude/settings.json`) `permissions.ask` rules for `Bash(ws card apply:*)` and for
   every Atlassian MCP write tool (`createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`,
   `addCommentToJiraIssue`, `addOrEditJiraIssueComment`, `addWorklogToJiraIssue`, `executeWrite`,
-  `executeDestructive`, on every Atlassian server installed). Until the user adds them, `ws setup`
-  reports a "needs you" line. `ask`, not `deny`, so the GMUD skill (which creates requests through
-  `executeWrite`) keeps working with a prompt.
+  `executeDestructive`, `createIssueLink`, on every Atlassian server installed). Until the user adds
+  them, `ws setup` reports a "needs you" line. `ask`, not `deny`, so the GMUD skill (which creates
+  requests through `executeWrite`) keeps working with a prompt. A rule matches the command text, so
+  it alone is not the barrier: a PreToolUse hook (`hooks/ask_card_apply.py`) answers `ask` for any
+  Bash command that has `--approve` and either `card` with `apply`, or `ws.card` (so `uv run ws
+  card apply`, `python -m ws`, `bash -c '...'`, an absolute path to `ws` or quotes inside the flag
+  are asked too), and `ws card apply --approve` itself exits 2 when the Claude settings lack the
+  rule or the hook. The preview is its own command (`ws card preview`) so the prompt appears only
+  at the real write. There is no HMAC or signature on the pending record: the prompt (rule plus
+  hook) is the barrier, the record is only checked to be the user's own private file.
 - **Writes go only through the REST API** with the user's API key (an unscoped token). No MCP
-  write path in this skill. Without the key the skill stops and says to run `ws config token jira`
+  write path in this skill. The key goes only to an Atlassian Cloud site: `[jira] site` must match
+  `^https://[a-z0-9-]+\.atlassian\.net/?$`, checked when the config is read and again when the
+  client is built (exit 2 otherwise), and a `credentials` file that is a symlink or not owned by
+  the user is refused. Without the key the skill stops and says to run `ws config token jira`
   in the user's own terminal.
 - **Project allow-list:** every key, for every op, belongs to the configured project. A card of
   another project (INFRA included) is refused; such a change is done by hand. This replaces the
@@ -98,21 +108,28 @@ Exit codes for all: 0 ok; 1 a rule failed (the JSON lists the problems); 2 setup
   `assignee = currentUser() AND project = <project> AND statusCategory != Done` with `parent`,
   keep the parents with `issuetype.hierarchyLevel == 1` that are not done, print key, title,
   prefix and status. Empty → the skill asks the user for an epic key.
-- `ws card apply PATH --dry-run` — PATH is one draft or a folder of drafts (in name order). Runs
-  every check; on success prints the PT-BR preview of every change (field by field; for `edit` of
-  a description, the old and the new text) and the requests (method, path, body; never the
-  `Authorization` header), and stores a pending record
-  `~/.local/share/workspace/cards/pending/<code>.json` (mode 600) with the drafts' content hashes
-  and the requests. `<code>` is the first 12 hex characters of the SHA-256 of the site, methods,
-  paths and bodies. Prints the code.
-- `ws card apply PATH --approve CODE` — refuses unless a pending record with that code exists, is
-  under 30 minutes old and the drafts are unchanged; re-runs every check against live Jira (the
-  card may have been reassigned or moved since the preview) and refuses when the requests now
-  differ; deletes the pending record **before** sending (at most once: a second `--approve` with
-  the same code finds nothing); sends the requests in order, stopping at the first failure and
-  reporting what was applied; moves each applied draft to `cards/done/`. A timeout, a 5xx or a
-  connection error after sending → "resultado incerto: confira no Jira", no retry; for `create`, the
-  JQL to look for the title. `apply` without `--dry-run` or `--approve` is an error.
+- `ws card preview PATH` — PATH is one draft or a folder of drafts (in name order), always under
+  `cards/drafts/` (a file outside it, or a symlink, is refused). Runs every check; on success prints
+  the PT-BR preview of every change (field by field; for `edit` of a description, the old and the
+  new text) and the requests (method, path, body; never the `Authorization` header), and stores a
+  pending record `~/.local/share/workspace/cards/pending/<code>.json` (mode 600) with the drafts'
+  paths and content hashes, the requests, the "before" state and today's date. `<code>` is the first
+  12 hex characters of the SHA-256 of the site, the methods, the paths, the bodies and the "before"
+  state (the current values an edit replaces, a move's current status). Prints the code.
+- `ws card apply PATH --approve CODE` — the only form of `apply` (without `--approve` it is an
+  error; the flag cannot be abbreviated). Refuses unless the Claude settings hold the `ask` rule and
+  the hook (exit 2), a pending record with that code exists, is the user's own file with mode 600,
+  is under 30 minutes old and not dated in the future, and the drafts are unchanged (same paths,
+  same bytes); re-runs every check against live Jira (the card may have been reassigned or moved
+  since the preview) and refuses when the requests or the "before" state now differ, saying when it
+  is only "today" that rolled over; checks the five request shapes once more; deletes the pending
+  record **before** sending (at most once: a second `--approve` with the same code finds nothing);
+  sends the requests in order, stopping at the first failure and reporting what was applied; moves
+  each applied draft to `cards/done/` and drops the other pending records that mention it. A draft
+  whose write failed or is uncertain moves to `cards/uncertain/` (a later preview of the folder
+  never takes it again) and the report says where. A timeout, a 5xx or a connection error after
+  sending → "resultado incerto: confira no Jira", no retry; for `create`, the JQL to look for the
+  title.
 
 ## The rules (`ws card check`, again at `--approve`)
 
@@ -179,19 +196,19 @@ Missing keys → exit 2, naming them and the README section "Local config".
    style: plain PT-BR, the context and what "done" means.
 2. Write the draft(s); run `ws card check`; fix and repeat until `ok`; ask the user about problems
    only they can settle.
-3. `ws card apply <draft or folder> --dry-run`; show the preview as printed, including warnings.
+3. `ws card preview <draft or folder>`; show the preview as printed, including warnings.
 4. `ws card apply ... --approve CODE`: Claude Code asks the user to allow it (the `ask` rule); the
    user's yes in that prompt is the approval. Give the key and the link.
-5. Several changes (the daily's "para aplicar"): one folder, one dry-run, one approval.
+5. Several changes (the daily's "para aplicar"): one folder, one preview, one approval.
 
 ## Tests (pytest, a fake Jira server, no real Jira)
 
 The converter (each construct, the refusals, no empty text nodes); every rule with a passing and a
-failing case; time zone from `/myself`; `--dry-run` sends no write; `--approve` without a pending
+failing case; time zone from `/myself`; `preview` sends no write; `--approve` without a pending
 record, with a wrong code, with a changed draft, or twice sends no write; the right code sends
 exactly the previewed requests; a 204 answer is success; Jira's error body reaches the message; a
 batch stops at the first failure and reports what was applied; another person's card and another
-project's key are refused for every op; `ws setup` reports the missing `ask` rules.
+project's key are refused for every op; `ws setup` reports the missing `ask` rules and the hook; the hook asks for every way of writing an approval; the site rule and the `credentials` checks.
 
 ## Out of scope
 

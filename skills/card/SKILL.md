@@ -1,12 +1,12 @@
 ---
 name: card
-description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a dry-run preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação" or the daily's "para aplicar".
+description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação" or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
 # Card
 
-Writes to Jira, so the order is fixed: draft, check, dry-run, approval, apply. The model writes
+Writes to Jira, so the order is fixed: draft, check, preview, approval (the apply). The model writes
 the prose and picks values; `ws card` builds the requests, checks the rules and calls the REST API.
 Nothing is written through the Atlassian MCP, ever.
 
@@ -18,13 +18,17 @@ Nothing is written through the Atlassian MCP, ever.
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
-3. **Dry-run:** `ws card apply <draft or folder> --dry-run`. Show the preview exactly as printed,
-   warnings included, and the code. Never run `--approve` before this was shown.
-4. **Approve:** `ws card apply <same path> --approve <CODE>`. Claude Code prompts the user to
-   allow the command (the `permissions.ask` rule); that yes is the approval. Never ask the user to
-   type the code or to say "ok" in chat instead. Afterwards give the key and the card link.
+3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to Jira. Show the preview
+   exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
+4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
+   and the Claude Code prompt on it is the approval (the `permissions.ask` rule plus the
+   `hooks/ask_card_apply.py` hook, which asks however the command is written). Never ask the user
+   to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
+   the prompt. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
+   give the key and the card link. A draft that failed or is uncertain is in
+   `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
 5. **Several changes** (the daily's "para aplicar: /card mover ...; ..."): one draft per change
-   in one folder, one dry-run, one approval.
+   in one folder, one preview, one approval.
 
 ## The draft
 
@@ -106,7 +110,8 @@ day = 2026-10-28
   can decide (which epic, which date).
 - **2:** setup needed (a `[jira]` key missing in `config.toml`, or no API key). Say so: run
   `ws config token jira` in the user's own terminal, outside Claude, or fill `config.toml` (README,
-  "Local config"). Stop.
+  "Local config"; the site must be `https://<name>.atlassian.net`), or the Claude settings lack
+  the `ask` rule or the hook (`ws setup`). Stop.
 - **3:** Jira refused or is unreachable. Show the message as is. Never retry a write: an uncertain
   result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
   for the title.

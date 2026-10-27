@@ -98,8 +98,12 @@ stale_workdays = 3
 - The API key must be an unscoped token: a scoped token only works through the
   `api.atlassian.com/ex/jira/<cloudId>` gateway, and `ws` calls the site URL.
 - `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)` and on the Atlassian write
-  tools (never editing `~/.claude/settings.json` itself), so every write needs your yes in Claude
-  Code.
+  tools, and for the `hooks/ask_card_apply.py` PreToolUse hook, which asks for any command that
+  applies a card approval however it is written (never editing `~/.claude/settings.json` itself),
+  so every write needs your yes in Claude Code. `ws card apply --approve` refuses (exit 2) without
+  the rule and the hook.
+- `site` must be `https://<name>.atlassian.net`: the API key is never sent anywhere else, and a
+  `credentials` file that is a symlink or not yours is refused.
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in
   your own terminal, outside Claude (the command refuses to run without a terminal). It is stored
   in `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
@@ -154,7 +158,8 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
 | `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
 | `ws card epics` | Lists the epics of your open cards (key, title, prefix, status) |
-| `ws card apply PATH (--dry-run \| --approve CODE)` | `--dry-run` prints the PT-BR preview and the requests and stores a pending record with a code; `--approve CODE` re-checks and sends exactly that, once; the skill `card` runs it |
+| `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
+| `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the `ask_card_apply.py` hook); exit 2 when those are not set up; a failed or uncertain draft goes to `cards/uncertain/` |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
