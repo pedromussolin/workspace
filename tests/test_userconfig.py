@@ -23,8 +23,7 @@ email = "dev@example.com"
 "Cancelled Late" = "cancelled"
 
 [standup]
-repos = ["~/repos/sample", "/srv/other"]
-author_emails = ["dev@example.com"]
+repo_roots = ["~/projects", "/srv/other"]
 """
 
 
@@ -52,9 +51,27 @@ def test_load_config_reads_every_field(config_dir, tmp_path, monkeypatch):
         "In Validation": "validation",
         "Cancelled Late": "cancelled",
     }
-    assert config.standup.repos == (tmp_path / "repos" / "sample", Path("/srv/other"))
-    assert config.standup.author_emails == ("dev@example.com",)
+    assert config.standup.repo_roots == (tmp_path / "projects", Path("/srv/other"))
     assert config.standup.stale_workdays == 3
+
+
+def test_repo_roots_default_to_home_repos_without_standup_table(config_dir, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    only_jira = CONFIG.split("[standup]")[0]
+    (config_dir / "config.toml").write_text(only_jira, encoding="utf-8")
+
+    config = load_config()
+
+    assert config.standup.repo_roots == (tmp_path / "repos",)
+    assert config.standup.stale_workdays == 3
+
+
+def test_repo_roots_must_be_a_list_of_strings(config_dir):
+    text = CONFIG.replace('repo_roots = ["~/projects", "/srv/other"]', 'repo_roots = "~/x"')
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match="repo_roots"):
+        load_config()
 
 
 def test_missing_config_raises_config_missing_with_path(config_dir):

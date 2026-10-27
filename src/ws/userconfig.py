@@ -31,8 +31,7 @@ class JiraConfig:
 
 @dataclass(frozen=True)
 class StandupConfig:
-    repos: tuple[Path, ...]
-    author_emails: tuple[str, ...]
+    repo_roots: tuple[Path, ...]
     stale_workdays: int = DEFAULT_STALE_WORKDAYS
 
 
@@ -67,8 +66,10 @@ def _string(table: dict, key: str, path: Path, section: str) -> str:
     return value
 
 
-def _string_list(table: dict, key: str, path: Path, section: str) -> list[str]:
-    value = table.get(key, [])
+def _string_list(table: dict, key: str, path: Path, section: str) -> list[str] | None:
+    value = table.get(key)
+    if value is None:
+        return None
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigInvalid(f"{path}: {section}.{key} must be a list of strings")
     return value
@@ -96,6 +97,7 @@ def load_config() -> UserConfig:
     stale = standup.get("stale_workdays", DEFAULT_STALE_WORKDAYS)
     if isinstance(stale, bool) or not isinstance(stale, int) or stale < 1:
         raise ConfigInvalid(f"{path}: standup.stale_workdays must be a positive integer")
+    roots = _string_list(standup, "repo_roots", path, "standup")
     return UserConfig(
         jira=JiraConfig(
             site=_string(jira, "site", path, "jira"),
@@ -103,10 +105,11 @@ def load_config() -> UserConfig:
             status_overrides=_status_overrides(jira, path),
         ),
         standup=StandupConfig(
-            repos=tuple(
-                Path(item).expanduser() for item in _string_list(standup, "repos", path, "standup")
+            repo_roots=(
+                (Path.home() / "repos",)
+                if roots is None
+                else tuple(Path(item).expanduser() for item in roots)
             ),
-            author_emails=tuple(_string_list(standup, "author_emails", path, "standup")),
             stale_workdays=stale,
         ),
     )
