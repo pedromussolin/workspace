@@ -49,5 +49,12 @@ def evaluate(tasks: list[Task], activity: dict, today: date, stale_workdays: int
                 continue
             last = activity["last_activity"].get(task.key)
             if last is None and task.updated.date() < cutoff:
-                stuck.append({"key": task.key, "last_activity": last})
+                stuck.append(
+                    {
+                        "key": task.key,
+                        "last_activity": None,
+                        "updated": task.updated.date().isoformat(),
+                        "workdays": stale_workdays,
+                    }
+                )
     return {"suggestions": suggestions, "stuck": stuck}

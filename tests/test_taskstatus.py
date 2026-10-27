@@ -134,7 +134,9 @@ def test_one_merged_pr_with_two_keys_suggests_both():
 def test_in_progress_without_activity_and_old_update_is_stuck():
     old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
     result = evaluate([make_task("TS-101", Status.IN_PROGRESS, old)], make_activity(), TODAY, 3)
-    assert result["stuck"] == [{"key": "TS-101", "last_activity": None}]
+    assert result["stuck"] == [
+        {"key": "TS-101", "last_activity": None, "updated": "2026-10-20", "workdays": 3}
+    ]
 
 
 def test_in_progress_with_commit_in_window_is_not_stuck():
@@ -173,14 +175,14 @@ def make_card(**overrides) -> dict:
     return card
 
 
-def run_status(tmp_path, cards, capsys, config_text):
+def run_status(tmp_path, cards, capsys, config_text, activity=None):
     from ws.config import config_dir
 
     (config_dir() / "config.toml").write_text(config_text, encoding="utf-8")
     cards_file = tmp_path / "cards.json"
     cards_file.write_text(json.dumps({"platform": "jira", "cards": cards}))
     activity_file = tmp_path / "activity.json"
-    activity_file.write_text(json.dumps(make_activity()))
+    activity_file.write_text(json.dumps(activity or make_activity()))
     code = main(
         [
             "task",
@@ -226,3 +228,34 @@ def test_cli_without_config_exits_2(ws_config, tmp_path, capsys):
     code = main(["task", "status", "--cards", str(cards_file), "--activity", str(activity_file)])
     assert code == 2
     assert "config.toml" in capsys.readouterr().err
+
+
+def test_cli_stuck_and_suggestion_use_the_configured_window(ws_config, tmp_path, capsys):
+    cards = [
+        make_card(key="TS-101", updated="2026-10-19T09:00:00+00:00"),
+        make_card(key="TS-103", updated="2026-10-21T09:00:00+00:00"),
+        make_card(
+            key="TS-102",
+            status_name="To Do",
+            status_category="new",
+            updated="2026-10-26T09:00:00+00:00",
+        ),
+    ]
+    commit = {
+        "repo": "app",
+        "sha": "abc123",
+        "date": "2026-10-26",
+        "subject": "x",
+        "keys": ["TS-102"],
+    }
+    activity = make_activity(commits=[commit])
+    config = JIRA_CONFIG + "[standup]\nstale_workdays = 5\n"
+    code, out = run_status(tmp_path, cards, capsys, config, activity)
+    assert code == 0
+    payload = json.loads(out.out)
+    assert payload["stuck"] == [
+        {"key": "TS-101", "last_activity": None, "updated": "2026-10-19", "workdays": 5}
+    ]
+    assert [(s["key"], s["rule"], s["evidence"]) for s in payload["suggestions"]] == [
+        ("TS-102", "R1", "abc123")
+    ]
