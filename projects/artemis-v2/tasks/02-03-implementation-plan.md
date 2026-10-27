@@ -4,7 +4,10 @@
 > repositório, revisão do orquestrador antes de juntar) ou superpowers:executing-plans. Passos em
 > checkbox (`- [ ]`).
 
-- **Data:** 27/10/2026. Status: bloco 1 em execução; bloco 2 espera a D24.
+- **Data:** 27/10/2026. Status: **bloco 1 commitado** nos três repos (branch
+  `fix/TS-5377-fechamento-lote-fase2` e `-sdbx`, sem push), com o
+  [estresse local](../evidence/closing-stress-2026-10-27.md). Bloco 2 (TS-5435) em execução:
+  B0, B3 e B4 prontos sem commit; B1 e B2 em andamento.
 - **Tarefas:** fase 2 na TS-5377; tarefa 02 na **TS-5435** (épico TS-5278).
 - **Decidido em 27/10:** D22 (lote por produto, fundo, originador e proc_id; a linha da tela
   segue o mesmo agrupamento) e D23 (remessa em processamento: 400). D7 vai pela D24
