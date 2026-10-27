@@ -297,3 +297,17 @@ def test_card_with_r2_and_stale_update_gets_the_suggestion_and_no_blocker():
     assert report["blockers"] == []
     assert report["yesterday"] == []
     assert [(e["key"], e["suggestion"]["rule"]) for e in report["today"]] == [("TS-101", "R2")]
+
+
+def test_full_sha_evidence_is_shortened_to_seven_characters():
+    sha = "0123456789abcdef0123456789abcdef01234567"
+    activity = make_activity(commits=[make_commit(sha, "2026-10-26", "inicio", ["TS-101"])])
+    report = build_report(activity, [make_task("TS-101", Status.TODO)], TODAY, 3)
+    assert report["yesterday"][0]["suggestion"]["rule"] == "R1"
+    assert report["yesterday"][0]["suggestion"]["evidence"] == sha[:7]
+
+
+def test_card_key_repeated_in_tasks_gives_one_today_entry():
+    task = make_task("TS-101", Status.IN_PROGRESS)
+    report = build_report(make_activity(), [task, task], TODAY, 3)
+    assert [entry["key"] for entry in report["today"]] == ["TS-101"]

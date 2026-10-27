@@ -1,5 +1,6 @@
 """Agrupa a atividade coletada por tarefa: ontem, hoje, bloqueios e o que não tem chave."""
 
+import re
 from datetime import date, datetime, time
 
 from ws.standup import keys_in
@@ -7,6 +8,7 @@ from ws.taskmodel import Status, Task
 from ws.taskstatus import evaluate
 
 SUBJECT_LIMIT = 5
+FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 def _yesterday(activity: dict, cards: dict[str, Task]) -> list[dict]:
@@ -62,7 +64,10 @@ def _yesterday(activity: dict, cards: dict[str, Task]) -> list[dict]:
 
 
 def _suggestion(found: dict) -> dict:
-    return {name: found[name] for name in ("from", "to", "rule", "evidence")}
+    suggestion = {name: found[name] for name in ("from", "to", "rule", "evidence")}
+    if FULL_SHA.fullmatch(suggestion["evidence"]):
+        suggestion["evidence"] = suggestion["evidence"][:7]
+    return suggestion
 
 
 def build_report(
@@ -98,7 +103,10 @@ def build_report(
         item["suggestion"] = suggestions.get(key)
 
     today_entries = []
+    listed: set[str] = set()
     for task in tasks or []:
+        if task.key in listed:
+            continue
         if task.key in blocked and task.key not in suggestions:
             continue
         wanted = (
@@ -108,6 +116,7 @@ def build_report(
         )
         if not wanted:
             continue
+        listed.add(task.key)
         today_entries.append(
             {
                 "key": task.key,
