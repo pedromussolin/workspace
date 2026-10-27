@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ws import (
     bootstrap,
+    checkpoint,
     config,
     dictionary,
     gittools,
@@ -773,6 +774,67 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_checkpoint(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("checkpoint", help="Validate and publish a project folder.")
+    commands = parser.add_subparsers(dest="checkpoint_command", required=True)
+    verdict = commands.add_parser(
+        "check",
+        help="JSON verdict on CONTINUE.md and decisions.md; exit 0 when ok, 1 otherwise.",
+    )
+    verdict.add_argument("slug")
+    verdict.set_defaults(handler=_cmd_checkpoint_check)
+    changes = commands.add_parser(
+        "diff", help="What a commit would take: files, diffstat and refused large files."
+    )
+    changes.add_argument("slug")
+    changes.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="accept a new large or binary file (repeatable)",
+    )
+    changes.set_defaults(handler=_cmd_checkpoint_diff)
+    publish = commands.add_parser(
+        "commit",
+        help="Check, commit only the project, pull --rebase, check again and push to main.",
+    )
+    publish.add_argument("slug")
+    publish.add_argument("-m", "--message", required=True)
+    publish.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="accept a new large or binary file (repeatable)",
+    )
+    publish.set_defaults(handler=_cmd_checkpoint_commit)
+
+
+def _run_checkpoint(name: str, action) -> int:
+    try:
+        result = action()
+    except (checkpoint.CheckpointError, RuntimeError, OSError) as error:
+        print(f"ws checkpoint {name}: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("ok", True) else 1
+
+
+def _cmd_checkpoint_check(args: argparse.Namespace) -> int:
+    return _run_checkpoint("check", lambda: checkpoint.check(args.slug))
+
+
+def _cmd_checkpoint_diff(args: argparse.Namespace) -> int:
+    return _run_checkpoint("diff", lambda: checkpoint.diff(args.slug, args.include))
+
+
+def _cmd_checkpoint_commit(args: argparse.Namespace) -> int:
+    return _run_checkpoint(
+        "commit", lambda: checkpoint.commit(args.slug, args.message, args.include)
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -786,6 +848,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config(subparsers)
     _add_task(subparsers)
     _add_standup(subparsers)
+    _add_checkpoint(subparsers)
     return parser
 
 
