@@ -55,7 +55,7 @@ orchestrator by role name; routing by a classifier belongs to the API layer, not
 
 ## Next skills
 
-Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5 and 6. Each one
+Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5, 6 and 7. Each one
 follows "script first" (root `CLAUDE.md`): the `ws` command does the deterministic part, the skill
 decides, asks and writes the prose.
 
@@ -67,3 +67,4 @@ decides, asks and writes the prose.
 | 4 | Replica query | read-only queries on the production replica, one at a time, with a timeout, formatted for the DBA review | `ws replica query FILE` enforces a read-only transaction, `statement_timeout` and a single statement, and writes the result outside the repo |
 | 5 | Local validation | the right checks of each company repo before any environment (Docker for the assignment backend, `validate.sh` for the front, the heavy-command slot) | `ws validate REPO` runs the per-repo recipe from the local config |
 | 6 | GMUD evidence (extends `change-request`) | gather the Datadog numbers and the screenshots of a deploy | a script per evidence kind (Playwright screenshots, Datadog queries through the API when a key exists, the MCP otherwise) |
+| 7 | Board review | the user's open cards (status not done or cancelled), grouped by epic, the stale ones flagged (no update and no own commit for N workdays), and what to close or move; it took over the open-card list the daily dropped on 2026-10-27 | `ws board review` prints the JSON (cards through `ws task list`, activity through `ws standup collect`, the rules in code); any change goes through item 1's `ws task apply` with approval |
