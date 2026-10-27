@@ -59,9 +59,11 @@ def _author_email(repo: Path) -> str | None:
 
 
 def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
+    # The stash commits carry the user's author and the branch name, but are not work done.
     out = _git(
         repo,
         "log",
+        "--exclude=refs/stash",
         "--all",
         f"--since={since.isoformat()} 00:00:00",
         f"--author=<{email}>",

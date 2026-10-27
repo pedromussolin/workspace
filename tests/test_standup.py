@@ -378,3 +378,35 @@ def test_cli_invalid_config_exits_2(workspace, home, tmp_path, monkeypatch, caps
     monkeypatch.setenv("WS_CONFIG_DIR", str(config))
     assert main(["standup", "collect"]) == 2
     assert "config.toml" in capsys.readouterr().err
+
+
+def test_stash_is_not_work(roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch):
+    repo = make_repo("app")
+    git(repo, "checkout", "-q", "-b", "feature/TS-1-tela")
+    (repo / "file.txt").write_text("one", encoding="utf-8")
+    git(repo, "add", "file.txt")
+    commit(repo, "feat(TS-1): real work", "2026-10-26")
+    (repo / "file.txt").write_text("two", encoding="utf-8")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "dev@example.com")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "dev@example.com")
+    git(repo, "stash", "push", "-q")
+    assert "WIP on" in git(repo, "log", "-g", "--format=%s", "refs/stash").stdout
+    result = _collect(roots, workspace)
+    assert [c["subject"] for c in result["commits"]] == ["feat(TS-1): real work"]
+    assert result["last_activity"] == {"TS-1": "2026-10-26"}
+
+
+def test_merge_commits_are_kept(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "dev@example.com")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "dev@example.com")
+    repo = make_repo("app")
+    commit(repo, "feat(TS-1): base", "2026-10-24")
+    git(repo, "checkout", "-q", "-b", "feature/TS-2-x")
+    commit(repo, "feat(TS-2): side", "2026-10-26")
+    git(repo, "checkout", "-q", "-")
+    commit(repo, "feat(TS-3): main", "2026-10-26")
+    git(repo, "merge", "-q", "--no-ff", "feature/TS-2-x", "-m", "Merge TS-2 into main")
+    subjects = [c["subject"] for c in _collect(roots, workspace)["commits"]]
+    assert "Merge TS-2 into main" in subjects
