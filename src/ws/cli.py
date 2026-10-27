@@ -1,6 +1,7 @@
 """Entry point of the ws command. Each subcommand sets a handler that returns the exit code."""
 
 import argparse
+import getpass
 import json
 import sys
 from datetime import date
@@ -17,6 +18,7 @@ from ws import (
     review,
     secrets,
     slot,
+    userconfig,
 )
 from ws.config import claude_skills_dir, config_dir, repo_root
 
@@ -547,6 +549,35 @@ def _cmd_names_review(args: argparse.Namespace) -> int:
         return 2
 
 
+def _add_config(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("config", help="Local config of ws.")
+    commands = parser.add_subparsers(dest="config_command", required=True)
+    stored = commands.add_parser("token", help="Store a service credential, typed hidden.")
+    services = stored.add_subparsers(dest="service", required=True)
+    jira = services.add_parser(
+        "jira",
+        help="Read the Jira API token from the terminal (hidden) and store it with mode 600.",
+    )
+    jira.set_defaults(handler=_cmd_config_token_jira)
+
+
+def _cmd_config_token_jira(args: argparse.Namespace) -> int:
+    if not sys.stdin.isatty():
+        print("run this in your own terminal: ws config token jira", file=sys.stderr)
+        return 2
+    typed = getpass.getpass("Jira API key (hidden): ").strip()
+    if not typed:
+        print("ws config token jira: empty token, nothing saved", file=sys.stderr)
+        return 2
+    try:
+        path = userconfig.save_jira_token(typed)
+    except (userconfig.ConfigInvalid, OSError) as error:
+        print(f"ws config token jira: {error}", file=sys.stderr)
+        return 2
+    print(f"saved the Jira token in {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -557,6 +588,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_mask(subparsers)
     _add_check_secrets(subparsers)
     _add_names(subparsers)
+    _add_config(subparsers)
     return parser
 
 

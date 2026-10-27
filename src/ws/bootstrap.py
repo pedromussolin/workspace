@@ -198,6 +198,10 @@ def _check_config(setup: _Setup, config: Path) -> None:
     else:
         setup.need(f"{names} is missing; the secrets hook fails closed without it")
 
+    settings_file = config / "config.toml"
+    if not settings_file.is_file():
+        setup.need(f'{settings_file} is missing; see "Local config" in README.md')
+
     credentials = config / "credentials"
     if credentials.exists():
         _fix_mode(setup, credentials, 0o600, "credentials")

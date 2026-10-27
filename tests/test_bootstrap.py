@@ -74,6 +74,7 @@ def env(tmp_path: Path) -> Env:
     config.chmod(0o700)
     (config / "names.toml").write_text("[names]\n", encoding="utf-8")
     (config / "names.toml").chmod(0o600)
+    (config / "config.toml").write_text("[jira]\n", encoding="utf-8")
 
     settings = tmp_path / "claude" / "settings.json"
     settings.parent.mkdir()
@@ -364,7 +365,8 @@ def test_creates_a_missing_config_folder_with_mode_700(env, tmp_path):
     result = run_setup(env.repo, fresh, env.skills_target, env.settings)
 
     assert result.needs == [
-        f"{fresh / 'names.toml'} is missing; the secrets hook fails closed without it"
+        f"{fresh / 'names.toml'} is missing; the secrets hook fails closed without it",
+        f'{fresh / "config.toml"} is missing; see "Local config" in README.md',
     ]
     assert f"config folder {fresh}: create with mode 700" in result.fixed
     assert _mode(fresh) == 0o700
@@ -688,3 +690,11 @@ def test_cli_setup_check_exits_0_once_everything_is_in_place(env, monkeypatch, c
     assert main(["setup", "--check"]) == 0
 
     assert capsys.readouterr().out == "ok\n"
+
+
+def test_setup_reports_missing_config_toml(env):
+    (env.config / "config.toml").unlink()
+
+    problems = _setup(env).needs
+
+    assert problems == [f'{env.config / "config.toml"} is missing; see "Local config" in README.md']
