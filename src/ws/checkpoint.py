@@ -1,5 +1,6 @@
 """Validates and publishes a project folder at the end of an iteration (`ws checkpoint`)."""
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -39,6 +40,7 @@ def _git(
         encoding="utf-8",
         errors="replace",
         check=False,
+        env={**os.environ, "LC_ALL": "C"},
     )
     if result.returncode not in ok:
         raise RuntimeError(f"git {args[0]} failed: {(result.stderr or result.stdout).strip()}")
@@ -46,7 +48,7 @@ def _git(
 
 
 def project_dir(slug: str) -> Path:
-    if not SLUG.match(slug):
+    if not SLUG.fullmatch(slug):
         raise CheckpointError(f"invalid slug {slug!r}: use lowercase letters, digits and hyphens")
     folder = repo_root() / "projects" / slug
     if folder.is_symlink() or not folder.is_dir():
@@ -58,10 +60,15 @@ def check(slug: str) -> dict:
     folder = project_dir(slug)
     problems: list[str] = []
     continue_md = folder / "CONTINUE.md"
+    text = None
     if not continue_md.is_file():
         problems.append(f"projects/{slug} has no CONTINUE.md (not a project with checkpoints)")
     else:
-        text = continue_md.read_text(encoding="utf-8")
+        try:
+            text = continue_md.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            problems.append("CONTINUE.md is not valid UTF-8")
+    if text is not None:
         for heading, placeholder in REQUIRED_SECTIONS.items():
             body = _section(text, heading)
             if body is None:
@@ -96,10 +103,10 @@ def _status() -> list[tuple[str, str]]:
     while index < len(entries) and entries[index]:
         code, path = entries[index][:2], entries[index][3:]
         index += 1
-        if "R" in code or "C" in code:
-            result.append((code, entries[index]))
-            index += 1
         result.append((code, path))
+        if "R" in code or "C" in code:
+            result.append(("D ", entries[index]))
+            index += 1
     return result
 
 
@@ -112,11 +119,14 @@ def _refused(slug: str, entries: list[tuple[str, str]], include: set[str]) -> li
     prefix = f"projects/{slug}/"
     refused = []
     for code, path in entries:
-        if code != "??" or not path.startswith(prefix) or path in include:
+        is_new = code == "??" or code[0] in "ARC"
+        if not is_new or not path.startswith(prefix) or path in include:
             continue
         if path[len(prefix) :].split("/", 1)[0] not in HEAVY_FOLDERS:
             continue
         file = repo_root() / path
+        if not file.is_file():
+            continue
         if file.stat().st_size > LARGE_BYTES:
             refused.append({"path": path, "reason": "larger than 200 KB"})
         elif b"\0" in file.read_bytes()[:8000]:
@@ -148,17 +158,28 @@ def _current_branch() -> str | None:
     return result.stdout.strip() or None
 
 
+def _git_path_exists(name: str) -> bool:
+    path = _git("rev-parse", "--git-path", name).stdout.strip()
+    return (repo_root() / path).exists()
+
+
+def _in_rebase() -> bool:
+    return _git_path_exists("rebase-merge") or _git_path_exists("rebase-apply")
+
+
 def _pull_rebase() -> None:
     result = _git("pull", "--rebase", "origin", "main", ok=(0, 1))
     if result.returncode == 0:
         return
-    conflicts = _git("diff", "--name-only", "--diff-filter=U").stdout.split()
-    if not conflicts:
-        raise RuntimeError(f"git pull failed: {(result.stderr or result.stdout).strip()}")
+    output = (result.stderr or result.stdout).strip()
+    if not _in_rebase():
+        raise RuntimeError(f"git pull failed: {output}")
+    conflicts = _git("diff", "--name-only", "--diff-filter=U", "-z").stdout.split("\0")
     _git("rebase", "--abort")
     raise CheckpointError(
-        "pull --rebase conflicted; rebase aborted, the local commit is kept. Conflicting paths:\n"
-        + "\n".join(conflicts)
+        "pull --rebase failed; rebase aborted, the local commit is kept. Conflicting paths:\n"
+        + "\n".join(c for c in conflicts if c)
+        + f"\n{output}"
     )
 
 
@@ -170,7 +191,7 @@ def _recheck(slug: str) -> None:
         )
 
 
-def _push() -> None:
+def _push(slug: str) -> None:
     result = _git("push", "origin", "main", ok=(0, 1))
     if result.returncode == 0:
         return
@@ -180,20 +201,29 @@ def _push() -> None:
     if not rejected:
         raise CheckpointError(f"push refused:\n{(result.stderr or result.stdout).strip()}")
     _pull_rebase()
+    _recheck(slug)
     result = _git("push", "origin", "main", ok=(0, 1))
     if result.returncode != 0:
         raise CheckpointError(f"push refused:\n{(result.stderr or result.stdout).strip()}")
 
 
 def _check_amendable(slug: str) -> None:
+    if _git("fetch", "origin", "main", ok=(0, 1, 128)).returncode != 0:
+        raise CheckpointError("--amend: could not fetch origin/main to find the unpushed commits")
     ahead = _git("rev-list", "origin/main..HEAD").stdout.split()
     if len(ahead) != 1:
         raise CheckpointError(
             f"--amend needs exactly one unpushed commit, found {len(ahead)}: a pushed commit "
             "is never amended"
         )
-    touched = _git("show", "--name-only", "--format=", "HEAD").stdout.split()
-    foreign = [p for p in touched if not p.startswith(f"projects/{slug}/") and p != KNOWN_WORDS]
+    if len(_git("rev-list", "--parents", "-n", "1", "HEAD").stdout.split()) > 2:
+        raise CheckpointError("--amend: the unpushed commit is a merge commit")
+    touched = _git(
+        "diff-tree", "-r", "--no-renames", "--name-only", "-z", "--no-commit-id", "--root", "HEAD"
+    ).stdout.split("\0")
+    foreign = [
+        p for p in touched if p and not p.startswith(f"projects/{slug}/") and p != KNOWN_WORDS
+    ]
     if foreign:
         raise CheckpointError(
             "--amend: the unpushed commit touches other paths:\n" + "\n".join(foreign)
@@ -208,7 +238,12 @@ def commit(slug: str, message: str, include: list[str] | None = None, amend: boo
     verdict = check(slug)
     if not verdict["ok"]:
         raise CheckpointError("the check fails:\n" + "\n".join(verdict["problems"]))
+    if _git_path_exists("MERGE_HEAD") or _in_rebase():
+        raise CheckpointError("a merge or rebase is in progress: finish or abort it first")
     entries = _status()
+    unmerged = sorted(p for c, p in entries if "U" in c or c in ("AA", "DD"))
+    if unmerged:
+        raise CheckpointError("unmerged paths:\n" + "\n".join(unmerged))
     prefix = f"projects/{slug}/"
     outside = sorted({p for _, p in entries if not p.startswith(prefix) and p != KNOWN_WORDS})
     if outside:
@@ -234,5 +269,5 @@ def commit(slug: str, message: str, include: list[str] | None = None, amend: boo
             raise CheckpointError(f"commit refused:\n{(result.stdout + result.stderr).strip()}")
     _pull_rebase()
     _recheck(slug)
-    _push()
+    _push(slug)
     return {"committed": committed, "pushed": True}

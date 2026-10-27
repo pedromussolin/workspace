@@ -395,3 +395,158 @@ def test_amend_refused_when_the_commit_touches_another_path(work, git):
     git(work, "commit", "-q", "-am", "chore: outro")
     with pytest.raises(checkpoint.CheckpointError, match="README.md"):
         checkpoint.commit("demo", "docs: a", amend=True)
+
+
+def test_invalid_utf8_continue_is_a_problem(work):
+    (work / "projects/demo/CONTINUE.md").write_bytes(b"\xff\xfe## Onde parei\n")
+    assert any("UTF-8" in p for p in _problems())
+
+
+def test_slug_with_trailing_newline_is_refused(work):
+    with pytest.raises(checkpoint.CheckpointError):
+        checkpoint.check("demo\n")
+
+
+def test_message_boundary_72_and_73(work):
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError):
+        checkpoint.commit("demo", "docs: " + "a" * 67)
+    assert checkpoint.commit("demo", "docs: " + "a" * 66)["pushed"]
+
+
+def test_names_with_spaces_and_unicode(work, git):
+    _edit(work)
+    (work / "projects/demo/anotações de reunião.md").write_text("n\n")
+    (work / "projects/demo/with space.md").write_text("n\n")
+    checkpoint.commit("demo", "docs: a")
+    files = git(
+        work, "-c", "core.quotepath=false", "show", "--name-only", "--format=", "HEAD"
+    ).stdout.splitlines()
+    assert "projects/demo/anotações de reunião.md" in files
+    assert "projects/demo/with space.md" in files
+
+
+def test_outside_file_with_spaces_is_named(work):
+    _edit(work)
+    (work / "fora de lugar é.txt").write_text("x")
+    with pytest.raises(checkpoint.CheckpointError, match="fora de lugar é.txt"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_staged_new_binary_is_refused(work, git):
+    _edit(work)
+    evidence = work / "projects/demo/evidence"
+    evidence.mkdir()
+    (evidence / "pic.png").write_bytes(b"\0\0")
+    git(work, "add", "projects/demo/evidence/pic.png")
+    with pytest.raises(checkpoint.CheckpointError, match="pic.png"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_staged_rename_in_from_outside_is_refused(work, git):
+    _edit(work)
+    git(work, "mv", "README.md", "projects/demo/README.md")
+    with pytest.raises(checkpoint.CheckpointError, match="README.md"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_diff_with_staged_rename_does_not_crash(work, git):
+    git(work, "mv", "README.md", "projects/demo/README.md")
+    paths = {f["path"] for f in checkpoint.diff("demo")["files"]}
+    assert "projects/demo/README.md" in paths
+
+
+def test_unmerged_and_merge_in_progress_refused(work, other, git):
+    _edit(work)
+    git(work, "commit", "-q", "-am", "docs: local")
+    (other / "projects/demo/CONTINUE.md").write_text(GOOD_CONTINUE.replace("Feito", "Outro"))
+    git(other, "commit", "-q", "-am", "docs: outro")
+    git(other, "push", "-q", "origin", "main")
+    git(work, "fetch", "-q", "origin")
+    git(work, "merge", "origin/main", check=False)
+    with pytest.raises(checkpoint.CheckpointError, match="merge or rebase"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_amend_refused_for_a_rename_in_from_outside(work, git):
+    git(work, "mv", "README.md", "projects/demo/README.md")
+    git(work, "commit", "-q", "-m", "chore: move")
+    with pytest.raises(checkpoint.CheckpointError, match="README.md"):
+        checkpoint.commit("demo", "docs: a", amend=True)
+
+
+def test_amend_refused_for_a_merge_commit(work, other, git):
+    (other / "projects/demo/notes.md").write_text("o\n")
+    git(other, "add", "-A")
+    git(other, "commit", "-q", "-m", "docs: outro")
+    git(other, "push", "-q", "origin", "main")
+    (work / "projects/demo/mine.md").write_text("m\n")
+    git(work, "add", "-A")
+    git(work, "commit", "-q", "-m", "docs: local")
+    git(work, "fetch", "-q", "origin")
+    git(work, "merge", "-q", "--no-ff", "-m", "merge", "origin/main")
+    git(work, "reset", "-q", "--soft", "HEAD")
+    with pytest.raises(checkpoint.CheckpointError, match="merge commit|exactly one"):
+        checkpoint.commit("demo", "docs: a", amend=True)
+
+
+def test_amend_refused_when_a_push_bypassed_the_tracking_ref(work, git, remote):
+    _edit(work)
+    git(work, "commit", "-q", "-am", "docs: a")
+    git(work, "push", "-q", str(remote), "main")
+    with pytest.raises(checkpoint.CheckpointError, match="exactly one"):
+        checkpoint.commit("demo", "docs: b", amend=True)
+
+
+def test_amend_refused_when_the_fetch_fails(work, git):
+    _edit(work)
+    git(work, "commit", "-q", "-am", "docs: a")
+    git(work, "remote", "set-url", "origin", "/nonexistent/remote.git")
+    with pytest.raises(checkpoint.CheckpointError, match="fetch"):
+        checkpoint.commit("demo", "docs: b", amend=True)
+
+
+def test_non_fast_forward_retry_rechecks_before_pushing(work, other, git, remote, monkeypatch):
+    _edit(work)
+    real = checkpoint._pull_rebase
+    calls = []
+
+    def racing_pull():
+        real()
+        calls.append(1)
+        if len(calls) == 1:
+            (other / "projects/demo/notes.md").write_text("late\n")
+            git(other, "add", "-A")
+            git(other, "commit", "-q", "-m", "docs: tarde")
+            git(other, "push", "-q", "origin", "main")
+        elif len(calls) == 2:
+            (other / "projects/demo/decisions.md").unlink()
+            git(other, "commit", "-q", "-am", "chore: remove")
+
+    # A second pull happens only after a rejected push; the other clone pushes between them.
+    monkeypatch.setattr(checkpoint, "_pull_rebase", racing_pull)
+    result = checkpoint.commit("demo", "docs: a")
+    assert result["pushed"] is True
+    assert len(calls) == 2
+    log = git(remote, "log", "--format=%s", "-3", "main").stdout.split("\n")
+    assert log[:2] == ["docs: a", "docs: tarde"]
+
+
+def test_retry_pull_that_breaks_the_check_is_not_pushed(work, other, git, remote, monkeypatch):
+    _edit(work)
+    real = checkpoint._pull_rebase
+    calls = []
+
+    def racing_pull():
+        real()
+        calls.append(1)
+        if len(calls) == 1:
+            (other / "projects/demo/decisions.md").unlink()
+            git(other, "commit", "-q", "-am", "chore: remove")
+            git(other, "push", "-q", "origin", "main")
+
+    monkeypatch.setattr(checkpoint, "_pull_rebase", racing_pull)
+    with pytest.raises(checkpoint.CheckpointError, match="decisions.md"):
+        checkpoint.commit("demo", "docs: a")
+    assert len(calls) == 2
+    assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "chore: remove"
