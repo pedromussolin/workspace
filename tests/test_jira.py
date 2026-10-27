@@ -69,6 +69,7 @@ class FakeJira:
         self.status = 200
         self.routes: dict[tuple[str, str], tuple[int, str]] = {}
         self.delay = 0.0
+        self.truncate = False
 
     @property
     def site(self) -> str:
@@ -116,9 +117,13 @@ def fake_jira():
             payload = body.encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Content-Length", str(len(payload) + (50 if fake.truncate else 0)))
+            if 300 <= status < 400:
+                self.send_header("Location", "/elsewhere")
             self.end_headers()
             self.wfile.write(payload)
+            if fake.truncate:
+                self.close_connection = True
 
         def do_GET(self):
             self._handle("GET")
@@ -366,7 +371,9 @@ def test_request_400_puts_jira_messages_in_the_error(fake_jira):
     assert "duedate: invalid date" in message
     assert raised.value.status == 400
     assert raised.value.uncertain is False
+    encoded = base64.b64encode(f"{EMAIL}:{CREDENTIAL}".encode()).decode()
     assert CREDENTIAL not in message
+    assert encoded not in message
     assert "Basic" not in message
 
 
@@ -476,4 +483,100 @@ def test_create_meta_unknown_type_is_an_error(fake_jira):
     )
 
     with pytest.raises(JiraError, match="Task"):
+        _client(fake_jira).create_meta("TS", "Task")
+
+
+def test_truncated_answer_to_a_write_is_uncertain(fake_jira):
+    fake_jira.truncate = True
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (201, json.dumps({"key": "TS-9"}))
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    assert raised.value.uncertain is True
+
+
+def test_truncated_error_body_keeps_the_real_status(fake_jira):
+    fake_jira.truncate = True
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (400, json.dumps({"errorMessages": ["x"]}))
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    assert raised.value.status == 400
+
+
+def test_non_json_200_is_uncertain_on_a_write_and_not_on_a_read(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (200, "<html>")
+    fake_jira.routes[("GET", "/rest/api/3/myself")] = (200, "<html>")
+
+    with pytest.raises(JiraError) as write:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+    with pytest.raises(JiraError) as read:
+        _client(fake_jira).myself()
+
+    assert write.value.uncertain is True
+    assert read.value.uncertain is False
+
+
+def test_non_json_error_body_falls_back_to_the_plain_message(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (400, "<html>nope</html>")
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    assert str(raised.value) == "Jira answered HTTP 400 for POST /rest/api/3/issue"
+
+
+def test_redirect_is_not_followed(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (302, "")
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    assert raised.value.status == 302
+    assert raised.value.uncertain is True
+    assert [r["path"] for r in fake_jira.requests] == ["/rest/api/3/issue"]
+
+
+def test_redirect_on_a_read_is_not_uncertain(fake_jira):
+    fake_jira.routes[("GET", "/rest/api/3/myself")] = (301, "")
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).myself()
+
+    assert raised.value.uncertain is False
+    assert len(fake_jira.requests) == 1
+
+
+def test_path_segments_are_quoted(fake_jira):
+    with pytest.raises(JiraError):
+        _client(fake_jira).issue("a/b", ["summary"])
+
+    assert fake_jira.requests[0]["path"] == "/rest/api/3/issue/a%2Fb"
+
+
+def test_query_special_characters_are_encoded(fake_jira):
+    fake_jira.routes[("GET", "/rest/api/3/search/jql")] = (200, json.dumps({"issues": []}))
+
+    _client(fake_jira).search('summary ~ "a&b=c" ORDER BY x', ["summary"])
+
+    assert fake_jira.requests[0]["query"]["jql"] == 'summary ~ "a&b=c" ORDER BY x'
+
+
+def test_null_pages_are_tolerated(fake_jira):
+    fake_jira.routes[("GET", "/rest/api/3/issue/TS-1/transitions")] = (200, "")
+    fake_jira.routes[("GET", "/rest/agile/1.0/board/1/sprint")] = (200, "")
+
+    assert _client(fake_jira).transitions("TS-1") == []
+    assert _client(fake_jira).active_sprints(1) == []
+
+
+def test_create_meta_type_without_id_is_an_error(fake_jira):
+    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
+        200,
+        json.dumps({"issueTypes": [{"name": "Task"}]}),
+    )
+
+    with pytest.raises(JiraError, match="no id"):
         _client(fake_jira).create_meta("TS", "Task")

@@ -1,6 +1,7 @@
 """Jira adapter: REST client and the compact card, the neutral input of `ws task status`."""
 
 import base64
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -106,6 +107,20 @@ def task_from_card(card: dict, site: str, overrides: dict[str, str]) -> Task:
     )
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would forward the credential and turn a POST into a GET; it is an error."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _segment(value: object) -> str:
+    return urllib.parse.quote(str(value), safe="")
+
+
 class JiraClient:
     def __init__(self, site: str, email: str, credential: str, timeout: int = 20):
         self.site = site.rstrip("/")
@@ -139,22 +154,27 @@ class JiraClient:
         return self._request("PUT", path, body)
 
     def issue(self, key: str, fields: list[str]) -> dict:
-        return self.get(f"/rest/api/3/issue/{key}", {"fields": ",".join(fields)})
+        return self.get(f"/rest/api/3/issue/{_segment(key)}", {"fields": ",".join(fields)})
 
     def transitions(self, key: str) -> list[dict]:
-        page = self.get(f"/rest/api/3/issue/{key}/transitions", {"expand": "transitions.fields"})
-        return page.get("transitions", [])
+        page = self.get(
+            f"/rest/api/3/issue/{_segment(key)}/transitions", {"expand": "transitions.fields"}
+        )
+        return (page or {}).get("transitions", [])
 
     def active_sprints(self, board_id: int) -> list[dict]:
-        page = self.get(f"/rest/agile/1.0/board/{board_id}/sprint", {"state": "active"})
-        return page.get("values", [])
+        page = self.get(f"/rest/agile/1.0/board/{_segment(board_id)}/sprint", {"state": "active"})
+        return (page or {}).get("values", [])
 
     def create_meta(self, project: str, issue_type: str) -> dict:
-        base = f"/rest/api/3/issue/createmeta/{project}/issuetypes"
-        types = self.get(base).get("issueTypes", [])
+        base = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
+        types = (self.get(base) or {}).get("issueTypes", [])
         for candidate in types:
             if candidate.get("name") == issue_type:
-                return self.get(f"{base}/{candidate['id']}")
+                type_id = candidate.get("id")
+                if not type_id:
+                    raise JiraError(f"issue type {issue_type!r} has no id in project {project}")
+                return self.get(f"{base}/{_segment(type_id)}")
         raise JiraError(f"issue type {issue_type!r} not found in project {project}")
 
     def _request(
@@ -175,16 +195,16 @@ class JiraClient:
         )
         write = method != "GET"
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with _OPENER.open(request, timeout=self.timeout) as response:
                 raw = response.read()
         except urllib.error.HTTPError as error:
             detail = _error_detail(error)
             raise JiraError(
                 f"Jira answered HTTP {error.code} for {method} {path}{detail}",
                 status=error.code,
-                uncertain=write and error.code >= 500,
+                uncertain=write and (error.code >= 500 or 300 <= error.code < 400),
             ) from None
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
+        except (OSError, http.client.HTTPException) as error:
             raise JiraError(
                 f"could not reach Jira for {method} {path}: {error}", uncertain=write
             ) from None
@@ -201,7 +221,7 @@ class JiraClient:
 def _error_detail(error: urllib.error.HTTPError) -> str:
     try:
         payload = json.loads(error.read())
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return ""
     if not isinstance(payload, dict):
         return ""
