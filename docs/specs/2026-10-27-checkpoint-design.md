@@ -24,8 +24,16 @@ each time; one project's `CONTINUE.md` has no "## Próximo passo", so the daily 
   parei", or the user saying the iteration is over. This is the exception the root `CLAUDE.md`
   makes for this repo (commit and push to `main` without asking); a GitHub write anywhere else
   still needs `disable-model-invocation`.
-- **Strict scope:** only `projects/<slug>/` goes into the commit; anything else modified, staged or
-  untracked (not ignored) → refused, naming the paths, so the user commits it separately.
+- **Strict scope:** only `projects/<slug>/` (and `.known-words`, see below) goes into the commit;
+  anything else modified, staged or untracked (not ignored) → refused, naming the paths, so the
+  user commits it separately.
+- **A push refused for a new word or a secret** (decided after the review of the skill): the local
+  commit already carries the text, and `pre-push` checks every pushed commit, so a new commit on
+  top does not clear it. A harmless word → `ws names known WORD`; `.known-words` is the one file
+  outside the project that `commit` accepts, and it goes in a new commit with the next run. A real
+  name or a secret → mask the files (`ws mask --in-place FILE`) and `ws checkpoint commit SLUG
+  --amend`, which rewrites the unpushed checkpoint commit; allowed only when exactly one commit is
+  unpushed and it touches only `projects/<slug>/` and `.known-words` (never a pushed commit).
 - **The whitelabel project:** its first checkpoint renames `## Onde está` to `## Onde parei` and
   adds `## Próximo passo`; it runs in that project's own chat, not here, since other chats edit
   the file.
@@ -45,7 +53,8 @@ All run git as `git -C <repo_root>`, never from the caller's folder. The slug mu
   diffstat; new binary files or files over 200 KB under `evidence/` or `attachments/` are listed
   as refused unless passed with `--include PATH`. The skill reads it before writing the message
   (root rule: run `git diff` before the message).
-- `ws checkpoint commit SLUG -m MESSAGE [--include PATH...]` — in this order:
+- `ws checkpoint commit SLUG -m MESSAGE [--include PATH...] [--amend]` — in this order (with
+  `--amend`, step 3 amends the single unpushed checkpoint commit instead of adding one):
   1. refuse unless on branch `main` (no detached HEAD, no worktree branch);
   2. validate the message (prefix `docs:`/`chore:`/`feat:`/`fix:`/`test:`, at most 72
      characters), the check, and that nothing outside `projects/<slug>/` is modified, staged or
