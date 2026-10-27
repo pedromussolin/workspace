@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Builds the made-up workspace the daily-skill evals run against, inside the run's HOME.
 #
-# "Today" is a fixed Monday, so the window opens on the Friday before it. The dates and the git
-# identity are fixed too, which makes every commit sha the same on every machine: the graders can
-# name them.
+# "Today" is a fixed Monday, so the window opens on the Friday before it. TS-107 is a Thursday
+# commit (before the window), the two demo-notes commits carry no key, and TS-106 has no card.
 set -euo pipefail
 
 TODAY=2026-10-26
@@ -38,8 +37,13 @@ TOML
 
   new_repo demo-front
   commit "$HOME/repos/demo-front" 2026-10-22T16:20:00-03:00 "TS-101 monta a tela de exemplo"
+  commit "$HOME/repos/demo-front" 2026-10-22T17:45:00-03:00 "TS-107 mexe no cabeçalho"
   commit "$HOME/repos/demo-front" 2026-10-23T11:05:00-03:00 "TS-106 ajusta o contraste do botão"
   commit "$HOME/repos/demo-front" 2026-10-23T17:30:00-03:00 "TS-101 corrige a validação do formulário"
+
+  new_repo demo-notes
+  commit "$HOME/repos/demo-notes" 2026-10-23T09:30:00-03:00 "atualiza as anotações"
+  commit "$HOME/repos/demo-notes" 2026-10-23T09:40:00-03:00 "ajusta o índice"
 
   new_repo demo-api
   commit "$HOME/repos/demo-api" 2026-10-21T10:00:00-03:00 "TS-103 ajusta a resposta da rota"

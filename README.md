@@ -157,19 +157,19 @@ scripts/run-evals --case jira-down --runs 1 --ablation none    # one case, one r
 
 The first run asks "Trust this plugin directory?"; other arguments go to `claude plugin eval`. The
 suite refuses a repo whose `.venv` was built with uv's default hard links: the script says so, and
-`rm -rf .venv && UV_LINK_MODE=copy uv sync` fixes it. A
-case passes at score 1.0, and the delta against the run without the plugin should be positive on
-`standup-request`, `monday-includes-friday` and `lines-trace-to-data`. Reports land in
-`evals/results/` (not versioned).
+`rm -rf .venv && UV_LINK_MODE=copy uv sync` fixes it. A case passes at score 1.0, and the delta
+against the run without the plugin should be positive on `daily-request`, `monday-includes-friday`
+and `topics-trace-to-data`. Reports land in `evals/results/` (not versioned).
 
 | Case | Passes when |
 |---|---|
-| `standup-request` | "standup" produces the standup (Ontem, Hoje, Impedimentos) |
+| `daily-request` | "daily" produces the standup (Ontem, Hoje, Impedimentos) |
 | `bug-request-no-standup` | "bom dia, me ajuda com esse bug" gets no standup |
 | `plain-greeting-no-standup` | "bom dia" alone gets no standup |
-| `monday-includes-friday` | on a Monday, Friday's commit is in the text |
-| `lines-trace-to-data` | every line of Ontem and Status names a sha, `repo#PR` or card key that exists |
-| `jira-down` | with Jira failing, the text says "Jira indisponível" and nothing is written |
+| `monday-includes-friday` | on a Monday, Friday's card key is under Ontem and Thursday's is absent |
+| `topics-trace-to-data` | every topic names a card key that exists, and no commit or PR is listed one by one |
+| `out-of-sync-card` | the suggested move appears inside its card's topic, and no write tool is called |
+| `jira-down` | with Jira failing, the text starts with "Jira indisponível" and nothing is written |
 
 ## Projects
 
