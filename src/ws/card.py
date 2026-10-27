@@ -263,11 +263,20 @@ def run_epics() -> int:
     return _run("epics", action)
 
 
-def run_apply(argument: str, dry_run: bool, approve: str | None) -> int:
-    if dry_run == (approve is not None):
-        print("ws card apply: use exactly one of --dry-run or --approve CODE", file=sys.stderr)
+def run_preview(argument: str) -> int:
+    try:
+        loaded = [load(path) for path in collect(argument)]
+    except DraftError as error:
+        print(f"ws card preview: {'; '.join(error.problems)}", file=sys.stderr)
         return 1
-    if approve is not None and not _CODE.fullmatch(approve):
+    return _run("preview", lambda: _preview(argument, loaded))
+
+
+def run_apply(argument: str, approve: str | None) -> int:
+    if approve is None:
+        print("ws card apply: --approve CODE is required; see `ws card preview`", file=sys.stderr)
+        return 1
+    if not _CODE.fullmatch(approve):
         print("ws card apply: the approval code is 12 lowercase hex characters", file=sys.stderr)
         return 1
     try:
@@ -275,8 +284,6 @@ def run_apply(argument: str, dry_run: bool, approve: str | None) -> int:
     except DraftError as error:
         print(f"ws card apply: {'; '.join(error.problems)}", file=sys.stderr)
         return 1
-    if dry_run:
-        return _run("apply", lambda: _dry_run(argument, loaded))
     return _run("apply", lambda: _approve(approve, loaded))
 
 
@@ -287,7 +294,7 @@ def _print_problems(plan: Plan) -> None:
             print(f"  {item.path.name}: {problem}")
 
 
-def _dry_run(argument: str, loaded: list[Loaded]) -> int:
+def _preview(argument: str, loaded: list[Loaded]) -> int:
     settings, client = _session(_needed_keys(loaded))
     _ensure_store()
     plan = build_plan(client, settings, loaded)
@@ -300,7 +307,7 @@ def _dry_run(argument: str, loaded: list[Loaded]) -> int:
         _write_pending(code, settings.site, plan)
     except OSError as error:
         print(
-            f"ws card apply: could not save the pending record: {error.strerror or error}",
+            f"ws card preview: could not save the pending record: {error.strerror or error}",
             file=sys.stderr,
         )
         return 1
@@ -361,7 +368,7 @@ def _read_pending(code: str) -> tuple[dict | None, str | None]:
     ):
         return None, (
             f"the pending record {code} is not a private file of yours (owner, mode 600); "
-            "delete it and run --dry-run again"
+            "delete it and run ws card preview again"
         )
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
@@ -369,9 +376,9 @@ def _read_pending(code: str) -> tuple[dict | None, str | None]:
         if created.tzinfo is None:
             raise ValueError("no time zone")
     except (OSError, ValueError, KeyError, TypeError):
-        return None, f"the pending record {code} is unreadable; run --dry-run again"
+        return None, f"the pending record {code} is unreadable; run ws card preview again"
     if created > _now():
-        return None, f"the pending record {code} is dated in the future; run --dry-run again"
+        return None, f"the pending record {code} is in the future; run ws card preview again"
     record["_created"] = created
     return record, None
 
@@ -396,21 +403,21 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
         return 1
     if record is None:
         print(
-            f"ws card apply: no pending preview for code {code}; run --dry-run first",
+            f"ws card apply: no pending preview for code {code}; run ws card preview first",
             file=sys.stderr,
         )
         return 1
     if _now() - record["_created"] > APPROVAL_WINDOW:
         _pending_path(code).unlink(missing_ok=True)
         print(
-            "ws card apply: the preview expired (30 minutes); run --dry-run again",
+            "ws card apply: the preview expired (30 minutes); run ws card preview again",
             file=sys.stderr,
         )
         return 1
     current = [{"path": str(item.path), "sha256": item.sha256} for item in loaded]
     if record.get("drafts") != current:
         print(
-            "ws card apply: the drafts changed since the preview; run --dry-run again",
+            "ws card apply: the drafts changed since the preview; run ws card preview again",
             file=sys.stderr,
         )
         return 1
@@ -436,11 +443,12 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
 
 def _why_it_differs(record: dict, plan: Plan, site: str) -> str:
     if record.get("today") != plan.today:
-        return "a data de hoje mudou desde a prévia; rode o --dry-run de novo"
+        return "a data de hoje mudou desde a prévia; rode o ws card preview de novo"
     if record.get("site") == site and record.get("requests") == plan.requests:
-        return "o card mudou no Jira desde a prévia; rode o --dry-run de novo"
+        return "o card mudou no Jira desde a prévia; rode o ws card preview de novo"
     return (
-        "the site or the requests now differ from the preview (Jira changed); run --dry-run again"
+        "the site or the requests now differ from the preview (Jira changed); "
+        "run ws card preview again"
     )
 
 

@@ -676,15 +676,20 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     check.set_defaults(handler=lambda args: card.run_check(args.draft))
     epics = commands.add_parser("epics", help="List the open epics of my open cards (JSON).")
     epics.set_defaults(handler=lambda args: card.run_epics())
+    preview = commands.add_parser(
+        "preview",
+        help="Check a draft or a folder of drafts, print the preview and the approval code.",
+    )
+    preview.add_argument("path", help="A draft file or a folder of drafts.")
+    preview.set_defaults(handler=lambda args: card.run_preview(args.path))
     apply = commands.add_parser(
-        "apply", help="Preview (--dry-run) or send (--approve CODE) a draft or a folder of drafts."
+        "apply",
+        allow_abbrev=False,
+        help="Send what the preview with CODE showed (the approval; Claude Code asks first).",
     )
-    apply.add_argument("path", help="A draft file or a folder of drafts.")
-    apply.add_argument(
-        "--dry-run", action="store_true", help="Check, preview, store the pending record."
-    )
-    apply.add_argument("--approve", metavar="CODE", help="Send what the preview with CODE showed.")
-    apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.dry_run, args.approve))
+    apply.add_argument("path", help="The same draft file or folder that was previewed.")
+    apply.add_argument("--approve", metavar="CODE", help="The code `ws card preview` printed.")
+    apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.approve))
 
 
 def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
