@@ -12,6 +12,7 @@ listed instead.
 
 import json
 import os
+import shutil
 import stat
 import subprocess
 import textwrap
@@ -27,6 +28,7 @@ HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 PACKAGES = " and ".join(source.package for source in dictionary.SOURCES)
+SANDBOX_TOOLS = ("bwrap", "socat")
 
 
 @dataclass
@@ -75,6 +77,7 @@ def run_setup(
         _check_hooks_path(setup, repo)
     _link_skills(setup, repo, skills_target)
     _check_config(setup, config)
+    _check_sandbox_tools(setup)
     _install_dictionaries(setup)
     _check_claude_gates(setup, repo, settings)
     return setup.result
@@ -217,6 +220,16 @@ def _check_config(setup: _Setup, config: Path) -> None:
         _fix_mode(setup, private, 0o700, "private folder")
     else:
         setup.need(f"{private} exists and is not a folder")
+
+
+def _check_sandbox_tools(setup: _Setup) -> None:
+    """The evals run Claude inside bubblewrap and socat; ws itself does not need them."""
+    missing = [tool for tool in SANDBOX_TOOLS if shutil.which(tool) is None]
+    if missing:
+        setup.need(
+            f"sandbox tools missing ({', '.join(missing)}); run "
+            "sudo apt-get install -y bubblewrap socat (only to run the evals)"
+        )
 
 
 def _install_dictionaries(setup: _Setup) -> None:

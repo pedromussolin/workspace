@@ -61,7 +61,7 @@ def _mode(path: Path) -> int:
 
 
 @pytest.fixture
-def env(tmp_path: Path) -> Env:
+def env(tmp_path: Path, monkeypatch) -> Env:
     repo = tmp_path / "repo"
     for name in ("alpha", "beta"):
         (repo / "skills" / name).mkdir(parents=True)
@@ -79,6 +79,13 @@ def env(tmp_path: Path) -> Env:
     settings = tmp_path / "claude" / "settings.json"
     settings.parent.mkdir()
     _write_settings(settings, _registered_gates())
+
+    sandbox_bin = tmp_path / "sandbox-bin"
+    sandbox_bin.mkdir()
+    for tool in ("bwrap", "socat"):
+        (sandbox_bin / tool).write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (sandbox_bin / tool).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{sandbox_bin}{os.pathsep}{os.environ['PATH']}")
 
     return Env(repo, config, tmp_path / "home" / "skills", settings)
 
@@ -604,6 +611,8 @@ def test_missing_apt_needs_the_user_with_the_manual_command(
     bin_dir = tmp_path / "only-git"
     bin_dir.mkdir()
     (bin_dir / "git").symlink_to(real_git)
+    for tool in ("bwrap", "socat"):
+        (bin_dir / tool).symlink_to(env.repo.parent / "sandbox-bin" / tool)
     monkeypatch.setenv("PATH", str(bin_dir))
 
     result = _setup(env)
@@ -698,3 +707,18 @@ def test_setup_reports_missing_config_toml(env):
     problems = _setup(env).needs
 
     assert problems == [f'{env.config / "config.toml"} is missing; see "Local config" in README.md']
+
+
+def test_setup_reports_missing_sandbox_tools(env, monkeypatch):
+    real_which = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name, *args, **kwargs: None if name in ("bwrap", "socat") else real_which(name),
+    )
+
+    problems = _setup(env).needs
+
+    assert len(problems) == 1
+    assert "sudo apt-get install -y bubblewrap socat" in problems[0]
+    assert "only to run the evals" in problems[0]
