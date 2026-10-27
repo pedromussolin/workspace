@@ -1,6 +1,8 @@
 # 02 — Dois modos de fechamento: por chave ou por proc_id
 
-- **Status:** desenho alinhado com o Pietro em 06/10/2026; D3 adiada.
+- **Status:** desenho alinhado com o Pietro em 06/10/2026; D3 tomada em 13/10.
+  Plano de implementação em [02-03-implementation-plan.md](02-03-implementation-plan.md)
+  (27/10), com a D22 (originador) e a revisão da premissa dos 88 h.
 - **Repos:** platform-cessao (principal), BFF e front (fechamento manual).
 - **Decisões:** [D3](../decisions.md) (adiada), [D7](../decisions.md) (acúmulo).
 - **Relacionadas:** [03](03-async-closing-and-429.md) (mesma rota),
