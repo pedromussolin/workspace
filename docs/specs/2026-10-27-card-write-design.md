@@ -222,6 +222,16 @@ exactly the previewed requests; a 204 answer is success; Jira's error body reach
 batch stops at the first failure and reports what was applied; another person's card and another
 project's key are refused for every op; `ws setup` reports the missing `ask` rules and the hook; the hook asks for every way of writing an approval; the site rule and the `credentials` checks.
 
+## Known limit of the approval gate
+
+The hook reads the command's text, so it cannot be airtight. Named explicitly (2026-10-27): a
+script file run by the shell, a background process started in a new session (`setsid`, `nohup`),
+an import route built at run time, and a fully encoded command (e.g. `eval` of a `base64` string)
+that names neither `ws` nor `card` are not seen by it. There, the `ask` rule does not match either,
+and the barriers are the auto-mode classifier and the user's reading of each command. A gate that
+does not rely on text (a per-preview secret the user supplies outside the chat) was considered and
+left out on purpose, to keep the approval a single Claude Code prompt.
+
 ## Out of scope
 
 Branch creation and the task records under `projects/<p>/tasks/` (phase B, part 2); writes through
