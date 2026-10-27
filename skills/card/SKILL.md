@@ -16,7 +16,7 @@ Nothing is written through the Atlassian MCP, ever.
    `ws card epics` and offer the list; empty, ask for an epic key), the priority and the due date
    (`start` defaults to today). Write the title and sections in the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
-   operation per file; a quoted heredoc if Write is denied). Run `ws card check <draft>`; fix the
+   operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
 3. **Dry-run:** `ws card apply <draft or folder> --dry-run`. Show the preview exactly as printed,
    warnings included, and the code. Never run `--approve` before this was shown.

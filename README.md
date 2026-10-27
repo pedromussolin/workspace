@@ -95,8 +95,8 @@ stale_workdays = 3
   git: each repo's own `user.email` picks the commits.
 - The five `[jira]` keys after `email` are read by `ws card`; a missing one exits 2 naming it.
   `ws card` only touches cards of `project`.
-- The API key must be an unscoped token (a scoped one is refused by the REST write endpoints used
-  by `ws card`).
+- The API key must be an unscoped token: a scoped token only works through the
+  `api.atlassian.com/ex/jira/<cloudId>` gateway, and `ws` calls the site URL.
 - `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)` and on the Atlassian write
   tools (never editing `~/.claude/settings.json` itself), so every write needs your yes in Claude
   Code.

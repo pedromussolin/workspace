@@ -98,7 +98,8 @@ the card title, commit subjects and PR titles for people.
 Algum desses é impedimento?
 
 ---
-Para você: para aplicar: /card mover <KEY> para <status>; ...
+Para você: para aplicar /card mover <KEY> para <status>; ...; Jira indisponível;
+N avisos, peça "daily detalhado"
 ```
 
 - **Describe the task, never the person.** No first person ("fiz", "fechei", "ajustei") and no
@@ -116,7 +117,8 @@ Para você: para aplicar: /card mover <KEY> para <status>; ...
   date. Ask "Algum desses é impedimento?" once, only when at least one `stuck` line is shown; it
   refers to those. With none, "Nenhum." and no question.
 - The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
-  `moves`, as one "para aplicar: /card mover TS-5431 para em validação; /card mover ..." (the user types `/card`; nothing moves before); "Jira indisponível" when `jira` is false; "N
+  `moves`, as one "para aplicar /card mover TS-5431 para em validação; /card mover ..."
+  (the user types `/card`; nothing moves before); "Jira indisponível" when `jira` is false; "N
   avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.
 - Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
