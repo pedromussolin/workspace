@@ -23,9 +23,11 @@ Nothing is written through the Atlassian MCP, ever.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
    and the Claude Code prompt on it is the approval (the `permissions.ask` rule plus the
    `hooks/ask_card_apply.py` hook, which asks for any command that names `card` with `apply` or
-   imports `ws.card`; it reads text, so a script or an odd import is not seen). Never ask the user
+   imports `ws.card`, or that combines `ws`/`card` with a shell expansion; it reads text, so a
+   script file, a `setsid`/`nohup` background process or an odd import is not seen). Never ask the user
    to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
-   the prompt. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
+   the prompt, and never run the preview and the apply in one command line: `apply` refuses when it
+   shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
    `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
 5. **Several changes** (the daily's "para aplicar: /card mover ...; ..."): one draft per change

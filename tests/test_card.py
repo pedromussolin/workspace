@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import stat
@@ -135,6 +136,9 @@ class World:
         return [r for r in self.fake.requests if (r["method"], r["path"]) == (method, path)]
 
 
+REAL_SESSION_ID = card._session_id
+
+
 def write_claude_settings(path, ask=("Bash(ws card apply:*)",), hook=True):
     gates = {"permissions": {"ask": list(ask)}}
     if hook:
@@ -163,6 +167,8 @@ def world(ws_config, fake_jira, monkeypatch, claude_settings):
     )
     save_jira_token("sample-value")
     monkeypatch.setattr(card, "_now", lambda: NOW)
+    sessions = itertools.count(1000)
+    monkeypatch.setattr(card, "_session_id", lambda: next(sessions))
     return World(fake_jira)
 
 
@@ -1750,3 +1756,57 @@ def test_an_uncertain_draft_also_drops_the_pending_records_that_mention_it(world
     assert approve(drafts, folder_code) == 3
 
     assert pending_files() == []
+
+
+def test_the_session_id_is_the_shells_session():
+    assert REAL_SESSION_ID() == os.getsid(0)
+
+
+def test_the_preview_stores_its_session_id(world, capsys, monkeypatch):
+    monkeypatch.setattr(card, "_session_id", lambda: 4242)
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+
+    preview(path, capsys)
+
+    assert read_record()[1]["sid"] == 4242
+
+
+def test_preview_and_approve_in_the_same_session_are_refused(world, capsys, monkeypatch):
+    monkeypatch.setattr(card, "_session_id", lambda: 4242)
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+    before = len(world.fake.requests)
+
+    assert approve(path, code) == 1
+
+    assert "a prévia e a aprovação precisam ser passos separados" in capsys.readouterr().err
+    assert len(world.fake.requests) == before
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+    monkeypatch.setattr(card, "_session_id", lambda: 4243)
+    assert approve(path, code) == 0
+
+
+def test_the_real_session_id_stops_two_calls_in_one_process(world, capsys, monkeypatch):
+    monkeypatch.setattr(card, "_session_id", REAL_SESSION_ID)
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+
+    assert approve(path, code) == 1
+
+    assert "passos separados" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_record_without_a_session_id_is_refused(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    record_path, record = read_record()
+    del record["sid"]
+    record_path.write_text(json.dumps(record))
+
+    assert approve(path, code) == 1
+    assert world.writes() == []

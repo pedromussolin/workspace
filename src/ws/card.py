@@ -64,6 +64,12 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _session_id() -> int:
+    """The session of the shell that runs this command. Claude Code runs each Bash call in its own
+    session, so a preview and an approval in one command line share it and are refused."""
+    return os.getsid(0)
+
+
 def _store(*parts: str) -> Path:
     return data_dir().joinpath("cards", *parts)
 
@@ -339,6 +345,7 @@ def _write_pending(code: str, site: str, plan: Plan) -> None:
         "created_at": _now().isoformat(),
         "site": site.rstrip("/"),
         "today": plan.today,
+        "sid": _session_id(),
         "drafts": [{"path": str(item.path), "sha256": item.sha256} for item in plan.loaded],
         "requests": plan.requests,
         "before": plan.befores,
@@ -413,6 +420,13 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
         _pending_path(code).unlink(missing_ok=True)
         print(
             "ws card apply: the preview expired (30 minutes); run ws card preview again",
+            file=sys.stderr,
+        )
+        return 1
+    if record.get("sid") is None or record.get("sid") == _session_id():
+        print(
+            "ws card apply: a prévia e a aprovação precisam ser passos separados "
+            "(rode `ws card apply` em outro comando, depois de mostrar a prévia)",
             file=sys.stderr,
         )
         return 1

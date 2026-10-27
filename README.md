@@ -100,9 +100,14 @@ stale_workdays = 3
 - `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)` and on the Atlassian write
   tools, and for the `hooks/ask_card_apply.py` PreToolUse hook, which asks for any command that
   names `card` and `apply` as words, or `ws.card`, `from ws import card` or `run_apply` (never
-  editing `~/.claude/settings.json` itself), so every write needs your yes in Claude Code. The hook
-  reads text: a script file or an import route outside those patterns is not seen. `ws card apply
-  --approve` refuses (exit 2) without the rule and the hook registered for `Bash`.
+  editing `~/.claude/settings.json` itself), so every write needs your yes in Claude Code. It also
+  asks for `ws` or `card` together with a shell expansion or escape (`$`, a backtick, `{`,
+  `eval`, `base64`, ...). The hook reads text: a script file, a background process in a new session
+  (`setsid`, `nohup`) or an import route outside those patterns is not seen, and the auto-mode
+  classifier and your reading of each command remain the barrier there. `ws card apply --approve`
+  refuses (exit 2) without the rule and the hook registered for `Bash`, and (exit 1) when it runs
+  in the same shell session as the preview (a single command line cannot preview and apply; by
+  hand, run the apply in another terminal tab).
 - `site` must be `https://<name>.atlassian.net`: the API key is never sent anywhere else, and a
   `credentials` file that is a symlink or not yours is refused.
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in

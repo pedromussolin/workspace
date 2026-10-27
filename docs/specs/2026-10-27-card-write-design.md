@@ -40,8 +40,16 @@ prompt of Claude Code itself.
   Bash command that, with quotes and backslashes removed, has `card` and `apply` as words, or
   `ws.card`, `from ws import card` or `run_apply` (so `uv run ws card apply`, `python -m ws`,
   `bash -c '...'`, an absolute path to `ws`, `--appr$(true)ove` or a variable holding the flag are
-  asked too; `preview`, `check` and `epics` stay silent). It is a text hook: a script file the
-  command runs, or an import route that matches none of those patterns, is not seen. `ws card
+  asked too), and also for `ws` or `card` as a word together with a shell expansion or escape (`$`,
+  a backtick, `{`, a backslash-newline) or `eval`, `base64`, `xxd`, `printf` (`ws card ap${x}ply`,
+  `ws card a{pp,pp}ly`, `ws ca$(true)rd apply`); a plain `preview`, `check` and `epics` stay
+  silent. It is a text hook: a script file the command runs, a background process in a new session
+  (`setsid`, `nohup`) or an import route outside those patterns is not seen, and there the
+  auto-mode classifier and the user's reading of each command remain the barrier. Not depending
+  on text: the preview stores the session id of its shell (`os.getsid(0)`) and `ws card apply
+  --approve` refuses (exit 1, "a prévia e a aprovação precisam ser passos separados") in the same
+  session, so one command line cannot preview and apply (Claude Code runs each Bash call in its
+  own session; a user running both by hand in one terminal uses another tab for the apply). `ws card
   apply --approve` itself exits 2 when the Claude settings lack the rule or a real registration of
   the hook (a `PreToolUse` entry whose matcher covers `Bash` and whose command runs the script
   with python). The preview is its own command (`ws card preview`) so the prompt appears only
