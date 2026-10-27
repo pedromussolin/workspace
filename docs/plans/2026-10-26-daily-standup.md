@@ -70,22 +70,35 @@ in its own `_add_*` function, so the merge is the registration line.
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-@pytest.mark.parametrize("day, expected", [
-    (date(2026, 10, 26), date(2026, 10, 23)),  # Monday -> Friday
-    (date(2026, 10, 27), date(2026, 10, 26)),  # Tuesday -> Monday
-    (date(2026, 10, 24), date(2026, 10, 23)),  # Saturday -> Friday
-    (date(2026, 10, 25), date(2026, 10, 23)),  # Sunday -> Friday
-])
+@pytest.mark.parametrize(
+    "day, expected",
+    [
+        (date(2026, 10, 26), date(2026, 10, 23)),  # Monday -> Friday
+        (date(2026, 10, 27), date(2026, 10, 26)),  # Tuesday -> Monday
+        (date(2026, 10, 24), date(2026, 10, 23)),  # Saturday -> Friday
+        (date(2026, 10, 25), date(2026, 10, 23)),  # Sunday -> Friday
+    ],
+)
 def test_previous_workday(day, expected):
     assert previous_workday(day) == expected
+
 
 def test_workdays_before_skips_weekends():
     assert workdays_before(date(2026, 10, 27), 3) == date(2026, 10, 22)
 
+
 def test_task_to_json_uses_plain_values():
-    task = Task("jira:TS-101", "TS-101", "[FRONT] Tela", "https://example.atlassian.net/browse/TS-101",
-                Status.IN_PROGRESS, "TS-100", "[FRONT] Épico", False,
-                datetime(2026, 10, 26, 9, 0, tzinfo=UTC))
+    task = Task(
+        "jira:TS-101",
+        "TS-101",
+        "[FRONT] Tela",
+        "https://example.atlassian.net/browse/TS-101",
+        Status.IN_PROGRESS,
+        "TS-100",
+        "[FRONT] Épico",
+        False,
+        datetime(2026, 10, 26, 9, 0, tzinfo=UTC),
+    )
     data = task_to_json(task)
     assert data["status"] == "in_progress"
     assert data["updated"] == "2026-10-26T09:00:00+00:00"
