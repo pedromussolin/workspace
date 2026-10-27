@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Builds the user's daily standup grouped by task (yesterday, today, blockers), with status suggestions from the code, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
+description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
@@ -83,7 +83,7 @@ Use exactly these three headings, in this order:
 Algum desses é impedimento?
 ```
 
-- **Ontem:** one line per `yesterday` entry, in order, naming its key and `title`; the short line
+- **Ontem:** one line per `yesterday` entry, in order, naming its key and `title` (omit " — <title>" when `title` is null); the short line
   is built from its `subjects` and `prs` (cite `ref` for a PR), never inventing what changed. The
   "N commits sem card em <repos>" line (`keyless.commits`, `keyless.repos`) only when
   `keyless.commits` is greater than 0. No topic without a key.
@@ -93,11 +93,12 @@ Algum desses é impedimento?
   once. With none, write "Nenhum." and no question.
 - `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
   para <to> (<evidence>)"; nothing moved. Otherwise nothing.
-- Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
+- Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
   validação", `done` "concluída", `cancelled` "cancelada".
 - `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list
   the `yesterday` topics by key, with the PR title when there is one; under **Hoje** only the
   `next_steps`; under **Impedimentos** write "indisponível".
+- Dates in the text are `dd/mm` (`blockers[].updated` is ISO in the report).
 - End with every `warnings` entry, as it is.
 
 ## Rules

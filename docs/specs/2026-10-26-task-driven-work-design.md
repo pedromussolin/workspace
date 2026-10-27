@@ -95,7 +95,7 @@ the board-review skill (backlog).
 
 The text is PT-BR and stays in the chat; the user reads it or pastes it.
 
-### Status rules (code, in `ws task status`)
+### Status rules (code, in `taskstatus.evaluate`, used by `ws task status` and `ws standup report`)
 
 1. Commits or a branch exist for the task, and the card is still `todo`: suggest `in_progress`.
 2. The task's PR is merged, and the card is still `in_progress`: suggest `validation`.
