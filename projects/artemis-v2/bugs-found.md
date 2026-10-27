@@ -301,6 +301,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   claim no Redis já evita fechamento duplo) e contar os terminais num contador
   do Redis incrementado depois do commit, em vez de contar no banco. Avaliar o
   backstop para todo produto com `fechar_lote_por_proc_id`.
+- **Status (27/10):** fica para a migração do automático (fluxo novo só na tela); a remessa presa fecha pela linha `proc:` na tela.
 - **Onde entra:** item 4 da [tarefa 02](tasks/02-close-batch-by-proc-id.md)
   (automático por proc_id), não no fechamento novo da TS-5377: este só aceita
   chave `origem:` (`api/liquidacao/refact.py:203-207`); a linha `proc` segue no

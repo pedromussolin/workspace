@@ -4,10 +4,10 @@
 > repositório, revisão do orquestrador antes de juntar) ou superpowers:executing-plans. Passos em
 > checkbox (`- [ ]`).
 
-- **Data:** 27/10/2026. Status: **blocos 1 e 2 em PR para a sandbox** (27/10), validados no
-  [estresse local](../evidence/closing-stress-2026-10-27.md). Fase 2: cessão #2710, BFF #228, front
-  #241. TS-5435: cessão #2711, BFF #229, front #242 (montadas sobre a fase 2). Na `-sdbx` da cessão
-  a migration encadeia na cabeça da sandbox (`e5a1c7b3d9f2`). Falta: fase 0 (Datadog) e fase 3.
+- **Data:** 27/10/2026. Status: fase 2 e TS-5435 em PR para a sandbox, para o Pietro mergear. A
+  TS-5435 foi reescopada no mesmo dia para **só o fluxo novo** (decisão de 27/10 em
+  `decisions.md`): legado como na master, linha = remessa inteira, B19 e agendado por remessa
+  para a migração. As seções B0 a B4 abaixo descrevem o desenho anterior a esse reescopo.
 - **Tarefas:** fase 2 na TS-5377; tarefa 02 na **TS-5435** (épico TS-5278).
 - **Decidido em 27/10:** D22 (lote por produto, fundo, originador e proc_id; a linha da tela
   segue o mesmo agrupamento) e D23 (remessa em processamento: 400). D7 vai pela D24
