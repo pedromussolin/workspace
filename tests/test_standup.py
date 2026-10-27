@@ -25,6 +25,7 @@ GH_ANSWER = {
                     "title": "feat(TS-101): tela de exemplo",
                     "state": "OPEN",
                     "mergedAt": None,
+                    "updatedAt": "2026-10-26T09:30:00Z",
                     "headRefName": "feature/TS-101-tela",
                     "url": "https://github.com/example/app/pull/12",
                     "repository": {"name": "app"},
@@ -34,6 +35,7 @@ GH_ANSWER = {
                     "title": "chore(TS-101, TS-102): ajuste",
                     "state": "MERGED",
                     "mergedAt": "2026-10-26T17:14:40Z",
+                    "updatedAt": "2026-10-26T17:14:41Z",
                     "headRefName": "chore/TS-102-ajuste",
                     "url": "https://github.com/example/api/pull/7",
                     "repository": {"name": "api"},
@@ -135,7 +137,7 @@ def test_keys_in_keeps_order_and_drops_repeats():
 def test_window_on_monday_starts_friday(roots, workspace, fake_gh, home):
     result = _collect(roots, workspace)
     assert result["window"] == {"since": "2026-10-23", "until": "2026-10-26"}
-    assert "updated:>=2026-10-23" in "\n".join(fake_gh.args())
+    assert "updated:>=2026-10-21" in "\n".join(fake_gh.args())
 
 
 def test_author_is_each_repos_git_email(roots, workspace, fake_gh, home, make_repo, commit):
@@ -219,6 +221,7 @@ def test_prs_come_from_one_search(roots, workspace, fake_gh, home):
         "title": "chore(TS-101, TS-102): ajuste",
         "state": "merged",
         "merged_at": "2026-10-26T17:14:40Z",
+        "updated_at": "2026-10-26T17:14:41Z",
         "url": "https://github.com/example/api/pull/7",
         "keys": ["TS-101", "TS-102"],
     }
@@ -226,7 +229,7 @@ def test_prs_come_from_one_search(roots, workspace, fake_gh, home):
     assert result["prs"][0]["merged_at"] is None
     args = fake_gh.args()
     assert args[:2] == ["api", "graphql"]
-    assert "q=is:pr author:@me updated:>=2026-10-23" in args
+    assert "q=is:pr author:@me updated:>=2026-10-21" in args
 
 
 @pytest.mark.parametrize(
@@ -501,3 +504,8 @@ def test_cli_prints_compact_json(
     assert out.count("\n") == 1
     assert '"window":{"since":"2026-10-23"' in out
     assert "ação" in out
+
+
+def test_pr_search_covers_the_stale_window(roots, workspace, fake_gh, home):
+    _collect(roots, workspace, stale=8)
+    assert "q=is:pr author:@me updated:>=2026-10-14" in fake_gh.args()

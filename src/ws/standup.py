@@ -14,7 +14,7 @@ NEXT_STEP_HEADING = "## Próximo passo"
 PR_SEARCH_LIMIT = 100
 PR_QUERY = (
     "query($q:String!){search(query:$q,type:ISSUE,first:100){issueCount nodes{"
-    "... on PullRequest{number title state mergedAt headRefName url repository{name}}}}}"
+    "... on PullRequest{number title state mergedAt updatedAt headRefName url repository{name}}}}}"
 )
 FIELD_SEPARATOR = "\x1f"
 
@@ -140,6 +140,7 @@ def _parse_prs(answer: str, warnings: list[str]) -> list[dict]:
             "title": node["title"],
             "state": node["state"].lower(),
             "merged_at": node["mergedAt"],
+            "updated_at": node["updatedAt"],
             "url": node["url"],
             "keys": keys_in(f"{node['title']} {node['headRefName']}"),
         }
@@ -151,8 +152,8 @@ def _parse_prs(answer: str, warnings: list[str]) -> list[dict]:
     return prs
 
 
-def _pull_requests(gh: str, since: date, warnings: list[str]) -> list[dict]:
-    search = f"is:pr author:@me updated:>={since.isoformat()}"
+def _pull_requests(gh: str, stale_since: date, warnings: list[str]) -> list[dict]:
+    search = f"is:pr author:@me updated:>={stale_since.isoformat()}"
     try:
         result = subprocess.run(
             [gh, "api", "graphql", "-f", f"query={PR_QUERY}", "-f", f"q={search}"],
@@ -228,7 +229,7 @@ def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") ->
         "window": {"since": since.isoformat(), "until": today.isoformat()},
         "commits": commits,
         "branches": branches,
-        "prs": _pull_requests(gh, since, warnings),
+        "prs": _pull_requests(gh, stale_since, warnings),
         "last_activity": last_activity,
         "next_steps": _next_steps(workspace, warnings),
         "warnings": warnings,
