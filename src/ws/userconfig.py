@@ -1,5 +1,6 @@
 """Local, per-user config of ws: `config.toml` (no secrets) and the Jira token in `credentials`."""
 
+import errno
 import json
 import os
 import stat
@@ -160,7 +161,7 @@ def _refuse_foreign_credentials(path: Path) -> None:
     except FileNotFoundError:
         return
     if stat.S_ISLNK(info.st_mode):
-        raise ConfigInvalid(f"{path} is a symlink; the API key is read only from a real file")
+        raise ConfigInvalid(f"{path} is a symlink; the API key is only read from a real file")
     if info.st_uid != os.getuid():
         raise ConfigInvalid(f"{path} is not owned by you; the API key is not read from it")
 
@@ -177,6 +178,7 @@ def load_jira_token() -> str:
 
 def save_jira_token(value: str) -> Path:
     path = _credentials_path()
+    _refuse_foreign_credentials(path)
     try:
         existing = _read_toml(path)
     except ConfigMissing:
@@ -186,8 +188,16 @@ def save_jira_token(value: str) -> Path:
     folder = path.parent
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     folder.chmod(0o700)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ConfigInvalid(
+                f"{path} is a symlink; the API key is not written through it"
+            ) from None
+        raise
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        os.fchmod(handle.fileno(), 0o600)
         handle.write(f"[jira]\ntoken = {json.dumps(value)}\n")
-    path.chmod(0o600)
     return path

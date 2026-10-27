@@ -822,3 +822,83 @@ def test_card_gate_problems_name_what_is_missing(tmp_path):
 
     settings.write_text(json.dumps(_registered_gates()), encoding="utf-8")
     assert card_gate_problems(settings) == []
+
+
+def _settings_with_entry(entry: dict) -> dict:
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"] = [
+        e for e in gates["hooks"]["PreToolUse"] if ASK_SCRIPT not in json.dumps(e)
+    ]
+    gates["hooks"]["PreToolUse"].append(entry)
+    return gates
+
+
+def _entry(command: str, matcher: str | None = "Bash", kind: str = "command") -> dict:
+    entry: dict = {"hooks": [{"type": kind, "command": command}]}
+    if matcher is not None:
+        entry["matcher"] = matcher
+    return entry
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"'),
+        _entry(f"python3 /srv/ws/{ASK_SCRIPT}"),
+        _entry(f"python /srv/ws/{ASK_SCRIPT}"),
+        _entry(f"/usr/bin/python3.12 -I /srv/ws/{ASK_SCRIPT}"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Write|Bash"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Bash|Edit"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="*"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher=""),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher=None),
+    ],
+)
+def test_a_real_registration_of_the_card_hook_is_accepted(tmp_path, entry):
+    from ws.bootstrap import card_gate_problems
+
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps(_settings_with_entry(entry)), encoding="utf-8")
+
+    assert card_gate_problems(settings) == []
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        _entry(f"echo {ASK_SCRIPT}", matcher="Write"),
+        _entry(f"echo {ASK_SCRIPT}"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Write"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Bashful"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="bash"),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="("),
+        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', kind="prompt"),
+        _entry(f'echo "python3 {ASK_SCRIPT}"'),
+        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT}; echo"),
+        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT}.bak"),
+        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT} --dry"),
+        _entry(f"cat /srv/ws/{ASK_SCRIPT}"),
+        _entry("python3 -I 'unterminated"),
+        {"matcher": "Bash", "hooks": "none"},
+        {"matcher": ["Bash"], "hooks": [{"type": "command", "command": f"python3 {ASK_SCRIPT}"}]},
+    ],
+)
+def test_a_forged_or_misplaced_hook_entry_does_not_count(tmp_path, entry):
+    from ws.bootstrap import card_gate_problems
+
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps(_settings_with_entry(entry)), encoding="utf-8")
+
+    [problem] = card_gate_problems(settings)
+    assert ASK_SCRIPT in problem
+
+
+def test_setup_asks_again_for_a_forged_hook_entry(env):
+    _write_settings(env.settings, _settings_with_entry(_entry(f"echo {ASK_SCRIPT}", "Write")))
+
+    result = _setup(env)
+
+    _, block = _needs_block(result)
+    assert [e["hooks"][0]["command"] for e in block["hooks"]["PreToolUse"]] == [
+        f'python3 -I "{env.repo / ASK_SCRIPT}"'
+    ]

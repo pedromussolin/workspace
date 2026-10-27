@@ -264,3 +264,33 @@ def test_load_token_refuses_a_credentials_file_of_another_owner(config_dir, monk
 
     with pytest.raises(ConfigInvalid, match="owned"):
         load_jira_token()
+
+
+def test_save_token_refuses_to_write_through_a_symlink(config_dir, tmp_path):
+    victim = tmp_path / "victim.toml"
+    victim.write_text("keep me\n", encoding="utf-8")
+    (config_dir / "credentials").symlink_to(victim)
+
+    with pytest.raises(ConfigInvalid, match="symlink"):
+        save_jira_token("secret")
+
+    assert victim.read_text(encoding="utf-8") == "keep me\n"
+
+
+def test_save_token_refuses_a_dangling_symlink(config_dir, tmp_path):
+    target = tmp_path / "not-yet"
+    (config_dir / "credentials").symlink_to(target)
+
+    with pytest.raises(ConfigInvalid, match="symlink"):
+        save_jira_token("secret")
+
+    assert not target.exists()
+
+
+def test_save_token_refuses_a_file_of_another_owner(config_dir, monkeypatch):
+    save_jira_token("first")
+    mine = (config_dir / "credentials").stat().st_uid
+    monkeypatch.setattr("os.getuid", lambda: mine + 1)
+
+    with pytest.raises(ConfigInvalid, match="owned"):
+        save_jira_token("second")

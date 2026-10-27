@@ -148,10 +148,12 @@ def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
         raise SetupNeeded("config.toml [jira] project is not a valid project key")
     try:
         credential = userconfig.load_jira_token()
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid):
+    except userconfig.ConfigMissing:
         raise SetupNeeded(
             "no Jira API key; run `ws config token jira` in your own terminal"
         ) from None
+    except userconfig.ConfigInvalid as error:
+        raise SetupNeeded(str(error)) from None
     try:
         client = JiraClient(settings.site, settings.email, credential, timeout=REQUEST_TIMEOUT)
     except SiteRefused as error:
@@ -493,12 +495,12 @@ def _send_all(settings, client: JiraClient, plan: Plan) -> int:
             answer = _send(client, request)
         except JiraError as error:
             _report_failure(settings, plan, index, error, applied)
-            _drop_records_for(applied_paths)
+            _drop_records_for([*applied_paths, item.path])
             return 3
         except Exception as error:
             unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
             _report_failure(settings, plan, index, unknown, applied)
-            _drop_records_for(applied_paths)
+            _drop_records_for([*applied_paths, item.path])
             return 3
         applied_paths.append(item.path)
         applied.append(item.path.name)

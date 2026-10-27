@@ -12,13 +12,15 @@ listed instead.
 
 import json
 import os
+import re
+import shlex
 import shutil
 import stat
 import subprocess
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from ws import dictionary
 from ws.config import claude_settings_path
@@ -331,13 +333,43 @@ def _as_list(value: object) -> list:
 
 
 def _has_hook_gate(settings: dict, script: str) -> bool:
+    """A `PreToolUse` entry that covers the Bash tool and runs `script` with python.
+
+    A substring match would accept `echo <script>` or an entry for another tool.
+    """
     entries = _as_list(_as_dict(settings.get("hooks")).get("PreToolUse"))
     for entry in entries:
-        for hook in _as_list(_as_dict(entry).get("hooks")):
-            command = _as_dict(hook).get("command")
-            if isinstance(command, str) and script in command:
+        entry = _as_dict(entry)
+        if not _matcher_covers_bash(entry.get("matcher")):
+            continue
+        for hook in _as_list(entry.get("hooks")):
+            hook = _as_dict(hook)
+            if hook.get("type") == "command" and _runs_script(hook.get("command"), script):
                 return True
     return False
+
+
+def _matcher_covers_bash(matcher: object) -> bool:
+    if matcher is None or matcher in ("", "*"):
+        return True
+    if not isinstance(matcher, str):
+        return False
+    try:
+        return re.fullmatch(matcher, "Bash") is not None
+    except re.error:
+        return False
+
+
+def _runs_script(command: object, script: str) -> bool:
+    if not isinstance(command, str):
+        return False
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return False
+    if len(words) < 2 or not re.fullmatch(r"python[0-9.]*", PurePath(words[0]).name):
+        return False
+    return words[-1] == script or words[-1].endswith(f"/{script}")
 
 
 def _has_deny_rule(settings: dict) -> bool:

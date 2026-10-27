@@ -1704,3 +1704,49 @@ def test_a_transition_without_an_id_is_refused(world, capsys):
     message = problems(make_draft("m.md", "move", key="TS-101", to="Em Validação"), capsys)
 
     assert "no id" in message
+
+
+def test_a_symlinked_or_foreign_credentials_file_has_its_own_message(
+    world, capsys, ws_config, tmp_path
+):
+    real = tmp_path / "elsewhere"
+    real.write_text('[jira]\ntoken = "stolen"\n', encoding="utf-8")
+    (ws_config / "credentials").unlink()
+    (ws_config / "credentials").symlink_to(real)
+
+    assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 2
+
+    err = capsys.readouterr().err
+    assert "symlink" in err and "no Jira API key" not in err
+    assert world.fake.requests == []
+
+
+def test_a_failed_draft_also_drops_the_pending_records_that_mention_it(world, capsys):
+    drafts = folder_with_three()
+    world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (400, "{}")
+    _, folder_code = preview(drafts, capsys)
+    edit = drafts / "2-edit.md"
+    _, edit_code = preview(edit, capsys)
+    worklog = drafts / "3-worklog.md"
+    _, worklog_code = preview(worklog, capsys)
+    assert len(pending_files()) == 3
+    capsys.readouterr()
+
+    assert approve(drafts, folder_code) == 3
+
+    assert [p.stem for p in pending_files()] == [worklog_code]
+    assert edit_code not in [p.stem for p in pending_files()]
+
+
+def test_an_uncertain_draft_also_drops_the_pending_records_that_mention_it(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    make_draft("1-c.md", "comment", "Um.\n", key="TS-101")
+    make_draft("2-c.md", "comment", "Dois.\n", key="TS-101")
+    world.fake.routes[("POST", "/rest/api/3/issue/TS-101/comment")] = (502, "{}")
+    _, folder_code = preview(drafts, capsys)
+    preview(drafts / "1-c.md", capsys)
+    assert len(pending_files()) == 2
+
+    assert approve(drafts, folder_code) == 3
+
+    assert pending_files() == []
