@@ -68,3 +68,10 @@ decides, asks and writes the prose.
 | 5 | Local validation | the right checks of each company repo before any environment (Docker for the assignment backend, `validate.sh` for the front, the heavy-command slot) | `ws validate REPO` runs the per-repo recipe from the local config |
 | 6 | GMUD evidence (extends `change-request`) | gather the Datadog numbers and the screenshots of a deploy | a script per evidence kind (Playwright screenshots, Datadog queries through the API when a key exists, the MCP otherwise) |
 | 7 | Board review | the user's open cards (status not done or cancelled), grouped by epic, the stale ones flagged (no update and no own commit for N workdays), and what to close or move; it took over the open-card list the daily dropped on 2026-10-27 | `ws board review` prints the JSON (cards through `ws task list`, activity through `ws standup collect`, the rules in code); any change goes through item 1's `ws task apply` with approval |
+
+## Daily
+
+| Item | Why it waits | Fix when picked up |
+|---|---|---|
+| In the MCP fallback the model still builds `cards.json` by hand (and the Write tool may be denied in a sandbox) | the REST path (`ws task list`) is the main path once the user creates the Jira API key, which removes the hand-built file in daily use | the user runs `ws config token jira` in their own terminal; if the MCP path stays relevant, a `ws task import` that maps the raw MCP answer to compact cards with `card_from_issue` |
+| A full eval run costs about 6–7.5 USD (2026-10-27) | the suite exists; one-run validations cost about 1 USD | full runs only before merging a big change to the skill; one-run validations for small ones |
