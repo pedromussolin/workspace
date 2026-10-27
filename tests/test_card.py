@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ws import card
+from ws import card, cardrules
 from ws.adf import to_adf
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
@@ -764,7 +764,9 @@ def test_approve_with_a_wrong_code_sends_nothing_and_keeps_the_record(world, cap
     assert len(pending_files()) == 1
 
 
-@pytest.mark.parametrize("code", ["../../evil", "ABCDEF012345", "abc", "abcdef01234g", ""])
+@pytest.mark.parametrize(
+    "code", ["../../evil", "ABCDEF012345", "abc", "abcdef01234g", "", "abcdef012345\n"]
+)
 def test_approve_rejects_a_malformed_code_before_touching_the_disk(world, capsys, code):
     assert approve(create_draft(), code) == 1
     assert world.fake.requests == []
@@ -1176,3 +1178,379 @@ def test_guard_allows_only_the_five_shapes_on_cards_of_the_project():
         ("POST", "/rest/api/3/issue/TS-1/../TS-2"),
     ]:
         assert card.guard("TS", [{"method": method, "path": path}]) == f"{method} {path}"
+
+
+def read_record():
+    [path] = pending_files()
+    return path, json.loads(path.read_text())
+
+
+def test_a_cosmetic_change_to_a_draft_after_the_preview_is_refused(world, capsys):
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+    _, code = dry_run(path, capsys)
+    path.write_text(path.read_text() + "\n  \n")
+
+    assert approve(path, code) == 1
+
+    assert "changed" in capsys.readouterr().err
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+
+def test_a_renamed_draft_or_a_copy_elsewhere_is_refused_even_with_the_same_requests(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    make_draft("a.md", "move", key="TS-101", to="Em Validação")
+    _, code = dry_run(drafts, capsys)
+    (drafts / "a.md").rename(drafts / "b.md")
+
+    assert approve(drafts, code) == 1
+    assert "changed" in capsys.readouterr().err
+    assert world.writes() == []
+
+    (drafts / "b.md").rename(drafts / "a.md")
+    copy = drafts / "sub" / "a.md"
+    copy.parent.mkdir()
+    copy.write_text((drafts / "a.md").read_text())
+    assert approve(copy, code) == 1
+    assert world.writes() == []
+
+
+def test_a_malformed_code_never_reads_a_file_outside_the_pending_folder(world, capsys):
+    card._ensure_store()
+    planted = data_dir() / "cards" / "x.json"
+    old = (NOW - timedelta(hours=2)).isoformat()
+    planted.write_text(json.dumps({"created_at": old}))
+    planted.chmod(0o600)
+
+    assert approve(create_draft(), "../x") == 1
+
+    assert planted.exists()
+    assert json.loads(planted.read_text()) == {"created_at": old}
+    assert world.fake.requests == []
+
+
+def test_the_code_changes_with_the_path_the_site_and_the_before_state():
+    request = {"method": "PUT", "path": "/rest/api/3/issue/TS-1", "body": {"fields": {"a": 1}}}
+    base = card.approval_code("https://example.atlassian.net", [request], [{}])
+
+    assert base == card.approval_code("https://example.atlassian.net/", [request], [{}])
+    other_key = {**request, "path": "/rest/api/3/issue/TS-2"}
+    assert card.approval_code("https://example.atlassian.net", [other_key], [{}]) != base
+    assert card.approval_code("https://other.atlassian.net", [request], [{}]) != base
+    other_method = {**request, "method": "POST"}
+    assert card.approval_code("https://example.atlassian.net", [other_method], [{}]) != base
+    other_body = {**request, "body": {"fields": {"a": 2}}}
+    assert card.approval_code("https://example.atlassian.net", [other_body], [{}]) != base
+    assert card.approval_code("https://example.atlassian.net", [request], [{"a": 1}]) != base
+
+
+def test_a_pending_record_for_another_site_is_refused(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    record_path, record = read_record()
+    record["site"] = "https://other.atlassian.net"
+    record_path.write_text(json.dumps(record))
+
+    assert approve(path, code) == 1
+
+    assert "differ" in capsys.readouterr().err
+    assert world.writes() == []
+    assert record_path.exists()
+
+
+def test_a_draft_outside_the_drafts_folder_is_refused_everywhere(world, capsys, tmp_path):
+    outside = tmp_path / "elsewhere.md"
+    outside.write_text(create_draft().read_text())
+
+    assert main(["card", "check", str(outside)]) == 1
+    assert "inside" in capsys.readouterr().out
+    assert main(["card", "apply", str(outside), "--dry-run"]) == 1
+    assert main(["card", "apply", str(tmp_path), "--dry-run"]) == 1
+    assert main(["card", "apply", str(outside), "--approve", "abcdef012345"]) == 1
+    assert world.fake.requests == []
+    assert pending_files() == []
+
+
+def test_a_symlink_that_leaves_the_drafts_folder_is_refused(world, capsys, tmp_path):
+    drafts = data_dir() / "cards" / "drafts"
+    drafts.mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "secret.md"
+    outside.write_text(create_draft().read_text())
+    (drafts / "link.md").symlink_to(outside)
+
+    assert main(["card", "check", str(drafts / "link.md")]) == 1
+    assert main(["card", "apply", str(drafts), "--dry-run"]) == 1
+    assert "symlink" in capsys.readouterr().err
+    assert main(["card", "apply", str(drafts / "link.md"), "--dry-run"]) == 1
+    folder_link = data_dir() / "cards" / "linked"
+    folder_link.symlink_to(tmp_path)
+    assert main(["card", "apply", str(folder_link), "--dry-run"]) == 1
+    assert world.fake.requests == []
+    assert outside.exists()
+
+
+def test_a_symlink_inside_the_drafts_folder_is_also_refused(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    real = make_draft("real.md", "comment", "Oi.\n", key="TS-101")
+    (drafts / "alias.md").symlink_to(real)
+
+    assert main(["card", "apply", str(drafts), "--dry-run"]) == 1
+    assert main(["card", "check", str(drafts / "alias.md")]) == 1
+
+
+def test_only_files_inside_the_drafts_folder_are_moved_to_done(world, tmp_path):
+    card._ensure_store()
+    outside = tmp_path / "keep.md"
+    outside.write_text("x")
+
+    with pytest.raises(OSError, match="not inside"):
+        card._move_to_done(outside)
+
+    assert outside.exists()
+    assert list((data_dir() / "cards" / "done").iterdir()) == []
+
+
+def test_an_edit_is_refused_when_the_card_changed_since_the_preview(world, capsys):
+    path = make_draft("e.md", "edit", key="TS-101", title="[FRONT] Novo título")
+    _, code = dry_run(path, capsys)
+    world.set_card("TS-101", fields={"summary": "[FRONT] Alguém mexeu"})
+
+    assert approve(path, code) == 1
+
+    assert "o card mudou no Jira desde a prévia; rode o --dry-run de novo" in (
+        capsys.readouterr().err
+    )
+    assert world.writes() == []
+
+
+@pytest.mark.parametrize(
+    "draft, change",
+    [
+        (("priority", "High"), {"priority": {"name": "Low"}}),
+        (("due", date(2026, 11, 20)), {"duedate": "2026-11-06"}),
+        (("start", date(2026, 10, 27)), {START_FIELD: "2026-10-20"}),
+    ],
+)
+def test_every_changed_field_is_covered_by_the_before_state(world, capsys, draft, change):
+    path = make_draft("e.md", "edit", key="TS-101", **{draft[0]: draft[1]})
+    _, code = dry_run(path, capsys)
+    world.set_card("TS-101", fields=change)
+
+    assert approve(path, code) == 1
+    assert world.writes() == []
+
+
+def test_an_edit_of_the_description_is_refused_when_the_old_text_changed(world, capsys):
+    path = make_draft(
+        "e.md", "edit", "## Contexto\nNovo.\n\n## Pronto quando\n- ok\n", key="TS-101"
+    )
+    _, code = dry_run(path, capsys)
+    world.set_card("TS-101", description=to_adf(SECTIONS + "\nmais uma linha\n"))
+
+    assert approve(path, code) == 1
+    assert world.writes() == []
+
+
+def test_an_edit_whose_card_did_not_change_is_still_approved(world, capsys):
+    path = make_draft("e.md", "edit", key="TS-101", title="[FRONT] Novo título")
+    _, code = dry_run(path, capsys)
+    world.set_card("TS-101", fields={"duedate": "2026-12-01"})
+
+    assert approve(path, code) == 0
+
+
+def test_a_move_is_refused_when_the_status_changed_since_the_preview(world, capsys):
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+    _, code = dry_run(path, capsys)
+    status = {"name": "Blocked", "statusCategory": {"key": "indeterminate"}}
+    world.set_card("TS-101", status=status)
+
+    assert approve(path, code) == 1
+
+    assert "o card mudou no Jira desde a prévia" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_pending_record_dated_in_the_future_is_refused(world, capsys, monkeypatch):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    monkeypatch.setattr(card, "_now", lambda: NOW - timedelta(minutes=5))
+
+    assert approve(path, code) == 1
+
+    assert "future" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_pending_record_that_is_not_private_is_refused(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    record_path, _ = read_record()
+    record_path.chmod(0o644)
+
+    assert approve(path, code) == 1
+    assert "not a private file" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_pending_record_owned_by_someone_else_is_refused(world, capsys, monkeypatch):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    monkeypatch.setattr(card.os, "getuid", lambda: os.stat(data_dir()).st_uid + 1)
+
+    assert approve(path, code) == 1
+    assert "not a private file" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_pending_record_that_is_a_symlink_is_refused(world, capsys, tmp_path):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    record_path, _ = read_record()
+    target = tmp_path / "real.json"
+    record_path.rename(target)
+    record_path.symlink_to(target)
+
+    assert approve(path, code) == 1
+    assert world.writes() == []
+
+
+def test_a_day_rollover_between_preview_and_approve_says_so(world, capsys, monkeypatch):
+    path = create_draft(start=None)
+    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
+    _, code = dry_run(path, capsys)
+    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
+
+    assert approve(path, code) == 1
+
+    assert "a data de hoje mudou desde a prévia; rode o --dry-run de novo" in (
+        capsys.readouterr().err
+    )
+    assert world.writes() == []
+
+
+def test_a_day_rollover_does_not_matter_when_nothing_depends_on_today(world, capsys, monkeypatch):
+    path = create_draft(start=date(2026, 10, 27))
+    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
+    _, code = dry_run(path, capsys)
+    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
+
+    assert approve(path, code) == 0
+
+
+def test_the_printed_approve_command_is_shell_quoted(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    path = make_draft("a b; echo $x.md", "comment", "Oi.\n", key="TS-101")
+
+    out, code = dry_run(path, capsys)
+
+    assert f"ws card apply '{path}' --approve {code}" in out
+    assert drafts.exists()
+
+
+def test_a_pending_record_that_cannot_be_saved_is_a_clear_message(world, capsys, monkeypatch):
+    original = os.open
+
+    def deny(path, *args, **kwargs):
+        if str(path).endswith(".json"):
+            raise PermissionError(13, "Permission denied")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(card.os, "open", deny)
+
+    assert main(["card", "apply", str(create_draft()), "--dry-run"]) == 1
+
+    captured = capsys.readouterr()
+    assert "could not save the pending record" in captured.err
+    assert "Código de aprovação" not in captured.out
+    assert pending_files() == []
+
+
+def test_an_unexpected_error_after_a_write_still_reports_it_and_lists_the_rest(
+    world, capsys, monkeypatch
+):
+    drafts = folder_with_three()
+    _, code = dry_run(drafts, capsys)
+    capsys.readouterr()
+    original = card._send
+    calls = []
+
+    def flaky(client, request):
+        calls.append(request["path"])
+        if len(calls) == 2:
+            raise RuntimeError("boom")
+        return original(client, request)
+
+    monkeypatch.setattr(card, "_send", flaky)
+
+    assert approve(drafts, code) == 3
+
+    out = capsys.readouterr().out
+    assert "Aplicado: 1-comment.md" in out
+    assert "Já aplicados: 1-comment.md" in out
+    assert "2-edit.md: resultado incerto" in out
+    assert "Não enviados: 3-worklog.md" in out
+    assert sorted(p.name for p in drafts.iterdir()) == ["2-edit.md", "3-worklog.md"]
+    assert [p.name for p in (data_dir() / "cards" / "done").iterdir()] == ["1-comment.md"]
+
+
+def test_a_failure_moving_an_applied_draft_does_not_hide_the_write(world, capsys, monkeypatch):
+    drafts = folder_with_three()
+    _, code = dry_run(drafts, capsys)
+    capsys.readouterr()
+    original = card._move_to_done
+
+    def broken(path):
+        if path.name.startswith("1-"):
+            raise OSError("disk full")
+        return original(path)
+
+    monkeypatch.setattr(card, "_move_to_done", broken)
+
+    assert approve(drafts, code) == 0
+
+    out = capsys.readouterr().out
+    assert "Aplicado, mas não consegui mover 1-comment.md" in out
+    assert len(world.writes()) == 3
+
+
+def test_an_odd_answer_to_a_write_does_not_turn_a_success_into_an_error(world, capsys):
+    world.fake.routes[("POST", "/rest/api/3/issue")] = (201, "[]")
+    path = create_draft()
+    _, code = dry_run(path, capsys)
+    capsys.readouterr()
+
+    assert approve(path, code) == 0
+
+    assert "Criado: create.md" in capsys.readouterr().out
+    assert not path.exists()
+
+
+def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys, monkeypatch):
+    forged = cardrules.Verdict(
+        request={"method": "DELETE", "path": "/rest/api/3/issue/TS-101", "body": {}},
+        preview=["forjado"],
+        resolved={"today": "2026-10-27"},
+    )
+    monkeypatch.setattr(cardrules, "check", lambda context, draft: forged)
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+
+    assert approve(path, code) == 1
+
+    assert "outside the allowed shapes" in capsys.readouterr().err
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+
+def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys, ws_config):
+    (ws_config / "config.toml").write_text(
+        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'
+        f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
+        f'sprint_field = "{SPRINT_FIELD}"\n',
+        encoding="utf-8",
+    )
+
+    assert main(["card", "check", str(create_draft())]) == 2
+    assert "project" in capsys.readouterr().err
+    assert world.fake.requests == []

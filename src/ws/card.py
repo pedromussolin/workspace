@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
+import stat
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -19,8 +21,8 @@ from ws.jira import JiraClient, JiraError
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = timedelta(minutes=30)
 
-_CODE = re.compile(r"^[0-9a-f]{12}$")
-_PROJECT = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_CODE = re.compile(r"[0-9a-f]{12}")
+_PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _SUBFOLDERS = ("drafts", "pending", "done")
 
 
@@ -45,6 +47,18 @@ class Plan:
     def ok(self) -> bool:
         return all(not verdict.problems for verdict in self.verdicts)
 
+    @property
+    def requests(self) -> list[dict]:
+        return [verdict.request for verdict in self.verdicts]
+
+    @property
+    def befores(self) -> list[dict]:
+        return [verdict.before for verdict in self.verdicts]
+
+    @property
+    def today(self) -> str | None:
+        return self.verdicts[0].resolved.get("today") if self.verdicts else None
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -61,14 +75,30 @@ def _ensure_store() -> None:
         folder.chmod(0o700)
 
 
+def _drafts_root() -> Path:
+    return _store("drafts").resolve()
+
+
 def collect(argument: str, single: bool = False) -> list[Path]:
-    path = Path(argument).expanduser().resolve()
+    """Drafts are real files under `cards/drafts/`: nothing else is read, moved or sent."""
+    root = _drafts_root()
+    path = Path(argument).expanduser()
+    if path.is_symlink() or not path.resolve().is_relative_to(root):
+        raise DraftError([f"{argument} is not a real file or folder inside {root}"])
+    path = path.resolve()
     if path.is_file():
         return [path]
     if single:
         raise DraftError([f"{argument} is not a draft file"])
     if path.is_dir():
-        found = sorted(item for item in path.iterdir() if item.is_file() and item.suffix == ".md")
+        found = []
+        for item in sorted(path.iterdir()):
+            if item.suffix != ".md":
+                continue
+            if item.is_symlink() or not item.resolve().is_relative_to(root):
+                raise DraftError([f"{item.name} is a symlink or leaves {root}"])
+            if item.is_file():
+                found.append(item.resolve())
         if found:
             return found
         raise DraftError([f"{argument} holds no .md drafts"])
@@ -114,7 +144,7 @@ def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
             f"config.toml [jira] is missing {', '.join(missing)}; see the README section "
             '"Local config"'
         )
-    if not _PROJECT.match(settings.project):
+    if not _PROJECT.fullmatch(settings.project):
         raise SetupNeeded("config.toml [jira] project is not a valid project key")
     try:
         credential = userconfig.load_jira_token()
@@ -137,6 +167,9 @@ def _run(command: str, action) -> int:
     except (KeyError, TypeError, AttributeError) as error:
         print(f"ws card {command}: unexpected answer from Jira ({error!r})", file=sys.stderr)
         return 3
+    except OSError as error:
+        print(f"ws card {command}: file error: {error}", file=sys.stderr)
+        return 1
 
 
 def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
@@ -148,13 +181,15 @@ def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
     return Plan(loaded, verdicts)
 
 
-def approval_code(site: str, requests: list[dict]) -> str:
+def approval_code(site: str, requests: list[dict], befores: list[dict]) -> str:
+    """Covers what is sent and the state of the card the preview showed as "before"."""
     material = {
         "site": site.rstrip("/"),
         "requests": [
             {"method": item["method"], "path": item["path"], "body": item["body"]}
             for item in requests
         ],
+        "before": befores,
     }
     text = json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()[:12]
@@ -228,7 +263,7 @@ def run_apply(argument: str, dry_run: bool, approve: str | None) -> int:
     if dry_run == (approve is not None):
         print("ws card apply: use exactly one of --dry-run or --approve CODE", file=sys.stderr)
         return 1
-    if approve is not None and not _CODE.match(approve):
+    if approve is not None and not _CODE.fullmatch(approve):
         print("ws card apply: the approval code is 12 lowercase hex characters", file=sys.stderr)
         return 1
     try:
@@ -255,10 +290,16 @@ def _dry_run(argument: str, loaded: list[Loaded]) -> int:
     if not plan.ok:
         _print_problems(plan)
         return 1
-    requests = [verdict.request for verdict in plan.verdicts]
-    code = approval_code(settings.site, requests)
-    _purge_expired()
-    _write_pending(code, settings.site, loaded, requests)
+    code = approval_code(settings.site, plan.requests, plan.befores)
+    try:
+        _purge_expired()
+        _write_pending(code, settings.site, plan)
+    except OSError as error:
+        print(
+            f"ws card apply: could not save the pending record: {error.strerror or error}",
+            file=sys.stderr,
+        )
+        return 1
     print(f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao Jira.")
     for number, (item, verdict) in enumerate(zip(loaded, plan.verdicts, strict=True), start=1):
         print(f"\n[{number}/{len(loaded)}] {item.path.name}")
@@ -271,7 +312,7 @@ def _dry_run(argument: str, loaded: list[Loaded]) -> int:
         body = json.dumps(request["body"], ensure_ascii=False, indent=2)
         print("\n".join(f"    {line}" for line in body.splitlines()))
     print(f"\nCódigo de aprovação: {code}")
-    print(f"Para aplicar: ws card apply {argument} --approve {code}")
+    print(f"Para aplicar: ws card apply {shlex.quote(argument)} --approve {code}")
     return 0
 
 
@@ -279,40 +320,71 @@ def _pending_path(code: str) -> Path:
     return _store("pending", f"{code}.json")
 
 
-def _write_pending(code: str, site: str, loaded: list[Loaded], requests: list[dict]) -> None:
+def _write_pending(code: str, site: str, plan: Plan) -> None:
     record = {
         "code": code,
         "created_at": _now().isoformat(),
         "site": site.rstrip("/"),
-        "drafts": [{"path": str(item.path), "sha256": item.sha256} for item in loaded],
-        "requests": requests,
+        "today": plan.today,
+        "drafts": [{"path": str(item.path), "sha256": item.sha256} for item in plan.loaded],
+        "requests": plan.requests,
+        "before": plan.befores,
     }
-    descriptor = os.open(_pending_path(code), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        json.dump(record, handle, ensure_ascii=False)
-    _pending_path(code).chmod(0o600)
-
-
-def _read_pending(code: str) -> dict | None:
+    path = _pending_path(code)
     try:
-        record = json.loads(_pending_path(code).read_text(encoding="utf-8"))
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(record, handle, ensure_ascii=False)
+        path.chmod(0o600)
+    except OSError:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def _read_pending(code: str) -> tuple[dict | None, str | None]:
+    """(record, None) usable; (None, None) absent; (None, reason) present but refused."""
+    path = _pending_path(code)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None, None
+    except OSError as error:
+        return None, f"cannot read the pending record: {error.strerror}"
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_uid != os.getuid()
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        return None, (
+            f"the pending record {code} is not a private file of yours (owner, mode 600); "
+            "delete it and run --dry-run again"
+        )
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
         created = datetime.fromisoformat(record["created_at"])
+        if created.tzinfo is None:
+            raise ValueError("no time zone")
     except (OSError, ValueError, KeyError, TypeError):
-        return None
+        return None, f"the pending record {code} is unreadable; run --dry-run again"
+    if created > _now():
+        return None, f"the pending record {code} is dated in the future; run --dry-run again"
     record["_created"] = created
-    return record
+    return record, None
 
 
 def _purge_expired() -> None:
     for path in _store("pending").glob("*.json"):
-        record = _read_pending(path.stem)
+        record, _ = _read_pending(path.stem)
         if record is None or _now() - record["_created"] > APPROVAL_WINDOW:
             path.unlink(missing_ok=True)
 
 
 def _approve(code: str, loaded: list[Loaded]) -> int:
     _ensure_store()
-    record = _read_pending(code)
+    record, refusal = _read_pending(code)
+    if refusal:
+        print(f"ws card apply: {refusal}", file=sys.stderr)
+        return 1
     if record is None:
         print(
             f"ws card apply: no pending preview for code {code}; run --dry-run first",
@@ -322,7 +394,8 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
     if _now() - record["_created"] > APPROVAL_WINDOW:
         _pending_path(code).unlink(missing_ok=True)
         print(
-            "ws card apply: the preview expired (30 minutes); run --dry-run again", file=sys.stderr
+            "ws card apply: the preview expired (30 minutes); run --dry-run again",
+            file=sys.stderr,
         )
         return 1
     current = [{"path": str(item.path), "sha256": item.sha256} for item in loaded]
@@ -337,17 +410,11 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
     if not plan.ok:
         _print_problems(plan)
         return 1
-    requests = [verdict.request for verdict in plan.verdicts]
-    if approval_code(settings.site, requests) != code or record.get("site") != settings.site.rstrip(
-        "/"
-    ):
-        print(
-            "ws card apply: the requests now differ from the preview (Jira changed); "
-            "run --dry-run again",
-            file=sys.stderr,
-        )
+    site = settings.site.rstrip("/")
+    if approval_code(site, plan.requests, plan.befores) != code or record.get("site") != site:
+        print(f"ws card apply: {_why_it_differs(record, plan, site)}", file=sys.stderr)
         return 1
-    if (refused := guard(settings.project, requests)) is not None:
+    if (refused := guard(settings.project, plan.requests)) is not None:
         print(f"ws card apply: request outside the allowed shapes: {refused}", file=sys.stderr)
         return 1
     try:
@@ -356,6 +423,16 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
         print(f"ws card apply: the preview {code} was already used", file=sys.stderr)
         return 1
     return _send_all(settings, client, plan)
+
+
+def _why_it_differs(record: dict, plan: Plan, site: str) -> str:
+    if record.get("today") != plan.today:
+        return "a data de hoje mudou desde a prévia; rode o --dry-run de novo"
+    if record.get("site") == site and record.get("requests") == plan.requests:
+        return "o card mudou no Jira desde a prévia; rode o --dry-run de novo"
+    return (
+        "the site or the requests now differ from the preview (Jira changed); run --dry-run again"
+    )
 
 
 def guard(project: str, requests: list[dict]) -> str | None:
@@ -391,24 +468,39 @@ def _jql_for(project: str, title: str) -> str:
 
 def _send_all(settings, client: JiraClient, plan: Plan) -> int:
     site = settings.site.rstrip("/")
+    applied: list[str] = []
     for index, (item, verdict) in enumerate(zip(plan.loaded, plan.verdicts, strict=True)):
         request = verdict.request
         try:
             answer = _send(client, request)
         except JiraError as error:
-            _report_failure(settings, plan, index, error)
+            _report_failure(settings, plan, index, error, applied)
             return 3
-        key = (answer or {}).get("key") if request["path"] == "/rest/api/3/issue" else None
-        key = key or verdict.resolved.get("card", {}).get("key")
-        verb = "Criado" if request["path"] == "/rest/api/3/issue" else "Aplicado"
-        link = f" {site}/browse/{key}" if key else ""
-        print(f"{verb}: {item.path.name}{link}")
-        _move_to_done(item.path)
+        except Exception as error:
+            unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
+            _report_failure(settings, plan, index, unknown, applied)
+            return 3
+        applied.append(item.path.name)
+        _report_applied(site, item, verdict, answer)
+        try:
+            _move_to_done(item.path)
+        except OSError as error:
+            print(f"Aplicado, mas não consegui mover {item.path.name} para done/: {error}")
     return 0
 
 
-def _report_failure(settings, plan: Plan, index: int, error: JiraError) -> None:
+def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
+    creating = verdict.request["path"] == "/rest/api/3/issue"
+    key = answer.get("key") if creating and isinstance(answer, dict) else None
+    key = key or verdict.resolved.get("card", {}).get("key")
+    link = f" {site}/browse/{key}" if key else ""
+    print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
+
+
+def _report_failure(settings, plan: Plan, index: int, error: JiraError, applied: list[str]) -> None:
     item, verdict = plan.loaded[index], plan.verdicts[index]
+    if applied:
+        print(f"Já aplicados: {', '.join(applied)}")
     if error.uncertain:
         print(f"{item.path.name}: resultado incerto: confira no Jira ({error})")
         if verdict.request["path"] == "/rest/api/3/issue":
@@ -425,6 +517,9 @@ def _report_failure(settings, plan: Plan, index: int, error: JiraError) -> None:
 
 
 def _move_to_done(path: Path) -> None:
+    root = _drafts_root()
+    if path.is_symlink() or not path.resolve().is_relative_to(root):
+        raise OSError(f"{path} is not inside {root}; left where it is")
     target = _store("done", path.name)
     number = 1
     while target.exists():

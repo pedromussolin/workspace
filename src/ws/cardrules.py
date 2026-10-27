@@ -27,6 +27,7 @@ class Verdict:
     resolved: dict = field(default_factory=dict)
     preview: list[str] = field(default_factory=list)
     request: dict | None = None
+    before: dict = field(default_factory=dict)
 
 
 def fold(text: str) -> str:
@@ -343,12 +344,14 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         return
     settings = ctx.settings
     changes: dict = {}
+    before: dict = {}
     lines = [f"Editar o card {key}"]
 
     new_epic = ctx.epic(values["epic"], verdict) if "epic" in values else None
     current_parent = current.get("parent") or {}
     if "epic" in values and new_epic and current_parent.get("key") != new_epic["key"]:
         changes["parent"] = {"key": new_epic["key"]}
+        before["parent"] = current_parent.get("key")
         lines.append(f"Épico: {current_parent.get('key') or '(nenhum)'} -> {new_epic['key']}")
     if "title" in values:
         verdict.problems.extend(_summary_problems(values["title"]))
@@ -367,6 +370,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             verdict.problems.append(problem)
     if "title" in values and values["title"] != current.get("summary"):
         changes["summary"] = values["title"]
+        before["summary"] = current.get("summary")
         lines.append(f"Título: {current.get('summary')} -> {values['title']}")
 
     if "priority" in values:
@@ -379,6 +383,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         old = (current.get("priority") or {}).get("name")
         if values["priority"] != old:
             changes["priority"] = {"name": values["priority"]}
+            before["priority"] = old
             lines.append(f"Prioridade: {old or '(nenhuma)'} -> {values['priority']}")
 
     old_start = _parse_day(current.get(settings.start_date_field))
@@ -389,9 +394,11 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         )
     if "start" in values and values["start"] != old_start:
         changes[settings.start_date_field] = values["start"].isoformat()
+        before[settings.start_date_field] = old_start.isoformat() if old_start else None
         lines.append(f"Início: {old_start or '(nenhum)'} -> {values['start'].isoformat()}")
     if "due" in values and values["due"] != old_due:
         changes["duedate"] = values["due"].isoformat()
+        before["duedate"] = old_due.isoformat() if old_due else None
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
     if draft.body.strip():
@@ -410,6 +417,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         new_doc = _convert(draft.body, "description", verdict)
         if new_doc is not None and new_doc != old_doc:
             changes["description"] = new_doc
+            before["description"] = old_doc
             lines.append("Descrição, antes:")
             lines.extend(
                 f"  {line}" for line in (adf_text(old_doc).splitlines() if old_doc else ["(vazia)"])
@@ -426,6 +434,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         "path": f"/rest/api/3/issue/{key}",
         "body": {"fields": changes},
     }
+    verdict.before = before
     verdict.preview = lines
 
 
@@ -468,6 +477,7 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         return
     destination = (chosen.get("to") or {}).get("name")
     verdict.resolved["transition"] = {"id": chosen.get("id"), "to": destination}
+    verdict.before = {"status": verdict.resolved["card"]["status"]}
     verdict.request = {
         "method": "POST",
         "path": f"/rest/api/3/issue/{key}/transitions",
