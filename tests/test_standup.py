@@ -52,7 +52,7 @@ if os.environ.get("FAKE_GH_FAIL"):
     print(os.environ["FAKE_GH_FAIL"], file=sys.stderr)
     print("second line", file=sys.stderr)
     sys.exit(1)
-print(pathlib.Path(os.environ["FAKE_GH_ANSWER"]).read_text(encoding="utf-8"))
+sys.stdout.buffer.write(pathlib.Path(os.environ["FAKE_GH_ANSWER"]).read_bytes())
 """
 
 
@@ -410,3 +410,30 @@ def test_merge_commits_are_kept(
     git(repo, "merge", "-q", "--no-ff", "feature/TS-2-x", "-m", "Merge TS-2 into main")
     subjects = [c["subject"] for c in _collect(roots, workspace)["commits"]]
     assert "Merge TS-2 into main" in subjects
+
+
+def test_odd_line_separator_in_a_subject_does_not_break(
+    roots, workspace, fake_gh, home, make_repo, commit
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-1): antes\u0085depois", "2026-10-26")
+    commit(repo, "feat(TS-2): normal", "2026-10-26")
+    subjects = [c["subject"] for c in _collect(roots, workspace)["commits"]]
+    assert subjects == ["feat(TS-2): normal", "feat(TS-1): antes\u0085depois"]
+
+
+def test_non_utf8_branch_name_is_read_with_replacement(
+    roots, workspace, fake_gh, home, make_repo, commit, git
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-1): x", "2026-10-26")
+    git(repo, "branch", "feature/TS-9-a\udce7\udce3o")
+    result = _collect(roots, workspace)
+    assert [b["name"] for b in result["branches"]] == ["feature/TS-9-a\ufffd\ufffdo"]
+
+
+def test_non_utf8_gh_answer_is_read_with_replacement(roots, workspace, fake_gh, home):
+    raw = json.dumps(GH_ANSWER).replace("tela de exemplo", "a@@o")
+    fake_gh.answer.write_bytes(raw.encode().replace(b"@@", b"\xe7\xe3"))
+    result = _collect(roots, workspace)
+    assert result["prs"][0]["title"] == "feat(TS-101): a\ufffd\ufffdo"

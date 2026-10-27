@@ -28,11 +28,18 @@ def _git(repo: Path, *args: str, ok: tuple[int, ...] = (0,)) -> str:
         ["git", "-c", "core.quotepath=false", "-C", str(repo), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode not in ok:
         raise RuntimeError(f"git {args[0]} failed in {repo}: {result.stderr.strip()}")
     return result.stdout
+
+
+def _lines(output: str) -> list[str]:
+    # splitlines() would also break on \x85, \u2028 and \x1c-\x1e, which can appear in a subject.
+    return [line for line in output.split("\n") if line]
 
 
 def _is_repo(path: Path) -> bool:
@@ -72,7 +79,7 @@ def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
         f"--format=%H{FIELD_SEPARATOR}%ad{FIELD_SEPARATOR}%s",
     )
     commits = []
-    for line in out.splitlines():
+    for line in _lines(out):
         sha, day, subject = line.split(FIELD_SEPARATOR, 2)
         commits.append(
             {
@@ -88,7 +95,7 @@ def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
 
 def _branches(repo: Path) -> list[dict]:
     out = _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads")
-    named = ((name, keys_in(name)) for name in out.splitlines())
+    named = ((name, keys_in(name)) for name in _lines(out))
     return [{"repo": repo.name, "name": name, "keys": keys} for name, keys in named if keys]
 
 
@@ -119,6 +126,8 @@ def _pull_requests(gh: str, since: date, warnings: list[str]) -> list[dict]:
             [gh, "api", "graphql", "-f", f"query={PR_QUERY}", "-f", f"q={search}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if result.returncode != 0:
