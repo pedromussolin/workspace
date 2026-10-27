@@ -158,6 +158,9 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
+| `ws checkpoint check SLUG` | Validates the project's `CONTINUE.md` (required sections `## Onde parei` and `## Próximo passo` filled in, size limit on the next step) and `decisions.md`; prints a JSON verdict, exit 0 when ok, 1 otherwise |
+| `ws checkpoint diff SLUG [--include PATH...]` | Shows what a checkpoint commit would take: the project's changed and new files and the diffstat; new binary or over-200 KB files under `evidence/` or `attachments/` are listed as refused unless included |
+| `ws checkpoint commit SLUG -m MESSAGE [--include PATH...]` | On `main` only: validates the message and the check, refuses changes outside `projects/<slug>/`, commits that folder, pulls with rebase (a conflict aborts it and keeps the commit), checks again and pushes; the skill `checkpoint` runs it |
 
 Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --check`.
 
