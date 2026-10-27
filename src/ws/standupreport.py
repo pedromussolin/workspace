@@ -1,6 +1,6 @@
 """Agrupa a atividade coletada por tarefa: ontem, hoje, bloqueios e o que não tem chave."""
 
-from datetime import date
+from datetime import date, datetime, time
 
 from ws.standup import keys_in
 from ws.taskmodel import Status, Task
@@ -10,29 +10,30 @@ SUBJECT_LIMIT = 5
 
 
 def _yesterday(activity: dict, cards: dict[str, Task]) -> list[dict]:
-    since = activity["window"]["since"]
+    # Local midnight, like the collector's `git log --since`; PR timestamps carry their own offset.
+    since = datetime.combine(date.fromisoformat(activity["window"]["since"]), time.min).astimezone()
     found: dict[str, dict] = {}
 
     def entry(key: str) -> dict:
-        return found.setdefault(key, {"commits": [], "prs": [], "latest": ""})
+        return found.setdefault(key, {"commits": [], "prs": [], "latest": date.min})
 
     for commit in activity["commits"]:
         for key in commit["keys"]:
             item = entry(key)
             item["commits"].append(commit)
-            item["latest"] = max(item["latest"], commit["date"])
+            item["latest"] = max(item["latest"], date.fromisoformat(commit["date"]))
     for pr in activity["prs"]:
-        if pr["updated_at"][:10] < since:
+        updated = datetime.fromisoformat(pr["updated_at"]).astimezone()
+        if updated < since:
             continue
         for key in pr["keys"]:
             item = entry(key)
             item["prs"].append(pr)
-            item["latest"] = max(item["latest"], pr["updated_at"])
+            item["latest"] = max(item["latest"], updated.date())
 
     result = []
     for key, item in sorted(found.items(), key=lambda pair: pair[1]["latest"], reverse=True):
         card = cards.get(key)
-        title = None
         if card is not None:
             title = card.title
         else:
@@ -98,7 +99,7 @@ def build_report(
 
     today_entries = []
     for task in tasks or []:
-        if task.key in blocked:
+        if task.key in blocked and task.key not in suggestions:
             continue
         wanted = (
             task.status is Status.IN_PROGRESS

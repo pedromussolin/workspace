@@ -1,5 +1,8 @@
 import json
+import time
 from datetime import UTC, date, datetime
+
+import pytest
 
 from ws.cli import main
 from ws.config import config_dir
@@ -240,3 +243,57 @@ def test_cli_malformed_card_exits_2(ws_config, tmp_path, capsys):
     code = main(write_files(tmp_path, make_activity(), [{"key": "TS-101"}]))
     assert code == 2
     assert "card is missing" in capsys.readouterr().err
+
+
+@pytest.fixture
+def sao_paulo(monkeypatch):
+    monkeypatch.setenv("TZ", "America/Sao_Paulo")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_pr_window_starts_at_local_midnight_of_since(sao_paulo):
+    activity = make_activity(
+        prs=[
+            make_pr(7, ["TS-101"], "2026-10-26T02:59:00Z", merged=False),
+            make_pr(8, ["TS-102"], "2026-10-26T03:00:00Z", merged=False),
+            make_pr(9, ["TS-103"], "2026-10-25T23:30:00-03:00", merged=False),
+        ]
+    )
+    report = build_report(activity, None, TODAY, 3)
+    assert [entry["key"] for entry in report["yesterday"]] == ["TS-102"]
+
+
+def test_yesterday_orders_by_local_day_then_by_first_appearance(sao_paulo):
+    activity = make_activity(
+        commits=[
+            make_commit("a", "2026-10-26", "um", ["TS-101"]),
+            make_commit("b", "2026-10-27", "dois", ["TS-102"]),
+        ],
+        prs=[
+            make_pr(7, ["TS-103"], "2026-10-26T12:00:00Z", merged=False),
+            make_pr(8, ["TS-101"], "2026-10-26T12:00:00Z", merged=False),
+            make_pr(9, ["TS-104"], "2026-10-27T01:00:00-03:00", merged=False),
+            make_pr(10, ["TS-105"], "2026-10-27T01:00:00Z", merged=False),
+        ],
+    )
+    report = build_report(activity, None, TODAY, 3)
+    assert [entry["key"] for entry in report["yesterday"]] == [
+        "TS-102",
+        "TS-104",
+        "TS-101",
+        "TS-103",
+        "TS-105",
+    ]
+
+
+def test_card_with_r2_and_stale_update_gets_the_suggestion_and_no_blocker():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
+    tasks = [make_task("TS-101", Status.IN_PROGRESS, updated=old)]
+    report = build_report(activity, tasks, TODAY, 3)
+    assert report["blockers"] == []
+    assert report["yesterday"] == []
+    assert [(e["key"], e["suggestion"]["rule"]) for e in report["today"]] == [("TS-101", "R2")]
