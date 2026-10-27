@@ -27,6 +27,11 @@ class JiraConfig:
     site: str
     email: str
     status_overrides: dict[str, str]
+    project: str | None = None
+    board_id: int | None = None
+    issue_type: str | None = None
+    start_date_field: str | None = None
+    sprint_field: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +68,21 @@ def _string(table: dict, key: str, path: Path, section: str) -> str:
     value = table.get(key)
     if not isinstance(value, str) or not value:
         raise ConfigInvalid(f"{path}: {section}.{key} must be a non-empty string")
+    return value
+
+
+def _optional_string(table: dict, key: str, path: Path, section: str) -> str | None:
+    if key not in table:
+        return None
+    return _string(table, key, path, section)
+
+
+def _optional_positive_int(table: dict, key: str, path: Path, section: str) -> int | None:
+    if key not in table:
+        return None
+    value = table[key]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ConfigInvalid(f"{path}: {section}.{key} must be a positive integer")
     return value
 
 
@@ -103,6 +123,11 @@ def load_config() -> UserConfig:
             site=_string(jira, "site", path, "jira"),
             email=_string(jira, "email", path, "jira"),
             status_overrides=_status_overrides(jira, path),
+            project=_optional_string(jira, "project", path, "jira"),
+            board_id=_optional_positive_int(jira, "board_id", path, "jira"),
+            issue_type=_optional_string(jira, "issue_type", path, "jira"),
+            start_date_field=_optional_string(jira, "start_date_field", path, "jira"),
+            sprint_field=_optional_string(jira, "sprint_field", path, "jira"),
         ),
         standup=StandupConfig(
             repo_roots=(

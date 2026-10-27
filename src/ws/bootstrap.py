@@ -27,6 +27,21 @@ GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
 DENY_RULE = "Read(~/.config/workspace/credentials)"
+ATLASSIAN_SERVERS = ("claude_ai_Atlassian_MCP", "plugin_productivity_atlassian")
+ATLASSIAN_WRITE_TOOLS = (
+    "createJiraIssue",
+    "editJiraIssue",
+    "transitionJiraIssue",
+    "addCommentToJiraIssue",
+    "addOrEditJiraIssueComment",
+    "addWorklogToJiraIssue",
+    "executeWrite",
+    "executeDestructive",
+)
+ASK_RULES = (
+    "Bash(ws card apply:*)",
+    *(f"mcp__{server}__{tool}" for server in ATLASSIAN_SERVERS for tool in ATLASSIAN_WRITE_TOOLS),
+)
 PACKAGES = " and ".join(source.package for source in dictionary.SOURCES)
 SANDBOX_TOOLS = ("bwrap", "socat")
 
@@ -260,8 +275,13 @@ def _hook_gate(repo: Path, scripts: tuple[str, ...] = HOOK_SCRIPTS) -> dict:
     return {"hooks": {"PreToolUse": [_hook_entry(repo, script) for script in scripts]}}
 
 
-def _deny_gate() -> dict:
-    return {"permissions": {"deny": [DENY_RULE]}}
+def _permission_gate(deny: bool = True, ask: tuple[str, ...] = ASK_RULES) -> dict:
+    permissions: dict = {}
+    if deny:
+        permissions["deny"] = [DENY_RULE]
+    if ask:
+        permissions["ask"] = list(ask)
+    return {"permissions": permissions} if permissions else {}
 
 
 def _gates_needed(message: str, snippet: dict) -> str:
@@ -274,7 +294,7 @@ def _check_claude_gates(setup: _Setup, repo: Path, settings_path: Path) -> None:
     try:
         raw = settings_path.read_bytes()
     except FileNotFoundError:
-        both = {**_hook_gate(repo), **_deny_gate()}
+        both = {**_hook_gate(repo), **_permission_gate()}
         message = f"Claude settings {settings_path} not found. {approval}"
         setup.need(_gates_needed(message, both))
         return
@@ -291,8 +311,9 @@ def _check_claude_gates(setup: _Setup, repo: Path, settings_path: Path) -> None:
 
     missing_scripts = tuple(s for s in HOOK_SCRIPTS if not _has_hook_gate(settings, s))
     block: dict = _hook_gate(repo, missing_scripts) if missing_scripts else {}
-    if not _has_deny_rule(settings):
-        block.update(_deny_gate())
+    block.update(
+        _permission_gate(deny=not _has_deny_rule(settings), ask=_missing_ask_rules(settings))
+    )
     if block:
         message = f"Claude Code gates missing in {settings_path}. {approval}"
         setup.need(_gates_needed(message, block))
@@ -318,3 +339,8 @@ def _has_hook_gate(settings: dict, script: str) -> bool:
 
 def _has_deny_rule(settings: dict) -> bool:
     return DENY_RULE in _as_list(_as_dict(settings.get("permissions")).get("deny"))
+
+
+def _missing_ask_rules(settings: dict) -> tuple[str, ...]:
+    present = _as_list(_as_dict(settings.get("permissions")).get("ask"))
+    return tuple(rule for rule in ASK_RULES if rule not in present)

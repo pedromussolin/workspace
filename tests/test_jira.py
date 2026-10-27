@@ -1,6 +1,7 @@
 import base64
 import json
 import threading
+import time
 from copy import deepcopy
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -66,6 +67,8 @@ class FakeJira:
         self.requests: list[dict] = []
         self.pages: dict[str | None, dict] = {}
         self.status = 200
+        self.routes: dict[tuple[str, str], tuple[int, str]] = {}
+        self.delay = 0.0
 
     @property
     def site(self) -> str:
@@ -81,18 +84,27 @@ def fake_jira():
         def log_message(self, format, *args):
             pass
 
-        def do_GET(self):
+        def _handle(self, method):
             parsed = urlparse(self.path)
             query = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
             fake = state["fake"]
             fake.requests.append(
                 {
+                    "method": method,
                     "path": parsed.path,
                     "query": query,
                     "authorization": self.headers.get("Authorization"),
+                    "content_type": self.headers.get("Content-Type"),
+                    "body": json.loads(raw) if raw else None,
                 }
             )
-            if fake.status != 200:
+            if fake.delay:
+                time.sleep(fake.delay)
+            if (method, parsed.path) in fake.routes:
+                status, body = fake.routes[(method, parsed.path)]
+            elif fake.status != 200:
                 body = json.dumps({"errorMessages": ["denied"]})
                 status = fake.status
             elif parsed.path == "/rest/api/3/myself":
@@ -107,6 +119,15 @@ def fake_jira():
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
+
+        def do_GET(self):
+            self._handle("GET")
+
+        def do_POST(self):
+            self._handle("POST")
+
+        def do_PUT(self):
+            self._handle("PUT")
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     fake = FakeJira(server)
@@ -303,3 +324,156 @@ def test_task_list_jira_error_exits_1(jira_config, fake_jira, capsys):
 
     assert code == 1
     assert "401" in capsys.readouterr().err
+
+
+def _client(fake, timeout=20):
+    return JiraClient(fake.site, EMAIL, CREDENTIAL, timeout=timeout)
+
+
+def test_request_returns_the_json_body_and_sends_json_headers(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (201, json.dumps({"key": "TS-9"}))
+
+    result = _client(fake_jira)._request("POST", "/rest/api/3/issue", {"fields": {"a": 1}})
+
+    assert result == {"key": "TS-9"}
+    (sent,) = fake_jira.requests
+    assert sent["content_type"] == "application/json"
+    assert sent["body"] == {"fields": {"a": 1}}
+
+
+def test_request_204_is_none(fake_jira):
+    fake_jira.routes[("PUT", "/rest/api/3/issue/TS-1")] = (204, "")
+
+    assert _client(fake_jira)._request("PUT", "/rest/api/3/issue/TS-1", {"fields": {}}) is None
+
+
+def test_request_empty_body_with_200_is_none(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue/TS-1/transitions")] = (200, "")
+
+    assert _client(fake_jira).post("/rest/api/3/issue/TS-1/transitions", {}) is None
+
+
+def test_request_400_puts_jira_messages_in_the_error(fake_jira):
+    body = json.dumps({"errorMessages": ["bad thing"], "errors": {"duedate": "invalid date"}})
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (400, body)
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    message = str(raised.value)
+    assert "400" in message
+    assert "bad thing" in message
+    assert "duedate: invalid date" in message
+    assert raised.value.status == 400
+    assert raised.value.uncertain is False
+    assert CREDENTIAL not in message
+    assert "Basic" not in message
+
+
+def test_request_401_has_status(fake_jira):
+    fake_jira.status = 401
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).myself()
+
+    assert raised.value.status == 401
+    assert raised.value.uncertain is False
+
+
+def test_request_write_timeout_is_uncertain(fake_jira):
+    fake_jira.delay = 1.5
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira, timeout=0.3).post("/rest/api/3/issue", {})
+
+    assert raised.value.status is None
+    assert raised.value.uncertain is True
+
+
+def test_request_write_connection_error_is_uncertain(fake_jira):
+    site = fake_jira.site
+    fake_jira.server.shutdown()
+    fake_jira.server.server_close()
+
+    with pytest.raises(JiraError) as raised:
+        JiraClient(site, EMAIL, CREDENTIAL, timeout=2).post("/rest/api/3/issue", {})
+
+    assert raised.value.status is None
+    assert raised.value.uncertain is True
+
+
+def test_request_5xx_on_a_write_is_uncertain(fake_jira):
+    fake_jira.routes[("POST", "/rest/api/3/issue")] = (503, "{}")
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).post("/rest/api/3/issue", {})
+
+    assert raised.value.status == 503
+    assert raised.value.uncertain is True
+
+
+def test_request_5xx_on_a_read_is_not_uncertain(fake_jira):
+    fake_jira.status = 500
+
+    with pytest.raises(JiraError) as raised:
+        _client(fake_jira).myself()
+
+    assert raised.value.status == 500
+    assert raised.value.uncertain is False
+
+
+def test_issue_asks_for_the_fields(fake_jira):
+    fake_jira.routes[("GET", "/rest/api/3/issue/TS-1")] = (200, json.dumps({"key": "TS-1"}))
+
+    assert _client(fake_jira).issue("TS-1", ["summary", "status"]) == {"key": "TS-1"}
+
+    assert fake_jira.requests[0]["query"] == {"fields": "summary,status"}
+
+
+def test_transitions_expands_their_fields(fake_jira):
+    body = json.dumps({"transitions": [{"id": "31", "name": "Done"}]})
+    fake_jira.routes[("GET", "/rest/api/3/issue/TS-1/transitions")] = (200, body)
+
+    assert _client(fake_jira).transitions("TS-1") == [{"id": "31", "name": "Done"}]
+
+    assert fake_jira.requests[0]["query"] == {"expand": "transitions.fields"}
+
+
+def test_active_sprints_uses_the_agile_path(fake_jira):
+    body = json.dumps({"values": [{"id": 7, "name": "Sprint 7"}]})
+    fake_jira.routes[("GET", "/rest/agile/1.0/board/12/sprint")] = (200, body)
+
+    assert _client(fake_jira).active_sprints(12) == [{"id": 7, "name": "Sprint 7"}]
+
+    assert fake_jira.requests[0]["query"] == {"state": "active"}
+
+
+def test_create_meta_lists_the_types_then_reads_the_named_one(fake_jira):
+    types = {"issueTypes": [{"id": "1", "name": "Bug"}, {"id": "2", "name": "Task"}]}
+    detail = {"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
+    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
+        200,
+        json.dumps(types),
+    )
+    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/2")] = (
+        200,
+        json.dumps(detail),
+    )
+
+    assert _client(fake_jira).create_meta("TS", "Task") == detail
+
+    assert [r["path"] for r in fake_jira.requests] == [
+        "/rest/api/3/issue/createmeta/TS/issuetypes",
+        "/rest/api/3/issue/createmeta/TS/issuetypes/2",
+    ]
+
+
+def test_create_meta_unknown_type_is_an_error(fake_jira):
+    types = {"issueTypes": [{"id": "1", "name": "Bug"}]}
+    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
+        200,
+        json.dumps(types),
+    )
+
+    with pytest.raises(JiraError, match="Task"):
+        _client(fake_jira).create_meta("TS", "Task")

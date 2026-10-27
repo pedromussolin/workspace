@@ -9,7 +9,7 @@ from typing import NamedTuple
 import pytest
 
 from ws import dictionary
-from ws.bootstrap import SetupResult, run_setup
+from ws.bootstrap import ASK_RULES, SetupResult, run_setup
 from ws.cli import main
 
 HOOK_SCRIPT = "hooks/block_co_authored_by.py"
@@ -44,7 +44,7 @@ def _hook_entry(script: str) -> dict:
 def _registered_gates() -> dict:
     return {
         "hooks": {"PreToolUse": [_hook_entry(HOOK_SCRIPT), _hook_entry(BYPASS_SCRIPT)]},
-        "permissions": {"deny": [DENY_RULE]},
+        "permissions": {"deny": [DENY_RULE], "ask": list(ASK_RULES)},
     }
 
 
@@ -404,7 +404,7 @@ def test_prints_one_merged_block_with_every_missing_claude_gate(env):
         f'python3 -I "{env.repo / script}"' for script in (HOOK_SCRIPT, BYPASS_SCRIPT)
     ]
     assert all(entry["matcher"] == "Bash" for entry in entries)
-    assert block["permissions"] == {"deny": [DENY_RULE]}
+    assert block["permissions"] == {"deny": [DENY_RULE], "ask": list(ASK_RULES)}
     assert env.settings.read_bytes() == before
 
 
@@ -421,12 +421,63 @@ def test_accepts_registered_claude_gates(env):
 
 def test_the_block_holds_only_the_missing_deny_rule(env):
     gates = _registered_gates()
-    del gates["permissions"]
+    del gates["permissions"]["deny"]
     _write_settings(env.settings, gates)
 
     _, block = _needs_block(_setup(env))
 
     assert block == {"permissions": {"deny": [DENY_RULE]}}
+
+
+def test_ask_rules_cover_the_card_apply_command_and_every_atlassian_write_tool():
+    assert "Bash(ws card apply:*)" in ASK_RULES
+    assert len(ASK_RULES) == len(set(ASK_RULES))
+    for tool in (
+        "createJiraIssue",
+        "editJiraIssue",
+        "transitionJiraIssue",
+        "addCommentToJiraIssue",
+        "addOrEditJiraIssueComment",
+        "addWorklogToJiraIssue",
+        "executeWrite",
+        "executeDestructive",
+    ):
+        matching = [rule for rule in ASK_RULES if rule.endswith(f"__{tool}")]
+        assert len(matching) >= 2, tool
+        assert all(rule.startswith("mcp__") for rule in matching)
+
+
+def test_the_block_holds_only_the_missing_ask_rules(env):
+    gates = _registered_gates()
+    gates["permissions"]["ask"] = ASK_RULES[:3]
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    assert len(result.needs) == 1
+    _, block = _needs_block(result)
+    assert block == {"permissions": {"ask": list(ASK_RULES[3:])}}
+
+
+def test_the_block_holds_no_ask_rule_that_is_already_there(env):
+    gates = _registered_gates()
+    del gates["permissions"]["deny"]
+    gates["permissions"]["ask"] = ["Read(~/other)", *ASK_RULES]
+    _write_settings(env.settings, gates)
+
+    _, block = _needs_block(_setup(env))
+
+    assert block == {"permissions": {"deny": [DENY_RULE]}}
+
+
+def test_the_block_holds_every_ask_rule_when_none_is_there(env):
+    gates = _registered_gates()
+    del gates["permissions"]["ask"]
+    _write_settings(env.settings, gates)
+
+    _, block = _needs_block(_setup(env))
+
+    assert block == {"permissions": {"ask": list(ASK_RULES)}}
 
 
 def test_the_block_holds_only_the_missing_bypass_gate(env):
@@ -452,7 +503,7 @@ def test_missing_claude_settings_file_gets_the_whole_block(env):
     assert str(env.settings) in header
     assert "not found" in header
     assert len(block["hooks"]["PreToolUse"]) == 2
-    assert block["permissions"] == {"deny": [DENY_RULE]}
+    assert block["permissions"] == {"deny": [DENY_RULE], "ask": list(ASK_RULES)}
     assert not env.settings.exists()
 
 

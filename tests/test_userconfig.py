@@ -173,3 +173,58 @@ def test_cli_token_saves_what_getpass_reads(config_dir, monkeypatch):
 
     assert main(["config", "token", "jira"]) == 0
     assert load_jira_token() == "typed-token"
+
+
+CARD_KEYS = """\
+project = "TS"
+board_id = 12
+issue_type = "Task"
+start_date_field = "customfield_1"
+sprint_field = "customfield_2"
+"""
+
+
+def test_card_keys_are_read(config_dir):
+    text = CONFIG.replace('email = "dev@example.com"\n', 'email = "dev@example.com"\n' + CARD_KEYS)
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    jira = load_config().jira
+
+    assert jira.project == "TS"
+    assert jira.board_id == 12
+    assert jira.issue_type == "Task"
+    assert jira.start_date_field == "customfield_1"
+    assert jira.sprint_field == "customfield_2"
+
+
+def test_card_keys_are_none_when_absent(config_dir):
+    (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
+
+    jira = load_config().jira
+
+    assert jira.project is None
+    assert jira.board_id is None
+    assert jira.issue_type is None
+    assert jira.start_date_field is None
+    assert jira.sprint_field is None
+
+
+@pytest.mark.parametrize(
+    ("line", "key"),
+    [
+        ("project = 5", "project"),
+        ('project = ""', "project"),
+        ('board_id = "12"', "board_id"),
+        ("board_id = true", "board_id"),
+        ("board_id = 0", "board_id"),
+        ("issue_type = 3", "issue_type"),
+        ("start_date_field = 3", "start_date_field"),
+        ("sprint_field = []", "sprint_field"),
+    ],
+)
+def test_card_keys_of_the_wrong_type_are_invalid(config_dir, line, key):
+    text = CONFIG.replace('email = "dev@example.com"\n', f'email = "dev@example.com"\n{line}\n')
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=f"jira.{key}"):
+        load_config()

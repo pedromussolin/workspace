@@ -32,7 +32,13 @@ CATEGORY_STATUS = {
 
 
 class JiraError(Exception):
-    pass
+    """`status` is the HTTP status (None without an answer); `uncertain` means a write may have
+    been applied anyway (no answer, or a 5xx), so the caller checks before retrying."""
+
+    def __init__(self, message: str, status: int | None = None, uncertain: bool = False):
+        super().__init__(message)
+        self.status = status
+        self.uncertain = uncertain
 
 
 def my_tasks_jql(since: date) -> str:
@@ -108,7 +114,7 @@ class JiraClient:
         self._authorization = f"Basic {credentials}"
 
     def myself(self) -> dict:
-        return self._get("/rest/api/3/myself", {})
+        return self.get("/rest/api/3/myself")
 
     def search(self, jql: str, fields: list[str]) -> list[dict]:
         issues: list[dict] = []
@@ -117,22 +123,90 @@ class JiraClient:
             params = {"jql": jql, "fields": ",".join(fields), "maxResults": str(PAGE_SIZE)}
             if cursor:
                 params["nextPageToken"] = cursor
-            page = self._get("/rest/api/3/search/jql", params)
+            page = self.get("/rest/api/3/search/jql", params)
             issues.extend(page.get("issues", []))
             cursor = page.get("nextPageToken")
             if page.get("isLast", True) or not cursor:
                 return issues
 
-    def _get(self, path: str, params: dict[str, str]) -> dict:
-        query = f"?{urllib.parse.urlencode(params)}" if params else ""
+    def get(self, path: str, query: dict[str, str] | None = None):
+        return self._request("GET", path, query=query)
+
+    def post(self, path: str, body: dict):
+        return self._request("POST", path, body)
+
+    def put(self, path: str, body: dict):
+        return self._request("PUT", path, body)
+
+    def issue(self, key: str, fields: list[str]) -> dict:
+        return self.get(f"/rest/api/3/issue/{key}", {"fields": ",".join(fields)})
+
+    def transitions(self, key: str) -> list[dict]:
+        page = self.get(f"/rest/api/3/issue/{key}/transitions", {"expand": "transitions.fields"})
+        return page.get("transitions", [])
+
+    def active_sprints(self, board_id: int) -> list[dict]:
+        page = self.get(f"/rest/agile/1.0/board/{board_id}/sprint", {"state": "active"})
+        return page.get("values", [])
+
+    def create_meta(self, project: str, issue_type: str) -> dict:
+        base = f"/rest/api/3/issue/createmeta/{project}/issuetypes"
+        types = self.get(base).get("issueTypes", [])
+        for candidate in types:
+            if candidate.get("name") == issue_type:
+                return self.get(f"{base}/{candidate['id']}")
+        raise JiraError(f"issue type {issue_type!r} not found in project {project}")
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict | None = None,
+        query: dict[str, str] | None = None,
+    ) -> dict | list | None:
+        suffix = f"?{urllib.parse.urlencode(query)}" if query else ""
+        headers = {"Authorization": self._authorization, "Accept": "application/json"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
         request = urllib.request.Request(
-            f"{self.site}{path}{query}",
-            headers={"Authorization": self._authorization, "Accept": "application/json"},
+            f"{self.site}{path}{suffix}", data=data, headers=headers, method=method
         )
+        write = method != "GET"
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return json.load(response)
+                raw = response.read()
         except urllib.error.HTTPError as error:
-            raise JiraError(f"Jira answered HTTP {error.code} for {path}") from None
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-            raise JiraError(f"could not reach Jira for {path}: {error}") from None
+            detail = _error_detail(error)
+            raise JiraError(
+                f"Jira answered HTTP {error.code} for {method} {path}{detail}",
+                status=error.code,
+                uncertain=write and error.code >= 500,
+            ) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise JiraError(
+                f"could not reach Jira for {method} {path}: {error}", uncertain=write
+            ) from None
+        if not raw.strip():
+            return None
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise JiraError(
+                f"Jira sent an unreadable answer for {method} {path}: {error}", uncertain=write
+            ) from None
+
+
+def _error_detail(error: urllib.error.HTTPError) -> str:
+    try:
+        payload = json.loads(error.read())
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    messages = [str(item) for item in payload.get("errorMessages") or []]
+    fields = payload.get("errors")
+    if isinstance(fields, dict):
+        messages.extend(f"{name}: {text}" for name, text in fields.items())
+    return f": {'; '.join(messages)}" if messages else ""
