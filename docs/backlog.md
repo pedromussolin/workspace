@@ -55,7 +55,12 @@ orchestrator by role name; routing by a classifier belongs to the API layer, not
 
 ## Next skills
 
-Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5, 6 and 7. Each one
+Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5, 6 and 7.
+
+Status on 2026-10-27 (afternoon): **3 done** (`ws checkpoint` and the skill, on `main`); **1 built,
+in final review** (`ws card` and the skill; the first real write waits for the user's API key and
+the `ask` rules `ws setup` prints); **2 designed** (`docs/specs/2026-10-27-release-design.md`, with
+decisions to confirm); 4–7 not started. Each one
 follows "script first" (root `CLAUDE.md`): the `ws` command does the deterministic part, the skill
 decides, asks and writes the prose.
 
