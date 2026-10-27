@@ -158,6 +158,27 @@ def test_author_is_each_repos_git_email(roots, workspace, fake_gh, home, make_re
     assert any("nameless" in warning and "user.email" in warning for warning in result["warnings"])
 
 
+def test_commit_just_after_midnight_of_the_first_day_is_kept(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    repo = make_repo("app")
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-10-23T00:30:00")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-10-23T00:30:00")
+    git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "feat(TS-1): early",
+        "--author=Dev <dev@example.com>",
+    )
+    result = _collect(roots, workspace)
+    assert [c["subject"] for c in result["commits"]] == ["feat(TS-1): early"]
+    assert result["last_activity"] == {"TS-1": "2026-10-23"}
+    assert _collect(roots, workspace, stale=1)["commits"][0]["subject"] == "feat(TS-1): early"
+
+
 def test_commit_before_the_window_is_left_out(roots, workspace, fake_gh, home, make_repo, commit):
     repo = make_repo("app")
     commit(repo, "feat(TS-1): old", "2026-10-22")
@@ -206,6 +227,25 @@ def test_prs_come_from_one_search(roots, workspace, fake_gh, home):
     args = fake_gh.args()
     assert args[:2] == ["api", "graphql"]
     assert "q=is:pr author:@me updated:>=2026-10-23" in args
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"data": {"search": None}},
+        {"data": {"search": {"nodes": []}}},
+        {"data": {"search": {"issueCount": 1, "nodes": [{"number": 1}]}}},
+        {"errors": ["boom"]},
+        "not json at all",
+    ],
+)
+def test_malformed_gh_answer_is_one_warning(roots, workspace, fake_gh, home, answer):
+    fake_gh.answer.write_text(
+        answer if isinstance(answer, str) else json.dumps(answer), encoding="utf-8"
+    )
+    result = _collect(roots, workspace)
+    assert result["prs"] == []
+    assert sum(w.startswith("gh: PRs left out") for w in result["warnings"]) == 1
 
 
 def test_more_than_a_hundred_prs_is_a_warning(roots, workspace, fake_gh, home):

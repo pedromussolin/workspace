@@ -63,7 +63,7 @@ def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
         repo,
         "log",
         "--all",
-        f"--since={since.isoformat()}",
+        f"--since={since.isoformat()} 00:00:00",
         f"--author=<{email}>",
         "--fixed-strings",
         "--date=short",
@@ -90,25 +90,9 @@ def _branches(repo: Path) -> list[dict]:
     return [{"repo": repo.name, "name": name, "keys": keys} for name, keys in named if keys]
 
 
-def _pull_requests(gh: str, since: date, warnings: list[str]) -> list[dict]:
-    search = f"is:pr author:@me updated:>={since.isoformat()}"
-    try:
-        result = subprocess.run(
-            [gh, "api", "graphql", "-f", f"query={PR_QUERY}", "-f", f"q={search}"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            lines = result.stderr.strip().splitlines()
-            raise RuntimeError(lines[0] if lines else f"exit {result.returncode}")
-        found = json.loads(result.stdout)["data"]["search"]
-    except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
-        warnings.append(f"gh: PRs left out ({error})")
-        return []
-    if found["issueCount"] > PR_SEARCH_LIMIT:
-        warnings.append(f"gh: {found['issueCount']} PRs found, only the first 100 were read")
-    return [
+def _parse_prs(answer: str, warnings: list[str]) -> list[dict]:
+    found = json.loads(answer)["data"]["search"]
+    prs = [
         {
             "repo": node["repository"]["name"],
             "number": node["number"],
@@ -121,6 +105,29 @@ def _pull_requests(gh: str, since: date, warnings: list[str]) -> list[dict]:
         for node in found["nodes"]
         if node
     ]
+    if found["issueCount"] > PR_SEARCH_LIMIT:
+        warnings.append(f"gh: {found['issueCount']} PRs found, only the first 100 were read")
+    return prs
+
+
+def _pull_requests(gh: str, since: date, warnings: list[str]) -> list[dict]:
+    search = f"is:pr author:@me updated:>={since.isoformat()}"
+    try:
+        result = subprocess.run(
+            [gh, "api", "graphql", "-f", f"query={PR_QUERY}", "-f", f"q={search}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            lines = result.stderr.strip().splitlines()
+            raise RuntimeError(lines[0] if lines else f"exit {result.returncode}")
+        return _parse_prs(result.stdout, warnings)
+    except (OSError, RuntimeError) as error:
+        warnings.append(f"gh: PRs left out ({error})")
+    except (ValueError, LookupError, TypeError, AttributeError) as error:
+        warnings.append(f"gh: PRs left out (unexpected answer: {type(error).__name__} {error})")
+    return []
 
 
 def _section(text: str, heading: str) -> str | None:
