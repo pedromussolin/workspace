@@ -4,7 +4,11 @@
 > repositório, revisão do orquestrador antes de juntar) ou superpowers:executing-plans. Passos em
 > checkbox (`- [ ]`).
 
-- **Data:** 27/10/2026. Status: **aguardando validação do Pietro**.
+- **Data:** 27/10/2026. Status: bloco 1 em execução; bloco 2 espera a D24.
+- **Tarefas:** fase 2 na TS-5377; tarefa 02 na **TS-5435** (épico TS-5278).
+- **Decidido em 27/10:** D22 (lote por produto, fundo, originador e proc_id; a linha da tela
+  segue o mesmo agrupamento) e D23 (remessa em processamento: 400). D7 vai pela D24
+  (modalidade). D18, D19 e D20 seguem abertas.
 - **Código conferido:** `origin/master` de 27/10:
   - cessão `b15aa94`;
   - BFF `bb877db`;
@@ -125,7 +129,8 @@ Casos que nenhum fluxo da tela exercita sozinho. Cada um ganhou teste na tarefa 
 | 1 | A1: pedido sem pagamento, contagem e vigente com limite | cessão | `fix/TS-5377-fechamento-lote-fase2` | — | sonnet, high |
 | 1 | A2: contagem no status e escopo na exclusão | BFF | idem | — | haiku, medium |
 | 1 | A3: estado do fechamento confiável | front | idem | contrato da A2 | sonnet, high |
-| 2 | B1: linha `proc:` no fluxo novo, D7 e log do legado | cessão | `feature/TS-XXXX-fechamento-por-proc-id` | A1 | sonnet, high |
+| 2 | B0: modalidade do fechamento (D24) | cessão | `feature/TS-5435-fechamento-por-proc-id` | D24 | a definir |
+| 2 | B1: linha `proc:` no fluxo novo, D7 e log do legado | cessão | `feature/TS-5435-fechamento-por-proc-id` | A1 | sonnet, high |
 | 2 | B2: automático por proc_id e B19 | cessão | idem | B1 | sonnet, high |
 | 2 | B3: chave `proc:` na rota nova | BFF | idem | contrato da B1 | haiku, medium |
 | 2 | B4: toda linha pela rota assíncrona | front | idem | A3, B3 | sonnet, medium |
@@ -191,29 +196,33 @@ Casos que nenhum fluxo da tela exercita sozinho. Cada um ganhou teste na tarefa 
   - resultado sem o campo devolve `None`.
 - [ ] **R26, implementação:** o campo entra no JSON do resultado (`:373`), na execução (`:587`,
   `:594`, `:644-646`) e no status (`:410`, `:424`).
-- [ ] **R29 (achado em 27/10), teste:**
+- [ ] **Vigente com guarda (parte do B15 no fluxo novo), teste:**
   `test_close_fake_batch_closes_vigentes_with_single_guarded_update`. Usar o SQL compilado com
   `_CapturingSession`, como em `:139`.
-  - O WHERE tem `fechado = false` e há `RETURNING`.
-  - O vigente que outro processo já fechou não é despachado.
-  - Nenhum commit entre o `SET LOCAL` e o fim do fechamento.
-- [ ] **R29, implementação:**
-  - Hoje o fluxo novo fecha os vigentes por `get_lote_vigente_and_fecha_lote`, com um commit
-    por lote (`service.py:1174-1184`). Do segundo lote em diante, a transação perde o
-    `statement_timeout` e o `lock_timeout`.
-  - Trocar por um UPDATE único dentro da transação que já tem
-    `limit_fake_batch_closing_db_time` (`refact.py:293-301`), e despachar só os ids devolvidos.
+  - O UPDATE do vigente tem `fechado = false` no WHERE e devolve os lotes com `RETURNING`.
+  - Vigente que outro processo já fechou não é despachado de novo.
+  - Um commit para todos os vigentes da chave, não um por lote.
+- [ ] **Vigente com guarda, implementação:**
+  - Hoje o fluxo novo lê o vigente sem trava e o fecha por `get_lote_vigente_and_fecha_lote`, um
+    `save()` com commit por lote (`service.py:1165-1184`). O agendado e o `POST /liquidacao/`
+    fazem o mesmo, então os dois podem fechar e despachar o mesmo vigente.
+  - Trocar, no fluxo novo, por um UPDATE com `fechado = false` e `RETURNING`, dentro da transação
+    que já tem `limit_fake_batch_closing_db_time` (`refact.py:293-301`), e despachar só os lotes
+    devolvidos.
+  - **[C]** Normalmente há um vigente aberto por chave, então o laço tem um lote só. O ganho é a
+    guarda, não o tempo.
   - O legado (`service.py`) não muda aqui: fica para a C2.
 - [ ] **Suíte da cessão no Docker:** `python -m pytest -q test/api/liquidacao test/tasks`, depois
   a suíte inteira (~30 s). Tudo passa.
 - [ ] **Estresse local:**
-  - dois fechamentos simultâneos da mesma chave com vigente: um lote, despachado uma vez;
+  - fluxo novo e `POST /liquidacao/` fechando a mesma chave com vigente: o vigente é despachado
+    uma vez;
   - medir a espera por trava. **[H]** Os 44 s de 21/10 vêm do `lock_timeout` valer por espera
     (uma espera por linha), não por transação.
 - [ ] **Mostrar o diff ao Pietro.** Depois da revisão, commits:
   - `fix(TS-5377): recusa fechamento de lote fake sem pagamento apto`
   - `feat(TS-5377): grava a quantidade de pagamentos no resultado`
-  - `fix(TS-5377): fecha vigentes numa transação só, com limite`
+  - `fix(TS-5377): fecha o vigente só se ainda estiver aberto`
 
 ### A2. BFF: contagem no status e escopo na exclusão
 
@@ -292,6 +301,13 @@ DBA, porque muda a consulta da listagem.
 
 ### B1. Cessão: linha `proc:` no fluxo novo, D7 e log do legado
 
+> **Atualização de 27/10 (D22):** a chave da linha por proc_id passa a ser
+> `proc:<proc_id>:<produto>:<originador>:<fundo>`, no formato da chave `origem:`. Cada linha
+> vira um lote. Muda a listagem (`_chave_do_lote_fake`, `repository.py:588-619`) e simplifica
+> a B3: o BFF tira o produto da chave, como já faz com `origem:`, e o `product_id` no status deixa
+> de ser necessário. A recusa da D23 continua valendo para a remessa inteira. A B1 e a B2 leem o
+> modo pela modalidade da B0 (D24), não pela flag.
+
 **Arquivos:**
 - Modificar em `cessao/api/liquidacao/refact.py`:
   - `:51` (prefixo);
@@ -369,9 +385,9 @@ DBA, porque muda a consulta da listagem.
   - Tela e portão na mesma remessa ao mesmo tempo: nenhum pagamento em dois lotes e nenhum lote
     vazio.
 - [ ] Commits, depois da revisão:
-  - `feat(TS-XXXX): fecha lote fake por proc_id na rota nova`
-  - `feat(TS-XXXX): recusa acúmulo em produto que fecha por proc_id`
-  - `feat(TS-XXXX): loga fechamento por chave em produto por proc_id`
+  - `feat(TS-5435): fecha lote fake por proc_id na rota nova`
+  - `feat(TS-5435): recusa acúmulo em produto que fecha por proc_id`
+  - `feat(TS-5435): loga fechamento por chave em produto por proc_id`
 
 ### B2. Cessão: automático por proc_id e B19
 
@@ -428,9 +444,9 @@ função.
   - remessa cujo último processo é rejeitado fecha sozinha;
   - remessa com 2 originadores fecha em 2 lotes pelo portão.
 - [ ] Commits, depois da revisão:
-  - `refact(TS-XXXX): portão por proc_id usa o fechamento novo`
-  - `fix(TS-XXXX): remessa por proc_id fecha quando o último é rejeitado`
-  - `fix(TS-XXXX): agendado cobre todo produto que fecha por proc_id`
+  - `refact(TS-5435): portão por proc_id usa o fechamento novo`
+  - `fix(TS-5435): remessa por proc_id fecha quando o último é rejeitado`
+  - `fix(TS-5435): agendado cobre todo produto que fecha por proc_id`
 
 O COUNT do portão roda a cada pagamento (`models.py:5567-5572`) e continua.
 - **[C]** Sem corrida: a contagem roda depois do commit da transição, e sob READ COMMITTED a
@@ -460,7 +476,7 @@ O COUNT do portão roda a cada pagamento (`models.py:5567-5572`) e continua.
   - `close_fake_batch` pula a comparação de produto para `proc:`;
   - `get_close_status` manda as chaves `proc:` e filtra a resposta pelo `product_id` do
     registro.
-- [ ] Commit, depois da revisão: `feat(TS-XXXX): fecha lote fake por proc_id na rota nova`.
+- [ ] Commit, depois da revisão: `feat(TS-5435): fecha lote fake por proc_id na rota nova`.
 
 ### B4. Front: toda linha pela rota assíncrona
 
@@ -516,8 +532,8 @@ Plano detalhado depois da D18 e da D20. O que já está mapeado:
 
 ## Fora do escopo, registrado
 
-- [B20](../bugs-found.md): rotas do BFF sem o escopo do parceiro:
-  - pagamentos, exportações, CNAB, saldo, extrato e conciliação.
-  - É tarefa própria, de segurança. Recomendação: logo depois do bloco 1.
+- [B20](../bugs-found.md): rotas do BFF sem o escopo do parceiro. Já controladas na lista de
+  pendentes do teste de arquitetura do BFF (`tests/test_arch_partner_scope.py`); a exclusão sai
+  dela na A2.
 - [B21](../bugs-found.md): lotes reais sem pagamento no 1505.
 - R7 na listagem: tarefa 04.
