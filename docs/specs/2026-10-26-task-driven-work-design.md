@@ -90,6 +90,14 @@ The plan format and the gate are detailed in phase B's spec.
 | **Hoje** | Cards in progress that are not blockers, and the cards a project's "Próximo passo" names, with the next step; then the next steps that name no card. Suggestions go inside the task's topic. |
 | **Impedimentos** | Cards in progress with no commit for N workdays, offered as possibly stuck; the AI asks before calling anything a blocker. |
 
+The standup has two modes. **Short** is the default: `--top 3`, about 120 words, friendly, with
+"E mais N tarefas." for what was cut, and a closing "Para você:" note holding the suggested card
+moves (and the Jira or warning notices). **Detailed** comes on request ("daily detalhado",
+"daily completo", "standup detalhado", "verboso"): no `--top`, every topic, suggestions inside it.
+In both, each line describes the task and never the person (no first or second person), because
+the user reads it as their own and explains it to the team; the short one also has no sha, PR
+number, repo, branch or jargon.
+
 The list of the user's open tasks, grouped by epic, is no longer part of the standup: it moves to
 the board-review skill (backlog).
 
