@@ -14,14 +14,16 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 # claude plugin eval refuses a plugin that holds a file with more than one name, and uv hard-links
-# the packages of .venv by default.
-linked="$(find . -path ./.git -prune -o -type f -links +1 -print -quit)"
+# the packages of .venv by default. .claude holds the other worktrees of the repo.
+linked="$(find . \( -path ./.git -o -path ./.claude \) -prune -o -type f -links +1 -print -quit)"
 if [ -n "$linked" ]; then
   echo "run-evals: $linked has more than one hard link, and claude plugin eval refuses that." >&2
   echo "Recreate the environment with copies: rm -rf .venv && UV_LINK_MODE=copy uv sync" >&2
   exit 1
 fi
 
+# A path override from your shell must never point a run at the real repo, config or credentials.
+unset WS_REPO_ROOT WS_CONFIG_DIR WS_DATA_DIR WS_CACHE_DIR
 export PATH="$root/scripts/eval-path:$PATH"
 export TMPDIR="${XDG_CACHE_HOME:-$HOME/.cache}/ws-evals-tmp"
 mkdir -p "$TMPDIR"

@@ -141,10 +141,11 @@ Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --chec
 ## Evals
 
 `skills/daily` has an eval suite in `evals/`, run by `claude plugin eval` (Claude Code 2.1.269 or
-later) and `.claude-plugin/plugin.json` (a fake `atlassian` MCP server that exists only so its
-tools can be mocked). Every run is a real Claude session on your plan, about 0.2 USD per standup
-run. The data is made up: a fixed Monday, fake git repos and a fake Jira site, with the Atlassian
-tools answered by `evals/mocks/`.
+later). Every run is a real Claude session on your plan, about 0.25 USD per standup run. The data
+is made up: a fixed Monday, fake git repos and a fake Jira site, with the Atlassian tools answered
+by `evals/mocks/`. `.claude-plugin/plugin.json` declares a fake `atlassian` MCP server
+(`command: false`) only so those tools can be mocked: do not install or enable this repo as a
+plugin.
 
 The sandbox of the runs needs `bubblewrap` and `socat` (`ws setup` tells you when they are
 missing). Run the suite through the script, which also puts a `ws` of this checkout first on
@@ -155,24 +156,23 @@ scripts/run-evals                                              # every case, 3 r
 scripts/run-evals --case jira-down --runs 1 --ablation none    # one case, one run
 ```
 
-The first run asks "Trust this plugin directory?"; other arguments go to `claude plugin eval`. The
-suite refuses a repo whose `.venv` was built with uv's default hard links: the script says so, and
-`rm -rf .venv && UV_LINK_MODE=copy uv sync` fixes it. A case passes at score 1.0, and the delta
-against the run without the plugin should be positive on `daily-request`, `monday-includes-friday`
-and `topics-trace-to-data`. Reports land in `evals/results/` (not versioned). The Write tool only
-writes inside a run's working directory, so the cases that use the skill carry an
-`append_system_prompt` telling the model to write the skill's working files with Bash when Write is
-denied; `--tag daily` selects them.
+The first run asks "Trust this plugin directory?"; other arguments go to `claude plugin eval`
+(`--tag daily` runs only the cases that use the skill). The suite refuses a repo whose `.venv` was
+built with uv's default hard links: the script says so, and `rm -rf .venv && UV_LINK_MODE=copy uv
+sync` fixes it. A case passes at score 1.0, and the delta against the run without the plugin should
+be positive on `daily-request`, `monday-includes-friday` and `topics-trace-to-data`. Reports land
+in `evals/results/` (not versioned).
 
 | Case | Passes when |
 |---|---|
-| `daily-request` | "daily" produces the standup (Ontem, Hoje, Impedimentos) |
+| `daily-request` | "daily" produces the short standup (Ontem, Hoje, Impedimentos) |
 | `bug-request-no-standup` | "bom dia, me ajuda com esse bug" gets no standup |
 | `plain-greeting-no-standup` | "bom dia" alone gets no standup |
-| `monday-includes-friday` | on a Monday, Friday's card key is under Ontem and Thursday's is absent |
-| `topics-trace-to-data` | every topic names a card key that exists, and no commit or PR is listed one by one |
-| `out-of-sync-card` | the suggested move appears inside its card's topic, and no write tool is called |
-| `jira-down` | with Jira failing, the text starts with "Jira indisponível" and nothing is written |
+| `monday-includes-friday` | on a Monday, "daily detalhado" has Friday's card key under Ontem and not Thursday's |
+| `topics-trace-to-data` | every task line of the short text ends with a card key that exists, with no sha, PR number or repo name |
+| `out-of-sync-card` | the short text's "Para você:" note holds the suggested moves, and no write tool is called |
+| `jira-down` | with Jira failing, the "Para você:" note says "Jira indisponível", Impedimentos says "indisponível" and nothing is written |
+| `daily-detailed` | "daily detalhado" puts the suggestion inside the card's topic and summarises the commits without a key |
 
 ## Projects
 

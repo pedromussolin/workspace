@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-os.environ.setdefault("WS_REPO_ROOT", str(Path.home() / "workspace"))
+os.environ["WS_REPO_ROOT"] = str(Path.home() / "workspace")
 
 _today_file = Path.home() / ".eval-today"
 if _today_file.is_file():
