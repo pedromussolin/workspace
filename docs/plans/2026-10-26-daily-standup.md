@@ -4,7 +4,7 @@
 
 **Goal:** A read-only `daily` skill that builds the user's standup, the status of their tasks against the code, and their open tasks, from git, GitHub and Jira.
 
-**Architecture:** Deterministic work lives in `ws`: `ws standup collect` gathers git, GitHub and project data as JSON; `ws task list` reads Jira through the REST API (fallback); `ws task status` maps cards to the neutral task model and applies the three status rules. The skill calls the Atlassian MCP for cards (main path), runs the `ws` commands, and writes the PT-BR text from their output only.
+**Architecture:** Deterministic work lives in `ws`: `ws standup collect` gathers git, GitHub and project data as JSON; `ws task list` reads Jira through the REST API (main path); `ws task status` maps cards to the neutral task model and applies the three status rules. The skill gets the cards from `ws task list`, falling back to the Atlassian MCP, runs the `ws` commands, and writes the PT-BR text from their output only.
 
 **Tech Stack:** Python 3.12 standard library (`urllib`, `tomllib`, `subprocess`, `getpass`), pytest, ruff, `gh` CLI, `claude plugin eval`.
 
@@ -276,8 +276,8 @@ stale_workdays = 3
   - No `disable-model-invocation` (it only reads).
 - Steps:
   1. `ws standup collect` into `~/.local/share/workspace/standup/activity.json`.
-  2. The Atlassian MCP: the user's account id (`atlassianUserInfo`), then `searchJiraIssuesUsingJql` with the JQL of `my_tasks_jql` and the fields in `FIELDS`. Write the compact cards (the exact field list from Task 3) to `standup/cards.json` as `{"platform": "jira", "cards": [...]}`.
-  3. If the MCP fails or times out: `ws task list > standup/cards.json`. If that also fails: no cards, and the text says Jira was unavailable.
+  2. `ws task list --since <since> > standup/cards.json.tmp`, moved to `cards.json` only on exit 0 (main path: a script).
+  3. Only when that exits non-zero (2: no config or API key; 1: Jira error): the Atlassian MCP as the fallback: the user's account id (`atlassianUserInfo`), then `searchJiraIssuesUsingJql` with the JQL of `my_tasks_jql` and the fields in `FIELDS`; write the compact cards (the exact field list from Task 3) to `standup/cards.json` as `{"platform": "jira", "cards": [...]}`. If that also fails: no cards, and the text says Jira was unavailable.
   4. `ws task status --cards … --activity …`.
   5. Write the text.
 - Output template in PT-BR, with these exact headings:

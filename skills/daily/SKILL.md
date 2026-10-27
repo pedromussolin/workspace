@@ -22,16 +22,23 @@ one: card titles must not land in whatever folder the session is in. Never read
    every git repo under `repo_roots` and prints `window` (`since` is the previous workday), `commits`,
    `branches`, `prs` (each with `updated_at`), `last_activity`, `next_steps` and `warnings`. If it
    fails, say so and stop.
-2. **Cards, through the Atlassian MCP.** First run
-   `rm -f ~/.local/share/workspace/standup/cards.json ~/.local/share/workspace/standup/cards.json.tmp`,
-   so a card file from an earlier day is never used.
+2. **Cards, through the REST script.** Run
+   `rm -f ~/.local/share/workspace/standup/cards.json ~/.local/share/workspace/standup/cards.json.tmp`
+   (so a card file from an earlier day is never used), then
+   `ws task list --since <since> > ~/.local/share/workspace/standup/cards.json.tmp`, where `<since>`
+   is `window.since` from `activity.json`. Only when the exit code is 0, `mv` the `.tmp` file to
+   `cards.json`; a failed run must not leave a `cards.json`. Exit 0: go to step 4. Exit 2 (no
+   `config.toml` or no Jira API key; the user can create the key on the Atlassian site and run
+   `ws config token jira` in their own terminal, outside Claude, since it needs a terminal and the
+   key is never pasted in the chat) or exit 1 (Jira error): go to step 3.
+3. **Fallback: the Atlassian MCP.**
    - Read `[jira] site` from `~/.config/workspace/config.toml`. Call
      `getAccessibleAtlassianResources` and take the `cloudId` of the resource whose `url` equals that
-     site. No config file or no matching resource: go to step 3.
+     site. No config file, no matching resource or an MCP error: there are **no cards**, see the
+     end of this step.
    - Call `atlassianUserInfo` for the account id (used only to set `reporter_is_me`).
    - Call `searchJiraIssuesUsingJql` with `cloudId`, `maxResults: 100`,
-     `fields: ["summary", "status", "parent", "reporter", "updated"]` and this `jql`, where
-     `<since>` is `window.since` from `activity.json`:
+     `fields: ["summary", "status", "parent", "reporter", "updated"]` and this `jql`:
 
      ```text
      assignee = currentUser() AND (statusCategory != Done OR updated >= "<since>") ORDER BY updated DESC
@@ -47,21 +54,16 @@ one: card titles must not land in whatever folder the session is in. Never read
      `updated` (`fields.updated`, as it came).
    - Create `~/.local/share/workspace/standup/cards.json` with the Write tool (not a shell
      command, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`.
-3. **If the MCP fails, times out or step 2 could not start**, run
-   `ws task list --since <since> > ~/.local/share/workspace/standup/cards.json.tmp` and, only when
-   the exit code is 0, `mv` the `.tmp` file to `cards.json` (a failed run must not leave an empty
-   `cards.json`). Exit 2 means the config or the Jira API key is missing: tell the user to create
-   the key on the Atlassian site and run `ws config token jira` in their own terminal, outside
-   Claude (it needs a terminal and the key is never pasted in the chat). If this also fails there
-   are **no cards**: skip step 4 and write from the activity alone. Start the text with the line
-   "Jira indisponível: sem status, tarefas nem cards"; write "indisponível" under **Impedimentos**,
-   **Status** and **Suas tarefas**; in **Hoje** keep only the `next_steps` entries.
+   - **No cards** (the script and the MCP both failed): skip step 4 and write from the activity
+     alone. Start the text with the line "Jira indisponível: sem status, tarefas nem cards"; write
+     "indisponível" under **Impedimentos**, **Status** and **Suas tarefas**; in **Hoje** keep only
+     the `next_steps` entries.
 4. **Status.** Run
    `ws task status --cards ~/.local/share/workspace/standup/cards.json --activity ~/.local/share/workspace/standup/activity.json`.
    It prints `tasks` (neutral cards: `key`, `title`, `url`, `status`, `epic_title`,
    `requested_by_other`, `updated`), `suggestions` (`key`, `from`, `to`, `rule`, `evidence`) and
    `stuck` (`key`, `last_activity` always null, `updated`, `workdays`). If it fails, put its stderr
-   in the text and go on from the activity alone, as in step 3 without cards.
+   in the text and go on from the activity alone, as in "No cards" of step 3.
 5. **Write the text** with the template below, from these JSON files only.
 
 ## Output (PT-BR)

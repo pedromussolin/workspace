@@ -109,8 +109,8 @@ N lives in the local config.
 2. `ws standup collect` gathers the local data as JSON: commits and branches of the user since the
    previous workday in the repos listed in `~/.config/workspace/config.toml`, the user's PRs
    through `gh`, and the "Próximo passo" of each project's `CONTINUE.md`.
-3. The cards come from the Atlassian MCP; the fallback is `ws task list`, through the REST API
-   with a personal Jira API token. The user creates the token on the Atlassian site and saves it
+3. The cards come from `ws task list`, through the REST API with a personal Jira API token (a
+   script: same result every time, fewer tokens); the fallback is the Atlassian MCP. The user creates the token on the Atlassian site and saves it
    with a `ws` command that reads it from the terminal into `~/.config/workspace/credentials`
    (mode 600); it never passes through the chat.
 4. `ws task status` applies the rules to the git and card data.
@@ -120,8 +120,8 @@ N lives in the local config.
 
 | Failure | Behavior |
 |---|---|
-| The MCP is down or times out | the `ws` fallback through the REST API |
-| Both are down | the standup from git alone, with a line saying Jira was unavailable |
+| `ws task list` fails (no config or API key, or a Jira error) | the Atlassian MCP fallback |
+| Both fail | the standup from git alone, with a line saying Jira was unavailable |
 | `gh` is not authenticated | PRs left out, with a line saying so |
 | Any other gap | stated in the text, never filled in |
 
