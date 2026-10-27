@@ -5,6 +5,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from ws.bootstrap import GITHOOKS_DIR
 from ws.config import repo_root
 from ws.standup import _section
 
@@ -23,6 +24,9 @@ MESSAGE_MAX = 72
 LARGE_BYTES = 200 * 1024
 HEAVY_FOLDERS = ("evidence", "attachments")
 KNOWN_WORDS = ".known-words"
+REQUIRED_HOOKS = ("pre-commit", "commit-msg", "pre-push")
+NETWORK_TIMEOUT = 120
+NETWORK_COMMANDS = ("fetch", "pull", "push")
 
 
 class CheckpointError(Exception):
@@ -33,15 +37,23 @@ def _git(
     *args: str, ok: tuple[int, ...] = (0,), root: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
     root = root or repo_root()
-    result = subprocess.run(
-        ["git", "-c", "core.quotepath=false", "-C", str(root), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        env={**os.environ, "LC_ALL": "C"},
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-c", "core.quotepath=false", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env={**os.environ, "LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"},
+            timeout=NETWORK_TIMEOUT if args[0] in NETWORK_COMMANDS else None,
+        )
+    except subprocess.TimeoutExpired:
+        if args[0] == "pull" and _in_rebase():
+            _git("rebase", "--abort", ok=(0, 1, 128))
+        raise CheckpointError(
+            f"git {args[0]} timed out after {NETWORK_TIMEOUT} s (nothing was lost; run again)"
+        ) from None
     if result.returncode not in ok:
         raise RuntimeError(f"git {args[0]} failed: {(result.stderr or result.stdout).strip()}")
     return result
@@ -62,7 +74,8 @@ def check(slug: str) -> dict:
     continue_md = folder / "CONTINUE.md"
     text = None
     if not continue_md.is_file():
-        problems.append(f"projects/{slug} has no CONTINUE.md (not a project with checkpoints)")
+        problem = f"projects/{slug} has no CONTINUE.md (not a project with checkpoints)"
+        return {"ok": False, "problems": [problem]}
     else:
         try:
             text = continue_md.read_text(encoding="utf-8")
@@ -122,15 +135,16 @@ def _refused(slug: str, entries: list[tuple[str, str]], include: set[str]) -> li
         is_new = code == "??" or code[0] in "ARC"
         if not is_new or not path.startswith(prefix) or path in include:
             continue
-        if path[len(prefix) :].split("/", 1)[0] not in HEAVY_FOLDERS:
-            continue
         file = repo_root() / path
         if not file.is_file():
             continue
-        if file.stat().st_size > LARGE_BYTES:
+        heavy = path[len(prefix) :].split("/", 1)[0] in HEAVY_FOLDERS
+        if heavy and file.stat().st_size > LARGE_BYTES:
             refused.append({"path": path, "reason": "larger than 200 KB"})
-        elif b"\0" in file.read_bytes()[:8000]:
-            refused.append({"path": path, "reason": "binary"})
+            continue
+        with file.open("rb") as handle:
+            if b"\0" in handle.read(8000):
+                refused.append({"path": path, "reason": "binary"})
     return refused
 
 
@@ -168,11 +182,13 @@ def _in_rebase() -> bool:
 
 
 def _pull_rebase() -> None:
-    result = _git("pull", "--rebase", "origin", "main", ok=(0, 1))
+    result = _git("pull", "--rebase", "origin", "main", ok=(0, 1, 128))
     if result.returncode == 0:
         return
     output = (result.stderr or result.stdout).strip()
     if not _in_rebase():
+        if "cannot pull with rebase" in output and "unstaged changes" in output:
+            raise CheckpointError("outro processo mudou arquivos durante o pull; rode de novo")
         raise RuntimeError(f"git pull failed: {output}")
     conflicts = _git("diff", "--name-only", "--diff-filter=U", "-z").stdout.split("\0")
     _git("rebase", "--abort")
@@ -191,10 +207,32 @@ def _recheck(slug: str) -> None:
         )
 
 
-def _push(slug: str) -> None:
+def _unpushed(slug: str) -> list[str]:
+    """The commits `origin/main..HEAD` as "sha subject"; refuses when one is not the project's."""
+    lines = _git("log", "--format=%h %s", "origin/main..HEAD").stdout.splitlines()
+    foreign = []
+    for line in lines:
+        sha = line.split(" ", 1)[0]
+        touched = _git(
+            "diff-tree", "-r", "--no-renames", "--name-only", "-z", "--no-commit-id", "--root", sha
+        ).stdout.split("\0")
+        if any(p and not p.startswith(f"projects/{slug}/") and p != KNOWN_WORDS for p in touched):
+            foreign.append(line)
+    if foreign:
+        raise CheckpointError(
+            "unpushed commits touch paths outside the project; push them separately first:\n"
+            + "\n".join(foreign)
+        )
+    return lines
+
+
+def _push(slug: str) -> list[str]:
+    ahead = _unpushed(slug)
+    if not ahead:
+        return []
     result = _git("push", "origin", "main", ok=(0, 1))
     if result.returncode == 0:
-        return
+        return ahead
     rejected = "[rejected]" in result.stderr and (
         "non-fast-forward" in result.stderr or "fetch first" in result.stderr
     )
@@ -202,9 +240,11 @@ def _push(slug: str) -> None:
         raise CheckpointError(f"push refused:\n{(result.stderr or result.stdout).strip()}")
     _pull_rebase()
     _recheck(slug)
+    ahead = _unpushed(slug)
     result = _git("push", "origin", "main", ok=(0, 1))
     if result.returncode != 0:
         raise CheckpointError(f"push refused:\n{(result.stderr or result.stdout).strip()}")
+    return ahead
 
 
 def _check_amendable(slug: str) -> None:
@@ -230,8 +270,23 @@ def _check_amendable(slug: str) -> None:
         )
 
 
+def _check_hooks_installed() -> None:
+    root = repo_root()
+    hooks = root / GITHOOKS_DIR
+    configured = _git("config", "--get", "--type=path", "core.hooksPath", ok=(0, 1)).stdout.strip()
+    installed = bool(configured) and (root / configured).resolve() == hooks.resolve()
+    if installed:
+        installed = all(os.access(hooks / name, os.X_OK) for name in REQUIRED_HOOKS)
+    if not installed:
+        raise CheckpointError(
+            "the repo's git hooks are not installed (the confidentiality checks would be "
+            "skipped): run `ws setup`"
+        )
+
+
 def commit(slug: str, message: str, include: list[str] | None = None, amend: bool = False) -> dict:
     project_dir(slug)
+    _check_hooks_installed()
     if _current_branch() != "main":
         raise CheckpointError("not on branch main: a checkpoint is committed only on main")
     _validate_message(message)
@@ -269,5 +324,5 @@ def commit(slug: str, message: str, include: list[str] | None = None, amend: boo
             raise CheckpointError(f"commit refused:\n{(result.stdout + result.stderr).strip()}")
     _pull_rebase()
     _recheck(slug)
-    _push(slug)
-    return {"committed": committed, "pushed": True}
+    pushed = _push(slug)
+    return {"committed": committed, "pushed": bool(pushed), "commits_pushed": pushed}

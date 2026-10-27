@@ -49,6 +49,26 @@ def _clone(tmp_path, git, remote, name):
     return path
 
 
+HOOKS = ("pre-commit", "commit-msg", "pre-push")
+
+
+def _install_hooks(path, git):
+    hooks = path / ".githooks"
+    hooks.mkdir()
+    for name in HOOKS:
+        _write_hook(path, name, "exit 0")
+    git(path, "config", "core.hooksPath", ".githooks")
+    with (path / ".git" / "info" / "exclude").open("a") as handle:
+        handle.write(".githooks/\n")
+
+
+def _write_hook(path, name, body):
+    hook = path / ".githooks" / name
+    hook.write_text(f"#!/bin/sh\n{body}\n")
+    hook.chmod(0o755)
+    return hook
+
+
 @pytest.fixture
 def work(tmp_path, git, remote, monkeypatch):
     path = _clone(tmp_path, git, remote, "work")
@@ -61,6 +81,7 @@ def work(tmp_path, git, remote, monkeypatch):
     git(path, "commit", "-q", "-m", "chore: inicio")
     git(path, "push", "-q", "-u", "origin", "main")
     monkeypatch.setenv("WS_REPO_ROOT", str(path))
+    _install_hooks(path, git)
     return path
 
 
@@ -142,6 +163,12 @@ def test_check_next_step_limits(work):
     assert any("1501 characters" in p for p in _problems())
     _write(work, GOOD_CONTINUE.replace("Ligar o parser ao comando `demo run`.", "x" * 1500))
     assert _problems() == []
+
+
+def test_check_without_continue_reports_only_that(work):
+    (work / "projects" / "demo" / "CONTINUE.md").unlink()
+    (work / "projects" / "demo" / "decisions.md").unlink()
+    assert len(_problems()) == 1
 
 
 def test_check_without_decisions(work):
@@ -247,9 +274,11 @@ def test_commit_stages_only_the_project_and_pushes(work, git, remote):
     (work / ".gitignore").write_text("ignored.log\n")
     git(work, "add", ".gitignore")
     git(work, "commit", "-q", "-m", "chore: ignore")
+    git(work, "push", "-q", "origin", "main")
     ignored.write_text("noise")
     result = checkpoint.commit("demo", "docs: fecha a iteração")
-    assert result == {"committed": True, "pushed": True}
+    assert result["committed"] is True and result["pushed"] is True
+    assert [c.split(" ", 1)[1] for c in result["commits_pushed"]] == ["docs: fecha a iteração"]
     files = git(work, "show", "--name-only", "--format=", "HEAD").stdout.split()
     assert sorted(files) == ["projects/demo/CONTINUE.md", "projects/demo/notes.md"]
     assert (
@@ -298,28 +327,25 @@ def test_nothing_to_commit_pushes_a_pending_commit(work, git, remote):
     _edit(work)
     git(work, "commit", "-q", "-am", "docs: pendente")
     result = checkpoint.commit("demo", "docs: b")
-    assert result == {"committed": False, "pushed": True}
+    assert result["committed"] is False and result["pushed"] is True
+    assert result["commits_pushed"][0].endswith("docs: pendente")
     assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "docs: pendente"
     assert git(work, "rev-list", "--count", "HEAD").stdout.strip() == "2"
 
 
 def test_pre_push_refusal_keeps_the_commit_local(work, git, remote):
-    hook = work / ".git" / "hooks" / "pre-push"
-    hook.write_text("#!/bin/sh\necho 'new word: zorgblat' >&2\nexit 1\n")
-    hook.chmod(0o755)
+    _write_hook(work, "pre-push", "echo 'new word: zorgblat' >&2\nexit 1")
     _edit(work)
     with pytest.raises(checkpoint.CheckpointError, match="zorgblat"):
         checkpoint.commit("demo", "docs: a")
     assert git(work, "log", "-1", "--format=%s").stdout.strip() == "docs: a"
     assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "chore: inicio"
-    hook.unlink()
-    assert checkpoint.commit("demo", "docs: b") == {"committed": False, "pushed": True}
+    _write_hook(work, "pre-push", "exit 0")
+    assert checkpoint.commit("demo", "docs: b")["pushed"] is True
 
 
 def test_commit_hook_refusal_is_printed(work, git):
-    hook = work / ".git" / "hooks" / "pre-commit"
-    hook.write_text("#!/bin/sh\necho 'blocked by hook' >&2\nexit 1\n")
-    hook.chmod(0o755)
+    _write_hook(work, "pre-commit", "echo 'blocked by hook' >&2\nexit 1")
     _edit(work)
     with pytest.raises(checkpoint.CheckpointError, match="blocked by hook"):
         checkpoint.commit("demo", "docs: a")
@@ -330,7 +356,9 @@ def test_cli_commit_and_diff(work, capsys):
     assert main(["checkpoint", "diff", "demo"]) == 0
     assert "CONTINUE.md" in capsys.readouterr().out
     assert main(["checkpoint", "commit", "demo", "-m", "docs: a"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"committed": True, "pushed": True}
+    out = json.loads(capsys.readouterr().out)
+    assert out["committed"] is True and out["pushed"] is True
+    assert len(out["commits_pushed"]) == 1
     assert main(["checkpoint", "commit", "demo", "-m", "ruim"]) == 1
 
 
@@ -351,21 +379,18 @@ def test_other_outside_file_still_refused_with_known_words(work):
 
 
 def _hold_back_push(work):
-    hook = work / ".git" / "hooks" / "pre-push"
-    hook.write_text("#!/bin/sh\nexit 1\n")
-    hook.chmod(0o755)
-    return hook
+    return _write_hook(work, "pre-push", "exit 1")
 
 
 def test_amend_rewrites_the_unpushed_commit_and_pushes(work, git, remote):
-    hook = _hold_back_push(work)
+    _hold_back_push(work)
     _edit(work)
     with pytest.raises(checkpoint.CheckpointError):
         checkpoint.commit("demo", "docs: a")
-    hook.unlink()
+    _write_hook(work, "pre-push", "exit 0")
     (work / "projects/demo/notes.md").write_text("masked\n")
     result = checkpoint.commit("demo", "docs: b", amend=True)
-    assert result == {"committed": True, "pushed": True}
+    assert result["committed"] is True and result["pushed"] is True
     assert git(work, "rev-list", "--count", "HEAD").stdout.strip() == "2"
     assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "docs: b"
     assert "notes.md" in git(work, "show", "--name-only", "--format=", "HEAD").stdout
@@ -378,14 +403,14 @@ def test_amend_refused_with_zero_unpushed_commits(work):
 
 
 def test_amend_refused_with_two_unpushed_commits(work, git):
-    hook = _hold_back_push(work)
+    _hold_back_push(work)
     _edit(work)
     with pytest.raises(checkpoint.CheckpointError):
         checkpoint.commit("demo", "docs: a")
     (work / "projects/demo/notes.md").write_text("n\n")
     with pytest.raises(checkpoint.CheckpointError):
         checkpoint.commit("demo", "docs: b")
-    hook.unlink()
+    _write_hook(work, "pre-push", "exit 0")
     with pytest.raises(checkpoint.CheckpointError, match="found 2"):
         checkpoint.commit("demo", "docs: c", amend=True)
 
@@ -550,3 +575,108 @@ def test_retry_pull_that_breaks_the_check_is_not_pushed(work, other, git, remote
         checkpoint.commit("demo", "docs: a")
     assert len(calls) == 2
     assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "chore: remove"
+
+
+def test_commit_refused_without_hooks_installed(work, git):
+    _edit(work)
+    git(work, "config", "--unset", "core.hooksPath")
+    with pytest.raises(checkpoint.CheckpointError, match="ws setup"):
+        checkpoint.commit("demo", "docs: a")
+    git(work, "config", "core.hooksPath", ".githooks")
+    (work / ".githooks" / "pre-push").chmod(0o644)
+    with pytest.raises(checkpoint.CheckpointError, match="ws setup"):
+        checkpoint.commit("demo", "docs: a")
+    (work / ".githooks" / "pre-push").chmod(0o755)
+    git(work, "config", "core.hooksPath", ".git/hooks")
+    with pytest.raises(checkpoint.CheckpointError, match="ws setup"):
+        checkpoint.commit("demo", "docs: a")
+    assert git(work, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+    assert checkpoint.check("demo")["ok"] is True
+    assert checkpoint.diff("demo")["files"][0]["path"] == "projects/demo/CONTINUE.md"
+
+
+def test_unpushed_commit_outside_the_project_is_refused(work, git, remote):
+    (work / "README.md").write_text("changed\n")
+    git(work, "commit", "-q", "-am", "chore: fora do projeto")
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError, match="chore: fora do projeto") as caught:
+        checkpoint.commit("demo", "docs: a")
+    assert "separately" in str(caught.value)
+    assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "chore: inicio"
+
+
+def test_unpushed_known_words_commit_is_accepted(work, git):
+    (work / ".known-words").write_text("zorgblat\n")
+    git(work, "add", ".known-words")
+    git(work, "commit", "-q", "-m", "chore: palavra")
+    _edit(work)
+    result = checkpoint.commit("demo", "docs: a")
+    assert len(result["commits_pushed"]) == 2
+
+
+def test_nothing_to_push_reports_not_pushed(work):
+    assert checkpoint.commit("demo", "docs: a") == {
+        "committed": False,
+        "pushed": False,
+        "commits_pushed": [],
+    }
+
+
+def test_push_timeout_is_a_clear_error(work, git, monkeypatch):
+    _write_hook(work, "pre-push", "sleep 5")
+    monkeypatch.setattr(checkpoint, "NETWORK_TIMEOUT", 0.5)
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError, match="timed out"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_pull_timeout_aborts_a_rebase_in_progress(work, monkeypatch):
+    calls = []
+    real = subprocess.run
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if "pull" in command:
+            raise subprocess.TimeoutExpired(command, 1)
+        return real(command, **kwargs)
+
+    monkeypatch.setattr(checkpoint.subprocess, "run", fake_run)
+    monkeypatch.setattr(checkpoint, "_in_rebase", lambda: True)
+    with pytest.raises(checkpoint.CheckpointError, match="timed out"):
+        checkpoint._pull_rebase()
+    assert any("rebase" in c and "--abort" in c for c in calls)
+
+
+def test_git_never_prompts_for_credentials(work, monkeypatch):
+    seen = {}
+    real = subprocess.run
+
+    def fake_run(command, **kwargs):
+        seen.update(kwargs["env"])
+        return real(command, **kwargs)
+
+    monkeypatch.setattr(checkpoint.subprocess, "run", fake_run)
+    checkpoint._git("status")
+    assert seen["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_pull_with_files_changed_meanwhile_gives_a_clear_message(work, other, git):
+    (other / "README.md").write_text("from other\n")
+    git(other, "commit", "-q", "-am", "chore: outro")
+    git(other, "push", "-q", "origin", "main")
+    _write_hook(work, "post-commit", "echo touched >> README.md")
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError, match="rode de novo"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def test_new_binary_anywhere_in_the_project_is_refused(work, git):
+    _edit(work)
+    (work / "projects/demo/logo.png").write_bytes(b"\x89PNG\0\0")
+    (work / "projects/demo/big.txt").write_text("x" * (200 * 1024 + 1))
+    refused = {r["path"]: r["reason"] for r in checkpoint.diff("demo")["refused"]}
+    assert refused == {"projects/demo/logo.png": "binary"}
+    with pytest.raises(checkpoint.CheckpointError, match="logo.png"):
+        checkpoint.commit("demo", "docs: a")
+    result = checkpoint.commit("demo", "docs: a", ["logo.png"])
+    assert result["committed"] is True
