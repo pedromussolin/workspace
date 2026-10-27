@@ -14,7 +14,7 @@ instructions are in English.
 
 This skill is model-invocable (no `disable-model-invocation`) on purpose: it is the exception the
 root `CLAUDE.md` makes for this repo, which says to commit and push to `main` at the end of each
-iteration without asking. It writes nothing outside the repo and runs only on the user's words
+iteration without asking. It pushes only to this repo's `main` and runs only on the user's words
 listed in the description.
 
 The `ws checkpoint` commands run git as `git -C <repo root>`, so the folder the session is in
@@ -49,13 +49,22 @@ does not matter. Never build the git steps by hand and never skip a hook.
   conflicting paths and stop; never force-push and never resolve it silently.
 - **New-word refusal at push** (`pre-push`): the commit stays local. Run `ws names pending`, ask
   the user one question with every word and your guess for each ("Acme: real name or harmless
-  term?"), apply the answer (`ws names add REAL --analog ANALOG` and mask what carries it, or
-  `ws names known WORD...` and commit `.known-words`), then run `ws checkpoint commit` again: it
-  pushes the pending commit. Never put the question on GitHub.
+  term?"), then apply the answer. Never put the question on GitHub.
+  - Harmless word: `ws names known WORD...`, then `ws checkpoint commit <slug> -m "chore: ..."`
+    again. `.known-words` is the one outside file `commit` accepts; it goes in with that commit,
+    which also pushes the pending one.
+  - Real name: `ws names add REAL --analog ANALOG` (writes the local `names.toml`), mask the files
+    (`ws mask --in-place FILE`), then `ws checkpoint commit <slug> -m "<same message>" --amend`.
+    The first commit already carries the real word and `pre-push` checks every pushed commit, so
+    a second commit would not clear it: `--amend` rewrites the single unpushed checkpoint commit.
+    If more than one commit is unpushed or it touches other paths, `--amend` refuses: stop and
+    tell the user.
+- **Secret refusal at push** (`pre-push`): same path as a real name: mask the files, then
+  `commit ... --amend`.
 - **Large or binary new file** (over 200 KB, under `evidence/` or `attachments/`): ask the user
   whether to include it. Only on a yes, run `commit` again with `--include PATH`.
-- **Another hook refusal** (secrets, real names): fix or mask the text (`ws mask --in-place FILE`)
-  and run `commit` again.
+- **Another hook refusal** at commit time (secrets, real names): fix or mask the text
+  (`ws mask --in-place FILE`) and run `commit` again.
 - **Non-fast-forward after the retry, or any other failure:** print the message as is and stop.
 
 ## Report
