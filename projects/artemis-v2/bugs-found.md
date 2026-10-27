@@ -309,22 +309,17 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   beat lê esse campo). Fecha às 19h UTC, depois do corte padrão da
   conciliação (14h BRT): o lote cairia na conciliação manual.
 
-## B20 — Rotas do BFF sem o escopo do parceiro
+## B20 — Rotas do BFF sem o escopo do parceiro (já controlado no BFF)
 
-- **Onde:** `src/modules/operations/liquidation_batches/viewer.py` do BFF
-  (`bb877db`). Usam `scope` só as rotas de fundos, contrato, listagens fake e
-  real, consolidate e fechamento. Checam só o papel: pagamentos (`:78`),
-  exportação de rejeitados (`:135`), exportação de lotes fake (`:245`),
-  exclusão (`:258`), saldo (`:456`), extrato (`:476`), CNAB (`:496`) e as três
-  da conciliação (`:523-565`).
-- **Efeito:** **[H]** um usuário de parceiro com o papel de leitura consulta
-  pagamentos, saldo, extrato e CNAB de remessa ou lote de outro parceiro,
-  passando o id; com o papel de exclusão, exclui lote fake de produto que não
-  é dele. Validar com um usuário de parceiro no sandbox.
-- **Correção:** `scope.ensure_assignment_product` em toda rota que recebe
-  produto; nas que recebem lote, remessa ou identificador, conferir o produto
-  do recurso antes de responder. A exclusão entra na fase 2 (A2 do
-  [plano](tasks/02-03-implementation-plan.md)); o resto é tarefa própria.
+- **Onde:** o BFF já lista essas rotas como pendentes no teste de arquitetura
+  `tests/test_arch_partner_scope.py` (`PENDING_ROUTES`, teto que só desce; 87 em `bb877db`), com
+  a nota de cada uma (pagamentos, exportações, saldo, extrato, CNAB, conciliação). Não é achado
+  novo: em 27/10 eu o registrei sem ver essa lista.
+- **Fase 2 (A2 do [plano](tasks/02-03-implementation-plan.md)):** o `DELETE /batches` passou a
+  conferir o `product_id` e saiu da lista (teto 86). O `proc_id` da exclusão continua sem
+  conferência própria. **[H]** A cessão filtra os pagamentos pelo produto e pelo proc_id, então
+  o proc_id de outro parceiro não acharia nada; validar na rota de exclusão da cessão.
+- **Resto:** segue a lista do BFF, fora desta tarefa.
 
 ## B21 — Lotes reais sem pagamento no produto 1505
 
