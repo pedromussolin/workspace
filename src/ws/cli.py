@@ -19,6 +19,8 @@ from ws import (
     review,
     secrets,
     slot,
+    taskmodel,
+    taskstatus,
     userconfig,
     workdays,
 )
@@ -601,6 +603,21 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
         help="Include tasks finished since this day (default: the previous workday).",
     )
     listing.set_defaults(handler=_cmd_task_list)
+    status = commands.add_parser(
+        "status",
+        help="Apply the status rules to Jira cards and the collected activity (JSON).",
+    )
+    status.add_argument("--cards", type=Path, required=True, help="Output of `ws task list`.")
+    status.add_argument(
+        "--activity", type=Path, required=True, help="Output of `ws standup collect`."
+    )
+    status.add_argument(
+        "--today",
+        type=_iso_date,
+        metavar="YYYY-MM-DD",
+        help="Reference day (default: today).",
+    )
+    status.set_defaults(handler=_cmd_task_status)
 
 
 def _cmd_task_list(args: argparse.Namespace) -> int:
@@ -619,6 +636,29 @@ def _cmd_task_list(args: argparse.Namespace) -> int:
         print(f"ws task list: {error}", file=sys.stderr)
         return 1
     print(json.dumps({"platform": "jira", "cards": cards}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _cmd_task_status(args: argparse.Namespace) -> int:
+    try:
+        config = userconfig.load_config()
+        cards = json.loads(args.cards.read_text(encoding="utf-8"))["cards"]
+        activity = json.loads(args.activity.read_text(encoding="utf-8"))
+        tasks = [
+            jira.task_from_card(card, config.jira.site, config.jira.status_overrides)
+            for card in cards
+        ]
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws task status: {error}", file=sys.stderr)
+        return 2
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        print(f"ws task status: invalid input: {error}", file=sys.stderr)
+        return 2
+    result = taskstatus.evaluate(
+        tasks, activity, args.today or date.today(), config.standup.stale_workdays
+    )
+    payload = {"tasks": [taskmodel.task_to_json(task) for task in tasks], **result}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 
