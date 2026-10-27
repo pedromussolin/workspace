@@ -1,13 +1,13 @@
 ---
 name: daily
-description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
+description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and Jira, without writing anywhere. The text is short by default; the detailed one comes on request ("daily detalhado"). Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
 
 ## Overview
 
-Reads the user's git, GitHub and Jira activity and writes the standup in the chat. The text is PT-BR
+Reads the user's git, GitHub and Jira activity and writes the standup in the chat, short by default. The text is PT-BR
 (the user reads it or pastes it); these instructions are in English. This skill only reads: it never
 creates, edits, transitions or comments on anything.
 
@@ -56,50 +56,61 @@ one: card titles must not land in whatever folder the session is in. Never read
      command, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`.
    - **No cards** (the script and the MCP both failed): go to step 4 without `--cards`.
 4. **Report.** Run
-   `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json`
-   (without the `--cards` part when there are no cards). It prints one JSON: `jira`, `yesterday`,
-   `today`, `next_steps`, `blockers`, `keyless` and `warnings` (the fields are used below). If the
+   `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json --top 3`
+   (without the `--cards` part when there are no cards; without `--top 3` in detailed mode, see
+   Modes). It prints one JSON: `jira`, `yesterday`, `today`, `next_steps`, `blockers`, `keyless`,
+   `more` (`yesterday` and `today`: entries cut by `--top`), `moves` (every suggested card move,
+   before any cut) and `warnings` (the fields are used below). If the
    run with `--cards` fails (a malformed `cards.json` or a rejected config), run it again with only
    `--activity`, write the standup from that report (`jira` false) and add the first run's stderr
    to the final warnings line. If the run without `--cards` fails, say so with its stderr and
    stop: the text comes only from the report.
-5. **Write the text** with the template below, from the report only.
+5. **Write the text** in the mode chosen, from the report only.
 
-## Output (PT-BR)
+## Modes
 
-Use exactly these three headings, in this order:
+- **Detailed** when the user asks for it ("daily detalhado", "daily completo", "standup
+  detalhado", "verboso"): run step 4 without `--top` and follow `references/detailed.md`.
+- **Short** otherwise: run step 4 with `--top 3` and follow the template below.
+
+## Short output (PT-BR)
+
+About 120 words in all. Friendly, plain words. No sha, PR number, repo, branch or jargon: rewrite
+the card title, commit subjects and PR titles for people.
 
 ```text
 **Ontem**
-- <KEY> — <title>: <one short line on what was done, from subjects and prs>. <suggestion>
-- <N> commits sem card em <repos>
+- <Task in a few words>: <what moved, in plain words> (<KEY>)
+- E mais <more.yesterday> tarefas.
 
 **Hoje**
-- <KEY> — <title> (<status>): <next_step>. <suggestion>
-- <project>: <next step text>
+- <Task in a few words>: <what is next> (<KEY>)
+- <Projeto>: <the next step in one short line>
 
 **Impedimentos**
-- <KEY> — <title>: sem commit há pelo menos <workdays> dias úteis; card atualizado em <updated>.
+- <Task in a few words>: sem avanço desde <dd/mm> (<KEY>)
 Algum desses é impedimento?
+
+---
+Para você: mover <KEY> para <status>; ...
 ```
 
-- **Ontem:** one line per `yesterday` entry, in order, naming its key and `title` (omit " — <title>" when `title` is null); the short line
-  is built from its `subjects` and `prs` (cite `ref` for a PR), never inventing what changed. The
-  "N commits sem card em <repos>" line (`keyless.commits`, `keyless.repos`) only when
-  `keyless.commits` is greater than 0. No topic without a key.
-- **Hoje:** one line per `today` entry with its `status`; omit ": <next_step>" when it is null.
-  Then one line per `next_steps` entry as "<project>: <text>".
-- **Impedimentos:** one line per `blockers` entry, then the question "Algum desses é impedimento?"
-  once. With none, write "Nenhum." and no question.
-- `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
-  para <to> (<evidence>)"; nothing moved. Otherwise nothing.
-- Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
+- **Describe the task, never the person.** No first person ("fiz", "fechei", "ajustei") and no
+  second person. The user reads the text as their own and explains it to the team.
+  Good: "Release do portal com permissões por área: PRs prontas para o deploy (TS-5424)."
+  Bad: "Fechei as PRs do release do portal (TS-5424)."
+- "E mais N tarefas." only when `more.yesterday` is above 0 (singular "E mais 1 tarefa."); the same
+  for `more.today` under **Hoje**. One line per `next_steps` entry under **Hoje**, as given.
+- **Impedimentos:** one line per `blockers` entry, with its `updated` date as `dd/mm`, then the
+  question once. With none, "Nenhum." and no question.
+- The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
+  `moves` ("mover TS-5431 para em validação"); "Jira indisponível" when `jira` is false; "N
+  avisos, peça \"daily detalhado\"" when `warnings` is not empty. With none of them, no note and
+  no `---`.
+- Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
   validação", `done` "concluída", `cancelled` "cancelada".
-- `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list
-  the `yesterday` topics by key, with the PR title when there is one; under **Hoje** only the
-  `next_steps`; under **Impedimentos** write "indisponível".
-- Dates in the text are `dd/mm` (`blockers[].updated` is ISO in the report).
-- End with every `warnings` entry, as it is.
+- `jira` false: titles are missing, so name each task by key and the PR or commit wording, and
+  write "indisponível" under **Impedimentos**.
 
 ## Rules
 
