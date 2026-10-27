@@ -159,7 +159,10 @@ The first run asks "Trust this plugin directory?"; other arguments go to `claude
 suite refuses a repo whose `.venv` was built with uv's default hard links: the script says so, and
 `rm -rf .venv && UV_LINK_MODE=copy uv sync` fixes it. A case passes at score 1.0, and the delta
 against the run without the plugin should be positive on `daily-request`, `monday-includes-friday`
-and `topics-trace-to-data`. Reports land in `evals/results/` (not versioned).
+and `topics-trace-to-data`. Reports land in `evals/results/` (not versioned). The Write tool only
+writes inside a run's working directory, so the cases that use the skill carry an
+`append_system_prompt` telling the model to write the skill's working files with Bash when Write is
+denied; `--tag daily` selects them.
 
 | Case | Passes when |
 |---|---|
