@@ -1,0 +1,8 @@
+{
+  "name": "workspace",
+  "mcpServers": {
+    "atlassian": {
+      "command": "false"
+    }
+  }
+}
