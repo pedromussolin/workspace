@@ -19,6 +19,7 @@ from ws import (
     review,
     secrets,
     slot,
+    standup,
     taskmodel,
     taskstatus,
     userconfig,
@@ -662,6 +663,52 @@ def _cmd_task_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("standup", help="Daily standup helpers.")
+    commands = parser.add_subparsers(dest="standup_command", required=True)
+    collected = commands.add_parser(
+        "collect",
+        help="Print the activity of the window as JSON: commits, branches, PRs, next steps.",
+        description=(
+            "Read-only. Looks at the git repos under the standup repo_roots (the author is each "
+            "repo's own git user.email), at your open and recent PRs through `gh`, and at the "
+            "next step of every projects/*/CONTINUE.md. Problems that leave data out are listed "
+            "under `warnings`."
+        ),
+    )
+    collected.add_argument(
+        "--today",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="day to run the standup for (default: today)",
+    )
+    collected.set_defaults(handler=_cmd_standup_collect)
+
+
+def _cmd_standup_collect(args: argparse.Namespace) -> int:
+    missing = None
+    try:
+        cfg = userconfig.load_config().standup
+    except userconfig.ConfigMissing as error:
+        cfg = userconfig.StandupConfig(repo_roots=(Path.home() / "repos",))
+        missing = (
+            f"{error.path} is missing: using the defaults (repo_roots {Path.home() / 'repos'})"
+        )
+    except userconfig.ConfigInvalid as error:
+        print(f"ws standup collect: {error}", file=sys.stderr)
+        return 2
+    try:
+        result = standup.collect(cfg, args.today or date.today(), repo_root())
+    except (RuntimeError, OSError) as error:
+        print(f"ws standup collect: {error}", file=sys.stderr)
+        return 1
+    if missing:
+        result["warnings"].insert(0, missing)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ws", description="Personal workspace tools.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -674,6 +721,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_names(subparsers)
     _add_config(subparsers)
     _add_task(subparsers)
+    _add_standup(subparsers)
     return parser
 
 
