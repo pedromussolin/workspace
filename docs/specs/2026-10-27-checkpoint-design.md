@@ -38,6 +38,12 @@ each time; one project's `CONTINUE.md` has no "## Próximo passo", so the daily 
   adds `## Próximo passo`; it runs in that project's own chat, not here, since other chats edit
   the file.
 
+- **Decided after the final review (2026-10-27):** `commit` refuses unless the repo's git hooks are
+  installed (`ws setup`), since they are the only scan before GitHub; it refuses when an unpushed
+  commit touches anything outside `projects/<slug>/` and `.known-words`, naming those commits (push
+  them separately first); its result lists `commits_pushed`, and `pushed` is true only when
+  something was pushed; network git calls have a timeout and never prompt for credentials.
+
 ## The commands
 
 All run git as `git -C <repo_root>`, never from the caller's folder. The slug must match
