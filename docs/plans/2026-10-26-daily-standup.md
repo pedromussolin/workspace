@@ -1,3 +1,5 @@
+> Superseded in part by `docs/plans/2026-10-27-daily-by-task.md` (the standup grouped by task).
+
 # Phase A: start of the day (standup and status) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

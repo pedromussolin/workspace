@@ -33,7 +33,7 @@ from GitHub Issues, Monday.com or another platform later.
 
 | Phase | What happens |
 |---|---|
-| **A. Start of the day** | Standup (yesterday, today, blockers), status (cards out of sync with the code, each with a suggested move) and the user's open tasks, to pick from. Read-only. |
+| **A. Start of the day** | Standup by task (yesterday, today, blockers) with status suggestions (cards out of sync with the code, each with a suggested move) inside their task. Read-only. |
 | **B. Work on a task** | Pick, create or skip the task; start the work (branch named by the company rule, link to the project folder); keep the task record; update the card. Brings the write path, so A's suggested moves can be applied with approval. |
 | **C. Deliver the goal** | The goal is set when the task starts: a PR, a script, a message, a document. The task is done when its goal is delivered. |
 | **D. GMUD** | Only when the task changes production. At delivery the AI asks whether it does; if so, the `change-request` skill writes the GMUD and it is sent to the service desk after approval. |
@@ -86,11 +86,12 @@ The plan format and the gate are detailed in phase B's spec.
 
 | Part | Source |
 |---|---|
-| **Ontem** | The user's commits and PRs in the company repos since the previous workday, and their card changes in the same window. Every line cites its commit, PR or card. |
-| **Hoje** | Cards in progress, and the "Próximo passo" of each project's `CONTINUE.md`. |
-| **Impedimentos** | Cards in progress with no activity for N workdays, offered as possibly stuck; the AI asks before calling anything a blocker. |
-| **Status** | Cards out of sync with the code, each with a suggested move. Phase A only suggests. |
-| **Suas tarefas** | All open tasks of the user, from any project, INFRA requests included, grouped by epic. |
+| **Ontem** | One topic per task key with own commits or PRs in the window (since the previous workday), with its title from the card and a short line from the commit subjects and PRs. Commits without a key are one count line. A suggested status move appears inside its task's topic. |
+| **Hoje** | Cards in progress that are not blockers, and the cards a project's "Próximo passo" names, with the next step; then the next steps that name no card. Suggestions go inside the task's topic. |
+| **Impedimentos** | Cards in progress with no commit for N workdays, offered as possibly stuck; the AI asks before calling anything a blocker. |
+
+The list of the user's open tasks, grouped by epic, is no longer part of the standup: it moves to
+the board-review skill (backlog).
 
 The text is PT-BR and stays in the chat; the user reads it or pastes it.
 
@@ -113,8 +114,8 @@ N lives in the local config.
    script: same result every time, fewer tokens); the fallback is the Atlassian MCP. The user creates the token on the Atlassian site and saves it
    with a `ws` command that reads it from the terminal into `~/.config/workspace/credentials`
    (mode 600); it never passes through the chat.
-4. `ws task status` applies the rules to the git and card data.
-5. The AI writes the standup from that data only.
+4. `ws standup report` groups the git and card data by task and applies the status rules.
+5. The AI writes the standup from that report only.
 
 ### When something fails
 
@@ -143,8 +144,8 @@ Atlassian MCP replaced by mocks (`evals/mocks/`). All data is made up.
 | 1 | "daily" or "standup" | the standup comes out (`tool_used: Skill`) |
 | 2 | "bom dia, me ajuda com esse bug"; and a plain "bom dia" | no standup; the answer is about the bug, or just a greeting |
 | 3 | a Monday | Friday's work is included |
-| 4 | made-up data | every line traces back to a commit, PR or card |
-| 5 | a card out of sync, and the Jira mock fails | the move is suggested, no write tool is called, and the text says Jira failed |
+| 4 | made-up data | every topic names a card key present in the data |
+| 5 | a card out of sync, and the Jira mock fails | the suggestion appears in its task's topic, no write tool is called, and the text says Jira failed |
 
 - Each case runs 3 times; case 5 must pass all 3 (a write path needs every run right).
 - Mechanical checks use the free graders (`regex`, `tool_used`). The judgment checks ("is every
