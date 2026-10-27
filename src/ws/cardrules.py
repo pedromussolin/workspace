@@ -1,0 +1,529 @@
+"""The rules of `ws card`: what each draft may do to which card, and the request it becomes."""
+
+import re
+import unicodedata
+from dataclasses import dataclass, field
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
+
+from ws.adf import AdfError, foreign_nodes, to_adf
+from ws.carddraft import Draft
+from ws.jira import JiraClient, JiraError
+from ws.userconfig import JiraConfig
+
+MAX_SUMMARY = 255
+REQUIRED_SECTIONS = ("Contexto", "Pronto quando")
+WORKLOG_HOUR = 9
+
+_PREFIX = re.compile(r"^\[[^\]]+\]")
+_TIME = re.compile(r"^\d+[hm](\s+\d+[hm])*$")
+_TIME_PART = re.compile(r"(\d+)([hm])")
+
+
+@dataclass
+class Verdict:
+    problems: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    resolved: dict = field(default_factory=dict)
+    preview: list[str] = field(default_factory=list)
+    request: dict | None = None
+
+
+def fold(text: str) -> str:
+    decomposed = unicodedata.normalize("NFD", text)
+    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(bare.casefold().split())
+
+
+def adf_text(node: dict) -> str:
+    kind = node.get("type")
+    if kind == "text":
+        return node.get("text", "")
+    if kind == "hardBreak":
+        return "\n"
+    children = [adf_text(child) for child in node.get("content", [])]
+    if kind == "heading":
+        return f"{'#' * node.get('attrs', {}).get('level', 2)} {''.join(children)}"
+    if kind == "listItem":
+        return "- " + "\n  ".join(children)
+    if kind in ("paragraph", "codeBlock"):
+        return "".join(children)
+    return "\n".join(children)
+
+
+class Context:
+    """What the rules read from Jira, fetched once per run."""
+
+    def __init__(self, client: JiraClient, settings: JiraConfig, me: dict, tz: ZoneInfo, today):
+        self.client = client
+        self.settings = settings
+        self.project = settings.project
+        self.account_id = me["accountId"]
+        self.name = me.get("displayName") or self.account_id
+        self.tz = tz
+        self.today: date = today
+        self._issues: dict[str, dict | None] = {}
+        self._priorities: list[str] | None = None
+        self._sprints: list[dict] | None = None
+
+    @classmethod
+    def load(cls, client: JiraClient, settings: JiraConfig, now: datetime) -> "Context":
+        me = client.myself() or {}
+        if not me.get("accountId"):
+            raise JiraError("Jira did not say who the user is (accountId)")
+        try:
+            tz = ZoneInfo(me.get("timeZone"))
+        except (ValueError, TypeError, OSError):
+            raise JiraError("Jira did not give a valid time zone for the user") from None
+        return cls(client, settings, me, tz, now.astimezone(tz).date())
+
+    def key_in_project(self, key: str) -> bool:
+        return re.fullmatch(rf"{re.escape(self.project)}-[1-9]\d*", key) is not None
+
+    def _issue(self, key: str, fields: list[str]) -> dict | None:
+        cached = self._issues.get(key, False)
+        if cached is not False:
+            return cached
+        try:
+            issue = self.client.issue(key, fields)
+        except JiraError as error:
+            if error.status != 404:
+                raise
+            issue = None
+        self._issues[key] = issue
+        return issue
+
+    def own_card(self, key: str, verdict: Verdict) -> dict | None:
+        if not self.key_in_project(key):
+            verdict.problems.append(f"{key} is not a card of project {self.project}")
+            return None
+        names = ["summary", "status", "assignee", "description", "parent", "project"]
+        names += ["priority", "duedate"]
+        if self.settings.start_date_field:
+            names.append(self.settings.start_date_field)
+        issue = self._issue(key, names)
+        if issue is None:
+            verdict.problems.append(f"card {key} was not found")
+            return None
+        fields = issue.get("fields") or {}
+        if (fields.get("project") or {}).get("key") != self.project:
+            verdict.problems.append(f"{key} does not belong to project {self.project}")
+            return None
+        assignee = fields.get("assignee") or {}
+        verdict.resolved["card"] = {
+            "key": key,
+            "status": (fields.get("status") or {}).get("name"),
+            "assignee": assignee.get("displayName") or assignee.get("accountId"),
+        }
+        if assignee.get("accountId") != self.account_id:
+            verdict.problems.append(
+                f"card {key} is not assigned to you; only your cards are written"
+            )
+            return None
+        return fields
+
+    def epic(self, key: str, verdict: Verdict) -> dict | None:
+        if not self.key_in_project(key):
+            verdict.problems.append(f"epic {key} is not a card of project {self.project}")
+            return None
+        issue = self._issue(key, ["summary", "status", "issuetype", "project"])
+        if issue is None:
+            verdict.problems.append(f"epic {key} was not found")
+            return None
+        fields = issue.get("fields") or {}
+        problems = []
+        if (fields.get("project") or {}).get("key") != self.project:
+            problems.append(f"epic {key} does not belong to project {self.project}")
+        if (fields.get("issuetype") or {}).get("hierarchyLevel") != 1:
+            problems.append(f"{key} is not an epic")
+        category = ((fields.get("status") or {}).get("statusCategory") or {}).get("key")
+        if category == "done":
+            problems.append(f"epic {key} is done")
+        title = fields.get("summary") or ""
+        prefix = _PREFIX.match(title)
+        info = {"key": key, "title": title, "prefix": prefix.group(0) if prefix else None}
+        verdict.resolved["epic"] = info
+        verdict.problems.extend(problems)
+        return None if problems else info
+
+    def priorities(self) -> list[str]:
+        if self._priorities is None:
+            meta = self.client.create_meta(self.project, self.settings.issue_type) or {}
+            entries = meta.get("fields") or []
+            if isinstance(entries, dict):
+                entries = list(entries.values())
+            names: list[str] = []
+            for entry in entries:
+                if "priority" in (entry.get("fieldId"), entry.get("key")):
+                    names = [item["name"] for item in entry.get("allowedValues") or []]
+            self._priorities = names
+        return self._priorities
+
+    def sprint(self, verdict: Verdict) -> dict | None:
+        if self._sprints is None:
+            self._sprints = self.client.active_sprints(self.settings.board_id)
+        if len(self._sprints) != 1:
+            names = ", ".join(str(item.get("name")) for item in self._sprints) or "none"
+            verdict.problems.append(
+                f"the board needs exactly one active sprint, found {len(self._sprints)} ({names})"
+            )
+            return None
+        found = self._sprints[0]
+        if isinstance(found.get("id"), bool) or not isinstance(found.get("id"), int):
+            verdict.problems.append("the active sprint has no numeric id")
+            return None
+        end = self._end_date(found.get("endDate"))
+        verdict.resolved["sprint"] = {
+            "id": found["id"],
+            "name": found.get("name"),
+            "end_date": end.isoformat() if end else None,
+        }
+        if end and end < self.today:
+            verdict.warnings.append(
+                f"the sprint {found.get('name')} ended on {end.isoformat()} and is still active"
+            )
+        return found
+
+    def _end_date(self, value) -> date | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(self.tz).date()
+        except ValueError:
+            return None
+
+
+def check(ctx: Context, draft: Draft) -> Verdict:
+    verdict = Verdict()
+    verdict.resolved["today"] = ctx.today.isoformat()
+    {
+        "create": _create,
+        "edit": _edit,
+        "move": _move,
+        "comment": _comment,
+        "worklog": _worklog,
+    }[draft.op](ctx, draft, verdict)
+    if verdict.problems:
+        verdict.request = None
+    return verdict
+
+
+def _summary_problems(title: str) -> list[str]:
+    problems = []
+    if not title.strip():
+        problems.append("the title is empty")
+    if "\n" in title or "\r" in title:
+        problems.append("the title must be one line")
+    if len(title) > MAX_SUMMARY:
+        problems.append(f"the title has {len(title)} characters; the limit is {MAX_SUMMARY}")
+    return problems
+
+
+def _prefix_problem(title: str, epic_title: str | None) -> str | None:
+    prefix = _PREFIX.match(epic_title or "")
+    if prefix and not title.startswith(f"{prefix.group(0)} "):
+        return f"the title must start with the epic's prefix {prefix.group(0)} and a space"
+    return None
+
+
+def _section_problems(text: str) -> list[str]:
+    counts = {name: 0 for name in REQUIRED_SECTIONS}
+    filled = {name: False for name in REQUIRED_SECTIONS}
+    current = None
+    in_code = False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            in_code = not in_code
+        elif not in_code and line.startswith("## "):
+            current = line[3:].strip() if line[3:].strip() in counts else None
+            if current:
+                counts[current] += 1
+            continue
+        if current and line.strip():
+            filled[current] = True
+    problems = []
+    for name in REQUIRED_SECTIONS:
+        if counts[name] == 0:
+            problems.append(f"the description needs a '## {name}' section")
+        elif counts[name] > 1:
+            problems.append(f"the section '## {name}' appears more than once")
+        elif not filled[name]:
+            problems.append(f"the section '## {name}' is empty")
+    return problems
+
+
+def _convert(text: str, label: str, verdict: Verdict) -> dict | None:
+    if not text.strip():
+        verdict.problems.append(f"the {label} is empty")
+        return None
+    try:
+        doc = to_adf(text)
+    except AdfError as error:
+        verdict.problems.append(
+            f"the {label} cannot be converted: {error} (lines count from the first line after "
+            "the front matter)"
+        )
+        return None
+    if not doc["content"]:
+        verdict.problems.append(f"the {label} has no content")
+        return None
+    return doc
+
+
+def _dates_problems(start: date | None, due: date | None) -> list[str]:
+    if start and due and start > due:
+        return [f"start {start.isoformat()} is after due {due.isoformat()}"]
+    return []
+
+
+def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    values = draft.values
+    epic = ctx.epic(values["epic"], verdict)
+    title = draft.title
+    verdict.problems.extend(_summary_problems(title))
+    if epic and (problem := _prefix_problem(title, epic["title"])):
+        verdict.problems.append(problem)
+    verdict.problems.extend(_section_problems(draft.body))
+    description = _convert(draft.body, "description", verdict)
+    allowed = ctx.priorities()
+    if values["priority"] not in allowed:
+        verdict.problems.append(
+            f"priority {values['priority']!r} is not allowed; the project accepts "
+            f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
+        )
+    start = values.get("start", ctx.today)
+    due = values["due"]
+    verdict.problems.extend(_dates_problems(start, due))
+    if due < ctx.today:
+        verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
+    sprint = ctx.sprint(verdict)
+    if verdict.problems or not (epic and sprint and description):
+        return
+    settings = ctx.settings
+    fields = {
+        "project": {"key": ctx.project},
+        "issuetype": {"name": settings.issue_type},
+        "summary": title,
+        "description": description,
+        "parent": {"key": epic["key"]},
+        "priority": {"name": values["priority"]},
+        "assignee": {"accountId": ctx.account_id},
+        settings.start_date_field: start.isoformat(),
+        "duedate": due.isoformat(),
+        settings.sprint_field: sprint["id"],
+    }
+    verdict.request = {"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}
+    sprint_end = verdict.resolved["sprint"]["end_date"]
+    verdict.preview = [
+        f"Criar card no projeto {ctx.project} ({settings.issue_type})",
+        f"Título: {title}",
+        f"Épico: {epic['key']} {epic['title']}",
+        f"Prioridade: {values['priority']}",
+        f"Responsável: {ctx.name}",
+        f"Sprint: {sprint.get('name')}" + (f" (termina em {sprint_end})" if sprint_end else ""),
+        f"Início: {start.isoformat()}",
+        f"Prazo: {due.isoformat()}",
+        "Descrição:",
+        *[f"  {line}" for line in adf_text(description).splitlines()],
+    ]
+
+
+def _parse_day(value) -> date | None:
+    try:
+        return date.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
+def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    values = draft.values
+    key = values["key"]
+    current = ctx.own_card(key, verdict)
+    if current is None:
+        return
+    settings = ctx.settings
+    changes: dict = {}
+    lines = [f"Editar o card {key}"]
+
+    new_epic = ctx.epic(values["epic"], verdict) if "epic" in values else None
+    current_parent = current.get("parent") or {}
+    if "epic" in values and new_epic and current_parent.get("key") != new_epic["key"]:
+        changes["parent"] = {"key": new_epic["key"]}
+        lines.append(f"Épico: {current_parent.get('key') or '(nenhum)'} -> {new_epic['key']}")
+    if "title" in values:
+        verdict.problems.extend(_summary_problems(values["title"]))
+    if "title" in values or "epic" in values:
+        title = values.get("title", current.get("summary") or "")
+        if "epic" in values:
+            epic_title = new_epic["title"] if new_epic else None
+            check_prefix = new_epic is not None
+        else:
+            epic_title = (current_parent.get("fields") or {}).get("summary")
+            check_prefix = bool(current_parent)
+            if check_prefix and epic_title is None:
+                verdict.problems.append("the card's current epic could not be read")
+                check_prefix = False
+        if check_prefix and (problem := _prefix_problem(title, epic_title)):
+            verdict.problems.append(problem)
+    if "title" in values and values["title"] != current.get("summary"):
+        changes["summary"] = values["title"]
+        lines.append(f"Título: {current.get('summary')} -> {values['title']}")
+
+    if "priority" in values:
+        allowed = ctx.priorities()
+        if values["priority"] not in allowed:
+            verdict.problems.append(
+                f"priority {values['priority']!r} is not allowed; the project accepts "
+                f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
+            )
+        old = (current.get("priority") or {}).get("name")
+        if values["priority"] != old:
+            changes["priority"] = {"name": values["priority"]}
+            lines.append(f"Prioridade: {old or '(nenhuma)'} -> {values['priority']}")
+
+    old_start = _parse_day(current.get(settings.start_date_field))
+    old_due = _parse_day(current.get("duedate"))
+    if "start" in values or "due" in values:
+        verdict.problems.extend(
+            _dates_problems(values.get("start", old_start), values.get("due", old_due))
+        )
+    if "start" in values and values["start"] != old_start:
+        changes[settings.start_date_field] = values["start"].isoformat()
+        lines.append(f"Início: {old_start or '(nenhum)'} -> {values['start'].isoformat()}")
+    if "due" in values and values["due"] != old_due:
+        changes["duedate"] = values["due"].isoformat()
+        lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
+
+    if draft.body.strip():
+        verdict.problems.extend(_section_problems(draft.body))
+        old_doc = current.get("description")
+        if old_doc:
+            try:
+                foreign = foreign_nodes(old_doc)
+            except (KeyError, TypeError, AttributeError):
+                foreign = {"unreadable"}
+            if foreign:
+                verdict.problems.append(
+                    "the current description holds content that cannot be written back: "
+                    + ", ".join(sorted(foreign))
+                )
+        new_doc = _convert(draft.body, "description", verdict)
+        if new_doc is not None and new_doc != old_doc:
+            changes["description"] = new_doc
+            lines.append("Descrição, antes:")
+            lines.extend(
+                f"  {line}" for line in (adf_text(old_doc).splitlines() if old_doc else ["(vazia)"])
+            )
+            lines.append("Descrição, depois:")
+            lines.extend(f"  {line}" for line in adf_text(new_doc).splitlines())
+
+    if not changes and not verdict.problems:
+        verdict.problems.append("the draft changes nothing on the card")
+    if verdict.problems:
+        return
+    verdict.request = {
+        "method": "PUT",
+        "path": f"/rest/api/3/issue/{key}",
+        "body": {"fields": changes},
+    }
+    verdict.preview = lines
+
+
+def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    key = draft.values["key"]
+    if draft.body.strip():
+        verdict.problems.append("a move has no body")
+    current = ctx.own_card(key, verdict)
+    if current is None:
+        return
+    target = fold(draft.values["to"])
+    available = ctx.client.transitions(key)
+    matches = [
+        item for item in available if fold((item.get("to") or {}).get("name") or "") == target
+    ]
+    names = ", ".join(sorted({(item.get("to") or {}).get("name") or "?" for item in available}))
+    if not matches:
+        verdict.problems.append(
+            f"no available transition leads to {draft.values['to']!r}; available: {names or 'none'}"
+        )
+        return
+    if len(matches) > 1:
+        listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
+        verdict.problems.append(
+            f"more than one transition leads to {draft.values['to']!r}: {listing}"
+        )
+        return
+    chosen = matches[0]
+    required = sorted(
+        (item.get("name") or name)
+        for name, item in (chosen.get("fields") or {}).items()
+        if item.get("required")
+    )
+    if required:
+        verdict.problems.append(
+            f"the transition {chosen.get('name')!r} requires fields ({', '.join(required)}); "
+            "do it by hand in Jira"
+        )
+    if verdict.problems:
+        return
+    destination = (chosen.get("to") or {}).get("name")
+    verdict.resolved["transition"] = {"id": chosen.get("id"), "to": destination}
+    verdict.request = {
+        "method": "POST",
+        "path": f"/rest/api/3/issue/{key}/transitions",
+        "body": {"transition": {"id": chosen.get("id")}},
+    }
+    verdict.preview = [
+        f"Mover o card {key}",
+        f"Status: {verdict.resolved['card']['status']} -> {destination}",
+    ]
+
+
+def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    key = draft.values["key"]
+    current = ctx.own_card(key, verdict)
+    body = _convert(draft.body, "comment", verdict)
+    if current is None or body is None:
+        return
+    verdict.request = {
+        "method": "POST",
+        "path": f"/rest/api/3/issue/{key}/comment",
+        "body": {"body": body},
+    }
+    verdict.preview = [f"Comentar no card {key}", *[f"  {x}" for x in adf_text(body).splitlines()]]
+
+
+def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    key = draft.values["key"]
+    spent = " ".join(draft.values["time"].split())
+    if not _TIME.match(spent):
+        verdict.problems.append("time must be hours and minutes only, like 2h, 30m or 1h 30m")
+    else:
+        units = [unit for _, unit in _TIME_PART.findall(spent)]
+        if len(units) != len(set(units)):
+            verdict.problems.append("time repeats a unit; write it like 1h 30m")
+        if not any(int(number) for number, _ in _TIME_PART.findall(spent)):
+            verdict.problems.append("time must be more than zero")
+    day = draft.values.get("day", ctx.today)
+    if day > ctx.today:
+        verdict.problems.append(f"day {day.isoformat()} is after today ({ctx.today.isoformat()})")
+    current = ctx.own_card(key, verdict)
+    comment = None
+    if draft.body.strip():
+        comment = _convert(draft.body, "worklog comment", verdict)
+    if current is None or verdict.problems:
+        return
+    started = datetime.combine(day, time(WORKLOG_HOUR), tzinfo=ctx.tz).strftime(
+        "%Y-%m-%dT%H:%M:%S.000%z"
+    )
+    body: dict = {"timeSpent": spent, "started": started}
+    if comment:
+        body["comment"] = comment
+    verdict.request = {
+        "method": "POST",
+        "path": f"/rest/api/3/issue/{key}/worklog",
+        "body": body,
+    }
+    verdict.preview = [f"Lançar horas no card {key}", f"Tempo: {spent}", f"Início: {started}"]
+    if comment:
+        verdict.preview.extend(["Comentário:", *[f"  {x}" for x in adf_text(comment).splitlines()]])

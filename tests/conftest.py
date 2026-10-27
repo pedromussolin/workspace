@@ -2,8 +2,12 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from collections.abc import Callable
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -172,3 +176,92 @@ def fake_apt(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Monke
     monkeypatch.setenv("FAKE_TOOLS_LOG", str(fake.log))
     monkeypatch.setenv("PATH", f"{fake.folder}{os.pathsep}{os.environ['PATH']}")
     return fake
+
+
+class FakeJira:
+    def __init__(self, server: ThreadingHTTPServer):
+        self.server = server
+        self.requests: list[dict] = []
+        self.pages: dict[str | None, dict] = {}
+        self.status = 200
+        self.routes: dict[tuple[str, str], tuple[int, str]] = {}
+        self.delay = 0.0
+        self.write_delay = 0.0
+        self.truncate = False
+
+    @property
+    def site(self) -> str:
+        host, port = self.server.server_address
+        return f"http://{host}:{port}"
+
+
+@pytest.fixture
+def fake_jira():
+    state: dict = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+
+        def _handle(self, method):
+            parsed = urlparse(self.path)
+            query = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            fake = state["fake"]
+            fake.requests.append(
+                {
+                    "method": method,
+                    "path": parsed.path,
+                    "query": query,
+                    "authorization": self.headers.get("Authorization"),
+                    "content_type": self.headers.get("Content-Type"),
+                    "body": json.loads(raw) if raw else None,
+                }
+            )
+            if fake.delay:
+                time.sleep(fake.delay)
+            if fake.write_delay and method != "GET":
+                time.sleep(fake.write_delay)
+            if (method, parsed.path) in fake.routes:
+                status, body = fake.routes[(method, parsed.path)]
+            elif fake.status != 200:
+                body = json.dumps({"errorMessages": ["denied"]})
+                status = fake.status
+            elif parsed.path == "/rest/api/3/myself":
+                body, status = json.dumps({"accountId": "acc-me"}), 200
+            elif parsed.path == "/rest/api/3/search/jql":
+                body, status = json.dumps(fake.pages[query.get("nextPageToken")]), 200
+            else:
+                body, status = "{}", 404
+            payload = body.encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload) + (50 if fake.truncate else 0)))
+            if 300 <= status < 400:
+                self.send_header("Location", "/elsewhere")
+            self.end_headers()
+            self.wfile.write(payload)
+            if fake.truncate:
+                self.close_connection = True
+
+        def do_GET(self):
+            self._handle("GET")
+
+        def do_POST(self):
+            self._handle("POST")
+
+        def do_PUT(self):
+            self._handle("PUT")
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    fake = FakeJira(server)
+    state["fake"] = fake
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    yield fake
+    server.shutdown()
+    server.server_close()
+    thread.join()

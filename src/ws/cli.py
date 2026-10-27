@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ws import (
     bootstrap,
+    card,
     checkpoint,
     config,
     dictionary,
@@ -665,6 +666,27 @@ def _cmd_task_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser(
+        "card", help="Create and update my Jira cards from drafts, with a preview and approval."
+    )
+    commands = parser.add_subparsers(dest="card_command", required=True)
+    check = commands.add_parser("check", help="Check one draft against Jira and print the verdict.")
+    check.add_argument("draft", help="Path of the draft file.")
+    check.set_defaults(handler=lambda args: card.run_check(args.draft))
+    epics = commands.add_parser("epics", help="List the open epics of my open cards (JSON).")
+    epics.set_defaults(handler=lambda args: card.run_epics())
+    apply = commands.add_parser(
+        "apply", help="Preview (--dry-run) or send (--approve CODE) a draft or a folder of drafts."
+    )
+    apply.add_argument("path", help="A draft file or a folder of drafts.")
+    apply.add_argument(
+        "--dry-run", action="store_true", help="Check, preview, store the pending record."
+    )
+    apply.add_argument("--approve", metavar="CODE", help="Send what the preview with CODE showed.")
+    apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.dry_run, args.approve))
+
+
 def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     parser = subparsers.add_parser("standup", help="Daily standup helpers.")
     commands = parser.add_subparsers(dest="standup_command", required=True)
@@ -852,6 +874,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_names(subparsers)
     _add_config(subparsers)
     _add_task(subparsers)
+    _add_card(subparsers)
     _add_standup(subparsers)
     _add_checkpoint(subparsers)
     return parser
