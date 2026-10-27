@@ -40,3 +40,19 @@ mesmo tempo, 12 chaves por rodada.
 
 Cenários `vigente_concorrente`, `vigente_duplo_fluxo_novo` e `lock_wait` no `driver.py` do
 ambiente local de estresse; passos `f2-*` no `run.sh`.
+
+## TS-5435: fechamento por remessa (mesmo dia)
+
+Código: `feature/TS-5435-fechamento-por-proc-id` (sobre a fase 2). Mesmo ambiente local. **[C]**
+
+- **Migration da modalidade:** upgrade, downgrade (coluna e tipo removidos) e upgrade de novo.
+  Produto só com `fechar_lote_por_proc_id`, sem `lote_liquidacao`, vira `manual`: a precedência
+  exige os dois.
+- **Listagem e tela:** remessa com 2 originadores gera 2 linhas `proc:`; fechar a linha de um
+  originador cria 1 lote só com os pagamentos dele; a outra linha e outra remessa ficam intactas.
+- **Tela × portão na mesma remessa:** 144 corridas. Toda remessa terminou com cada pagamento em
+  exatamente 1 lote (2 lotes por remessa), sem lote vazio, sem lote misturando originador, remessa
+  ou fundo, e sem despacho duplo. Em 23 casos o portão ganhou depois de a tela aceitar o pedido:
+  o job termina `failed: nenhum pagamento apto` com a remessa fechada (sem efeito no dado).
+- **Remessa em processamento:** 400 "A remessa ainda está em processamento.", nada enfileirado.
+- **Regressão:** `acumula` e `clique_repetido` iguais às rodadas anteriores.
