@@ -80,6 +80,10 @@ indeterminate, done) plus named overrides (`In Validation` → `validation`, `Co
 
 The plan format and the gate are detailed in phase B's spec.
 
+**Amended on 2026-10-27** by `docs/specs/2026-10-27-card-write-design.md`: for Jira, a `ws card`
+draft per operation, writes through the REST API only, the approval as a Claude Code `ask` prompt,
+the Atlassian MCP write tools behind `ask` rules, and every op limited to the configured project.
+
 ## Phase A in detail
 
 ### What the standup shows

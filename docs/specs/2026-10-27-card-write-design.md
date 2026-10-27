@@ -2,60 +2,73 @@
 
 Phase B, part 1, of `docs/specs/2026-10-26-task-driven-work-design.md`: a skill that creates and
 updates the user's Jira cards the way the user fills them by hand, with every write previewed and
-approved. Status: design, 2026-10-27.
+approved by the user. Status: design, 2026-10-27, revised after a spec review the same day.
 
 ## Goal
 
-The user says what the card is ("cria um card para ...", "move a TS-5431 para validação",
-"comenta na TS-5424 que ...", "lança 2h na TS-5429") and gets a card filled like their own:
-title with the epic's prefix, description in their four sections, every field they always fill.
-Nothing is written before the user sees the exact change and says yes.
+The user types `/card` with what the card is ("/card cria um card para ...", "/card move a TS-5431
+para validação", "/card comenta na TS-5424 que ...", "/card lança 2h na TS-5429") and gets a card
+filled like their own: title with the epic's prefix, description in their sections, every field
+they always fill. Nothing is written before the user sees the exact change and approves it in a
+prompt of Claude Code itself.
 
 ## Decisions (user, 2026-10-27)
 
 - A card always has, besides Jira's required fields (summary, issue type, project, reporter): the
   **parent epic**, the **priority**, the **assignee** (the user), the **sprint**, a **start date**
   and a **due date**.
-- The model card is the user's TS-5431: type Tarefa; title `[ÁREA] ...` with the epic's prefix;
+- The model card is the user's own: type Tarefa; title `[ÁREA] ...` with the epic's prefix;
   description sections `## Contexto`, `## Desenho combinado`, `## A fazer antes de implementar`,
   `## Pronto quando`.
-- Script first (root `CLAUDE.md`): the model writes the prose and picks values; `ws` builds the
-  payloads, checks the rules, converts the description to Jira's document format (ADF) and calls
-  the API.
+- Script first: the model writes the prose and picks values; `ws` builds the requests, checks the
+  rules, converts the description to Jira's document format (ADF) and calls the API.
 - Only the user's own cards are written: never another developer's card, never a card without an
-  assignee (the rule is in code).
+  assignee (in code).
 
 ## Decisions taken while the user was away (to confirm)
 
-- **The sprint is the board's active sprint.** Board 358 has one active sprint ("Sprint 16.6.40",
-  open since July): the team keeps a single open sprint. `ws` reads the active sprints of the
-  configured board; exactly one → used; none or several → the check fails and the skill asks.
-- **Start date defaults to today; the due date is always asked** (no default). The priority and
-  the epic are asked when the user did not say them.
-- **Required sections:** `## Contexto` and `## Pronto quando`; the other two are optional (a small
-  card may not need a design). The check rejects a description without the two.
-- **Writes go only through the REST API** (`ws`, with the user's API key). No MCP write fallback
-  in this part: an MCP write would skip the checks. Without the key, the skill stops and tells the
-  user to run `ws config token jira` in their own terminal. A Claude Code hook that blocks the
-  Atlassian MCP write tools is in the backlog.
-- **The skill is `card`**, invoked only by the user (`/card ...`), since it writes outside the repo
-  (`disable-model-invocation: true`, root `CLAUDE.md`).
+- **Entry is `/card` only** (`disable-model-invocation: true`, root `CLAUDE.md`). The daily's
+  "Para você:" note becomes "para aplicar: /card mover TS-5431 para em validação".
+- **The approval is a Claude Code prompt, not prose.** `ws setup` checks and prints (it never
+  edits `~/.claude/settings.json`) `permissions.ask` rules for `Bash(ws card apply:*)` and for
+  every Atlassian MCP write tool (`createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`,
+  `addCommentToJiraIssue`, `addOrEditJiraIssueComment`, `addWorklogToJiraIssue`, `executeWrite`,
+  `executeDestructive`, on every Atlassian server installed). Until the user adds them, `ws setup`
+  reports a "needs you" line. `ask`, not `deny`, so the GMUD skill (which creates requests through
+  `executeWrite`) keeps working with a prompt.
+- **Writes go only through the REST API** with the user's API key (an unscoped token). No MCP
+  write path in this skill. Without the key the skill stops and says to run `ws config token jira`
+  in the user's own terminal.
+- **Project allow-list:** every key, for every op, belongs to the configured project. A card of
+  another project (INFRA included) is refused; such a change is done by hand. This replaces the
+  parent spec's "no creation in INFRA" with a stricter rule.
+- **Sprint:** the configured board's active sprint; exactly one → used, shown in the preview with
+  its name and end date, with a warning when the end date is past (the board keeps one sprint open
+  for months); none or several → the check fails and the skill asks.
+- **Dates:** "today" is in the user's Jira time zone (`timeZone` of `GET /myself`), not the
+  machine's (WSL is often UTC). `start` defaults to today; `due` is always asked.
+- **Required sections:** `## Contexto` and `## Pronto quando`, exact level-2 headings, each not
+  empty; the other two only when there is something to say.
+- **Amends the parent spec:** Jira-specific `ws card` instead of the neutral `ws task check/apply`
+  and REST as the main path instead of the MCP; the neutral plan returns when a second platform
+  arrives. The parent spec and backlog item 1 point here.
 
 ## The draft file (the model's only output)
 
-One operation per file, under `~/.local/share/workspace/cards/drafts/`, Markdown with a TOML front
-matter between `+++` lines. The model writes it with the Write tool (or a quoted heredoc when Write
-is denied).
+One operation per file in `~/.local/share/workspace/cards/drafts/` (mode 700), Markdown with a TOML
+front matter between `+++` lines, written with the Write tool (a quoted heredoc when Write is
+denied). Unknown front-matter keys are an error (a typo never goes silently); TOML dates and
+strings are both accepted for dates.
 
 ```text
 +++
 op = "create"
-epic = "TS-5357"
+epic = "TS-101"
 priority = "High"
-start = "2026-10-28"
-due = "2026-10-31"
+start = 2026-10-28
+due = 2026-10-31
 +++
-# [FRONT] Permissões atômicas por ação
+# [FRONT] Título curto do card
 
 ## Contexto
 ...
@@ -66,90 +79,121 @@ due = "2026-10-31"
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due`; optional `start` (default today) | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional: a new description (the sections) |
-| `move` | `key`, `to` (a Jira status name, e.g. "In Validation") | none |
+| `create` | `epic`, `priority`, `due`; optional `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional: a new description |
+| `move` | `key`, `to` (the target status name) | none |
 | `comment` | `key` | the comment, Markdown |
-| `worklog` | `key`, `time` (Jira format: `2h`, `30m`, `1h 30m`), optional `day` (default today) | optional: what was done |
+| `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`: hours and minutes only), optional `day` | optional |
 
 ## The commands
 
-- `ws card check DRAFT` — reads the draft, fetches what the rules need (the epic, the card, the
-  active sprint, the user's account) and prints a JSON verdict: `ok`, the problems found, the
-  resolved values (sprint id and name, epic title, the card's current status and assignee).
-- `ws card apply DRAFT --dry-run` — runs the check; on success prints the PT-BR preview (what will
-  change, field by field) and the exact request(s), and an approval code: the first 12 characters
-  of the SHA-256 of the requests. Nothing is written.
-- `ws card apply DRAFT --approve CODE` — recomputes the requests; refuses unless the code matches
-  (so the draft cannot change between the preview and the write, and a write without a preview is
-  impossible); then sends them and prints the card key and link.
-- `ws card epics` — the epics of the user's open cards (key and title), for the model to offer
-  when the user did not say the epic.
+Exit codes for all: 0 ok; 1 a rule failed (the JSON lists the problems); 2 setup needed (no
+`config.toml` keys, no API key); 3 Jira refused or unreachable (401/403/5xx/timeout).
 
-## The rules (`ws card check`)
+- `ws card check DRAFT` — reads the draft, fetches what the rules need (the epic, the card, its
+  transitions, the active sprint, the user) and prints a JSON verdict: `ok`, `problems`, `warnings`
+  and the resolved values (sprint id, name and end date; epic key, title and prefix; the card's
+  current status and assignee; the request(s) it would send).
+- `ws card epics` — the epics of the user's open cards: search
+  `assignee = currentUser() AND project = <project> AND statusCategory != Done` with `parent`,
+  keep the parents with `issuetype.hierarchyLevel == 1` that are not done, print key, title,
+  prefix and status. Empty → the skill asks the user for an epic key.
+- `ws card apply PATH --dry-run` — PATH is one draft or a folder of drafts (in name order). Runs
+  every check; on success prints the PT-BR preview of every change (field by field; for `edit` of
+  a description, the old and the new text) and the requests (method, path, body; never the
+  `Authorization` header), and stores a pending record
+  `~/.local/share/workspace/cards/pending/<code>.json` (mode 600) with the drafts' content hashes
+  and the requests. `<code>` is the first 12 hex characters of the SHA-256 of the site, methods,
+  paths and bodies. Prints the code.
+- `ws card apply PATH --approve CODE` — refuses unless a pending record with that code exists, is
+  under 30 minutes old and the drafts are unchanged; re-runs every check against live Jira (the
+  card may have been reassigned or moved since the preview) and refuses when the requests now
+  differ; deletes the pending record **before** sending (at most once: a second `--approve` with
+  the same code finds nothing); sends the requests in order, stopping at the first failure and
+  reporting what was applied; moves each applied draft to `cards/done/`. A timeout, a 5xx or a
+  connection error after sending → "resultado incerto: confira no Jira", no retry; for `create`, the
+  JQL to look for the title. `apply` without `--dry-run` or `--approve` is an error.
 
-- `create`: the epic exists, is an Epic of the configured project, and the title starts with the
-  epic's prefix (the leading `[...]` of the epic's title; an epic without a prefix → any title);
-  the description has `## Contexto` and `## Pronto quando`; `priority` is one of the project's
-  priorities; `start` ≤ `due`, both ISO dates, `due` not in the past; exactly one active sprint on
-  the board.
-- `edit`, `move`, `comment`, `worklog`: the card's assignee is the user (by account id). An
-  unassigned card or another person's card → refused.
-- `move`: the target is one of the card's available transitions (`GET .../transitions`), matched
-  by the target status name; refused otherwise, listing the available ones.
-- `worklog`: `time` matches Jira's duration format; `day` not in the future.
-- Never in the INFRA project (spec rule), whatever the op.
+## The rules (`ws card check`, again at `--approve`)
+
+- Every op: the key (and the epic) belong to the configured project.
+- `create`: the epic exists, `issuetype.hierarchyLevel == 1`, not done; the title is one line, at
+  most 255 characters, and starts with the epic's prefix (`^\[[^\]]+\]`, case-sensitive) and a
+  space (an epic without a prefix → any title); the two required sections; `priority` is one of
+  the project's allowed priorities (create metadata); `start` ≤ `due`, `due` not before today;
+  exactly one active sprint.
+- `edit`: the card's assignee is the user; the title prefix against the new epic or the current
+  one; `start` ≤ `due` merged with the current values; when the description is replaced, the two
+  required sections, and a refusal when the current description holds content the converter cannot
+  write back (tables, mentions, media, panels, expands, emoji), listing the types.
+- `move`: the assignee is the user; the target matches exactly one available transition by its
+  `to.name`, compared without case and accents; two matches → refused, listing them; a transition
+  with required fields (`expand=transitions.fields`) → refused (done by hand).
+- `comment`: the assignee is the user; the body converts.
+- `worklog`: the assignee is the user; `time` matches `^\d+[hm](\s+\d+[hm])*$`; `day` not after
+  today.
 
 ## The requests (REST v3)
 
-- create: `POST /rest/api/3/issue` with `project`, `issuetype` (configured name), `summary`,
-  `description` (ADF), `parent` (epic key), `priority` (`{name}`), `assignee` (the user's account
-  id), the start-date field (configured id, `YYYY-MM-DD`), `duedate`, the sprint field (configured
-  id, the sprint id as a number).
-- edit: `PUT /rest/api/3/issue/{key}` with the changed fields only.
-- move: `POST /rest/api/3/issue/{key}/transitions` with the transition id.
-- comment: `POST /rest/api/3/issue/{key}/comment` with an ADF body.
-- worklog: `POST /rest/api/3/issue/{key}/worklog` with the duration (`time`), the start (`day` at
-  09:00 local time, with the offset, in Jira's timestamp format) and an optional ADF comment.
+- create: `POST /rest/api/3/issue` with `fields`: `project` `{key}`, `issuetype` `{name}`,
+  `summary`, `description` (ADF), `parent` `{key}`, `priority` `{name}`, `assignee` `{accountId}`,
+  the start-date field (`YYYY-MM-DD`), `duedate` (`YYYY-MM-DD`), the sprint field (the sprint id, a
+  number). The fields were checked on the project's create screen on 2026-10-27.
+- edit: `PUT /rest/api/3/issue/{key}` with the changed fields only (answers 204).
+- move: `POST /rest/api/3/issue/{key}/transitions` with `{"transition": {"id"}}` (answers 204).
+- comment: `POST /rest/api/3/issue/{key}/comment` with an ADF `body`.
+- worklog: `POST /rest/api/3/issue/{key}/worklog` with the duration, the start (the `day` at 09:00
+  in the user's time zone, written as `2026-10-28T09:00:00.000-0300`: offset without a colon) and
+  an optional ADF comment.
 
-The Markdown → ADF conversion becomes `ws.adf` (headings, paragraphs, bullet and numbered lists,
-nested lists, `**bold**`, `` `code` ``, links), generalized from the GMUD converter
-(`gmud-adf.py`, own code); ADF never combines `code` with `strong`.
+`JiraClient` gains one `_request(method, path, body=None)` used by every call: JSON
+`Content-Type`, a 204 or empty body is success, Jira's `errorMessages` and `errors` are part of
+`JiraError`'s message, no retries.
 
-## Local config (`config.toml`, never in the repo)
+## The ADF converter (`ws.adf`)
+
+Written from scratch with tests (the GMUD converter it generalizes lives outside the repo). It
+supports: `##`/`###` headings, paragraphs, bullet and numbered lists (nested by indentation),
+checkbox items (`- [ ]`, `- [x]`, written as bullets starting with ☐ or ☑), fenced code blocks
+(`codeBlock`), `**bold**`, `` `code` ``, `[text](url)` links. It fails closed: tables, block
+quotes, images, raw HTML and any other construct → an error naming the line. It never emits an
+empty text node, and never combines `code` with `strong`.
+
+## Local config (`config.toml`, outside the repo)
 
 ```toml
 [jira]
-project = "TS"
-board_id = 358
-issue_type = "Tarefa"
-start_date_field = "customfield_10015"
-sprint_field = "customfield_10020"
+project = "<PROJECT>"
+board_id = <board id>
+issue_type = "<issue type name>"
+start_date_field = "customfield_<n>"
+sprint_field = "customfield_<n>"
 ```
 
-Missing keys → `ws card check` names them and points to the README section "Local config".
+Missing keys → exit 2, naming them and the README section "Local config".
 
 ## The skill `card`
 
-1. Understand the request; ask only what is missing (for `create`: epic — offer `ws card epics`;
-   priority; due date). Write the title and the sections in the user's style: plain PT-BR, the
-   context and what "done" means; `Desenho combinado` and `A fazer antes de implementar` only when
-   there is something to say.
-2. Write the draft; run `ws card check`; fix and repeat until `ok` (problems that need the user →
-   ask).
-3. Run `ws card apply --dry-run`; show the preview to the user, as is, and ask for a yes.
-4. Only on an explicit yes: `ws card apply --approve CODE`; give the key and the link.
-5. Several operations (for example the daily's "mover TS-5431, TS-5424 para ..."): one draft per
-   card, one preview listing all of them, one yes, then one apply per draft.
+1. Understand the request; ask only what is missing (for `create`: the epic, offering
+   `ws card epics`; the priority; the due date). Write the title and the sections in the user's
+   style: plain PT-BR, the context and what "done" means.
+2. Write the draft(s); run `ws card check`; fix and repeat until `ok`; ask the user about problems
+   only they can settle.
+3. `ws card apply <draft or folder> --dry-run`; show the preview as printed, including warnings.
+4. `ws card apply ... --approve CODE`: Claude Code asks the user to allow it (the `ask` rule); the
+   user's yes in that prompt is the approval. Give the key and the link.
+5. Several changes (the daily's "para aplicar"): one folder, one dry-run, one approval.
 
 ## Tests (pytest, a fake Jira server, no real Jira)
 
-The ADF conversion; every check rule with a passing and a failing case; the dry-run makes no
-write request; `--approve` with a wrong code makes no write request; the right code sends exactly
-the previewed requests; transitions by name; worklog `started` format; a card of another person is
-refused for every op.
+The converter (each construct, the refusals, no empty text nodes); every rule with a passing and a
+failing case; time zone from `/myself`; `--dry-run` sends no write; `--approve` without a pending
+record, with a wrong code, with a changed draft, or twice sends no write; the right code sends
+exactly the previewed requests; a 204 answer is success; Jira's error body reaches the message; a
+batch stops at the first failure and reports what was applied; another person's card and another
+project's key are refused for every op; `ws setup` reports the missing `ask` rules.
 
 ## Out of scope
 
 Branch creation and the task records under `projects/<p>/tasks/` (phase B, part 2); writes through
-the MCP; the hook on the MCP write tools; GitHub Issues and Monday.
+the MCP; GitHub Issues and Monday.
