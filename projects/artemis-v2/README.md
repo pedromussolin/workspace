@@ -44,8 +44,8 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 |---|---|---|---|---|---|
 | 12 | [Lotes reais: buscar os lotes antes dos valores](tasks/12-real-batches-before-values.md) | cessão | D21 | **prioridade máxima** (14/10); mapeada | a definir |
 | 01 | [Réplica de leitura no init do SQLAlchemy](tasks/01-read-replica.md) | cessão | — | **concluída** (PR #2628, 07/10; variável no Parameter Store) | TS-5279 |
-| 02 | [Dois modos de fechamento: chave ou proc_id](tasks/02-close-batch-by-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | desenho alinhado | a definir |
-| 03 | [Fechamento: mais rápido, sem espera e sem 429](tasks/03-async-closing-and-429.md) | cessão, BFF, front, argocd | — | em produção (cessão 19/10, BFF e front 20/10); [casos e plano de 20/10](tasks/03-post-production-cases.md) | TS-5377 |
+| 02 | [Dois modos de fechamento: chave ou proc_id](tasks/02-close-batch-by-proc-id.md) | cessão, BFF, front | D7 (D3 adiada) | em sandbox (PRs de 27/10); [plano](tasks/02-03-implementation-plan.md) | TS-5435 |
+| 03 | [Fechamento: mais rápido, sem espera e sem 429](tasks/03-async-closing-and-429.md) | cessão, BFF, front, argocd | — | em produção (cessão 19/10, BFF e front 20/10); fase 2 em sandbox (27/10); [casos](tasks/03-post-production-cases.md) e [plano](tasks/02-03-implementation-plan.md) | TS-5377 |
 | 04 | [Performance das listagens de lotes](tasks/04-listing-performance.md) | cessão, front | revisão da DBA | mapeado | a definir |
 | 05 | [Tipo de baixa na tabela de pagamentos](tasks/05-settlement-type.md) | cessão, front | — | mapeado | a definir |
 | 06 | [Nome do CNAB na tela](tasks/06-cnab-name-on-screen.md) | cessão, BFF, front | decisão D4 | mapeado | a definir |

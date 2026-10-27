@@ -4,10 +4,10 @@
 > repositório, revisão do orquestrador antes de juntar) ou superpowers:executing-plans. Passos em
 > checkbox (`- [ ]`).
 
-- **Data:** 27/10/2026. Status: **bloco 1 commitado** nos três repos (branch
-  `fix/TS-5377-fechamento-lote-fase2` e `-sdbx`, sem push), com o
-  [estresse local](../evidence/closing-stress-2026-10-27.md). Bloco 2 (TS-5435) em execução:
-  B0, B3 e B4 prontos sem commit; B1 e B2 em andamento.
+- **Data:** 27/10/2026. Status: **blocos 1 e 2 em PR para a sandbox** (27/10), validados no
+  [estresse local](../evidence/closing-stress-2026-10-27.md). Fase 2: cessão #2710, BFF #228, front
+  #241. TS-5435: cessão #2711, BFF #229, front #242 (montadas sobre a fase 2). Na `-sdbx` da cessão
+  a migration encadeia na cabeça da sandbox (`e5a1c7b3d9f2`). Falta: fase 0 (Datadog) e fase 3.
 - **Tarefas:** fase 2 na TS-5377; tarefa 02 na **TS-5435** (épico TS-5278).
 - **Decidido em 27/10:** D22 (lote por produto, fundo, originador e proc_id; a linha da tela
   segue o mesmo agrupamento) e D23 (remessa em processamento: 400). D7 vai pela D24
