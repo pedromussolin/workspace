@@ -180,7 +180,7 @@ def _section(text: str, heading: str) -> str | None:
         return None
     body: list[str] = []
     for line in lines[lines.index(heading) + 1 :]:
-        if line.startswith("## "):
+        if line.startswith(("# ", "## ")):
             break
         body.append(line)
     return "\n".join(body).strip()

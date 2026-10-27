@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from ws.cli import main
-from ws.standup import collect, keys_in
+from ws.standup import _section, collect, keys_in
 from ws.userconfig import StandupConfig
 
 Git = Callable[..., subprocess.CompletedProcess[str]]
@@ -509,3 +509,8 @@ def test_cli_prints_compact_json(
 def test_pr_search_covers_the_stale_window(roots, workspace, fake_gh, home):
     _collect(roots, workspace, stale=8)
     assert "q=is:pr author:@me updated:>=2026-10-14" in fake_gh.args()
+
+
+def test_section_ends_at_a_level_one_heading():
+    text = "## Próximo passo\n\nFazer X.\n\n# Outro título\n\nnão é do passo\n"
+    assert _section(text, "## Próximo passo") == "Fazer X."
