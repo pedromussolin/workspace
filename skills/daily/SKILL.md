@@ -100,12 +100,14 @@ Para você: mover <KEY> para <status>; ...
   Good: "Release do portal com permissões por área: PRs prontas para o deploy (TS-5424)."
   Bad: "Fechei as PRs do release do portal (TS-5424)."
 - "E mais N tarefas." only when `more.yesterday` is above 0 (singular "E mais 1 tarefa."); the same
-  for `more.today` under **Hoje**. One line per `next_steps` entry under **Hoje**, as given.
-- **Impedimentos:** one line per `blockers` entry, with its `updated` date as `dd/mm`, then the
-  question once. With none, "Nenhum." and no question.
+  for `more.today` under **Hoje**. Under **Hoje**, at most 2 lines from `next_steps`, each rewritten
+  like the others: one short line about the task, no first person, no jargon (detailed mode keeps
+  them as given).
+- **Impedimentos:** at most 3 lines from `blockers`, each with its `updated` date as `dd/mm`, then
+  "E mais N." when more were cut, then the question once. With none, "Nenhum." and no question.
 - The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
   `moves` ("mover TS-5431 para em validação"); "Jira indisponível" when `jira` is false; "N
-  avisos, peça \"daily detalhado\"" when `warnings` is not empty. With none of them, no note and
+  avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.
 - Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
   validação", `done` "concluída", `cancelled` "cancelada".
