@@ -12,7 +12,6 @@ _RULE = re.compile(r"^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$")
 _CHECKBOX = re.compile(r"^\[([ xX])\](?:\s+(.*))?$")
 _LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]*)\)")
 _HTML = re.compile(r"<(?:[A-Za-z/!][^>]*)>")
-_ITALIC = re.compile(r"(?<!\*)\*(?!\*)")
 _LINK_SCHEMES = ("http://", "https://", "mailto:")
 
 
@@ -42,7 +41,7 @@ class _List:
 
 class _Parser:
     def __init__(self, markdown: str):
-        self.lines = markdown.expandtabs(4).splitlines()
+        self.lines = markdown.splitlines()
         self.out: list[dict] = []
         self.paragraph: list[tuple[int, str]] = []
         self.stack: list[_List] = []
@@ -72,7 +71,7 @@ class _Parser:
 
     def _line(self, index: int) -> int:
         number = index + 1
-        raw = self.lines[index].rstrip()
+        raw = self.lines[index].expandtabs(4).rstrip()
         stripped = raw.strip()
         indent = len(raw) - len(raw.lstrip())
 
@@ -80,6 +79,8 @@ class _Parser:
             self._flush_paragraph()
             return number
         if stripped.startswith("```"):
+            if indent > 0 and self.stack:
+                raise AdfError("code block inside a list item is not supported", number)
             return self._fence(index, stripped[3:].strip())
         if stripped.startswith("|"):
             raise AdfError("table is not supported", number)
@@ -87,11 +88,14 @@ class _Parser:
             raise AdfError("block quote is not supported", number)
         if _RULE.match(raw):
             raise AdfError("horizontal rule is not supported", number)
-        if indent == 0 and (heading := _HEADING.match(raw)):
+        if indent <= 3 and (heading := _HEADING.match(stripped)):
             self._flush()
             self.out.append(_heading(heading, number))
             return number
-        if marker := _MARKER.match(raw):
+        marker = _MARKER.match(raw)
+        if marker and marker.group(2)[0].isdigit() and not marker.group(3):
+            marker = None
+        if marker:
             self._flush_paragraph()
             self._list_item(marker, number)
             return number
@@ -126,7 +130,9 @@ class _Parser:
         bullet = marker.group(2)
         ordered = bullet[0].isdigit()
         text = marker.group(3) or ""
+        _refuse_block_markup(text, number)
         if checkbox := _CHECKBOX.match(text):
+            _refuse_block_markup(checkbox.group(2) or "", number)
             symbol = CHECKED if checkbox.group(1) in "xX" else UNCHECKED
             text = f"{symbol} {checkbox.group(2) or ''}".rstrip()
         item = _Item([(number, text)])
@@ -145,6 +151,19 @@ class _Parser:
             self._flush_list()
             self.root = new
         self.stack.append(new)
+
+
+def _refuse_block_markup(text: str, number: int) -> None:
+    if text.startswith("|"):
+        raise AdfError("table is not supported", number)
+    if text.startswith(">"):
+        raise AdfError("block quote is not supported", number)
+    if text.startswith("```"):
+        raise AdfError("code block inside a list item is not supported", number)
+    if _RULE.match(text):
+        raise AdfError("horizontal rule is not supported", number)
+    if _HEADING.match(text):
+        raise AdfError("heading inside a list item is not supported", number)
 
 
 def _heading(match: re.Match, number: int) -> dict:
@@ -175,12 +194,18 @@ def _build_list(source: _List) -> dict:
 
 
 def _inline_pieces(pieces: list[tuple[int, str]]) -> list[dict]:
-    nodes: list[dict] = []
-    for position, (number, text) in enumerate(pieces):
-        if position:
-            nodes.append(_text(" ", ()))
-        nodes.extend(_inline(text, number, ()))
-    return _merge(nodes)
+    text = " ".join(piece for _, piece in pieces)
+    starts = []
+    offset = 0
+    for number, piece in pieces:
+        starts.append((offset, number))
+        offset += len(piece) + 1
+
+    def locate(position: int) -> int:
+        return [number for start, number in starts if start <= position][-1]
+
+    _check_italic(text, locate)
+    return _merge(_inline(text, 0, locate, ()))
 
 
 def _text(value: str, marks: tuple[dict, ...]) -> dict:
@@ -202,64 +227,87 @@ def _merge(nodes: list[dict]) -> list[dict]:
     return merged
 
 
-def _inline(text: str, number: int, marks: tuple[dict, ...]) -> list[dict]:
+def _inline(text: str, base: int, locate, marks: tuple[dict, ...]) -> list[dict]:
     nodes: list[dict] = []
     buffer: list[str] = []
+    buffer_start = 0
 
     def literal() -> None:
         plain = "".join(buffer)
         buffer.clear()
-        if _HTML.search(plain):
-            raise AdfError("raw HTML is not supported", number)
-        if _ITALIC.search(plain):
-            _check_italic(plain, number)
+        if html := _HTML.search(plain):
+            raise AdfError("raw HTML is not supported", locate(base + buffer_start + html.start()))
         if "~~" in plain:
-            raise AdfError("strikethrough is not supported", number)
+            raise AdfError(
+                "strikethrough is not supported", locate(base + buffer_start + plain.index("~~"))
+            )
         nodes.append(_text(plain, marks))
 
     i = 0
     while i < len(text):
         char = text[i]
+        here = locate(base + i)
         if char == "`":
             end = text.find("`", i + 1)
             if end < 0:
-                raise AdfError("inline code is not closed", number)
+                raise AdfError("inline code is not closed", here)
             literal()
             code_marks = tuple(m for m in marks if m["type"] != "strong") + ({"type": "code"},)
             nodes.append(_text(text[i + 1 : end], code_marks))
             i = end + 1
+            buffer_start = i
         elif text.startswith("**", i):
             end = text.find("**", i + 2)
             if end < 0:
-                raise AdfError("bold is not closed", number)
+                raise AdfError("bold is not closed", here)
             literal()
-            nodes.extend(_inline(text[i + 2 : end], number, (*marks, {"type": "strong"})))
+            strong = (*marks, {"type": "strong"})
+            nodes.extend(_inline(text[i + 2 : end], base + i + 2, locate, strong))
             i = end + 2
+            buffer_start = i
         elif char == "!" and text.startswith("![", i) and _LINK.match(text, i + 1):
-            raise AdfError("image is not supported", number)
+            raise AdfError("image is not supported", here)
         elif char == "[" and (link := _LINK.match(text, i)):
             href = link.group(2)
             if not link.group(1).strip():
-                raise AdfError("link without text", number)
+                raise AdfError("link without text", here)
+            if "(" in href:
+                raise AdfError("link address with parentheses is not supported", here)
             if not href.lower().startswith(_LINK_SCHEMES):
-                raise AdfError("link must start with http://, https:// or mailto:", number)
+                raise AdfError("link must start with http://, https:// or mailto:", here)
             literal()
             mark = {"type": "link", "attrs": {"href": href}}
-            nodes.extend(_inline(link.group(1), number, (*marks, mark)))
+            inner = _inline(link.group(1), base + i + 1, locate, (*marks, mark))
+            nodes.extend(inner)
             i = link.end()
+            buffer_start = i
         else:
+            if not buffer:
+                buffer_start = i
             buffer.append(char)
             i += 1
     literal()
     return nodes
 
 
-def _check_italic(plain: str, number: int) -> None:
-    positions = [m.start() for m in _ITALIC.finditer(plain)]
-    for start, end in zip(positions, positions[1:], strict=False):
-        between = plain[start + 1 : end]
+def _check_italic(text: str, locate) -> None:
+    kept: list[tuple[str, int]] = []
+    i = 0
+    while i < len(text):
+        if text[i] == "`":
+            end = text.find("`", i + 1)
+            i = len(text) if end < 0 else end + 1
+        elif text.startswith("**", i):
+            i += 2
+        else:
+            kept.append((text[i], i))
+            i += 1
+    flat = "".join(char for char, _ in kept)
+    marks = [k for k, (char, _) in enumerate(kept) if char == "*"]
+    for first, second in zip(marks, marks[1:], strict=False):
+        between = flat[first + 1 : second]
         if between and not between[0].isspace() and not between[-1].isspace():
-            raise AdfError("italic is not supported", number)
+            raise AdfError("italic is not supported", locate(kept[first][1]))
 
 
 _SAMPLE = """## a

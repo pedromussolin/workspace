@@ -261,3 +261,94 @@ def test_producible_types_cover_every_construct():
         "doc", "heading", "paragraph", "bulletList", "orderedList", "listItem",
         "codeBlock", "text", "strong", "code", "link",
     }  # fmt: skip
+
+
+def test_bold_spanning_soft_wrapped_lines():
+    assert to_adf("a **bold\nwrapped** b") == doc(
+        paragraph(text("a "), text("bold wrapped", "strong"), text(" b"))
+    )
+
+
+def test_inline_code_spanning_soft_wrapped_lines():
+    assert to_adf("use `a\nb` x") == doc(paragraph(text("use "), text("a b", "code"), text(" x")))
+
+
+def test_link_text_spanning_soft_wrapped_lines():
+    link = {"type": "link", "attrs": {"href": "https://x.com"}}
+    assert to_adf("see [the\ndoc](https://x.com) ok") == doc(
+        paragraph(text("see "), text("the doc", link), text(" ok"))
+    )
+
+
+def test_list_item_continuation_keeps_marks_across_lines():
+    assert to_adf("- a **b\n  c** d") == doc(
+        bullets(item(paragraph(text("a "), text("b c", "strong"), text(" d"))))
+    )
+
+
+def test_error_line_inside_wrapped_paragraph():
+    with pytest.raises(AdfError) as error:
+        to_adf("one\ntwo <b>x</b>\nthree")
+    assert error.value.line == 2
+
+
+@pytest.mark.parametrize(
+    "markdown, word",
+    [
+        ("- > q", "quote"),
+        ("1. > q", "quote"),
+        ("- # h", "heading"),
+        ("- | a |", "table"),
+        ("- ---", "rule"),
+        ("- ```", "code block"),
+        ("- [ ] > q", "quote"),
+    ],
+)
+def test_markup_right_after_list_marker_is_refused(markdown, word):
+    with pytest.raises(AdfError) as error:
+        to_adf(markdown)
+    assert error.value.line == 1
+    assert word in str(error.value)
+
+
+def test_tabs_inside_code_block_are_kept():
+    result = to_adf("```\n\tx\n```")
+    assert result == doc({"type": "codeBlock", "content": [text("\tx")]})
+
+
+def test_tab_indented_nesting_still_works():
+    assert to_adf("- a\n\t- b") == doc(
+        bullets(item(paragraph(text("a")), bullets(item(paragraph(text("b"))))))
+    )
+
+
+def test_fence_inside_list_item_is_refused():
+    with pytest.raises(AdfError) as error:
+        to_adf("- a\n  ```\n  x\n  ```")
+    assert error.value.line == 2
+    assert "list item" in str(error.value)
+
+
+@pytest.mark.parametrize("markdown", ["***x***", "*a **b** c*", "**a** and *b*"])
+def test_nested_or_mixed_italic_is_refused(markdown):
+    with pytest.raises(AdfError, match="italic"):
+        to_adf(markdown)
+
+
+def test_link_address_with_parentheses_is_refused():
+    with pytest.raises(AdfError) as error:
+        to_adf("ok\n[a](https://example.com/a_(b))")
+    assert error.value.line == 2
+    assert "parentheses" in str(error.value)
+
+
+@pytest.mark.parametrize("indent", [1, 2, 3])
+def test_slightly_indented_heading_is_a_heading(indent):
+    assert to_adf(" " * indent + "## T") == doc(
+        {"type": "heading", "attrs": {"level": 2}, "content": [text("T")]}
+    )
+
+
+@pytest.mark.parametrize("line", ["1984.", "0."])
+def test_number_and_dot_alone_is_a_paragraph(line):
+    assert to_adf(line) == doc(paragraph(text(line)))
