@@ -9,6 +9,8 @@ item diz de onde veio, quando foi adiado e o que falta para retomar.
 | P1 — Q1 recebe a origem pedida | [tarefa 03](tasks/03-closing-analysis.md#problemas), 5 h | 13/10/2026 | substituição do legado pelo `refact.py`; só afeta a rota antiga, o Atlas, a varredura e o automático |
 | P3 — trava expirada (`@max_calls`) não vira 500 | [tarefa 03](tasks/03-closing-analysis.md#8-proposta-consolidada), 3 h | 13/10/2026 | idem; vale também para as outras 3 rotas com o decorator |
 | P4 — `EXISTS` em vez de `lote.pagamentos` na `esteira_baixar` | [tarefa 03](tasks/03-closing-analysis.md#8-proposta-consolidada), 2 h | 13/10/2026 | idem; esteira compartilhada por todos os fluxos |
+| D18 — registro durável de cada fechamento (quem pediu, lotes, pagamentos, motivo) | [casos de 20/10](tasks/03-post-production-cases.md#decisões-abertas) | 27/10/2026 | auditoria de quem fechou além da retenção do Datadog; uma coluna "quem pediu" no lote real pode bastar |
+| D20 (b) — fechamento em blocos para grupos acima de ~80 mil | [evidência de 27/10](evidence/closing-group-sizes-2026-10-27.md) | 27/10/2026 | varredura ou Atlas passarem pela rota nova; exige lote "em montagem", despacho no fim e retomada pelo mesmo lote |
 | [Índices para o fechamento de lote](#índices-para-o-fechamento-de-lote) | [tarefa 03](tasks/03-closing-analysis.md), antigo P6 (12 h) | 13/10/2026 | DBA; medir o efeito das etapas 1 e 2 da tarefa 03 antes |
 
 ## Índices para o fechamento de lote
