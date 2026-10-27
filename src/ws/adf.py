@@ -3,6 +3,7 @@
 import re
 from dataclasses import dataclass, field
 
+MAX_LIST_START = 999999
 CHECKED = "☑"
 UNCHECKED = "☐"
 
@@ -144,7 +145,10 @@ class _Parser:
                 self.stack[-1].items.append(item)
                 return
             self.stack.pop()
-        new = _List(indent, ordered, int(bullet[:-1]) if ordered else 1, [item])
+        order = int(bullet[:-1]) if ordered else 1
+        if order > MAX_LIST_START:
+            raise AdfError(f"list number above {MAX_LIST_START} is not supported", number)
+        new = _List(indent, ordered, order, [item])
         if self.stack:
             self.stack[-1].items[-1].children.append(new)
         else:

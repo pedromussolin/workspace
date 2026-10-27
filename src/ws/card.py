@@ -23,7 +23,7 @@ APPROVAL_WINDOW = timedelta(minutes=30)
 
 _CODE = re.compile(r"[0-9a-f]{12}")
 _PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
-_SUBFOLDERS = ("drafts", "pending", "done")
+_SUBFOLDERS = ("drafts", "pending", "done", "uncertain")
 
 
 class SetupNeeded(Exception):
@@ -486,24 +486,44 @@ def _jql_for(project: str, title: str) -> str:
 def _send_all(settings, client: JiraClient, plan: Plan) -> int:
     site = settings.site.rstrip("/")
     applied: list[str] = []
+    applied_paths: list[Path] = []
     for index, (item, verdict) in enumerate(zip(plan.loaded, plan.verdicts, strict=True)):
         request = verdict.request
         try:
             answer = _send(client, request)
         except JiraError as error:
             _report_failure(settings, plan, index, error, applied)
+            _drop_records_for(applied_paths)
             return 3
         except Exception as error:
             unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
             _report_failure(settings, plan, index, unknown, applied)
+            _drop_records_for(applied_paths)
             return 3
+        applied_paths.append(item.path)
         applied.append(item.path.name)
         _report_applied(site, item, verdict, answer)
         try:
             _move_to_done(item.path)
         except OSError as error:
             print(f"Aplicado, mas não consegui mover {item.path.name} para done/: {error}")
+    _drop_records_for(applied_paths)
     return 0
+
+
+def _drop_records_for(paths: list[Path]) -> None:
+    """A preview that mentions a draft already applied could only fail or repeat the write."""
+    wanted = {str(path) for path in paths}
+    if not wanted:
+        return
+    for record in _store("pending").glob("*.json"):
+        try:
+            drafts = json.loads(record.read_text(encoding="utf-8")).get("drafts", [])
+            mentioned = {item.get("path") for item in drafts}
+        except (OSError, ValueError, AttributeError, TypeError):
+            continue
+        if mentioned & wanted:
+            record.unlink(missing_ok=True)
 
 
 def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
@@ -516,6 +536,7 @@ def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
 
 def _report_failure(settings, plan: Plan, index: int, error: JiraError, applied: list[str]) -> None:
     item, verdict = plan.loaded[index], plan.verdicts[index]
+    kept = _keep_aside(item.path)
     if applied:
         print(f"Já aplicados: {', '.join(applied)}")
     if error.uncertain:
@@ -528,18 +549,40 @@ def _report_failure(settings, plan: Plan, index: int, error: JiraError, applied:
     print(
         "Nada mais foi enviado, e a aprovação foi consumida; refaça a prévia para tentar de novo."
     )
+    print(kept)
     pending = [other.path.name for other in plan.loaded[index + 1 :]]
     if pending:
         print(f"Não enviados: {', '.join(pending)}")
 
 
-def _move_to_done(path: Path) -> None:
+def _unique(folder: str, name: str) -> Path:
+    target = _store(folder, name)
+    stem, suffix = target.stem, target.suffix
+    number = 1
+    while target.exists():
+        target = _store(folder, f"{stem}-{number}{suffix}")
+        number += 1
+    return target
+
+
+def _move_inside_drafts(path: Path, folder: str) -> Path:
     root = _drafts_root()
     if path.is_symlink() or not path.resolve().is_relative_to(root):
         raise OSError(f"{path} is not inside {root}; left where it is")
-    target = _store("done", path.name)
-    number = 1
-    while target.exists():
-        target = _store("done", f"{path.stem}-{number}{path.suffix}")
-        number += 1
+    target = _unique(folder, path.name)
     shutil.move(path, target)
+    return target
+
+
+def _move_to_done(path: Path) -> None:
+    _move_inside_drafts(path, "done")
+
+
+def _keep_aside(path: Path) -> str:
+    """A draft whose write failed or is uncertain leaves `drafts/`, so it is never sent again
+    by a later preview of the folder; the user decides after checking Jira."""
+    try:
+        target = _move_inside_drafts(path, "uncertain")
+    except OSError as error:
+        return f"Não consegui tirar {path.name} de drafts/ ({error}); confira antes de repetir."
+    return f"O rascunho {path.name} foi para {target}; confira no Jira antes de repetir."

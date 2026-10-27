@@ -352,3 +352,9 @@ def test_slightly_indented_heading_is_a_heading(indent):
 @pytest.mark.parametrize("line", ["1984.", "0."])
 def test_number_and_dot_alone_is_a_paragraph(line):
     assert to_adf(line) == doc(paragraph(text(line)))
+
+
+def test_a_list_start_number_is_capped():
+    assert to_adf("999999. a\n")["content"][0]["attrs"]["order"] == 999999
+    with pytest.raises(AdfError, match="999999"):
+        to_adf("1000000. a\n")

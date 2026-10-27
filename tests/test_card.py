@@ -928,7 +928,10 @@ def test_a_5xx_is_an_uncertain_result_with_no_retry_and_a_jql_for_create(world, 
     assert 'summary ~ "\\"[FRONT] Título \\\\\\"com aspas\\\\\\"\\""' in out
     assert len(world.writes()) == 1
     assert pending_files() == []
-    assert path.exists()
+    assert not path.exists()
+    kept = data_dir() / "cards" / "uncertain" / "create.md"
+    assert kept.exists()
+    assert str(kept) in out
 
 
 def test_a_connection_error_after_sending_is_uncertain(world, capsys, monkeypatch):
@@ -958,7 +961,9 @@ def test_jira_refusing_a_write_reports_its_message_and_exit_3(world, capsys):
     captured = capsys.readouterr()
     assert "duedate: invalid" in captured.out + captured.err
     assert "resultado incerto" not in captured.out
-    assert path.exists()
+    assert not path.exists()
+    assert (data_dir() / "cards" / "uncertain" / "e.md").exists()
+    assert str(data_dir() / "cards" / "uncertain" / "e.md") in captured.out
 
 
 def folder_with_three():
@@ -1006,7 +1011,8 @@ def test_a_batch_stops_at_the_first_failure_and_reports_what_was_applied(world, 
     assert "1-comment.md" in text.split("2-edit.md")[0]
     assert "nope" in text
     assert "3-worklog.md" in text
-    assert sorted(p.name for p in drafts.iterdir()) == ["2-edit.md", "3-worklog.md"]
+    assert sorted(p.name for p in drafts.iterdir()) == ["3-worklog.md"]
+    assert [p.name for p in (data_dir() / "cards" / "uncertain").iterdir()] == ["2-edit.md"]
     assert [p.name for p in (data_dir() / "cards" / "done").iterdir()] == ["1-comment.md"]
 
 
@@ -1520,7 +1526,8 @@ def test_an_unexpected_error_after_a_write_still_reports_it_and_lists_the_rest(
     assert "Já aplicados: 1-comment.md" in out
     assert "2-edit.md: resultado incerto" in out
     assert "Não enviados: 3-worklog.md" in out
-    assert sorted(p.name for p in drafts.iterdir()) == ["2-edit.md", "3-worklog.md"]
+    assert sorted(p.name for p in drafts.iterdir()) == ["3-worklog.md"]
+    assert [p.name for p in (data_dir() / "cards" / "uncertain").iterdir()] == ["2-edit.md"]
     assert [p.name for p in (data_dir() / "cards" / "done").iterdir()] == ["1-comment.md"]
 
 
@@ -1629,3 +1636,71 @@ def test_the_preview_does_not_need_the_claude_settings(world, capsys, claude_set
     claude_settings.unlink()
 
     preview(create_draft(), capsys)
+
+
+def test_a_failed_draft_never_comes_back_in_a_later_preview_of_the_folder(world, capsys):
+    drafts = folder_with_three()
+    world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (500, "{}")
+    _, code = preview(drafts, capsys)
+    assert approve(drafts, code) == 3
+    capsys.readouterr()
+    world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (204, "")
+
+    out, _ = preview(drafts, capsys)
+
+    assert "3-worklog.md" in out
+    assert "2-edit.md" not in out
+
+
+def test_a_second_failed_draft_with_the_same_name_does_not_overwrite_the_first(world, capsys):
+    world.fake.routes[("POST", "/rest/api/3/issue/TS-101/comment")] = (400, "{}")
+    for text in ["Um.\n", "Dois.\n"]:
+        path = make_draft("c.md", "comment", text, key="TS-101")
+        _, code = preview(path, capsys)
+        assert approve(path, code) == 3
+
+    assert sorted(p.name for p in (data_dir() / "cards" / "uncertain").iterdir()) == [
+        "c-1.md",
+        "c.md",
+    ]
+
+
+def test_applying_a_draft_removes_the_other_pending_records_that_mention_it(world, capsys):
+    drafts = folder_with_three()
+    _, folder_code = preview(drafts, capsys)
+    single = drafts / "1-comment.md"
+    _, single_code = preview(single, capsys)
+    other = drafts / "elsewhere" / "9-other.md"
+    other.parent.mkdir()
+    other.write_text(make_draft("tmp.md", "comment", "Outro.\n", key="TS-101").read_text())
+    (drafts / "tmp.md").unlink()
+    _, other_code = preview(other, capsys)
+    assert len(pending_files()) == 3
+    capsys.readouterr()
+
+    assert approve(drafts, folder_code) == 0
+
+    assert [p.name for p in pending_files()] == [f"{other_code}.json"]
+    assert single_code not in [p.stem for p in pending_files()]
+    assert approve(other, other_code) == 0
+
+
+def test_the_priority_on_a_later_page_of_the_create_screen_is_found(world, capsys):
+    base = "/rest/api/3/issue/createmeta/TS/issuetypes/3"
+    del world.fake.routes[("GET", base)]
+    page = {"total": 2, "fields": [{"fieldId": "summary"}]}
+    world.fake.routes[("GET", base, "0")] = (200, json.dumps(page))
+    later = {"total": 2, "fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
+    world.fake.routes[("GET", base, "1")] = (200, json.dumps(later))
+
+    passing(create_draft(), capsys)
+
+
+def test_a_transition_without_an_id_is_refused(world, capsys):
+    world.set_transitions(
+        "TS-101", [{"name": "Validar", "to": {"name": "Em Validação"}, "fields": {}}]
+    )
+
+    message = problems(make_draft("m.md", "move", key="TS-101", to="Em Validação"), capsys)
+
+    assert "no id" in message

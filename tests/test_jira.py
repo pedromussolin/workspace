@@ -544,3 +544,40 @@ def test_task_list_with_a_site_that_is_not_atlassian_exits_2(ws_config, capsys):
 
     assert main(["task", "list"]) == 2
     assert "atlassian.net" in capsys.readouterr().err
+
+
+def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
+    base = "/rest/api/3/issue/createmeta/TS/issuetypes"
+    types = {"issueTypes": [{"id": "2", "name": "Task"}]}
+    fake_jira.routes[("GET", base)] = (200, json.dumps(types))
+    first = {
+        "startAt": 0,
+        "maxResults": 2,
+        "total": 3,
+        "fields": [{"fieldId": "a"}, {"fieldId": "b"}],
+    }
+    second = {
+        "startAt": 2,
+        "maxResults": 2,
+        "total": 3,
+        "fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}],
+    }
+    fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(first))
+    fake_jira.routes[("GET", f"{base}/2", "2")] = (200, json.dumps(second))
+
+    meta = _client(fake_jira).create_meta("TS", "Task")
+
+    assert [item["fieldId"] for item in meta["fields"]] == ["a", "b", "priority"]
+    detail = [r for r in fake_jira.requests if r["path"] == f"{base}/2"]
+    assert [r["query"]["startAt"] for r in detail] == ["0", "2"]
+    assert all(r["query"]["maxResults"] == "200" for r in detail)
+
+
+def test_create_meta_stops_on_an_empty_page(fake_jira):
+    base = "/rest/api/3/issue/createmeta/TS/issuetypes"
+    fake_jira.routes[("GET", base)] = (200, json.dumps({"issueTypes": [{"id": "2", "name": "T"}]}))
+    page = {"startAt": 0, "total": 9, "fields": []}
+    fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(page))
+
+    assert _client(fake_jira).create_meta("TS", "T")["fields"] == []
+    assert len([r for r in fake_jira.requests if r["path"] == f"{base}/2"]) == 1

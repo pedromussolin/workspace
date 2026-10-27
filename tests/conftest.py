@@ -223,7 +223,10 @@ def fake_jira(monkeypatch):
                 time.sleep(fake.delay)
             if fake.write_delay and method != "GET":
                 time.sleep(fake.write_delay)
-            if (method, parsed.path) in fake.routes:
+            paged = (method, parsed.path, query.get("startAt"))
+            if paged in fake.routes:
+                status, body = fake.routes[paged]
+            elif (method, parsed.path) in fake.routes:
                 status, body = fake.routes[(method, parsed.path)]
             elif fake.status != 200:
                 body = json.dumps({"errorMessages": ["denied"]})

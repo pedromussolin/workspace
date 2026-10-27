@@ -14,6 +14,8 @@ from ws.taskmodel import Status, Task
 FIELDS = ["summary", "status", "parent", "reporter", "updated"]
 
 PAGE_SIZE = 100
+META_PAGE_SIZE = 200
+MAX_META_PAGES = 50
 
 CARD_FIELDS = (
     "key",
@@ -186,14 +188,33 @@ class JiraClient:
 
     def create_meta(self, project: str, issue_type: str) -> dict:
         base = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
-        types = (self.get(base) or {}).get("issueTypes", [])
+        types = self._pages(base, "issueTypes").get("issueTypes", [])
         for candidate in types:
             if candidate.get("name") == issue_type:
                 type_id = candidate.get("id")
                 if not type_id:
                     raise JiraError(f"issue type {issue_type!r} has no id in project {project}")
-                return self.get(f"{base}/{_segment(type_id)}")
+                return self._pages(f"{base}/{_segment(type_id)}", "fields")
         raise JiraError(f"issue type {issue_type!r} not found in project {project}")
+
+    def _pages(self, path: str, key: str) -> dict:
+        """A paged listing as one page: the `key` lists of every page joined. A page without
+        a list under `key` (another shape) is returned as it came."""
+        first: dict | None = None
+        items: list = []
+        start = 0
+        for _ in range(MAX_META_PAGES):
+            page = self.get(path, {"startAt": str(start), "maxResults": str(META_PAGE_SIZE)}) or {}
+            first = page if first is None else first
+            got = page.get(key)
+            if not isinstance(got, list):
+                return page
+            items.extend(got)
+            start += len(got)
+            total = page.get("total")
+            if not got or not isinstance(total, int) or start >= total:
+                break
+        return {**(first or {}), key: items}
 
     def _request(
         self,

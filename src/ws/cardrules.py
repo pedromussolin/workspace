@@ -463,6 +463,9 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         )
         return
     chosen = matches[0]
+    if not chosen.get("id"):
+        verdict.problems.append(f"the transition {chosen.get('name')!r} has no id in Jira's answer")
+        return
     required = sorted(
         (item.get("name") or name)
         for name, item in (chosen.get("fields") or {}).items()
