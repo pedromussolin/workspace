@@ -57,6 +57,33 @@ Local data that never enters git lives in `~/.local/share/workspace/`: the dicti
 `projects/<slug>/` for each project's worktrees, logs, locks, deploy files and evidence with real
 data (`ws project new` creates it, mode 700). `~/.cache/workspace/` holds only what can be rebuilt.
 
+## Local config
+
+`~/.config/workspace/config.toml` holds the Jira and standup settings, with no secret in it. Create
+it by hand; the values below are placeholders:
+
+```toml
+[jira]
+site = "https://<site>.atlassian.net"
+email = "<you>@<company>"
+
+[jira.status_overrides]
+"In Validation" = "validation"
+"Cancelada" = "cancelled"
+
+[standup]
+repo_roots = ["~/repos"]
+stale_workdays = 3
+```
+
+- `[jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
+  `validation`, `done`, `cancelled`) when the status category alone is not enough.
+- `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
+  git: each repo's own `user.email` picks the commits.
+- The Jira API key is created on the Atlassian site and saved with `ws config token jira`, typed in
+  your own terminal (`! ws config token jira` from a Claude session). It is stored in
+  `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
+
 ## What protects the repo
 
 Protection starts after `ws setup`: a fresh clone has no git hooks. From then on, the hooks call
@@ -101,6 +128,10 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws names review` | Asks in the terminal about each pending word (real name, harmless, skip), then lists the files and unpushed commits that carry the real names added |
 | `ws project new <slug>` | Copies `templates/project/` into `projects/<slug>/` |
 | `ws slot [-n N] -- <cmd>` | Runs a heavy command in one of N slots (file lock), so parallel agents do not exhaust memory; the command holds the lock and gets SIGTERM, SIGHUP and SIGINT forwarded, so the slot lasts until it exits |
+| `ws config token jira` | Reads the Jira API key from the terminal (hidden) and stores it in `~/.config/workspace/credentials` with mode 600; refuses to run outside a terminal |
+| `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
+| `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (fallback of the Atlassian MCP); exit 2 without config or API key, exit 1 on a Jira error |
+| `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
 
