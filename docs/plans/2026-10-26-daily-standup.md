@@ -272,7 +272,7 @@ stale_workdays = 3
 `SKILL.md` content:
 - Frontmatter:
   - `name: daily`;
-  - `description:` "Builds the user's daily standup (yesterday, today, blockers), the status of their tasks against the code, and their open tasks, from git, GitHub and Jira, without writing anywhere. Use when the user starts the day or asks for the standup, the daily or what they have today ("bom dia", "standup", "o que tenho hoje?"); not when a greeting comes with another request."
+  - `description:` "Builds the user's daily standup (yesterday, today, blockers), the status of their tasks against the code, and their open tasks, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request."
   - No `disable-model-invocation` (it only reads).
 - Steps:
   1. `ws standup collect` into `~/.local/share/workspace/standup/activity.json`.
@@ -288,7 +288,7 @@ stale_workdays = 3
 - Rules: write only from the JSON; never call a write tool; state every warning; ask before calling a stuck card a blocker.
 
 - [ ] **Step 1: Write `SKILL.md`** (under 150 lines) and the README rows and section.
-- [ ] **Step 2: Live check.** Create `config.toml` with the user's values (the Jira site and e-mail; repos and git e-mails come from `~/repos` and git config), then say "bom dia" in a new session. Expected: the five headings, every Ontem line traceable, no Jira write.
+- [ ] **Step 2: Live check.** Create `config.toml` with the user's values (the Jira site and e-mail; repos and git e-mails come from `~/repos` and git config), then say "daily" in a new session. Expected: the five headings, every Ontem line traceable, no Jira write.
 - [ ] **Step 3: Commit** — `feat: skill daily com standup, status e tarefas abertas`, then `docs: README com config.toml e os comandos do standup`.
 
 ### Task 7: Eval suite

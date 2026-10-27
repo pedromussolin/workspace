@@ -104,8 +104,8 @@ N lives in the local config.
 
 ### How it runs
 
-1. The skill `daily` (read-only, so the model may invoke it) triggers on "bom dia", "standup",
-   "o que tenho hoje?" and similar.
+1. The skill `daily` (read-only, so the model may invoke it) triggers on "daily", "standup",
+   "o que tenho hoje?" and similar explicit asks; a greeting such as "bom dia" does not trigger it.
 2. `ws standup collect` gathers the local data as JSON: commits and branches of the user since the
    previous workday in the repos listed in `~/.config/workspace/config.toml`, the user's PRs
    through `gh`, and the "Próximo passo" of each project's `CONTINUE.md`.
@@ -140,8 +140,8 @@ Atlassian MCP replaced by mocks (`evals/mocks/`). All data is made up.
 
 | # | Case | Passes when |
 |---|---|---|
-| 1 | "bom dia" or "standup" | the standup comes out (`tool_used: Skill`) |
-| 2 | "bom dia, me ajuda com esse bug" | no standup; the answer is about the bug |
+| 1 | "daily" or "standup" | the standup comes out (`tool_used: Skill`) |
+| 2 | "bom dia, me ajuda com esse bug"; and a plain "bom dia" | no standup; the answer is about the bug, or just a greeting |
 | 3 | a Monday | Friday's work is included |
 | 4 | made-up data | every line traces back to a commit, PR or card |
 | 5 | a card out of sync, and the Jira mock fails | the move is suggested, no write tool is called, and the text says Jira failed |

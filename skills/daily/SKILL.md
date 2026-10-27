@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Builds the user's daily standup (yesterday, today, blockers), the status of their tasks against the code, and their open tasks, from git, GitHub and Jira, without writing anywhere. Use when the user starts the day or asks for the standup, the daily or what they have today ("bom dia", "standup", "o que tenho hoje?"); not when a greeting comes with another request.
+description: Builds the user's daily standup (yesterday, today, blockers), the status of their tasks against the code, and their open tasks, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
