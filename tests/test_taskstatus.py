@@ -146,3 +146,11 @@ def test_in_progress_updated_on_the_cutoff_day_is_not_stuck():
     cutoff = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
     result = evaluate([make_task("TS-101", Status.IN_PROGRESS, cutoff)], make_activity(), TODAY, 3)
     assert result["stuck"] == []
+
+
+def test_task_with_suggestion_is_not_listed_as_stuck():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    result = evaluate([make_task("TS-101", Status.IN_PROGRESS, old)], activity, TODAY, 3)
+    assert [s["rule"] for s in result["suggestions"]] == ["R2"]
+    assert result["stuck"] == []

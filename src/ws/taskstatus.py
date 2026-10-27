@@ -46,6 +46,7 @@ def evaluate(tasks: list[Task], activity: dict, today: date, stale_workdays: int
             evidence = _merged_pr_evidence(task.key, activity)
             if evidence is not None:
                 suggestions.append(_suggestion(task, Status.VALIDATION, "R2", evidence))
+                continue
             last = activity["last_activity"].get(task.key)
             if last is None and task.updated.date() < cutoff:
                 stuck.append({"key": task.key, "last_activity": last})
