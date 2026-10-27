@@ -68,7 +68,15 @@ site = "https://<site>.atlassian.net"
 email = "<you>@<company>"
 
 [jira.status_overrides]
+"Tarefas pendentes" = "todo"
+"Em análise" = "todo"
+"Em andamento" = "in_progress"
+"Code Review" = "review"
 "In Validation" = "validation"
+"Verify" = "validation"
+"Ready Deploy" = "ready_deploy"
+"Block" = "blocked"
+"Concluído" = "done"
 "Cancelada" = "cancelled"
 
 [standup]
@@ -77,7 +85,7 @@ stale_workdays = 3
 ```
 
 - `[jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
-  `validation`, `done`, `cancelled`) when the status category alone is not enough.
+  `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in

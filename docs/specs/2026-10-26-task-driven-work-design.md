@@ -58,14 +58,14 @@ Every task, from any platform, becomes the same record:
 | `ref` | platform and key, e.g. `jira:TS-5431`; later `github:owner/repo#12`, `monday:123456` |
 | `title`, `url` | as on the platform |
 | `epic` | the parent epic's ref and title prefix, when there is one |
-| `status` | neutral: `todo`, `in_progress`, `validation`, `done`, `cancelled` |
+| `status` | neutral: `todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled` |
 | `assigned_to_me`, `requested_by_other` | scope flags |
 | `updated` | last change on the platform |
 
 An adapter implements: list my tasks, get one, search, and apply a plan (create, transition,
 comment, log work). The Jira adapter maps statuses from Jira's own status category (new,
-indeterminate, done) plus named overrides (`In Validation` → `validation`, `Cancelada` →
-`cancelled`), so a workflow change does not need code.
+indeterminate, done) plus named overrides (`In Validation` → `validation`, `Code Review` →
+`review`, `Ready Deploy` → `ready_deploy`, `Block` → `blocked`, `Cancelada` → `cancelled`), so a workflow change does not need code.
 
 ### The write path (phase B, outline)
 
@@ -87,8 +87,8 @@ The plan format and the gate are detailed in phase B's spec.
 | Part | Source |
 |---|---|
 | **Ontem** | One topic per task key with own commits or PRs in the window (since the previous workday), with its title from the card and a short line from the commit subjects and PRs. Commits without a key are one count line. A suggested status move appears inside its task's topic. |
-| **Hoje** | Cards in progress that are not blockers, and the cards a project's "Próximo passo" names, with the next step; then the next steps that name no card. Suggestions go inside the task's topic. |
-| **Impedimentos** | Cards in progress with no commit for N workdays, offered as possibly stuck; the AI asks before calling anything a blocker. |
+| **Hoje** | Cards in progress, in code review or ready to deploy (shown as a pending deploy) that are not blockers, and the cards a project's "Próximo passo" names, with the next step; then the next steps that name no card. Suggestions go inside the task's topic. |
+| **Impedimentos** | Cards in `blocked` status, listed as confirmed blockers with no question, and cards in progress or in code review with no commit for N workdays, offered as possibly stuck; the AI asks before calling a stuck one a blocker. |
 
 The standup has two modes. **Short** is the default: `--top 3`, about 120 words, friendly, with
 "E mais N tarefas." for what was cut, and a closing "Para você:" note holding the suggested card
@@ -106,10 +106,10 @@ The text is PT-BR and stays in the chat; the user reads it or pastes it.
 ### Status rules (code, in `taskstatus.evaluate`, used by `ws task status` and `ws standup report`)
 
 1. Commits or a branch exist for the task, and the card is still `todo`: suggest `in_progress`.
-2. The task's PR is merged, and the card is still `in_progress`: suggest `validation`.
-3. A card is `in_progress` with no commit or card change for N workdays: flag it as possibly stuck.
+2. The task's PR is merged, and the card is still `in_progress` or `review`: suggest `validation`.
+3. A card is `in_progress` or `review` with no commit or card change for N workdays: flag it as possibly stuck.
 
-N lives in the local config.
+N lives in the local config. Cards in `validation`, `ready_deploy`, `blocked`, `done` and `cancelled` get no suggestion; only `blocked` appears under Impedimentos (confirmed, no question).
 
 ### How it runs
 

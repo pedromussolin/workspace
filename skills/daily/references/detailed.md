@@ -13,9 +13,11 @@ Use exactly these three headings, in this order:
 
 **Hoje**
 - <KEY> — <title> (<status>): <next_step>. <suggestion>
+- <KEY> — <title> (pronto para deploy): deploy pendente.
 - <project>: <next step text>
 
 **Impedimentos**
+- <KEY> — <title>: bloqueado; card atualizado em <updated>.
 - <KEY> — <title>: sem commit há pelo menos <workdays> dias úteis; card atualizado em <updated>.
 Algum desses é impedimento?
 ```
@@ -26,12 +28,15 @@ Algum desses é impedimento?
   `keyless.commits` is greater than 0. No topic without a key.
 - **Hoje:** one line per `today` entry with its `status`; omit ": <next_step>" when it is null.
   Then one line per `next_steps` entry as "<project>: <text>".
-- **Impedimentos:** one line per `blockers` entry, then the question "Algum desses é impedimento?"
-  once. With none, write "Nenhum." and no question.
+- **Hoje** with status `ready_deploy`: "<KEY> — <title> (pronto para deploy): deploy pendente."
+- **Impedimentos:** one line per `blockers` entry. `kind: "blocked"` is a confirmed blocker: the
+  "bloqueado" line above, no question. `kind: "stuck"` uses the "sem commit" line. Then the question
+  "Algum desses é impedimento?" once, only when at least one `stuck` line exists; it refers to
+  those. With none, write "Nenhum." and no question.
 - `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
   para <to> (<evidence>)"; nothing moved. Otherwise nothing.
-- Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
-  validação", `done` "concluída", `cancelled` "cancelada".
+- Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
+  validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".
 - `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list
   the `yesterday` topics by key, with the PR title when there is one; under **Hoje** only the
   `next_steps`; under **Impedimentos** write "indisponível".

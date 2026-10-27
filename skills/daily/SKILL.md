@@ -89,9 +89,11 @@ the card title, commit subjects and PR titles for people.
 
 **Hoje**
 - <Task in a few words>: <what is next> (<KEY>)
+- <Task in a few words>: deploy pendente (<KEY>)
 - <Projeto>: <the next step in one short line>
 
 **Impedimentos**
+- <Task in a few words>: bloqueado (<KEY>)
 - <Task in a few words>: sem avanço desde <dd/mm> (<KEY>)
 Algum desses é impedimento?
 
@@ -107,14 +109,18 @@ Para você: mover <KEY> para <status>; ...
   for `more.today` under **Hoje**. Under **Hoje**, at most 2 lines from `next_steps`, each rewritten
   like the others: one short line about the task, no first person, no jargon (detailed mode keeps
   them as given).
-- **Impedimentos:** at most 3 lines from `blockers`, each with its `updated` date as `dd/mm`, then
-  "E mais N." when more were cut, then the question once. With none, "Nenhum." and no question.
+- A `today` entry with status `ready_deploy` reads "<Task in a few words>: deploy pendente (<KEY>)".
+- **Impedimentos:** at most 3 lines from `blockers` (both kinds count), then "E mais N." when more
+  were cut. `kind: "blocked"` reads "<Task in a few words>: bloqueado (<KEY>)", is already confirmed
+  and gets no question. `kind: "stuck"` reads "sem avanço desde <dd/mm> (<KEY>)" with its `updated`
+  date. Ask "Algum desses é impedimento?" once, only when at least one `stuck` line is shown; it
+  refers to those. With none, "Nenhum." and no question.
 - The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
   `moves` ("mover TS-5431 para em validação"); "Jira indisponível" when `jira` is false; "N
   avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.
-- Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
-  validação", `done` "concluída", `cancelled` "cancelada".
+- Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
+  validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".
 - `jira` false: titles are missing, so name each task by key and the PR or commit wording, and
   write "indisponível" under **Impedimentos**.
 
@@ -122,5 +128,5 @@ Para você: mover <KEY> para <status>; ...
 
 - Write only from the report. Do not guess a status, a date or a link between a commit and a card.
 - Never call a write tool of Jira, GitHub or git. The skill only reads.
-- Ask before calling anything a blocker; a `blockers` entry is only a possibility until the user
-  says so.
+- Ask before calling a `stuck` entry a blocker; it is only a possibility until the user says so.
+  A `blocked` entry is already confirmed by its Jira status.
