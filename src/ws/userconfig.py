@@ -2,11 +2,13 @@
 
 import json
 import os
+import stat
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 from ws.config import config_dir
+from ws.jira import SiteRefused, check_site
 from ws.taskmodel import Status
 
 DEFAULT_STALE_WORKDAYS = 3
@@ -109,6 +111,14 @@ def _status_overrides(jira: dict, path: Path) -> dict[str, str]:
     return dict(overrides)
 
 
+def _site(jira: dict, path: Path) -> str:
+    site = _string(jira, "site", path, "jira")
+    try:
+        return check_site(site)
+    except SiteRefused as error:
+        raise ConfigInvalid(f"{path}: jira.site: {error}") from None
+
+
 def load_config() -> UserConfig:
     path = config_dir() / "config.toml"
     data = _read_toml(path)
@@ -120,7 +130,7 @@ def load_config() -> UserConfig:
     roots = _string_list(standup, "repo_roots", path, "standup")
     return UserConfig(
         jira=JiraConfig(
-            site=_string(jira, "site", path, "jira"),
+            site=_site(jira, path),
             email=_string(jira, "email", path, "jira"),
             status_overrides=_status_overrides(jira, path),
             project=_optional_string(jira, "project", path, "jira"),
@@ -144,8 +154,20 @@ def _credentials_path() -> Path:
     return config_dir() / "credentials"
 
 
+def _refuse_foreign_credentials(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(info.st_mode):
+        raise ConfigInvalid(f"{path} is a symlink; the API key is read only from a real file")
+    if info.st_uid != os.getuid():
+        raise ConfigInvalid(f"{path} is not owned by you; the API key is not read from it")
+
+
 def load_jira_token() -> str:
     path = _credentials_path()
+    _refuse_foreign_credentials(path)
     data = _read_toml(path)
     stored = _table(data, "jira", path).get("token")
     if not isinstance(stored, str) or not stored:

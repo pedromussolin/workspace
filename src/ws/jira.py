@@ -3,6 +3,7 @@
 import base64
 import http.client
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,6 +31,23 @@ CATEGORY_STATUS = {
     "indeterminate": Status.IN_PROGRESS,
     "done": Status.DONE,
 }
+
+
+CLOUD_SITE = re.compile(r"https://[a-z0-9-]+\.atlassian\.net/?")
+# A test seam: only the test fixture of the fake Jira server adds its own address here.
+EXTRA_ALLOWED_SITES: set[str] = set()
+
+
+class SiteRefused(ValueError):
+    pass
+
+
+def check_site(site: str) -> str:
+    """The API key goes only to an Atlassian Cloud site, over https; a typo or a planted config
+    must not send it anywhere else."""
+    if CLOUD_SITE.fullmatch(site) or site.rstrip("/") in EXTRA_ALLOWED_SITES:
+        return site
+    raise SiteRefused(f"Jira site {site!r} is refused: it must be https://<name>.atlassian.net")
 
 
 class JiraError(Exception):
@@ -123,7 +141,7 @@ def _segment(value: object) -> str:
 
 class JiraClient:
     def __init__(self, site: str, email: str, credential: str, timeout: int = 20):
-        self.site = site.rstrip("/")
+        self.site = check_site(site).rstrip("/")
         self.timeout = timeout
         credentials = base64.b64encode(f"{email}:{credential}".encode()).decode()
         self._authorization = f"Basic {credentials}"

@@ -10,6 +10,7 @@ from ws.jira import (
     FIELDS,
     JiraClient,
     JiraError,
+    SiteRefused,
     card_from_issue,
     my_tasks_jql,
     status_of,
@@ -492,3 +493,54 @@ def test_create_meta_type_without_id_is_an_error(fake_jira):
 
     with pytest.raises(JiraError, match="no id"):
         _client(fake_jira).create_meta("TS", "Task")
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "https://example.atlassian.net",
+        "https://example.atlassian.net/",
+        "https://my-team-2.atlassian.net",
+    ],
+)
+def test_the_client_accepts_atlassian_cloud_sites(site):
+    assert JiraClient(site, EMAIL, CREDENTIAL).site == site.rstrip("/")
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "http://example.atlassian.net",
+        "https://example.atlassian.net.evil.example",
+        "https://evil.example/example.atlassian.net",
+        "https://example.atlassian.net:8443",
+        "https://example.atlassian.net/path",
+        "https://.atlassian.net",
+        "https://Example.atlassian.net",
+        "https://example.atlassian.com",
+        "http://127.0.0.1:9",
+        "",
+    ],
+)
+def test_the_client_refuses_to_send_the_key_anywhere_else(site):
+    with pytest.raises(SiteRefused, match="atlassian.net"):
+        JiraClient(site, EMAIL, CREDENTIAL)
+
+
+def test_the_test_seam_is_empty_by_default_and_opens_only_what_it_lists(fake_jira, monkeypatch):
+    assert JiraClient(fake_jira.site, EMAIL, CREDENTIAL).site == fake_jira.site
+
+    monkeypatch.setattr("ws.jira.EXTRA_ALLOWED_SITES", set())
+
+    with pytest.raises(SiteRefused):
+        JiraClient(fake_jira.site, EMAIL, CREDENTIAL)
+
+
+def test_task_list_with_a_site_that_is_not_atlassian_exits_2(ws_config, capsys):
+    (ws_config / "config.toml").write_text(
+        f'[jira]\nsite = "https://evil.example"\nemail = "{EMAIL}"\n', encoding="utf-8"
+    )
+    save_jira_token(CREDENTIAL)
+
+    assert main(["task", "list"]) == 2
+    assert "atlassian.net" in capsys.readouterr().err

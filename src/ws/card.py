@@ -16,7 +16,7 @@ from ws import cardrules, userconfig
 from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
 from ws.config import data_dir
-from ws.jira import JiraClient, JiraError
+from ws.jira import JiraClient, JiraError, SiteRefused
 
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = timedelta(minutes=30)
@@ -152,7 +152,11 @@ def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
         raise SetupNeeded(
             "no Jira API key; run `ws config token jira` in your own terminal"
         ) from None
-    return settings, JiraClient(settings.site, settings.email, credential, timeout=REQUEST_TIMEOUT)
+    try:
+        client = JiraClient(settings.site, settings.email, credential, timeout=REQUEST_TIMEOUT)
+    except SiteRefused as error:
+        raise SetupNeeded(str(error)) from None
+    return settings, client
 
 
 def _run(command: str, action) -> int:

@@ -228,3 +228,39 @@ def test_card_keys_of_the_wrong_type_are_invalid(config_dir, line, key):
 
     with pytest.raises(ConfigInvalid, match=f"jira.{key}"):
         load_config()
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "http://example.atlassian.net",
+        "https://evil.example",
+        "https://example.atlassian.net.x.example",
+    ],
+)
+def test_load_config_refuses_a_site_that_is_not_https_atlassian_cloud(config_dir, site):
+    (config_dir / "config.toml").write_text(
+        CONFIG.replace("https://example.atlassian.net", site), encoding="utf-8"
+    )
+
+    with pytest.raises(ConfigInvalid, match="atlassian.net"):
+        load_config()
+
+
+def test_load_token_refuses_a_credentials_symlink(config_dir, tmp_path):
+    real = tmp_path / "elsewhere"
+    real.write_text('[jira]\ntoken = "stolen"\n', encoding="utf-8")
+    real.chmod(0o600)
+    (config_dir / "credentials").symlink_to(real)
+
+    with pytest.raises(ConfigInvalid, match="symlink"):
+        load_jira_token()
+
+
+def test_load_token_refuses_a_credentials_file_of_another_owner(config_dir, monkeypatch):
+    save_jira_token("secret")
+    mine = (config_dir / "credentials").stat().st_uid
+    monkeypatch.setattr("os.getuid", lambda: mine + 1)
+
+    with pytest.raises(ConfigInvalid, match="owned"):
+        load_jira_token()

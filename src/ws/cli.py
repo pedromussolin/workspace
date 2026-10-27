@@ -629,7 +629,7 @@ def _cmd_task_list(args: argparse.Namespace) -> int:
     try:
         settings = userconfig.load_config().jira
         client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, jira.SiteRefused) as error:
         print(f"ws task list: {error}", file=sys.stderr)
         return 2
     try:

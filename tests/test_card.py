@@ -1554,3 +1554,14 @@ def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys,
     assert main(["card", "check", str(create_draft())]) == 2
     assert "project" in capsys.readouterr().err
     assert world.fake.requests == []
+
+
+def test_a_site_that_is_not_atlassian_cloud_exits_2_before_any_request(world, capsys, ws_config):
+    for site in ["http://example.atlassian.net", "https://evil.example"]:
+        (ws_config / "config.toml").write_text(
+            f'[jira]\nsite = "{site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
+        )
+
+        assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 2
+        assert "atlassian.net" in capsys.readouterr().err
+    assert world.fake.requests == []
