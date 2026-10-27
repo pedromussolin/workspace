@@ -49,7 +49,7 @@ orchestrator by role name; routing by a classifier belongs to the API layer, not
 
 | Item | Why it waits | Fix when picked up |
 |---|---|---|
-| Agent definitions per role, versioned in the repo | phase A first | `agents/<role>.md` with `model`, `effort` and tools in the frontmatter (light implementer, implementer, reviewer, final reviewer), linked into `~/.claude/agents` by `ws setup` like the skills |
+| Agent definitions per role, versioned in the repo | phase A first | `agents/<role>.md` with `model`, `effort` and tools in the frontmatter (light implementer, implementer, reviewer, final reviewer), linked into `~/.claude/agents` by `ws setup` like the skills. Two final reviewers (user, 2026-10-27): Opus when the change is large, crosses several parts, or touches security or writes outside (Jira, GitHub, GMUD); Sonnet with high effort for a contained change with a fixed contract and task reviews done |
 | The role of each task stays in the plan | already done by hand in the phase A plan ("Execution" table) | the plan template names a role per task instead of a model; no skill, since a skill would keep the rule as prose |
 | A hard rule against a subagent that inherits the orchestrator's model | today it depends on remembering to set `model` | a Claude Code `PreToolUse` hook on `Agent` that blocks a call with neither a role nor a `model` |
 
