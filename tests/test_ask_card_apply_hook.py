@@ -44,6 +44,18 @@ def decision(result: subprocess.CompletedProcess[str]) -> dict:
         "WS_X=1 ws card apply d.md --approve abcdef012345",
         'python3 -c \'import ws.card; ws.card.run_apply("d.md", None, "abcdef012345")\' --approve',
         "echo ok; ws card apply d.md --approve abcdef012345; echo done",
+        "ws card apply d --appr$(true)ove abcdef012345",
+        "uv run ws card apply d --appr${x}ove abcdef012345",
+        "ws card apply d --appro{ve,ve} abcdef012345",
+        "A=--approve; uv run ws card apply d $A abcdef012345",
+        "python -c \"from ws import card; card.run_apply('d', 'abcdef012345')\"",
+        "python3 -c 'from ws import card as c; c.run_apply(1, 2)'",
+        "python3 -c 'import ws.card as c; c.run_apply(1, 2)'",
+        'python3 -c \'from ws.cli import main; main(["card", "apply", "d"])\'',
+        "ws card apply d",
+        "ws ca''rd ap\\ply d",
+        "uv run ws card apply d --approve=abcdef012345",
+        "cat d.sh | bash # runs: ws card apply d $CODE",
     ],
 )
 def test_any_way_of_applying_an_approval_asks(command):
@@ -60,11 +72,14 @@ def test_any_way_of_applying_an_approval_asks(command):
         "ws card preview d.md",
         "ws card check d.md",
         "ws card epics",
-        "ws card apply d.md",
+        "ws card previews d.md",
         "git commit -m 'feat: x'",
         "grep -rn approve src",
         "uv run pytest -q",
         "ws task list --approve",
+        "ws config token jira",
+        "ls cards/drafts && ws card preview cards/drafts",
+        "python3 -c 'print(1)'",
         "",
     ],
 )
@@ -89,3 +104,10 @@ def test_an_unreadable_payload_asks_instead_of_failing_open(stdin):
 
     assert result["permissionDecision"] == "ask"
     assert "could not" in result["permissionDecisionReason"]
+
+
+def test_the_ruling_lists_what_the_hook_cannot_see():
+    """A residual limit, kept visible: a text hook sees neither a script file nor an odd import."""
+    assert run_command("bash run-it.sh").stdout == ""
+    sneaky = 'python3 -c \'import importlib; importlib.import_module("w" + "s.cli")\''
+    assert run_command(sneaky).stdout == ""

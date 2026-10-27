@@ -37,10 +37,14 @@ prompt of Claude Code itself.
   them, `ws setup` reports a "needs you" line. `ask`, not `deny`, so the GMUD skill (which creates
   requests through `executeWrite`) keeps working with a prompt. A rule matches the command text, so
   it alone is not the barrier: a PreToolUse hook (`hooks/ask_card_apply.py`) answers `ask` for any
-  Bash command that has `--approve` and either `card` with `apply`, or `ws.card` (so `uv run ws
-  card apply`, `python -m ws`, `bash -c '...'`, an absolute path to `ws` or quotes inside the flag
-  are asked too), and `ws card apply --approve` itself exits 2 when the Claude settings lack the
-  rule or the hook. The preview is its own command (`ws card preview`) so the prompt appears only
+  Bash command that, with quotes and backslashes removed, has `card` and `apply` as words, or
+  `ws.card`, `from ws import card` or `run_apply` (so `uv run ws card apply`, `python -m ws`,
+  `bash -c '...'`, an absolute path to `ws`, `--appr$(true)ove` or a variable holding the flag are
+  asked too; `preview`, `check` and `epics` stay silent). It is a text hook: a script file the
+  command runs, or an import route that matches none of those patterns, is not seen. `ws card
+  apply --approve` itself exits 2 when the Claude settings lack the rule or a real registration of
+  the hook (a `PreToolUse` entry whose matcher covers `Bash` and whose command runs the script
+  with python). The preview is its own command (`ws card preview`) so the prompt appears only
   at the real write. There is no HMAC or signature on the pending record: the prompt (rule plus
   hook) is the barrier, the record is only checked to be the user's own private file.
 - **Writes go only through the REST API** with the user's API key (an unscoped token). No MCP

@@ -22,7 +22,8 @@ Nothing is written through the Atlassian MCP, ever.
    exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
    and the Claude Code prompt on it is the approval (the `permissions.ask` rule plus the
-   `hooks/ask_card_apply.py` hook, which asks however the command is written). Never ask the user
+   `hooks/ask_card_apply.py` hook, which asks for any command that names `card` with `apply` or
+   imports `ws.card`; it reads text, so a script or an odd import is not seen). Never ask the user
    to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
    the prompt. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
