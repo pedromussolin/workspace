@@ -34,7 +34,8 @@ Algum desses é impedimento?
   "Algum desses é impedimento?" once, only when at least one `stuck` line exists; it refers to
   those. With none, write "Nenhum." and no question.
 - `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
-  para <to> (<evidence>)"; nothing moved. Otherwise nothing.
+  para <to> (<evidence>)"; nothing moved. The closing note says "para aplicar: /card mover <KEY>
+  para <status>; ..." with every suggestion. Otherwise nothing.
 - Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
   validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".
 - `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list

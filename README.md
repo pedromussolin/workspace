@@ -66,6 +66,11 @@ it by hand; the values below are placeholders:
 [jira]
 site = "https://<site>.atlassian.net"
 email = "<you>@<company>"
+project = "<PROJECT>"
+board_id = <board id>
+issue_type = "<issue type name>"
+start_date_field = "customfield_<n>"
+sprint_field = "customfield_<n>"
 
 [jira.status_overrides]
 "Tarefas pendentes" = "todo"
@@ -88,6 +93,13 @@ stale_workdays = 3
   `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
+- The five `[jira]` keys after `email` are read by `ws card`; a missing one exits 2 naming it.
+  `ws card` only touches cards of `project`.
+- The API key must be an unscoped token (a scoped one is refused by the REST write endpoints used
+  by `ws card`).
+- `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)` and on the Atlassian write
+  tools (never editing `~/.claude/settings.json` itself), so every write needs your yes in Claude
+  Code.
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in
   your own terminal, outside Claude (the command refuses to run without a terminal). It is stored
   in `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
@@ -140,6 +152,9 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
 | `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
 | `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
+| `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
+| `ws card epics` | Lists the epics of your open cards (key, title, prefix, status) |
+| `ws card apply PATH (--dry-run \| --approve CODE)` | `--dry-run` prints the PT-BR preview and the requests and stores a pending record with a code; `--approve CODE` re-checks and sends exactly that, once; the skill `card` runs it |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
