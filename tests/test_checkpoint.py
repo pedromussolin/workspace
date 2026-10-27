@@ -332,3 +332,66 @@ def test_cli_commit_and_diff(work, capsys):
     assert main(["checkpoint", "commit", "demo", "-m", "docs: a"]) == 0
     assert json.loads(capsys.readouterr().out) == {"committed": True, "pushed": True}
     assert main(["checkpoint", "commit", "demo", "-m", "ruim"]) == 1
+
+
+def test_known_words_goes_with_the_project(work, git, remote):
+    _edit(work)
+    (work / ".known-words").write_text("zorgblat\n")
+    checkpoint.commit("demo", "docs: a")
+    files = git(work, "show", "--name-only", "--format=", "HEAD").stdout.split()
+    assert sorted(files) == [".known-words", "projects/demo/CONTINUE.md"]
+
+
+def test_other_outside_file_still_refused_with_known_words(work):
+    _edit(work)
+    (work / ".known-words").write_text("zorgblat\n")
+    (work / "README.md").write_text("changed\n")
+    with pytest.raises(checkpoint.CheckpointError, match="README.md"):
+        checkpoint.commit("demo", "docs: a")
+
+
+def _hold_back_push(work):
+    hook = work / ".git" / "hooks" / "pre-push"
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+    return hook
+
+
+def test_amend_rewrites_the_unpushed_commit_and_pushes(work, git, remote):
+    hook = _hold_back_push(work)
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError):
+        checkpoint.commit("demo", "docs: a")
+    hook.unlink()
+    (work / "projects/demo/notes.md").write_text("masked\n")
+    result = checkpoint.commit("demo", "docs: b", amend=True)
+    assert result == {"committed": True, "pushed": True}
+    assert git(work, "rev-list", "--count", "HEAD").stdout.strip() == "2"
+    assert git(remote, "log", "-1", "--format=%s", "main").stdout.strip() == "docs: b"
+    assert "notes.md" in git(work, "show", "--name-only", "--format=", "HEAD").stdout
+
+
+def test_amend_refused_with_zero_unpushed_commits(work):
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError, match="exactly one"):
+        checkpoint.commit("demo", "docs: a", amend=True)
+
+
+def test_amend_refused_with_two_unpushed_commits(work, git):
+    hook = _hold_back_push(work)
+    _edit(work)
+    with pytest.raises(checkpoint.CheckpointError):
+        checkpoint.commit("demo", "docs: a")
+    (work / "projects/demo/notes.md").write_text("n\n")
+    with pytest.raises(checkpoint.CheckpointError):
+        checkpoint.commit("demo", "docs: b")
+    hook.unlink()
+    with pytest.raises(checkpoint.CheckpointError, match="found 2"):
+        checkpoint.commit("demo", "docs: c", amend=True)
+
+
+def test_amend_refused_when_the_commit_touches_another_path(work, git):
+    (work / "README.md").write_text("changed\n")
+    git(work, "commit", "-q", "-am", "chore: outro")
+    with pytest.raises(checkpoint.CheckpointError, match="README.md"):
+        checkpoint.commit("demo", "docs: a", amend=True)

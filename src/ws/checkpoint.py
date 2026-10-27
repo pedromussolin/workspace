@@ -21,6 +21,7 @@ MESSAGE_PREFIXES = ("docs:", "chore:", "feat:", "fix:", "test:")
 MESSAGE_MAX = 72
 LARGE_BYTES = 200 * 1024
 HEAVY_FOLDERS = ("evidence", "attachments")
+KNOWN_WORDS = ".known-words"
 
 
 class CheckpointError(Exception):
@@ -184,7 +185,22 @@ def _push() -> None:
         raise CheckpointError(f"push refused:\n{(result.stderr or result.stdout).strip()}")
 
 
-def commit(slug: str, message: str, include: list[str] | None = None) -> dict:
+def _check_amendable(slug: str) -> None:
+    ahead = _git("rev-list", "origin/main..HEAD").stdout.split()
+    if len(ahead) != 1:
+        raise CheckpointError(
+            f"--amend needs exactly one unpushed commit, found {len(ahead)}: a pushed commit "
+            "is never amended"
+        )
+    touched = _git("show", "--name-only", "--format=", "HEAD").stdout.split()
+    foreign = [p for p in touched if not p.startswith(f"projects/{slug}/") and p != KNOWN_WORDS]
+    if foreign:
+        raise CheckpointError(
+            "--amend: the unpushed commit touches other paths:\n" + "\n".join(foreign)
+        )
+
+
+def commit(slug: str, message: str, include: list[str] | None = None, amend: bool = False) -> dict:
     project_dir(slug)
     if _current_branch() != "main":
         raise CheckpointError("not on branch main: a checkpoint is committed only on main")
@@ -194,7 +210,7 @@ def commit(slug: str, message: str, include: list[str] | None = None) -> dict:
         raise CheckpointError("the check fails:\n" + "\n".join(verdict["problems"]))
     entries = _status()
     prefix = f"projects/{slug}/"
-    outside = sorted({path for _, path in entries if not path.startswith(prefix)})
+    outside = sorted({p for _, p in entries if not p.startswith(prefix) and p != KNOWN_WORDS})
     if outside:
         raise CheckpointError(
             "changes outside the project, commit them separately:\n" + "\n".join(outside)
@@ -205,10 +221,15 @@ def commit(slug: str, message: str, include: list[str] | None = None) -> dict:
             "new large or binary files, pass them with --include:\n"
             + "\n".join(f"{item['path']} ({item['reason']})" for item in refused)
         )
+    if amend:
+        _check_amendable(slug)
     _git("add", "-A", "--", f"projects/{slug}")
-    committed = _git("diff", "--cached", "--quiet", ok=(0, 1)).returncode == 1
+    if any(path == KNOWN_WORDS for _, path in entries):
+        _git("add", "--", KNOWN_WORDS)
+    committed = amend or _git("diff", "--cached", "--quiet", ok=(0, 1)).returncode == 1
     if committed:
-        result = _git("commit", "-m", message, ok=(0, 1))
+        flags = ["--amend"] if amend else []
+        result = _git("commit", *flags, "-m", message, ok=(0, 1))
         if result.returncode != 0:
             raise CheckpointError(f"commit refused:\n{(result.stdout + result.stderr).strip()}")
     _pull_rebase()

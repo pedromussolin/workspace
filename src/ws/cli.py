@@ -808,6 +808,11 @@ def _add_checkpoint(subparsers: "argparse._SubParsersAction[argparse.ArgumentPar
         metavar="PATH",
         help="accept a new large or binary file (repeatable)",
     )
+    publish.add_argument(
+        "--amend",
+        action="store_true",
+        help="rewrite the single unpushed checkpoint commit instead of adding one",
+    )
     publish.set_defaults(handler=_cmd_checkpoint_commit)
 
 
@@ -831,7 +836,7 @@ def _cmd_checkpoint_diff(args: argparse.Namespace) -> int:
 
 def _cmd_checkpoint_commit(args: argparse.Namespace) -> int:
     return _run_checkpoint(
-        "commit", lambda: checkpoint.commit(args.slug, args.message, args.include)
+        "commit", lambda: checkpoint.commit(args.slug, args.message, args.include, args.amend)
     )
 
 
