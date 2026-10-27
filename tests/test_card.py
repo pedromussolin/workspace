@@ -135,8 +135,26 @@ class World:
         return [r for r in self.fake.requests if (r["method"], r["path"]) == (method, path)]
 
 
+def write_claude_settings(path, ask=("Bash(ws card apply:*)",), hook=True):
+    gates = {"permissions": {"ask": list(ask)}}
+    if hook:
+        command = 'python3 -I "/srv/ws/hooks/ask_card_apply.py"'
+        gates["hooks"] = {
+            "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]
+        }
+    path.write_text(json.dumps(gates), encoding="utf-8")
+
+
 @pytest.fixture
-def world(ws_config, fake_jira, monkeypatch):
+def claude_settings(tmp_path, monkeypatch):
+    path = tmp_path / "claude-settings.json"
+    write_claude_settings(path)
+    monkeypatch.setenv("WS_CLAUDE_SETTINGS", str(path))
+    return path
+
+
+@pytest.fixture
+def world(ws_config, fake_jira, monkeypatch, claude_settings):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'
         f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
@@ -1565,3 +1583,37 @@ def test_a_site_that_is_not_atlassian_cloud_exits_2_before_any_request(world, ca
         assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 2
         assert "atlassian.net" in capsys.readouterr().err
     assert world.fake.requests == []
+
+
+def test_approve_needs_the_ask_rule_and_the_hook_in_the_claude_settings(
+    world, capsys, claude_settings
+):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = dry_run(path, capsys)
+    capsys.readouterr()
+    before = len(world.fake.requests)
+
+    write_claude_settings(claude_settings, ask=("Bash(other:*)",))
+    assert approve(path, code) == 2
+    assert "Bash(ws card apply:*)" in capsys.readouterr().err
+
+    write_claude_settings(claude_settings, hook=False)
+    assert approve(path, code) == 2
+    assert "ask_card_apply.py" in capsys.readouterr().err
+
+    claude_settings.unlink()
+    assert approve(path, code) == 2
+    assert "not found" in capsys.readouterr().err
+
+    assert len(world.fake.requests) == before
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+    write_claude_settings(claude_settings)
+    assert approve(path, code) == 0
+
+
+def test_the_preview_does_not_need_the_claude_settings(world, capsys, claude_settings):
+    claude_settings.unlink()
+
+    dry_run(create_draft(), capsys)

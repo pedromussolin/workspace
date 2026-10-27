@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from ws import cardrules, userconfig
+from ws import bootstrap, cardrules, userconfig
 from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
-from ws.config import data_dir
+from ws.config import claude_settings_path, data_dir
 from ws.jira import JiraClient, JiraError, SiteRefused
 
 REQUEST_TIMEOUT = 20
@@ -384,6 +384,11 @@ def _purge_expired() -> None:
 
 
 def _approve(code: str, loaded: list[Loaded]) -> int:
+    if problems := bootstrap.card_gate_problems(claude_settings_path()):
+        raise SetupNeeded(
+            f"{'; '.join(problems)}. Run `ws setup` and add what it prints, so Claude Code asks "
+            "you before every approval"
+        )
     _ensure_store()
     record, refusal = _read_pending(code)
     if refusal:

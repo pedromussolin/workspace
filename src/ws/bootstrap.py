@@ -25,7 +25,9 @@ from ws.config import claude_settings_path
 
 GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
-HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py")
+CARD_HOOK = "hooks/ask_card_apply.py"
+CARD_ASK_RULE = "Bash(ws card apply:*)"
+HOOK_SCRIPTS = ("hooks/block_co_authored_by.py", "hooks/block_hook_bypass.py", CARD_HOOK)
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 ATLASSIAN_SERVERS = ("claude_ai_Atlassian_MCP", "plugin_productivity_atlassian")
 ATLASSIAN_WRITE_TOOLS = (
@@ -35,11 +37,12 @@ ATLASSIAN_WRITE_TOOLS = (
     "addCommentToJiraIssue",
     "addOrEditJiraIssueComment",
     "addWorklogToJiraIssue",
+    "createIssueLink",
     "executeWrite",
     "executeDestructive",
 )
 ASK_RULES = (
-    "Bash(ws card apply:*)",
+    CARD_ASK_RULE,
     *(f"mcp__{server}__{tool}" for server in ATLASSIAN_SERVERS for tool in ATLASSIAN_WRITE_TOOLS),
 )
 PACKAGES = " and ".join(source.package for source in dictionary.SOURCES)
@@ -344,3 +347,21 @@ def _has_deny_rule(settings: dict) -> bool:
 def _missing_ask_rules(settings: dict) -> tuple[str, ...]:
     present = _as_list(_as_dict(settings.get("permissions")).get("ask"))
     return tuple(rule for rule in ASK_RULES if rule not in present)
+
+
+def card_gate_problems(settings_path: Path) -> list[str]:
+    """What `ws card apply --approve` needs in the Claude settings and does not find (read-only)."""
+    try:
+        settings = json.loads(settings_path.read_bytes())
+    except FileNotFoundError:
+        return [f"Claude settings {settings_path} not found"]
+    except (OSError, ValueError) as error:
+        return [f"Claude settings {settings_path} is not a valid, readable JSON file ({error})"]
+    if not isinstance(settings, dict):
+        return [f"Claude settings {settings_path} is not a valid JSON object"]
+    problems = []
+    if CARD_ASK_RULE not in _as_list(_as_dict(settings.get("permissions")).get("ask")):
+        problems.append(f"permissions.ask lacks {CARD_ASK_RULE}")
+    if not _has_hook_gate(settings, CARD_HOOK):
+        problems.append(f"the PreToolUse hook {CARD_HOOK} is not registered")
+    return problems

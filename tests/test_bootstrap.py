@@ -14,6 +14,7 @@ from ws.cli import main
 
 HOOK_SCRIPT = "hooks/block_co_authored_by.py"
 BYPASS_SCRIPT = "hooks/block_hook_bypass.py"
+ASK_SCRIPT = "hooks/ask_card_apply.py"
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 
@@ -43,7 +44,13 @@ def _hook_entry(script: str) -> dict:
 
 def _registered_gates() -> dict:
     return {
-        "hooks": {"PreToolUse": [_hook_entry(HOOK_SCRIPT), _hook_entry(BYPASS_SCRIPT)]},
+        "hooks": {
+            "PreToolUse": [
+                _hook_entry(HOOK_SCRIPT),
+                _hook_entry(BYPASS_SCRIPT),
+                _hook_entry(ASK_SCRIPT),
+            ]
+        },
         "permissions": {"deny": [DENY_RULE], "ask": list(ASK_RULES)},
     }
 
@@ -401,7 +408,7 @@ def test_prints_one_merged_block_with_every_missing_claude_gate(env):
     assert "Claude applies this block after you approve" in header
     entries = block["hooks"]["PreToolUse"]
     assert [entry["hooks"][0]["command"] for entry in entries] == [
-        f'python3 -I "{env.repo / script}"' for script in (HOOK_SCRIPT, BYPASS_SCRIPT)
+        f'python3 -I "{env.repo / script}"' for script in (HOOK_SCRIPT, BYPASS_SCRIPT, ASK_SCRIPT)
     ]
     assert all(entry["matcher"] == "Bash" for entry in entries)
     assert block["permissions"] == {"deny": [DENY_RULE], "ask": list(ASK_RULES)}
@@ -439,6 +446,7 @@ def test_ask_rules_cover_the_card_apply_command_and_every_atlassian_write_tool()
         "addCommentToJiraIssue",
         "addOrEditJiraIssueComment",
         "addWorklogToJiraIssue",
+        "createIssueLink",
         "executeWrite",
         "executeDestructive",
     ):
@@ -502,7 +510,7 @@ def test_missing_claude_settings_file_gets_the_whole_block(env):
     header, block = _needs_block(result)
     assert str(env.settings) in header
     assert "not found" in header
-    assert len(block["hooks"]["PreToolUse"]) == 2
+    assert len(block["hooks"]["PreToolUse"]) == 3
     assert block["permissions"] == {"deny": [DENY_RULE], "ask": list(ASK_RULES)}
     assert not env.settings.exists()
 
@@ -524,7 +532,7 @@ def test_unexpected_settings_shapes_count_as_missing_gates(env):
 
     assert len(result.needs) == 1
     _, block = _needs_block(result)
-    assert len(block["hooks"]["PreToolUse"]) == 2
+    assert len(block["hooks"]["PreToolUse"]) == 3
 
 
 def test_run_setup_reads_settings_path_from_env(env, monkeypatch):
@@ -773,3 +781,44 @@ def test_setup_reports_missing_sandbox_tools(env, monkeypatch):
     assert len(problems) == 1
     assert "sudo apt-get install -y bubblewrap socat" in problems[0]
     assert "only to run the evals" in problems[0]
+
+
+def test_the_card_approval_hook_is_one_of_the_registered_gates(env):
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"].pop()
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    _, block = _needs_block(result)
+    assert [entry["hooks"][0]["command"] for entry in block["hooks"]["PreToolUse"]] == [
+        f'python3 -I "{env.repo / ASK_SCRIPT}"'
+    ]
+
+
+def test_card_gate_problems_name_what_is_missing(tmp_path):
+    from ws.bootstrap import card_gate_problems
+
+    settings = tmp_path / "settings.json"
+    assert "not found" in card_gate_problems(settings)[0]
+
+    settings.write_text("{not json", encoding="utf-8")
+    assert "not a valid" in card_gate_problems(settings)[0]
+
+    settings.write_text("{}", encoding="utf-8")
+    assert len(card_gate_problems(settings)) == 2
+
+    gates = _registered_gates()
+    gates["permissions"]["ask"].remove("Bash(ws card apply:*)")
+    settings.write_text(json.dumps(gates), encoding="utf-8")
+    [problem] = card_gate_problems(settings)
+    assert "Bash(ws card apply:*)" in problem
+
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"].pop()
+    settings.write_text(json.dumps(gates), encoding="utf-8")
+    [problem] = card_gate_problems(settings)
+    assert ASK_SCRIPT in problem
+
+    settings.write_text(json.dumps(_registered_gates()), encoding="utf-8")
+    assert card_gate_problems(settings) == []
