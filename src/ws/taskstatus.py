@@ -5,6 +5,8 @@ from datetime import date
 from ws.taskmodel import Status, Task
 from ws.workdays import workdays_before
 
+ACTIVE_STATUSES = (Status.IN_PROGRESS, Status.REVIEW)
+
 
 def _suggestion(task: Task, to: Status, rule: str, evidence: str) -> dict:
     return {
@@ -42,7 +44,7 @@ def evaluate(tasks: list[Task], activity: dict, today: date, stale_workdays: int
             evidence = _first_evidence(task.key, activity)
             if evidence is not None:
                 suggestions.append(_suggestion(task, Status.IN_PROGRESS, "R1", evidence))
-        elif task.status is Status.IN_PROGRESS:
+        elif task.status in ACTIVE_STATUSES:
             evidence = _merged_pr_evidence(task.key, activity)
             if evidence is not None:
                 suggestions.append(_suggestion(task, Status.VALIDATION, "R2", evidence))

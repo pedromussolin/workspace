@@ -5,9 +5,10 @@ from datetime import date, datetime, time
 
 from ws.standup import keys_in
 from ws.taskmodel import Status, Task
-from ws.taskstatus import evaluate
+from ws.taskstatus import ACTIVE_STATUSES, evaluate
 
 SUBJECT_LIMIT = 5
+TODAY_STATUSES = (*ACTIVE_STATUSES, Status.READY_DEPLOY)
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
@@ -84,16 +85,30 @@ def build_report(
         if tasks is not None
         else {"suggestions": [], "stuck": []}
     )
-    blockers = [
+    blocked_cards = [
+        {
+            "key": task.key,
+            "title": task.title,
+            "url": task.url,
+            "updated": task.updated.date().isoformat(),
+            "workdays": None,
+            "kind": "blocked",
+        }
+        for task in {task.key: task for task in tasks or []}.values()
+        if task.status is Status.BLOCKED
+    ]
+    stuck_cards = [
         {
             "key": stuck["key"],
             "title": cards[stuck["key"]].title,
             "url": cards[stuck["key"]].url,
             "updated": stuck["updated"],
             "workdays": stuck["workdays"],
+            "kind": "stuck",
         }
         for stuck in evaluated["stuck"]
     ]
+    blockers = [*blocked_cards, *stuck_cards]
     blocked = {blocker["key"] for blocker in blockers}
 
     step_of: dict[str, str] = {}
@@ -114,7 +129,7 @@ def build_report(
         if task.key in blocked and task.key not in suggestions:
             continue
         wanted = (
-            task.status is Status.IN_PROGRESS
+            task.status in TODAY_STATUSES
             or task.key in step_of
             or (task.key in suggestions and task.key not in in_yesterday)
         )

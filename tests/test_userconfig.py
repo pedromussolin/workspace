@@ -81,6 +81,20 @@ def test_missing_config_raises_config_missing_with_path(config_dir):
     assert error.value.path == config_dir / "config.toml"
 
 
+def test_override_to_the_workflow_stages_is_valid(config_dir):
+    text = CONFIG.replace(
+        '"Cancelled Late" = "cancelled"',
+        '"Ready Deploy" = "ready_deploy"\n"Code Review" = "review"\n"Block" = "blocked"',
+    )
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    overrides = load_config().jira.status_overrides
+
+    assert overrides["Ready Deploy"] == "ready_deploy"
+    assert overrides["Code Review"] == "review"
+    assert overrides["Block"] == "blocked"
+
+
 def test_override_to_unknown_status_is_invalid(config_dir):
     text = CONFIG.replace('"Cancelled Late" = "cancelled"', '"X" = "doing"')
     (config_dir / "config.toml").write_text(text, encoding="utf-8")

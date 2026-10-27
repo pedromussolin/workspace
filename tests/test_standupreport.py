@@ -146,6 +146,7 @@ def test_stuck_card_is_a_blocker_and_not_in_today():
             "url": "https://example.atlassian.net/browse/TS-101",
             "updated": "2026-10-20",
             "workdays": 3,
+            "kind": "stuck",
         }
     ]
     assert report["today"] == []
@@ -362,3 +363,58 @@ def test_cli_top_flag_and_invalid_values(ws_config, tmp_path, capsys):
         with pytest.raises(SystemExit) as error:
             main([*args, "--top", bad])
         assert error.value.code == 2
+
+
+def test_blocked_card_is_a_confirmed_blocker_with_no_suggestion_and_not_in_today():
+    activity = make_activity(
+        commits=[make_commit("abc1234" * 5 + "abcde", "2026-10-26", "ajuste", ["TS-101"])],
+        last_activity={"TS-101": "2026-10-26"},
+    )
+    tasks = [make_task("TS-101", Status.BLOCKED)]
+    report = build_report(activity, tasks, TODAY, 3)
+    assert report["blockers"] == [
+        {
+            "key": "TS-101",
+            "title": "Titulo de exemplo",
+            "url": "https://example.atlassian.net/browse/TS-101",
+            "updated": "2026-10-26",
+            "workdays": None,
+            "kind": "blocked",
+        }
+    ]
+    assert report["today"] == []
+    assert report["moves"] == []
+
+
+def test_review_and_ready_deploy_cards_are_in_today_without_suggestion():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    activity = make_activity(prs=[make_pr(7, ["TS-102"], "2026-10-24T12:00:00Z")])
+    tasks = [
+        make_task("TS-101", Status.REVIEW, updated=datetime(2026, 10, 26, 9, 0, tzinfo=UTC)),
+        make_task("TS-102", Status.READY_DEPLOY, updated=old),
+    ]
+    report = build_report(activity, tasks, TODAY, 3)
+    assert [(e["key"], e["status"], e["suggestion"]) for e in report["today"]] == [
+        ("TS-101", "review", None),
+        ("TS-102", "ready_deploy", None),
+    ]
+    assert report["blockers"] == []
+    assert report["moves"] == []
+
+
+def test_blockers_list_blocked_first_then_stuck_each_in_card_order():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    tasks = [
+        make_task("TS-101", Status.IN_PROGRESS, updated=old),
+        make_task("TS-102", Status.BLOCKED),
+        make_task("TS-103", Status.REVIEW, updated=old),
+        make_task("TS-104", Status.BLOCKED),
+    ]
+    report = build_report(make_activity(), tasks, TODAY, 3)
+    assert [(b["key"], b["kind"]) for b in report["blockers"]] == [
+        ("TS-102", "blocked"),
+        ("TS-104", "blocked"),
+        ("TS-101", "stuck"),
+        ("TS-103", "stuck"),
+    ]
+    assert report["today"] == []

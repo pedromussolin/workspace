@@ -18,3 +18,9 @@ def test_task_to_json_uses_plain_values():
     data = task_to_json(task)
     assert data["status"] == "in_progress"
     assert data["updated"] == "2026-10-26T09:00:00+00:00"
+
+
+def test_status_has_the_workflow_stage_values():
+    assert Status("review") is Status.REVIEW
+    assert Status("ready_deploy") is Status.READY_DEPLOY
+    assert Status("blocked") is Status.BLOCKED

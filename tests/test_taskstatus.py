@@ -259,3 +259,49 @@ def test_cli_stuck_and_suggestion_use_the_configured_window(ws_config, tmp_path,
     assert [(s["key"], s["rule"], s["evidence"]) for s in payload["suggestions"]] == [
         ("TS-102", "R1", "abc123")
     ]
+
+
+def test_review_with_merged_pr_suggests_validation_from_review():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
+    result = evaluate([make_task("TS-101", Status.REVIEW)], activity, TODAY, 3)
+    assert result["suggestions"] == [
+        {
+            "key": "TS-101",
+            "from": "review",
+            "to": "validation",
+            "rule": "R2",
+            "evidence": "app#7",
+        }
+    ]
+
+
+def test_ready_deploy_with_merged_pr_gets_no_suggestion():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
+    result = evaluate([make_task("TS-101", Status.READY_DEPLOY)], activity, TODAY, 3)
+    assert result == {"suggestions": [], "stuck": []}
+
+
+def test_review_without_activity_and_old_update_is_stuck():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    result = evaluate([make_task("TS-101", Status.REVIEW, updated=old)], make_activity(), TODAY, 3)
+    assert [item["key"] for item in result["stuck"]] == ["TS-101"]
+
+
+def test_ready_deploy_and_blocked_are_never_stuck_nor_suggested():
+    old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+    activity = make_activity(
+        commits=[
+            {
+                "repo": "app",
+                "sha": "abc123",
+                "date": "2026-10-26",
+                "subject": "x",
+                "keys": ["TS-102"],
+            }
+        ]
+    )
+    tasks = [
+        make_task("TS-101", Status.READY_DEPLOY, updated=old),
+        make_task("TS-102", Status.BLOCKED, updated=old),
+    ]
+    assert evaluate(tasks, activity, TODAY, 3) == {"suggestions": [], "stuck": []}

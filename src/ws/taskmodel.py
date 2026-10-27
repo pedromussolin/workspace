@@ -8,7 +8,10 @@ from enum import StrEnum
 class Status(StrEnum):
     TODO = "todo"
     IN_PROGRESS = "in_progress"
+    REVIEW = "review"
     VALIDATION = "validation"
+    READY_DEPLOY = "ready_deploy"
+    BLOCKED = "blocked"
     DONE = "done"
     CANCELLED = "cancelled"
 
