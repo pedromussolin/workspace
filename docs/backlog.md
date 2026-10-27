@@ -52,3 +52,18 @@ orchestrator by role name; routing by a classifier belongs to the API layer, not
 | Agent definitions per role, versioned in the repo | phase A first | `agents/<role>.md` with `model`, `effort` and tools in the frontmatter (light implementer, implementer, reviewer, final reviewer), linked into `~/.claude/agents` by `ws setup` like the skills |
 | The role of each task stays in the plan | already done by hand in the phase A plan ("Execution" table) | the plan template names a role per task instead of a model; no skill, since a skill would keep the rule as prose |
 | A hard rule against a subagent that inherits the orchestrator's model | today it depends on remembering to set `model` | a Claude Code `PreToolUse` hook on `Agent` that blocks a call with neither a role nor a `model` |
+
+## Next skills
+
+Chosen by the user on 2026-10-27, in this order of priority: 1, 3, 2, then 4, 5 and 6. Each one
+follows "script first" (root `CLAUDE.md`): the `ws` command does the deterministic part, the skill
+decides, asks and writes the prose.
+
+| # | Skill | What it does | The script part |
+|---|---|---|---|
+| 1 | Jira write (phase B of the task-driven-work spec) | create a card, move its status, comment, log work; always a preview and the user's approval first; only the user's own cards; title prefix = epic prefix | `ws task plan` writes the plan file, `ws task apply --dry-run` validates it, `ws task apply` executes through the REST API (the MCP as fallback); the daily's status suggestions feed the plan |
+| 2 | Release | release branches `release/YYYYMMDD` and `-sdbx` in the company repos, PRs to master, the sandbox merge, moving a release to another date (close and reopen the PRs) | `ws release new DATE`, `ws release move OLD NEW`, `ws release status`; replaces the one-off scripts of each deploy; prints the PR links for the GMUD |
+| 3 | Checkpoint (end of an iteration) | update `CONTINUE.md` (with "## Próximo passo", which the daily reads), the decisions and the task table, then commit and push the workspace | `ws checkpoint check` validates the sections, `ws checkpoint commit` runs the git steps; the model writes only the text |
+| 4 | Replica query | read-only queries on the production replica, one at a time, with a timeout, formatted for the DBA review | `ws replica query FILE` enforces a read-only transaction, `statement_timeout` and a single statement, and writes the result outside the repo |
+| 5 | Local validation | the right checks of each company repo before any environment (Docker for the assignment backend, `validate.sh` for the front, the heavy-command slot) | `ws validate REPO` runs the per-repo recipe from the local config |
+| 6 | GMUD evidence (extends `change-request`) | gather the Datadog numbers and the screenshots of a deploy | a script per evidence kind (Playwright screenshots, Datadog queries through the API when a key exists, the MCP otherwise) |

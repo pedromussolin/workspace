@@ -114,7 +114,11 @@ edits `~/.claude/settings.json`: it prints the JSON to add.
 
 - A skill description says what it does and when to use it, in the third person; it alone decides
   when the skill triggers. `SKILL.md` stays under 500 lines, detail goes to `references/` one level
-  deep. Deterministic steps are `ws` commands or bundled scripts.
+  deep.
+- Script first: whenever a step can be a deterministic script, it is one (a `ws` command or a
+  script bundled with the skill), and the skill calls it. The model only decides, asks and writes
+  the prose; it never builds by hand what a script can build (files, JSON, commands, git steps).
+  Scripts make fewer mistakes, give the same result every time and cost fewer tokens.
 - A skill that writes outside the repo (Jira, GMUD, GitHub) sets `disable-model-invocation: true`
   and follows plan, validate (`--dry-run`), explicit approval, execute.
 - Always-loaded files stay small: this file under 200 lines, project `CLAUDE.md` short,
