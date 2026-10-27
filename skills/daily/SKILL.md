@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Builds the user's daily standup (yesterday, today, blockers), the status of their tasks against the code, and their open tasks, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
+description: Builds the user's daily standup grouped by task (yesterday, today, blockers), with status suggestions from the code, from git, GitHub and Jira, without writing anywhere. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
@@ -27,7 +27,7 @@ one: card titles must not land in whatever folder the session is in. Never read
    (so a card file from an earlier day is never used), then
    `ws task list --since <since> > ~/.local/share/workspace/standup/cards.json.tmp`, where `<since>`
    is `window.since` from `activity.json`. Only when the exit code is 0, `mv` the `.tmp` file to
-   `cards.json`; a failed run must not leave a `cards.json`. Exit 0: go to step 4. Exit 2 (no
+   `cards.json`; a failed run must not leave a `cards.json`. Exit 0: go to step 4 with cards. Exit 2 (no
    `config.toml` or no Jira API key; the user can create the key on the Atlassian site and run
    `ws config token jira` in their own terminal, outside Claude, since it needs a terminal and the
    key is never pasted in the chat) or exit 1 (Jira error): go to step 3.
@@ -54,60 +54,52 @@ one: card titles must not land in whatever folder the session is in. Never read
      `updated` (`fields.updated`, as it came).
    - Create `~/.local/share/workspace/standup/cards.json` with the Write tool (not a shell
      command, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`.
-   - **No cards** (the script and the MCP both failed): skip step 4 and write from the activity
-     alone. Start the text with the line "Jira indisponível: sem status, tarefas nem cards"; write
-     "indisponível" under **Impedimentos**, **Status** and **Suas tarefas**; in **Hoje** keep only
-     the `next_steps` entries.
-4. **Status.** Run
-   `ws task status --cards ~/.local/share/workspace/standup/cards.json --activity ~/.local/share/workspace/standup/activity.json`.
-   It prints `tasks` (neutral cards: `key`, `title`, `url`, `status`, `epic_title`,
-   `requested_by_other`, `updated`), `suggestions` (`key`, `from`, `to`, `rule`, `evidence`) and
-   `stuck` (`key`, `last_activity` always null, `updated`, `workdays`). If it fails, put its stderr
-   in the text and go on from the activity alone, as in "No cards" of step 3.
-5. **Write the text** with the template below, from these JSON files only.
+   - **No cards** (the script and the MCP both failed): go to step 4 without `--cards`.
+4. **Report.** Run
+   `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json`
+   (without the `--cards` part when there are no cards). It prints one JSON: `jira`, `yesterday`,
+   `today`, `next_steps`, `blockers`, `keyless` and `warnings` (the fields are used below). If it
+   fails, say so with its stderr and stop: the text comes only from the report.
+5. **Write the text** with the template below, from the report only.
 
 ## Output (PT-BR)
 
-Use exactly these five headings, in this order:
+Use exactly these three headings, in this order:
 
 ```text
 **Ontem**
-- <what the user did> (<sha> | <repo>#<PR> | <KEY>)
+- <KEY> — <title>: <one short line on what was done, from subjects and prs>. <suggestion>
+- <N> commits sem card em <repos>
 
 **Hoje**
-- <KEY> <title>: <status>, em andamento
-- <próximo passo of each project, from next_steps>
+- <KEY> — <title> (<status>): <next_step>. <suggestion>
+- <project>: <next step text>
 
 **Impedimentos**
-- <KEY> sem commit há <workdays> dias úteis; card atualizado em <updated>: possivelmente travado
-
-**Status**
-- <KEY>: <from> -> <to> (<evidence>)
-
-**Suas tarefas**
-*<epic_title>*
-- <KEY> <title> (<status>)
-*Sem épico*
-- <KEY> <title> (<status>) (pedido de outra pessoa)
+- <KEY> — <title>: sem commit há pelo menos <workdays> dias úteis; card atualizado em <updated>.
+Algum desses é impedimento?
 ```
 
-- **Ontem:** only commits whose `keys` is not empty (one line each, citing sha and key), PRs with
-  `updated_at` on or after `window.since` (citing `repo#PR`), and cards whose `updated` is on or
-  after `window.since`, with their current status; never say what changed in a card. Commits
-  without a key are not listed one by one: at most one line, "N commits sem card em <repos>".
-- **Hoje:** tasks whose `status` is `in_progress`, plus each `next_steps` entry.
-- **Impedimentos:** list the `stuck` cards as "possibly stuck" and ask the user before calling any
-  of them a blocker; a card becomes a blocker only when the user says so. With none, write
-  "nenhum".
-- **Status:** one line per `suggestions` entry, citing its card key. They are suggestions: say
-  nothing moved. With none, write "tudo em dia".
-- **Suas tarefas:** every open task (`status` not `done` and not `cancelled`: the list also holds
-  cards finished inside the window), grouped by `epic_title`, "Sem épico" last. A task with
-  `requested_by_other` true ends with "(pedido de outra pessoa)".
+- **Ontem:** one line per `yesterday` entry, in order, naming its key and `title`; the short line
+  is built from its `subjects` and `prs` (cite `ref` for a PR), never inventing what changed. The
+  "N commits sem card em <repos>" line (`keyless.commits`, `keyless.repos`) only when
+  `keyless.commits` is greater than 0. No topic without a key.
+- **Hoje:** one line per `today` entry with its `status`; omit ": <next_step>" when it is null.
+  Then one line per `next_steps` entry as "<project>: <text>".
+- **Impedimentos:** one line per `blockers` entry, then the question "Algum desses é impedimento?"
+  once. With none, write "Nenhum." and no question.
+- `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
+  para <to> (<evidence>)"; nothing moved. Otherwise nothing.
+- Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `validation` "em
+  validação", `done` "concluída", `cancelled` "cancelada".
+- `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list
+  the `yesterday` topics by key, with the PR title when there is one; under **Hoje** only the
+  `next_steps`; under **Impedimentos** write "indisponível".
+- End with every `warnings` entry, as it is.
 
 ## Rules
 
-- Write only from the JSON. Do not guess a status, a date or a link between a commit and a card.
+- Write only from the report. Do not guess a status, a date or a link between a commit and a card.
 - Never call a write tool of Jira, GitHub or git. The skill only reads.
-- State every `warnings` entry of `activity.json` at the end of the text, as it is.
-- Ask before calling a stuck card a blocker.
+- Ask before calling anything a blocker; a `blockers` entry is only a possibility until the user
+  says so.
