@@ -15,8 +15,10 @@ prompt of Claude Code itself.
 ## Decisions (user, 2026-10-27)
 
 - A card always has, besides Jira's required fields (summary, issue type, project, reporter): the
-  **parent epic**, the **priority**, the **assignee** (the user), the **sprint**, a **start date**
-  and a **due date**.
+  **parent epic**, the **priority**, the **assignee** (the user), the **sprint** and a
+  **due date**. The **start date** is not set at creation: it is set when the task starts (the move
+  to "in progress"; user, 2026-10-27: "a data de início da tarefa deve ser incluída ao começar a
+  tarefa, apenas").
 - The model card is the user's own: type Tarefa; title `[ÁREA] ...` with the epic's prefix;
   description sections `## Contexto`, `## Desenho combinado`, `## A fazer antes de implementar`,
   `## Pronto quando`.
@@ -68,7 +70,7 @@ prompt of Claude Code itself.
   its name and end date, with a warning when the end date is past (the board keeps one sprint open
   for months); none or several → the check fails and the skill asks.
 - **Dates:** "today" is in the user's Jira time zone (`timeZone` of `GET /myself`), not the
-  machine's (WSL is often UTC). `start` defaults to today; `due` is always asked.
+  machine's (WSL is often UTC). `due` is always asked; the start date is set by the move to "in progress" (see the rules).
 - **Required sections:** `## Contexto` and `## Pronto quando`, exact level-2 headings, each not
   empty; the other two only when there is something to say.
 - **Amends the parent spec:** Jira-specific `ws card` instead of the neutral `ws task check/apply`
@@ -87,7 +89,6 @@ strings are both accepted for dates.
 op = "create"
 epic = "TS-101"
 priority = "High"
-start = 2026-10-28
 due = 2026-10-31
 +++
 # [FRONT] Título curto do card
@@ -101,7 +102,7 @@ due = 2026-10-31
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due`; optional `start` | `# <title>` then the sections |
+| `create` | `epic`, `priority`, `due` (a `start` key is an unknown key: error) | `# <title>` then the sections |
 | `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional: a new description |
 | `move` | `key`, `to` (the target status name) | none |
 | `comment` | `key` | the comment, Markdown |
@@ -149,15 +150,20 @@ Exit codes for all: 0 ok; 1 a rule failed (the JSON lists the problems); 2 setup
 - `create`: the epic exists, `issuetype.hierarchyLevel == 1`, not done; the title is one line, at
   most 255 characters, and starts with the epic's prefix (`^\[[^\]]+\]`, case-sensitive) and a
   space (an epic without a prefix → any title); the two required sections; `priority` is one of
-  the project's allowed priorities (create metadata); `start` ≤ `due`, `due` not before today;
-  exactly one active sprint.
+  the project's allowed priorities (create metadata); `due` not before today; exactly one active sprint; the
+  create request has no start-date field.
 - `edit`: the card's assignee is the user; the title prefix against the new epic or the current
   one; `start` ≤ `due` merged with the current values; when the description is replaced, the two
   required sections, and a refusal when the current description holds content the converter cannot
   write back (tables, mentions, media, panels, expands, emoji), listing the types.
 - `move`: the assignee is the user; the target matches exactly one available transition by its
   `to.name`, compared without case and accents; two matches → refused, listing them; a transition
-  with required fields (`expand=transitions.fields`) → refused (done by hand).
+  with required fields (`expand=transitions.fields`) → refused (done by hand). When the target
+  status maps to `in_progress` (the status category `indeterminate`, or `status_overrides`) and the
+  card's start-date field is empty, the move also sets the field to today (the user's Jira time
+  zone), as a second request. A field that already has a date is left alone. Today after the card's
+  due date → a warning in the preview, not a refusal. Without `start_date_field` in the config
+  the move still works and warns that no start date is set.
 - `comment`: the assignee is the user; the body converts.
 - `worklog`: the assignee is the user; `time` matches `^\d+[hm](\s+\d+[hm])*$`; `day` not after
   today.
@@ -170,6 +176,13 @@ Exit codes for all: 0 ok; 1 a rule failed (the JSON lists the problems); 2 setup
   number). The fields were checked on the project's create screen on 2026-10-27.
 - edit: `PUT /rest/api/3/issue/{key}` with the changed fields only (answers 204).
 - move: `POST /rest/api/3/issue/{key}/transitions` with `{"transition": {"id"}}` (answers 204).
+  To "in progress" with an empty start date, right after it: `PUT /rest/api/3/issue/{key}` with
+  only the start-date field (`YYYY-MM-DD`, today), under the same approval code; the preview shows
+  "Data de início: hoje, dd/mm". The "before" state of that move includes the current start date,
+  so a date set between the preview and the apply refuses the apply. If the second request fails
+  after the transition succeeded, the report says the transition was applied and the start date
+  was not, with the usual rules (the draft goes to `uncertain/`, a timeout or 5xx is "resultado
+  incerto", nothing is retried).
 - comment: `POST /rest/api/3/issue/{key}/comment` with an ADF `body`.
 - worklog: `POST /rest/api/3/issue/{key}/worklog` with the duration, the start (the `day` at 09:00
   in the user's time zone, written as `2026-10-28T09:00:00.000-0300`: offset without a colon) and

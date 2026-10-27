@@ -14,7 +14,7 @@ Nothing is written through the Atlassian MCP, ever.
 
 1. **Understand the request.** Ask only what is missing. For `create`: the epic (run
    `ws card epics` and offer the list; empty, ask for an epic key), the priority and the due date
-   (`start` defaults to today). Write the title and sections in the user's style (below).
+   (a create has no start date: it is set when the task starts). Write the title and sections in the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
@@ -40,7 +40,7 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due`; optional `start` | `# <title>` then the sections |
+| `create` | `epic`, `priority`, `due` (no `start`: an unknown key) | `# <title>` then the sections |
 | `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional new description |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
@@ -51,7 +51,6 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 op = "create"
 epic = "TS-101"
 priority = "High"
-start = 2026-10-28
 due = 2026-10-31
 +++
 # [FRONT] Título curto do card
@@ -70,6 +69,11 @@ key = "TS-5431"
 to = "Em validação"
 +++
 ```
+
+Moving to "Em andamento" (any status that counts as in progress) also sets the start date to today
+when the card has none: the preview shows "Data de início: hoje, dd/mm" and two requests, both
+under the one approval. Do not ask for a start date or write one in a draft; use `edit` with
+`start` only when the user asks for a specific date.
 
 ```text
 +++
