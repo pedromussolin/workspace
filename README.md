@@ -138,6 +138,39 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 
 Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --check`.
 
+## Evals
+
+`skills/daily` has an eval suite in `evals/`, run by `claude plugin eval` (Claude Code 2.1.269 or
+later) and `.claude-plugin/plugin.json` (a fake `atlassian` MCP server that exists only so its
+tools can be mocked). Every run is a real Claude session on your plan, about 0.2 USD per standup
+run. The data is made up: a fixed Monday, fake git repos and a fake Jira site, with the Atlassian
+tools answered by `evals/mocks/`.
+
+The sandbox of the runs needs `bubblewrap` and `socat` (`ws setup` tells you when they are
+missing). Run the suite through the script, which also puts a `ws` of this checkout first on
+`PATH` (the installed one is not visible inside the sandbox):
+
+```bash
+scripts/run-evals                                              # every case, 3 runs, with and without the plugin
+scripts/run-evals --case jira-down --runs 1 --ablation none    # one case, one run
+```
+
+The first run asks "Trust this plugin directory?"; other arguments go to `claude plugin eval`. The
+suite refuses a repo whose `.venv` was built with uv's default hard links: the script says so, and
+`rm -rf .venv && UV_LINK_MODE=copy uv sync` fixes it. A
+case passes at score 1.0, and the delta against the run without the plugin should be positive on
+`standup-request`, `monday-includes-friday` and `lines-trace-to-data`. Reports land in
+`evals/results/` (not versioned).
+
+| Case | Passes when |
+|---|---|
+| `standup-request` | "standup" produces the standup (Ontem, Hoje, Impedimentos) |
+| `bug-request-no-standup` | "bom dia, me ajuda com esse bug" gets no standup |
+| `plain-greeting-no-standup` | "bom dia" alone gets no standup |
+| `monday-includes-friday` | on a Monday, Friday's commit is in the text |
+| `lines-trace-to-data` | every line of Ontem and Status names a sha, `repo#PR` or card key that exists |
+| `jira-down` | with Jira failing, the text says "Jira indisponível" and nothing is written |
+
 ## Projects
 
 Prose under `projects/` is in PT-BR; folder and file names are in English.

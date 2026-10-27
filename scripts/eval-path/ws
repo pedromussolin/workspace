@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+"""The `ws` the evals put on PATH.
+
+The installed `ws` is not visible inside the eval sandbox, so this runs the code of this checkout.
+Two things are pinned so a run never touches real data: the workspace is the fixture one in the
+run's HOME (not this repo, whose projects hold real next steps), and "today" is the date the
+fixture wrote to ~/.eval-today, so the standup window, the commit shas and the stuck rules do not
+depend on the day the suite runs.
+"""
+
+import datetime
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+os.environ.setdefault("WS_REPO_ROOT", str(Path.home() / "workspace"))
+
+_today_file = Path.home() / ".eval-today"
+if _today_file.is_file():
+    _fixed = _today_file.read_text(encoding="utf-8").strip()
+    _real_date = datetime.date
+
+    class _FixedDate(_real_date):
+        @classmethod
+        def today(cls):
+            return cls.fromisoformat(_fixed)
+
+    datetime.date = _FixedDate
+
+from ws.cli import main  # noqa: E402
+
+sys.exit(main())

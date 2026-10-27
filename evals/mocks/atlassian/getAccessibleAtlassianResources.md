@@ -1,0 +1,1 @@
+{"data":{"resources":[{"cloudId":"11111111-2222-3333-4444-555555555555","url":"https://example.atlassian.net","products":[{"id":"jira","access":"read-write"},{"id":"confluence","access":"read-write"}]}]}}

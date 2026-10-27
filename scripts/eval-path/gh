@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Stand-in for gh in the evals: answers the PR search with the fixture the scaffold wrote, or fails
+# like an unauthenticated gh when there is none.
+fixture="$HOME/.eval-gh-search.json"
+if [ -f "$fixture" ]; then
+  cat "$fixture"
+else
+  echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+  exit 4
+fi

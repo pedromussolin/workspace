@@ -5,3 +5,4 @@ __pycache__/
 node_modules/
 *.log
 .claude/worktrees/
+evals/results/

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Runs the eval suite of the daily skill. Extra arguments go to `claude plugin eval`
+# (for example `--case jira-down --runs 1 --ablation none`).
+#
+# The installed `ws` is not visible inside the eval sandbox, so the shims of scripts/eval-path go
+# first on PATH. Bash is granted whole (the OS sandbox confines it to the run's workspace): a
+# narrower grant makes a run fail on how the model chains its commands, not on the skill. The
+# report stays local: the fixtures are made up, but the run is yours.
+#
+# The eval sandbox denies writes under /tmp and /var/tmp, and a run's own home lives in the temp
+# directory: with the default TMPDIR every write inside a run fails with "Read-only file system".
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+# claude plugin eval refuses a plugin that holds a file with more than one name, and uv hard-links
+# the packages of .venv by default.
+linked="$(find . -path ./.git -prune -o -type f -links +1 -print -quit)"
+if [ -n "$linked" ]; then
+  echo "run-evals: $linked has more than one hard link, and claude plugin eval refuses that." >&2
+  echo "Recreate the environment with copies: rm -rf .venv && UV_LINK_MODE=copy uv sync" >&2
+  exit 1
+fi
+
+export PATH="$root/scripts/eval-path:$PATH"
+export TMPDIR="${XDG_CACHE_HOME:-$HOME/.cache}/ws-evals-tmp"
+mkdir -p "$TMPDIR"
+exec claude plugin eval . --scaffold --no-publish \
+  --allow-tools Bash Write "$@"
