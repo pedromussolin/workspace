@@ -152,12 +152,13 @@ Atlassian MCP replaced by mocks (`evals/mocks/`). All data is made up.
 |---|---|---|
 | 1 | "daily" or "standup" | the standup comes out (`tool_used: Skill`) |
 | 2 | "bom dia, me ajuda com esse bug"; and a plain "bom dia" | no standup; the answer is about the bug, or just a greeting |
-| 3 | a Monday | Friday's work is included |
-| 4 | made-up data | every topic names a card key present in the data |
-| 5a | a card out of sync, Jira works (the MCP mocks answer) | the suggestion appears inside that card's topic, and no write tool is called |
-| 5b | Jira down (the MCP mocks fail) | the text starts with "Jira indisponível", and no write tool is called |
+| 3 | a Monday, "daily detalhado" (nothing is cut) | Friday's work is included, Thursday's is not |
+| 4 | made-up data, the short text | every task line ends with a card key present in the data, with no sha, PR number or repo name |
+| 5a | a card out of sync, Jira works (the MCP mocks answer), the short text | the "Para você:" note holds the suggested move, and no write tool is called |
+| 5b | Jira down (the MCP mocks fail), the short text | the note says "Jira indisponível", Impedimentos says "indisponível", and no write tool is called |
+| 6 | "daily detalhado" | the suggestion appears inside that card's topic, and the commits without a key are summarised in one line |
 
-- Each case runs 3 times; cases 5a and 5b must pass all 3 (a write path needs every run right).
+- Each case runs 3 times; cases 5a, 5b and 6 must pass all 3 (a write path needs every run right).
 - Mechanical checks use the free graders (`regex`, `tool_used`). The judgment checks ("is every
   line supported by the data?", "is the text short and in PT-BR?") use the `llm` grader, whose
   judge is a Claude model (`--judge-model`, on the user's Claude plan).
