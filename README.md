@@ -80,9 +80,9 @@ stale_workdays = 3
   `validation`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
-- The Jira API key is created on the Atlassian site and saved with `ws config token jira`, typed in
-  your own terminal (`! ws config token jira` from a Claude session). It is stored in
-  `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
+- The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in
+  your own terminal, outside Claude (the command refuses to run without a terminal). It is stored
+  in `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
 
 ## What protects the repo
 
