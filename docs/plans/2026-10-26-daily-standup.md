@@ -32,6 +32,28 @@
 
 ---
 
+## Execution
+
+Subagent-driven: one fresh agent per task, a review before the next task starts, and a final review
+of the whole branch by the orchestrator (Opus 5.5). Each agent gets the lightest model and effort
+that the task allows; the orchestrator raises it for a task that comes back with a defect it should
+have caught.
+
+| Task | Model | Effort | Why |
+|---|---|---|---|
+| 1 Task model and workdays | haiku | medium | short pure code, tests already written here |
+| 2 Config and Jira token | sonnet | medium | closed interfaces; care with file modes and the TTY check |
+| 3 Jira adapter | sonnet | high | pagination, fake HTTP server, two card shapes |
+| 4 Activity collector | sonnet | high | git and `gh` through subprocess, the most edge cases |
+| 5 Status rules | sonnet | medium | pure logic, every rule has a firing case and a near-miss |
+| 6 `daily` skill | sonnet | high | the description decides when the skill triggers; the live check is the orchestrator's, with the user |
+| 7 step 1 (setup reports `bwrap`/`socat`) | haiku | low | one `shutil.which` check and its test |
+| 7 steps 3–6 (evals) | sonnet | xhigh | new tool, and cases 3–5 depend on what the probe shows |
+| Per-task review | sonnet | medium | diff of one task against its section of this plan |
+
+Order: Tasks 1 and 2 can run in parallel, and so can 3 and 4 after them; each touches `cli.py` only
+in its own `_add_*` function, so the merge is the registration line.
+
 ### Task 1: Neutral task model and workday dates
 
 **Files:**
