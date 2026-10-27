@@ -3,7 +3,7 @@
 import json
 import re
 import subprocess
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from ws.userconfig import StandupConfig
@@ -93,10 +93,42 @@ def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
     return commits
 
 
-def _branches(repo: Path) -> list[dict]:
-    out = _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads")
-    named = ((name, keys_in(name)) for name in _lines(out))
-    return [{"repo": repo.name, "name": name, "keys": keys} for name, keys in named if keys]
+def _created_on(common_dir: Path, name: str) -> date | None:
+    """Day of the first reflog entry of the branch; None when there is no readable reflog."""
+    try:
+        with (common_dir / "logs" / "refs" / "heads" / name).open(
+            encoding="utf-8", errors="replace"
+        ) as handle:
+            first = handle.readline()
+        stamp, zone = first.split("\t", 1)[0].rsplit(" ", 2)[1:]
+        offset = timedelta(hours=int(zone[1:3]), minutes=int(zone[3:5]))
+        if zone[0] == "-":
+            offset = -offset
+        return datetime.fromtimestamp(int(stamp), timezone(offset)).date()
+    except (OSError, ValueError, IndexError, OverflowError):
+        return None
+
+
+def _branches(repo: Path, stale_since: date, listed: set[tuple[str, str]]) -> list[dict]:
+    common_dir = _git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+    out = _git(
+        repo,
+        "for-each-ref",
+        f"--format=%(refname:short){FIELD_SEPARATOR}%(committerdate:short)",
+        "refs/heads",
+    )
+    branches = []
+    for line in _lines(out):
+        name, tip = line.split(FIELD_SEPARATOR, 1)
+        keys = keys_in(name)
+        if not keys or (common_dir, name) in listed:
+            continue
+        created = _created_on(Path(common_dir), name)
+        if tip < stale_since.isoformat() and (created is None or created < stale_since):
+            continue
+        listed.add((common_dir, name))
+        branches.append({"repo": repo.name, "name": name, "keys": keys})
+    return branches
 
 
 def _parse_prs(answer: str, warnings: list[str]) -> list[dict]:
@@ -172,9 +204,10 @@ def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") ->
     branches: list[dict] = []
     last_activity: dict[str, str] = {}
     seen: set[str] = set()
+    listed_branches: set[tuple[str, str]] = set()
     for repo in _find_repos(cfg, workspace, warnings):
         try:
-            branches.extend(_branches(repo))
+            branches.extend(_branches(repo, stale_since, listed_branches))
             email = _author_email(repo)
             found = [] if email is None else _own_commits(repo, email, min(since, stale_since))
         except RuntimeError as error:

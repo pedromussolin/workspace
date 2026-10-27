@@ -705,7 +705,7 @@ def _cmd_standup_collect(args: argparse.Namespace) -> int:
         return 1
     if missing:
         result["warnings"].insert(0, missing)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
     return 0
 
 

@@ -437,3 +437,67 @@ def test_non_utf8_gh_answer_is_read_with_replacement(roots, workspace, fake_gh, 
     fake_gh.answer.write_bytes(raw.encode().replace(b"@@", b"\xe7\xe3"))
     result = _collect(roots, workspace)
     assert result["prs"][0]["title"] == "feat(TS-101): a\ufffd\ufffdo"
+
+
+def _branch_at(git, monkeypatch, repo: Path, name: str, day: str, start: str = "HEAD") -> None:
+    monkeypatch.setenv("GIT_COMMITTER_DATE", f"{day}T12:00:00")
+    git(repo, "branch", name, start)
+
+
+def test_branches_keep_recent_tip_or_recent_creation_and_drop_old(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-0): base", "2026-10-10")
+    old_tip = git(repo, "rev-parse", "HEAD").stdout.strip()
+    _branch_at(git, monkeypatch, repo, "feature/TS-1-old", "2026-10-10")
+    _branch_at(git, monkeypatch, repo, "feature/TS-3-created-inside", "2026-10-22")
+    git(repo, "checkout", "-q", "-b", "feature/TS-2-recent-tip", old_tip)
+    commit(repo, "feat(TS-2): recent", "2026-10-26")
+    names = [b["name"] for b in _collect(roots, workspace)["branches"]]
+    assert names == ["feature/TS-2-recent-tip", "feature/TS-3-created-inside"]
+
+
+def test_branch_without_reflog_is_judged_by_its_tip_only(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-0): base", "2026-10-10")
+    _branch_at(git, monkeypatch, repo, "feature/TS-1-created-inside", "2026-10-22")
+    (repo / ".git" / "logs" / "refs" / "heads" / "feature" / "TS-1-created-inside").unlink()
+    assert _collect(roots, workspace)["branches"] == []
+
+
+def test_branch_of_a_linked_worktree_is_listed_once(
+    roots, workspace, fake_gh, home, make_repo, commit, git
+):
+    repo = make_repo("alpha")
+    commit(repo, "feat(TS-5): work", "2026-10-26")
+    git(repo, "branch", "feature/TS-5-work")
+    git(repo, "worktree", "add", "-q", "-b", "feature/TS-6-other", str(roots / "linked"))
+    git(roots / "linked", "config", "user.email", "dev@example.com")
+    branches = _collect(roots, workspace)["branches"]
+    assert sorted((b["repo"], b["name"]) for b in branches) == [
+        ("alpha", "feature/TS-5-work"),
+        ("alpha", "feature/TS-6-other"),
+    ]
+
+
+def test_cli_prints_compact_json(
+    roots, workspace, fake_gh, home, make_repo, commit, tmp_path, monkeypatch, capsys
+):
+    config = tmp_path / "ws-config"
+    config.mkdir()
+    (config / "config.toml").write_text(
+        f'[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+        f'[standup]\nrepo_roots = ["{roots}"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WS_CONFIG_DIR", str(config))
+    monkeypatch.setenv("WS_REPO_ROOT", str(workspace))
+    commit(make_repo("app"), "feat(TS-1): ação", "2026-10-26")
+    assert main(["standup", "collect", "--today", "2026-10-26"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1
+    assert '"window":{"since":"2026-10-23"' in out
+    assert "ação" in out
