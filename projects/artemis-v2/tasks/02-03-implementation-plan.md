@@ -8,6 +8,8 @@
   TS-5435 foi reescopada no mesmo dia para **só o fluxo novo** (decisão de 27/10 em
   `decisions.md`): legado como na master, linha = remessa inteira, B19 e agendado por remessa
   para a migração. As seções B0 a B4 abaixo descrevem o desenho anterior a esse reescopo.
+  Em 28/10 a sandbox foi conferida com as três versões no ar e a migration aplicada; o roteiro de
+  testes e as pendências estão em [02-03-sandbox-tests.md](02-03-sandbox-tests.md).
 - **Tarefas:** fase 2 na TS-5377; tarefa 02 na **TS-5435** (épico TS-5278).
 - **Decidido em 27/10:** D22 (lote por produto, fundo, originador e proc_id; a linha da tela
   segue o mesmo agrupamento) e D23 (remessa em processamento: 400). D7 vai pela D24
