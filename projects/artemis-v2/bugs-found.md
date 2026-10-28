@@ -347,8 +347,9 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   `lote_liquidacao` desligado, a linha aparece com o botão Fechar. O clique dá 400 "A chave não
   corresponde à forma como este produto fecha lote.". Antes da TS-5435 essa linha fechava pelo
   consolidate.
-- **Hoje:** **[C, réplica, 27/10]** os dois produtos com a flag (1505 e 1637) têm o
-  `lote_liquidacao` ligado, então ninguém é afetado em produção. Na sandbox não sabemos (S14 de
+- **Hoje:** **[C, réplica, 27/10 e 28/10]** os dois produtos com a flag (1505 e 1637) têm o
+  `lote_liquidacao` ligado, e nenhum dos 156 produtos tem combinação solta das flags. Ninguém é
+  afetado em produção. Na sandbox não sabemos (S14 de
   [testes na sandbox](tasks/02-03-sandbox-tests.md)).
 - **Correção:** há três opções.
   - (a) A listagem lê a modalidade. Isso mexe no legado, que pelo reescopo de 27/10 fica como na

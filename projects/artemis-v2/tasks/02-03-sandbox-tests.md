@@ -104,15 +104,18 @@ As pendências do fechamento como um todo (fase 2, worker, fase 3, legado) estã
    - **Combinações perdidas [C, código]:** mandar `modalidade_fechamento_lote` no cadastro
      reescreve as flags pela modalidade (`closing_modality.py:21-25`, `legacy_flags` em
      `enum.py:840-855`, cessão `8873832dd`). Uma combinação que ela não representa se perde no
-     legado. Exemplo: `lote_liquidacao` com `baixa_por_agendamento` vira `agendado`, e o
-     `lote_liquidacao` é desligado.
-   - **Quem manda a modalidade:** ninguém, hoje. O BFF e o fetch-api não mandam o campo, e o
-     Atlas não grava a config do produto.
-   - **Flag mudada direto no banco [H]:** a modalidade não acompanha, e o fluxo novo passa a ler
-     uma regra diferente da do legado.
-   - **Antes da GMUD:** rodar a consulta 1 de
-     [proc_id_pending_checks.sql](../attachments/sql/proc_id_pending_checks.sql) na réplica.
-     Ela mostra quantos produtos têm combinação que a modalidade não representa (e o B22).
+     legado.
+   - **Produção hoje [C, réplica, 28/10, consultas 1 e 1c de
+     [proc_id_pending_checks.sql](../attachments/sql/proc_id_pending_checks.sql)]:** os 156
+     produtos têm as flags iguais às que a modalidade derivada gravaria. São 131 `manual`, 13
+     `acumulado`, 9 `automatico_por_chave`, 2 `automatico_por_remessa` e 1 `agendado`. Nenhum
+     produto cai no B22. Nada se perde hoje.
+   - **O que sobra é risco latente:**
+     - um produto novo cadastrado com combinação "solta";
+     - uma flag mudada direto no banco, que a modalidade não acompanha. **[H]**
+     - Ninguém manda a modalidade hoje: o BFF e o fetch-api não mandam o campo, e o Atlas não
+       grava a config.
+     - Depois da produção, rodar a 1c de novo comparando com a coluna gravada.
 4. **Release e GMUD:** `release/<data>` com a fase 2 e a TS-5435 nos três repos.
    - Ordem do deploy: cessão (com worker e migration), depois BFF, depois front (R2).
    - No dia, conferir que a `master` tem uma cabeça de migration só. A original encadeia em
@@ -124,10 +127,13 @@ As pendências do fechamento como um todo (fase 2, worker, fase 3, legado) estã
 **Depois da produção**
 5. **Remessas presas (B19):** a remessa cujo último processo termina rejeitado ou errado não
    fecha sozinha e, até a migração, fecha pela tela.
-   - A consulta 2 da mesma SQL lista as que estão presas hoje. Serão as primeiras linhas `proc:`
-     fechadas pela tela.
+   - **[C, réplica, 28/10, consulta 2, últimos 7 dias]** Nenhuma está presa. O 1505 teve 31
+     remessas e o 1637 teve 16. Delas, 15 e 7 tiveram processo rejeitado ou errado, todas
+     fecharam e nenhuma estava em processamento.
    - **[C, Datadog]** De 21/10 a 28/10 não houve nenhum `event=lote_ctrl_sem_registro` nem
      `event=backstop_sem_registro` em produção.
+   - O B19 existe no código, mas não deixou remessa presa nesta semana. Fica para a migração
+     sem urgência.
 6. **Acompanhar** como na fase 1 (`evidence/async-closing-monitoring.md`), incluindo as
    primeiras linhas `proc:` do 1505 e do 1637.
 7. **Rota de consolidate do BFF:** sai depois de 7 dias sem chamada no Datadog, contados a partir
