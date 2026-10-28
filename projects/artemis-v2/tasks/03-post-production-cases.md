@@ -84,6 +84,47 @@ Código conferido: cessão `b15aa94`, BFF `bb877db`, front `f7bb2d84`, argocd
     acima de ~80 a 140 mil pagamentos; a varredura fecha grupos de 25 a 137
     mil por dia no produto 15 (D20).
 
+## Estado em 28/10
+
+**Produção:** **[C, Datadog]** logs "Fechamento de lote fake solicitado" e "concluído" do worker
+de fechamento, de 20/10 23:10 a 28/10 14:20 UTC.
+- 164 pedidos e 164 `closed`, todos na primeira tentativa. Nenhuma falha, descarte, trava
+  perdida ou erro ao mandar o lote para a esteira.
+- Espera máxima na fila: 171 ms.
+- Duração: mediana 2,3 s, p95 58 s e máximo 130 s. Maior grupo: 34.809 pagamentos.
+- Por produto: 1043 (44), 1901 (28), 713 (27), 1145 (20) e 1143 (18); os outros seis tiveram
+  até 9 cada.
+- Para repetir: `kube_namespace:production service:platform-cessao* "Fechamento de lote fake
+  concluído"`, agrupado por `@status` e `@product_id`, com mediana, p95 e máximo de
+  `@duration_ms`.
+
+**Pendências do fechamento, em ordem:**
+1. **Fase 2 (TS-5377):** está na sandbox desde 27/10 e ainda não foi testada.
+   - Na rota: R7 e o vigente com guarda no fluxo novo (parte do B15).
+   - Na tela: R8, R11, R24, R25, R26 e D19, R27, e o tratamento de 502 e 504.
+   - No BFF: `payments_count` e exclusão com o escopo do parceiro.
+   - O roteiro está em [02-03-sandbox-tests.md](02-03-sandbox-tests.md). Depois vêm a release e a
+     GMUD, junto com a TS-5435.
+2. **Worker dedicado (C6):** ainda tem uma réplica (`values.yaml` de produção, `replicas: 1`) e
+   probes `test date`. O Celery roda sem `exec` no `entrypoint.sh` (R3), e o tempo de
+   desligamento é menor que o `time_limit`. A concorrência 16 fica por enquanto (R16).
+3. **Fase 0, itens sem registro de execução:** a política de memória do Redis
+   (`maxmemory-policy`, `evicted_keys`) e o `statement_timeout` do papel da aplicação.
+4. **Fase 3,** antes de a varredura ou o Atlas passarem pela rota nova:
+   - C1/B14: o pagamento entra no vigente com guarda;
+   - C2/B15: guarda no legado e no agendado, e trava por lote na `esteira_baixar`. No estresse
+     de 27/10 o legado ainda despachou o mesmo vigente duas vezes: 6 em 180 casos, e 29 em 120
+     no modo forçado;
+   - C3/B16: exclusão com `FOR UPDATE`;
+   - a C1 e a C2 precisam ser combinadas antes com o Rafael Frankl.
+5. **Bugs herdados:**
+   - B17: limpeza do cache depois do commit, no legado.
+   - B18: continua. **[C, Datadog]** De 21/10 a 27/10 houve 11 ocorrências em
+     `estados_cessao.py:82`. Falta ver se passam por `liberacao_processos`.
+   - B21: lotes vazios no 1505.
+6. **R7 na listagem** (linha que parece fechável e não fecha): tarefa 04, com a DBA.
+7. **Adiados** ([after-v2](../after-v2.md)): P1, P3, P4, índices, D18 e D20 (b).
+
 ## 1. Tempo de execução
 
 - **Sem medida do grupo grande.** O L3 nunca foi medido. Referência do legado
