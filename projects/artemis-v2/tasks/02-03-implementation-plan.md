@@ -155,14 +155,17 @@ Casos que nenhum fluxo da tela exercita sozinho. Cada um ganhou teste na tarefa 
 
 ## Fase 0: medir antes (sem deploy)
 
+- [x] **28/10:** `_processos_agrupados_por_proc_id`, de 21 a 28/10: 601 execuções, 30 s no total,
+  p95 de 139 ms e máximo de 572 ms (em 05/10, 88 h em 7 dias). O COUNT do portão não foi medido:
+  falta achar o `resource_hash` dele.
 - [ ] Datadog, 7 dias, `service:platform-cessao`, spans `postgres`. Medir execuções, tempo total
   e p95 de duas consultas:
   - `resource_hash:23ea4ea711b38532` (`_processos_agrupados_por_proc_id`);
   - o COUNT do portão (`models.py:5567-5572`).
 
   Registrar em `evidence/`.
-- [ ] Logs `event=lote_ctrl_sem_registro` e `event=backstop_sem_registro` do 1505 e do 1637, em
-  7 dias.
+- [x] Logs `event=lote_ctrl_sem_registro` e `event=backstop_sem_registro` do 1505 e do 1637, em
+  7 dias. **28/10:** nenhum em produção de 21 a 28/10.
 
 ## Bloco 1: fase 2 do fechamento novo (TS-5377)
 
