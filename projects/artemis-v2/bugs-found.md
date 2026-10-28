@@ -333,6 +333,29 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   exclusão e de criação.
 - **Correção:** depende da causa; a B16 (C3 do plano) cobre a primeira.
 
+## B22 — Linha `proc:` que a tela não fecha (TS-5435)
+
+- **Onde:** a regra de "fecha por remessa" é diferente nos dois lados (cessão `8873832dd`).
+  - A listagem gera a chave `proc:` só pela flag `fechar_lote_por_proc_id`
+    (`cessao/api/liquidacao/repository.py:588-617`).
+  - O fluxo novo só aceita `proc:` com a modalidade `automatico_por_remessa`
+    (`refact.py:785-790`). Essa modalidade exige também o `lote_liquidacao`
+    (`cessao/database/enum.py:830`, mesma precedência da migration).
+  - O front perdeu o caminho do consolidate e manda toda linha para a rota nova (front
+    `bf378f60`).
+- **Efeito:** **[C, código]** num produto com `fechar_lote_por_proc_id` ligado e
+  `lote_liquidacao` desligado, a linha aparece com o botão Fechar. O clique dá 400 "A chave não
+  corresponde à forma como este produto fecha lote.". Antes da TS-5435 essa linha fechava pelo
+  consolidate.
+- **Hoje:** **[C, réplica, 27/10]** os dois produtos com a flag (1505 e 1637) têm o
+  `lote_liquidacao` ligado, então ninguém é afetado em produção. Na sandbox não sabemos (S14 de
+  [testes na sandbox](tasks/02-03-sandbox-tests.md)).
+- **Correção:** há três opções.
+  - (a) A listagem lê a modalidade. Isso mexe no legado, que pelo reescopo de 27/10 fica como na
+    `master`.
+  - (b) A tela desabilita o Fechar quando a chave não bate com a modalidade.
+  - (c) Só registrar, porque a combinação não existe e a D24 a resolve quando o legado migrar.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
