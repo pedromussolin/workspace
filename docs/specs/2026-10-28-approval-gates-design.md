@@ -1,0 +1,205 @@
+# Approval gates: design
+
+Status: design approved in conversation on 2026-10-28; phase 1 in implementation. The user asked
+for the work to run in parallel, so the detail of phase 1 below was decided by the orchestrator
+from the approved direction and is open to the user's review.
+
+## Goal
+
+Nothing is written outside the user's machine (Jira, GitHub, the GMUD portal) without an approval
+box that says in PT-BR **what** changes, **where** and **with what content**, and the "yes" covers
+only that call. The structure works with any harness (Claude Code now, opencode and local models
+later) and every flow can be run by hand, without any AI.
+
+Priorities, in the user's order: **A** no write outside without the user's real yes (model mistake
+or prompt injection), **C** confidentiality (real names and secrets reaching the personal GitHub),
+**B** an approval the user understands (no rubber stamp).
+
+## What is wrong today (2026-10-28)
+
+1. The Jira key is readable with `cat`: the `Read` deny rule covers Claude's Read tool, not Bash,
+   so a `curl` can write to Jira past every gate.
+2. GitHub writes never ask: the GitHub MCP (`create_pull_request`, `merge_pull_request`,
+   `push_files`, `delete_repository`...), GitKraken, `gh` and `git push` pass on the auto-mode
+   classifier alone. For C, `push_files` writes to the personal repo through the API, so neither
+   the git hooks nor `check-secrets` see it.
+3. The hook scripts live in the repo's `hooks/`, which the model can edit without a prompt.
+4. The card gate reads the command text: it asks for nothing (a memory edit whose heredoc held
+   backticks and the word `ws`) and its message is a generic English sentence.
+5. `ws card apply` refuses to run without the Claude Code settings (`card.py` `_approve`) and
+   refuses a preview and an approval in the same shell session, so the user cannot write a card
+   by hand at all.
+
+## Principles
+
+- **The harness is an interface.** Three levels: the **core** (`ws` and the files: every rule and
+  every write lives here, and it works by hand); the **bridge** (an MCP server `ws`, phase 2, for
+  any MCP-speaking harness); thin **adapters** per harness (Claude Code hooks and rules, opencode
+  later) that translate and hold no rule.
+- **The approval belongs to `ws`.** Every write: prepare (AI or user) → PT-BR preview with a code
+  → a person approves → `ws` applies. Approval channels: (1) the terminal, by hand, anywhere; (2)
+  the MCP server's own question (elicitation), with AI, in any harness that supports it; (3) the
+  Claude Code box, as an extra layer for third-party tools that do not go through `ws`.
+- **The catalog lists reads; everything else asks.** An MCP tool missing from the catalog asks
+  until it is classified (fail closed). Non-MCP built-in tools keep their current rules.
+- **The text in the box is built by code** from the real call parameters, never from a
+  description the model wrote.
+- **Manual mode is a requirement.** Each flow has a no-AI runbook and a template for every text
+  the AI writes today; a new skill is done only with its manual path.
+- **Script first and stdlib only**, as in the root `CLAUDE.md`. Hooks run with `python3 -I`.
+
+## Layers
+
+| # | Layer | What it does | Phase |
+|---|---|---|---|
+| 1 | Ask | every write outside stops and asks, in auto mode too | 1 |
+| 2 | Message | the box text is built by code from the real parameters | 1 |
+| 3 | Confidentiality | content for the personal GitHub passes `check-secrets` first; a finding blocks | 1 |
+| 4 | Integrity | the hooks run from a copy in a protected folder, checked by `ws setup` | 1 |
+| 5 | Isolation | our sandbox hides the keys and filters the network | 3 |
+
+## Phases
+
+| Phase | Delivers |
+|---|---|
+| 1. Gate in Claude Code | one approval gate (catalog of reads, PT-BR messages), GitHub writes ask, `check-secrets` on content for the personal repo, hooks installed to a protected folder, `ws card apply` by hand with `s/N`, the manual runbook starts |
+| 2. Approval in `ws` | the key-holding process (broker), the `ws approvals` pane, the MCP server `ws` with elicitation; the card moves to it and the release is born in it |
+| 3. Our sandbox | first the feasibility spike, then `ws agent run <harness>`, the network proxy, keys outside the box |
+| 4. Other harnesses | opencode adapter, skill links per harness folder, a local-model test |
+
+## Phase 1 in detail
+
+### The gate
+
+One PreToolUse hook, `hooks/approval_gate.py`, registered with the matcher `Bash|mcp__.*`. It
+replaces `hooks/ask_card_apply.py`. The two blocking hooks (`block_co_authored_by.py`,
+`block_hook_bypass.py`) stay separate entries; their messages go to the model and stay English.
+
+Code layout (stdlib only; `approval_gate.py` puts its own folder on `sys.path`, since `-I` does
+not):
+
+| File | Role |
+|---|---|
+| `hooks/approval_gate.py` | entry point: reads the payload, routes, prints the decision, never crashes |
+| `hooks/gate/decision.py` | the `Decision` type and the PT-BR box text helper (shared contract) |
+| `hooks/gate/shell.py` | shell parsing, moved out of `block_hook_bypass.py`, which imports it |
+| `hooks/gate/bash_rules.py` | Bash write families and their summaries |
+| `hooks/gate/mcp_rules.py` | MCP routing: catalog lookup, per-tool summaries, the confidentiality check |
+| `hooks/gate/catalog.json` | per MCP server, by exact name: the tools that never write outside the machine (reads, and local-only changes such as a local `git_commit`) |
+
+Decisions: `pass` (no output, the normal permission flow continues), `ask` (Claude Code shows the
+box with the PT-BR text) and `deny` (blocked, the reason goes to the model). Any internal error
+answers `ask` with "não consegui ler esta chamada; confira o comando antes de aprovar". The gate
+never exits non-zero: Claude Code treats other codes as non-blocking and the gate would fail open.
+
+### The box text
+
+Built by `decision.ask_text(title, lines)`:
+
+```
+Gravar fora — GitHub
+Criar PR em pedromussolin/workspace: feature/x → main
+Título: docs: release com as decisões
+Corpo: 3 linhas (primeira: "Resumo da mudança…")
+"Yes" aprova só esta chamada.
+```
+
+At most 10 lines, each cut at 160 characters with "…"; long bodies show the first line and a line
+count. Values are shown as data, quoted where they come from the call. Whether the box renders
+several lines is not documented: the user checks it in the review, and the helper is the single
+place to change if it does not.
+
+### Bash rules
+
+Commands are split into simple commands with the shared parser; `bash -c`, `eval` and `$(...)`
+are scanned. The body of a quoted heredoc (`<<'EOF'`) is data unless its command is a shell
+(`bash`, `sh`, `zsh`, `dash`, `ksh`, `eval`, `source`, `.`); this removes the false alarm of
+2026-10-28.
+
+| Family | Rule | Box |
+|---|---|---|
+| `git push` | asks, except a plain `git push` / `git push origin main` whose `cwd` is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml` | repo folder, remote, refspec, `--force` called out |
+| `gh` | a read list passes (`pr view/list/diff/checks/status`, `issue view/list/status`, `repo view/list/clone`, `run view/list/watch`, `release view/list/download`, `search`, `auth status`, `api` with GET and no fields); everything else asks | subcommand, repo, the key flags (base, head, title, body summary) |
+| `curl`, `wget` | asks when the method is not GET/HEAD or the command sends data (`-d`, `--data*`, `-F`, `--form`, `-T`, `--upload-file`, `--json`, `--post-*`) | method, host and path, "com dados" |
+| `ws card apply` | always asks, in every form the old hook caught (wrappers, `uv run`, `python -m ws`, absolute path) | the summary lines of the pending record |
+| protection | asks when a command names `~/.claude/settings*.json`, `~/.claude/hooks/` or `.githooks/` and its program is not a read-only one (`cat`, `head`, `tail`, `less`, `ls`, `stat`, `sha256sum`, `diff`, `grep`, `rg`, `jq`) | "Mexe na proteção do Claude Code: PATH" |
+| obfuscation | asks when a simple command whose program is `ws`, `gh`, `git`, `curl` or `wget` has an unquoted `$`, backtick or brace expansion in its arguments, or when a command that names them cannot be parsed | "Não consegui ler o comando com certeza" |
+
+Everything else passes to the normal flow. Known limit: text rules cannot see a script file the
+command runs; phase 3 is the answer.
+
+### MCP rules
+
+`mcp__<server>__<tool>`: the tool passes when `catalog.json` lists it under its server (a read or a
+local-only change). Everything else asks: with a specific summary when `mcp_rules` has one (GitHub, GitKraken,
+Atlassian writes), otherwise a generic one (server, tool, the first parameters as `key: value`).
+
+Confidentiality (layer 3): before asking, a GitHub write whose `owner` is in `[gate]
+personal_github_owners` of the config gets its text content (file contents, PR or issue title and
+body, comment body) written to a private temporary file under `~/.cache/workspace/gate/` and
+checked with `ws check-secrets PATH`. A finding or a failure to run the check answers `deny`, with
+the check's output as the reason. No owner list in the config: the check is skipped and the box
+says "conferência de sigilo desligada (sem personal_github_owners)".
+
+### Integrity
+
+`ws setup` copies the hook files to `~/.claude/hooks/workspace/` with a manifest of SHA-256 sums,
+reports a stale or edited copy, and prints the settings JSON pointing at the copy (it still never
+edits `settings.json`). Claude's Edit and Write tools prompt for files under `.claude`; Bash writes
+there are covered by the gate's protection row. Full protection (a read-only mount) is phase 3.
+
+New `permissions.ask` rules, as a backstop if the hook itself does not run: the GitHub MCP and
+GitKraken write tools, next to the Atlassian ones that exist.
+
+### Card by hand
+
+- The pending record gains `summary`: the PT-BR lines the preview prints (one header per draft,
+  then its preview lines and warnings). The approval code covers the summary, and `apply` refuses
+  when the record's own content does not hash to the code, so the box cannot show one thing while
+  another is sent.
+- On a real terminal (stdin and stdout are TTYs and `CLAUDECODE` is not set), `ws card apply PATH
+  --approve CODE` prints the summary, asks `Gravar no Jira? [s/N]` and writes only on `s` or
+  `sim`. That path does not need the Claude settings and allows the preview in the same session.
+  Without a TTY, today's rules hold (Claude gate registered, separate session).
+- Known limit: a pseudo-terminal (`script`) can fake the TTY; the gate still asks for every
+  `ws card apply` the model runs, and phase 3 closes it.
+
+### Manual runbook
+
+`docs/manual.md`: daily, card, checkpoint, names and masking by hand, with the `ws` commands and
+the templates. Every new flow adds its section.
+
+### Tests
+
+pytest, no network: the gate is run as a subprocess with JSON payloads, as today's hook tests do.
+The cases of `tests/test_ask_card_apply_hook.py` move to the new gate tests and keep passing;
+2026-10-28's false alarm becomes a test that must pass silently.
+
+## Phase 2 (to design before building)
+
+Open: the broker transport (a Unix socket), the `ws approvals` pane in a terminal tab, whether
+the MCP server is our own stdlib JSON-RPC (no dependency, preferred) or the official SDK.
+
+## Phase 3: our sandbox
+
+Approved direction: a box around the whole agent (`ws agent run <harness>`), built on bubblewrap
+(a Linux package, the same tool Claude Code uses; 0.9.0 installed) with our own stdlib proxy and
+a domain allowlist. The key-holding `ws` runs outside; the approval moves to the `ws approvals`
+pane outside the box, the only channel the model cannot reach (elicitation loses its guarantee in
+this mode, since the harness and the model's commands share the box). Connectors that write
+(claude.ai Atlassian, GitHub) are turned off or read-only in this mode.
+
+The spike measures, before any build: Docker (its socket defeats the box, so Docker flows would run
+through `ws` outside), GitHub reads without the key inside, which programs break behind the proxy,
+and the time cost of the box against plain commands. Report: `docs/research/`.
+
+## Phase 4
+
+Skills stay in `skills/`; `ws setup` links them into each configured harness folder
+(`~/.claude/skills`, `~/.agents/skills`), the opencode adapter turns off its reading of
+`.claude` to avoid duplicates, and skill text stays tool-neutral ("run `ws card preview`").
+
+## Out of scope
+
+The two blocking hooks' logic, WebFetch exfiltration (phase 3's proxy covers the whole agent), and
+GitHub writes made by programs other than `git`, `gh`, `curl` and `wget` (phase 3).
