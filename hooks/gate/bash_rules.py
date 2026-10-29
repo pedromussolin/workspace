@@ -145,6 +145,7 @@ GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
 INJECTING_START = "$`{-"
 BRANCH_QUERY_TIMEOUT = 3.0
+MAX_WORD = 4096
 PUSH_VALUE_FLAGS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 FORCE_FLAGS = ("-f", "--force", "--force-with-lease", "--force-if-includes")
 REMOTE_CHANGES = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-branches"}
@@ -1479,6 +1480,10 @@ def _combine(findings: list[Finding]) -> Decision:
 
 
 def decide(command: str, cwd: str) -> Decision:
+    # Checked before any parser or regex runs: a huge word could make them slow past the deadline.
+    if any(len(part) > MAX_WORD for part in command.split()):
+        reason = f"Uma palavra do comando passa de 4 KB ({MAX_WORD} caracteres); não a leio"
+        return ask(TITLE_UNSURE, [reason, "Confira o comando antes de aprovar."])
     scan = shell.scan(command)
     findings: list[Finding] = []
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
