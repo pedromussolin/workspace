@@ -133,6 +133,11 @@ registers `python3 -I "<copy>/<script>"`: the gate with the matcher `Bash|mcp__.
 with `Bash`. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
 reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_DIR`.
 
+Another clone whose settings still register the old card hook keeps working:
+`hooks/ask_card_apply.py` now runs the gate. After a pull, run `ws setup` there and apply what
+it prints. The hooks need the system `python3` at 3.11 or newer (`ws setup` checks it); the
+`[gate]` keys, the GitHub token and the `env` block below are per person and optional.
+
 The optional `[gate]` table of `config.toml` tunes the gate (`ws setup` reports a wrong type and
 never writes it):
 
