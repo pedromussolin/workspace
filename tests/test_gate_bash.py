@@ -763,12 +763,21 @@ def test_gh_writes_ask(command, env):
     assert box(command, env)
 
 
-def test_gh_graphql_reads_the_query_file(env, tmp_path):
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh api graphql -F query=@read.graphql",
+        "gh api graphql --field query=@read.graphql",
+        "gh api graphql -F query=@-",
+        "gh api graphql -F query=@/dev/zero",
+        "gh api graphql --input read.graphql",
+    ],
+)
+def test_gh_graphql_query_from_a_file_asks_without_reading_it(command, env, tmp_path):
     (tmp_path / "read.graphql").write_text("query { viewer { login } }", encoding="utf-8")
-    (tmp_path / "write.graphql").write_text("mutation { x }", encoding="utf-8")
 
-    assert box("gh api graphql -F query=@read.graphql", env, cwd=str(tmp_path)) is None
-    assert box("gh api graphql -F query=@write.graphql", env, cwd=str(tmp_path))
+    text = box(command, env, cwd=str(tmp_path))
+    assert "Conteúdo: consulta GraphQL lida de arquivo" in text
 
 
 def test_gh_pr_create_box(env):

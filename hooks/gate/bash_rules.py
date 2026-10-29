@@ -834,7 +834,7 @@ def _query_is_expanded(args: list[Word]) -> bool:
     return False
 
 
-def _gh_api(args: list[Word], cwd: str) -> Finding | None:
+def _gh_api(args: list[Word]) -> Finding | None:
     parsed = parse_flags(args, GH_API_VALUES)
     names = [word.text for word in parsed.positionals]
     endpoint = names[0] if names else ""
@@ -844,9 +844,12 @@ def _gh_api(args: list[Word], cwd: str) -> Finding | None:
     method = parsed.value("-X", "--method")
     method = method.upper() if method else ("POST" if fields else "GET")
     if endpoint.strip("/") == "graphql":
-        if not _query_is_expanded(args) and _graphql_is_read(fields, cwd):
+        if _graphql_from_file(fields):
+            shown = "consulta GraphQL lida de arquivo ou da entrada; a caixa não a lê"
+        elif not _query_is_expanded(args) and _graphql_is_read(fields):
             return None
-        shown = "mutation ou consulta que não consegui ler"
+        else:
+            shown = "mutation ou consulta que não consegui ler"
         return Finding(TITLE_GITHUB, ("Consulta GraphQL (gh api graphql)", f"Conteúdo: {shown}"))
     if method in SAFE_METHODS:
         return None
@@ -857,17 +860,19 @@ def _gh_api(args: list[Word], cwd: str) -> Finding | None:
     )
 
 
-def _graphql_is_read(fields: list[tuple[str, str]], cwd: str) -> bool:
+def _graphql_from_file(fields: list[tuple[str, str]]) -> bool:
+    """Whether the query comes from a file or stdin (`query=@f`, `--input`).
+
+    The hook never reads it: the file can change before `gh` runs, or never end (`/dev/zero`).
+    """
+    return any(flag == "--input" or value.startswith("query=@") for flag, value in fields)
+
+
+def _graphql_is_read(fields: list[tuple[str, str]]) -> bool:
     queries = [value.partition("=")[2] for _, value in fields if value.startswith("query=")]
-    if len(queries) != 1 or any(flag == "--input" for flag, _ in fields):
+    if len(queries) != 1:
         return False
-    query = queries[0]
-    if query.startswith("@"):
-        try:
-            query = Path(cwd, os.path.expanduser(query[1:])).read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            return False
-    return not re.search(r"\bmutation\b", query, re.IGNORECASE)
+    return not re.search(r"\bmutation\b", queries[0], re.IGNORECASE)
 
 
 def _gh_change(
@@ -970,7 +975,7 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
             word.bare and word.text[:1] and word.text[0] in INJECTING_START for word in api_args
         ):
             return [_unsure(texts, "Uma palavra do gh api vem de uma expansão e pode trazer -X.")]
-        found = _gh_api(api_args, cwd)
+        found = _gh_api(api_args)
         return [found] if found else []
     rest = args[top.positions[1] + 1 :] if action else []
     before = args[: top.positions[1]] if action else args
