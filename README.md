@@ -137,6 +137,9 @@ Another clone whose settings still register the old card hook keeps working:
 `hooks/ask_card_apply.py` now runs the gate. After a pull, run `ws setup` there and apply what
 it prints. The hooks need the system `python3` at 3.11 or newer (`ws setup` checks it); the
 `[gate]` keys, the GitHub token and the `env` block below are per person and optional.
+An MCP server that `hooks/gate/catalog.json` does not list asks before every call, reads
+included, until its read and local-only tools are added there (a commit, so every clone
+gets them).
 
 The optional `[gate]` table of `config.toml` tunes the gate (`ws setup` reports a wrong type and
 never writes it):
