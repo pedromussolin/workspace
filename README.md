@@ -149,7 +149,8 @@ never writes it):
 
 | Key | Meaning |
 |---|---|
-| `push_without_asking` | list of repo paths (`~` allowed) where a plain push goes without asking |
+| `push_without_asking` | list of repo paths (`~` allowed) where a plain push goes without asking, when `push_remotes` also matches |
+| `push_remotes` | list of push URLs of `origin` allowed for that no-box push (`git remote get-url --push --all origin`); missing or different, the push asks |
 | `personal_github_owners` | list of GitHub owners that get the confidentiality check before a write |
 
 #### Secrets outside the session environment

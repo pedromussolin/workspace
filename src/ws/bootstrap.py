@@ -860,7 +860,7 @@ def _check_gate_table(setup: _Setup, settings_file: Path) -> None:
     if not isinstance(gate, dict):
         setup.need(f"{settings_file}: [gate] must be a table")
         return
-    for key in ("push_without_asking", "personal_github_owners"):
+    for key in ("push_without_asking", "push_remotes", "personal_github_owners"):
         value = gate.get(key)
         if value is not None and not (
             isinstance(value, list) and all(isinstance(item, str) for item in value)

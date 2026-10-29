@@ -118,7 +118,7 @@ are scanned. The body of a quoted heredoc (`<<'EOF'`) is data unless its command
 
 | Family | Rule | Box |
 |---|---|---|
-| `git push` | asks, except a plain `git push` / `git push origin main` whose `cwd` is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml` | repo folder, remote, refspec, `--force` called out |
+| `git push` | asks, except a plain `git push` / `git push origin main` whose `cwd` is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml`, every push URL of `origin` is in `[gate] push_remotes`, and the repo's local config sets no key that runs a program or redirects the push | repo folder, remote, refspec, `--force` called out |
 | `gh` | a read list passes (`pr view/list/diff/checks/status`, `issue view/list/status`, `repo view/list/clone`, `run view/list/watch`, `release view/list/download`, `search`, `auth status`, `api` with GET and no fields); everything else asks | subcommand, repo, the key flags (base, head, title, body summary) |
 | `curl`, `wget` | asks when the method is not GET/HEAD or the command sends data (`-d`, `--data*`, `-F`, `--form`, `-T`, `--upload-file`, `--json`, `--post-*`) | method, host and path, "com dados" |
 | `ws card apply` | always asks, in every form the old hook caught (wrappers, `uv run`, `python -m ws`, absolute path) | the summary lines of the pending record |
