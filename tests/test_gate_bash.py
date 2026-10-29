@@ -1835,10 +1835,10 @@ def test_a_box_shared_by_several_findings_gives_each_one_line_with_the_destinati
 
     assert lines == [
         "Gravar fora — GitHub",
+        "ATENÇÃO: https://evil.example/x.git ← git push --force main da pasta /work",
         "/work (pasta atual): Comentar PR 1",
         "/work (pasta atual): Comentar PR 2",
         "/work (pasta atual): Comentar PR 3",
-        "ATENÇÃO: https://evil.example/x.git ← git push --force main da pasta /work",
         FOOTER,
     ]
 
