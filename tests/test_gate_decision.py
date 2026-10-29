@@ -48,3 +48,43 @@ def test_body_summary():
     assert decision.body_summary("") == "vazio"
     assert decision.body_summary("\nolá\n") == '1 linha (primeira: "olá")'
     assert decision.body_summary("a\nb\nc") == '3 linhas (primeira: "a")'
+
+
+def test_warning_lines_go_right_after_the_title_in_order():
+    text = decision.ask_text("t", ["a", "ATENÇÃO: um", "b", "ATENÇÃO: dois"])
+    assert text.splitlines() == ["t", "ATENÇÃO: um", "ATENÇÃO: dois", "a", "b", decision.FOOTER]
+
+
+def test_warning_lines_are_never_folded_nor_cut():
+    long_warning = "ATENÇÃO: " + "x" * 300
+    lines = decision.ask_text("t", [f"l{n}" for n in range(20)] + ["ATENÇÃO: fim", long_warning])
+    shown = lines.splitlines()
+    assert shown[1:3] == ["ATENÇÃO: fim", long_warning]
+    assert len(shown) == decision.MAX_LINES
+    assert shown[-2] == "(+15 linhas)"
+
+
+def test_warnings_beyond_the_room_all_stay():
+    warnings = [f"ATENÇÃO: {n}" for n in range(12)]
+    shown = decision.ask_text("t", ["a", *warnings, "b"]).splitlines()
+    assert shown[1:13] == warnings
+    assert shown[13:] == ["(+2 linhas)", decision.FOOTER]
+
+
+def test_control_and_format_characters_become_visible():
+    text = decision.ask_text(
+        "t\u202etítulo", ["a\x1b[31mb", "x\u200by", "\u202e", "tab\tok", "bell\x07"]
+    )
+    assert text.splitlines() == [
+        "t�título",
+        "a�[31mb",
+        "x�y",
+        "�",
+        "tab ok",
+        "bell�",
+        decision.FOOTER,
+    ]
+
+
+def test_cut_replaces_control_characters():
+    assert decision.cut("a\u202eb\ufeffc\x00d") == "a�b�c�d"
