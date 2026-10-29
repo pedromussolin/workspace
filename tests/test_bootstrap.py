@@ -49,6 +49,7 @@ def _clean_environment(tmp_path: Path, monkeypatch) -> None:
         if bootstrap.ENV_PATTERN.search(name):
             monkeypatch.delenv(name)
     monkeypatch.setenv("WS_CLAUDE_JSON", str(tmp_path / "claude.json"))
+    monkeypatch.setenv("WS_CLAUDE_PLUGINS_DIR", str(tmp_path / "no-plugins"))
     monkeypatch.setenv("WS_BIN", str(tmp_path / "bin" / "ws"))
 
 
@@ -1688,3 +1689,56 @@ def test_an_unreadable_local_settings_file_is_ignored(env):
     env.settings.with_name("settings.local.json").write_text("{nope", encoding="utf-8")
 
     assert card_gate_problems(env.settings) == []
+
+
+def _catalog_in_repo(env: Env, servers: dict) -> None:
+    path = env.repo / "hooks" / "gate" / "catalog.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"version": 1, "servers": servers}), encoding="utf-8")
+
+
+def _mcp_needs(result: SetupResult) -> list[str]:
+    return [need for need in result.needs if need.startswith("MCP servers the approval gate")]
+
+
+def test_setup_warns_about_configured_mcp_servers_missing_from_the_catalog(env, tmp_path):
+    _catalog_in_repo(env, {"github": {"pass": [], "ask": []}})
+    claude = _github_server()
+    claude["mcpServers"]["zeta-tool"] = {"command": "x", "args": ["never-printed"]}
+    claude["claudeAiMcpEverConnected"] = ["claude.ai Some Service"]
+    _write_claude_json(claude)
+
+    result = _setup(env, check=True)
+
+    assert _mcp_needs(result) == [
+        "MCP servers the approval gate does not know: claude_ai_Some_Service, zeta-tool. "
+        "Every call of theirs asks, reads included, until their tools are classified: "
+        "run `ws gate catalog`."
+    ]
+    assert "never-printed" not in "".join(result.needs)
+
+
+def test_setup_finds_the_servers_of_enabled_plugins(env, tmp_path, monkeypatch):
+    _catalog_in_repo(env, {"github": {"pass": [], "ask": []}})
+    plugins = tmp_path / "plugins"
+    install = plugins / "cache" / "market" / "demo"
+    (install).mkdir(parents=True)
+    (install / ".mcp.json").write_text('{"demo-srv": {"url": "u"}}', encoding="utf-8")
+    (plugins / "installed_plugins.json").write_text(
+        json.dumps({"plugins": {"demo@market": [{"installPath": str(install)}]}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WS_CLAUDE_PLUGINS_DIR", str(plugins))
+    _write_settings(env.settings, {**_registered_gates(), "enabledPlugins": {"demo@market": True}})
+
+    assert "plugin_demo_demo-srv" in _mcp_needs(_setup(env))[0]
+
+
+def test_setup_is_quiet_when_every_server_is_in_the_catalog(env):
+    _catalog_in_repo(env, {"github": {"pass": [], "ask": []}})
+
+    assert _mcp_needs(_setup(env)) == []
+
+
+def test_setup_without_a_catalog_in_the_repo_skips_the_mcp_check(env):
+    assert _mcp_needs(_setup(env)) == []

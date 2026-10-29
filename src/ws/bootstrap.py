@@ -26,7 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
-from ws import dictionary, userconfig
+from ws import dictionary, gatecatalog, userconfig
 from ws.config import (
     claude_hooks_dir,
     claude_json_path,
@@ -166,6 +166,7 @@ def run_setup(
     _check_claude_gates(setup, hooks_dir, settings)
     _check_secret_variables(setup, settings)
     _check_github_server(setup, config)
+    _check_mcp_catalog(setup, repo, settings)
     return setup.result
 
 
@@ -716,6 +717,21 @@ def _check_github_server(setup: _Setup, config: Path) -> None:
         f"GitHub MCP server in {claude_json} is {problem}. ws never writes that file; "
         f"run in a terminal:\n  {command}"
     )
+
+
+def _check_mcp_catalog(setup: _Setup, repo: Path, settings: Path) -> None:
+    """An MCP server the catalog does not know asks before every call, reads included."""
+    try:
+        catalog = gatecatalog.load_catalog(repo / HOOKS_SOURCE / "gate" / "catalog.json")
+    except gatecatalog.CatalogError:
+        return
+    missing = gatecatalog.unknown_servers(catalog, settings)
+    if missing:
+        setup.need(
+            f"MCP servers the approval gate does not know: {', '.join(missing)}. Every call of "
+            "theirs asks, reads included, until their tools are classified: "
+            "run `ws gate catalog`."
+        )
 
 
 def _as_dict(value: object) -> dict:
