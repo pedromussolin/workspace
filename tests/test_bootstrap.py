@@ -1180,8 +1180,8 @@ def test_setup_copies_the_hooks_read_only_with_a_manifest(env, _hooks_dir):
     manifest = json.loads((_hooks_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest == {rel: _sha(files[f"hooks/{rel}"]) for rel in COPIED}
     assert _mode(_hooks_dir / "manifest.json") == 0o444
-    assert _mode(_hooks_dir) == 0o755
-    assert _mode(_hooks_dir / "gate") == 0o755
+    assert _mode(_hooks_dir) == 0o555
+    assert _mode(_hooks_dir / "gate") == 0o555
     assert any(line.startswith(f"hooks copy: create {_hooks_dir}") for line in result.fixed)
     assert _setup(env) == SetupResult()
 
@@ -1236,7 +1236,9 @@ def test_an_edited_file_is_reported_as_edited_and_restored(env, _hooks_dir):
 
 def test_a_missing_file_is_copied_again(env, _hooks_dir):
     _copy_in_place(env)
+    (_hooks_dir / "gate").chmod(0o755)
     (_hooks_dir / "gate" / "rules.py").unlink()
+    (_hooks_dir / "gate").chmod(0o555)
 
     check = _setup(env, check=True)
     assert check.fixed == [
@@ -1247,10 +1249,16 @@ def test_a_missing_file_is_copied_again(env, _hooks_dir):
     assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
 
 
+def _plant(path: Path) -> None:
+    path.parent.chmod(0o755)
+    path.write_bytes(b"x\n")
+    path.parent.chmod(0o555)
+
+
 def test_an_extra_file_is_reported_and_removed(env, _hooks_dir):
     _copy_in_place(env)
-    (_hooks_dir / "gate" / "planted.py").write_bytes(b"x\n")
-    (_hooks_dir / "sitecustomize.py").write_bytes(b"x\n")
+    _plant(_hooks_dir / "gate" / "planted.py")
+    _plant(_hooks_dir / "sitecustomize.py")
 
     check = _setup(env, check=True)
 
@@ -1265,6 +1273,7 @@ def test_an_extra_file_is_reported_and_removed(env, _hooks_dir):
 def test_a_symlink_in_the_copy_is_edited_and_replaced(env, _hooks_dir, tmp_path):
     files = _copy_in_place(env)
     target = _hooks_dir / "approval_gate.py"
+    _hooks_dir.chmod(0o755)
     target.unlink()
     elsewhere = tmp_path / "elsewhere.py"
     elsewhere.write_bytes(files["hooks/approval_gate.py"])
@@ -1292,7 +1301,9 @@ def test_a_loose_mode_is_fixed(env, _hooks_dir):
 def test_a_lost_or_forged_manifest_is_written_again(env, _hooks_dir):
     _copy_in_place(env)
     manifest = _hooks_dir / "manifest.json"
+    _hooks_dir.chmod(0o755)
     manifest.unlink()
+    _hooks_dir.chmod(0o555)
 
     assert _setup(env, check=True).fixed == [f"hooks copy: write the manifest {manifest}"]
     _setup(env)
@@ -1305,7 +1316,9 @@ def test_a_lost_or_forged_manifest_is_written_again(env, _hooks_dir):
 
 def test_a_copy_without_a_manifest_reports_a_different_file_as_stale(env, _hooks_dir):
     _copy_in_place(env)
+    _hooks_dir.chmod(0o755)
     (_hooks_dir / "manifest.json").unlink()
+    _hooks_dir.chmod(0o555)
     (_hooks_dir / "approval_gate.py").chmod(0o644)
     (_hooks_dir / "approval_gate.py").write_bytes(b"x\n")
 
@@ -1533,3 +1546,43 @@ def test_ask_rules_cover_every_github_write_tool_of_the_user_scope_server():
         assert f"mcp__github__{tool}" in ASK_RULES, tool
     assert "mcp__github__get_me" not in ASK_RULES
     assert len(ASK_RULES) == len(set(ASK_RULES))
+
+
+def test_a_writable_copy_folder_is_locked_again(env, _hooks_dir):
+    _copy_in_place(env)
+    (_hooks_dir / "gate").chmod(0o755)
+
+    check = _setup(env, check=True)
+
+    assert check.fixed == ["hooks copy folder gate: chmod 555 (from 0755)"]
+    assert _mode(_hooks_dir / "gate") == 0o755
+    _setup(env)
+    assert _mode(_hooks_dir / "gate") == 0o555
+    assert _setup(env) == SetupResult()
+
+
+@pytest.mark.parametrize("folder", ["__pycache__", "gate/__pycache__", "gate/shadow"])
+def test_an_extra_folder_such_as_pycache_is_reported_and_removed(env, _hooks_dir, folder):
+    _copy_in_place(env)
+    parent = (_hooks_dir / folder).parent
+    parent.chmod(0o755)
+    (_hooks_dir / folder).mkdir()
+    (_hooks_dir / folder / "rules.cpython-312.pyc").write_bytes(b"\x00")
+    parent.chmod(0o555)
+
+    check = _setup(env, check=True)
+
+    assert check.fixed == [f"hooks copy {folder}: not in the repo; remove it"]
+    _setup(env)
+    assert not (_hooks_dir / folder).exists()
+    assert _mode(_hooks_dir / "gate") == 0o555
+    assert _setup(env) == SetupResult()
+
+
+def test_an_empty_pycache_folder_is_reported_too(env, _hooks_dir):
+    _copy_in_place(env)
+    _hooks_dir.chmod(0o755)
+    (_hooks_dir / "__pycache__").mkdir()
+    _hooks_dir.chmod(0o555)
+
+    assert _setup(env, check=True).fixed == ["hooks copy __pycache__: not in the repo; remove it"]

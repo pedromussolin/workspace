@@ -11,6 +11,7 @@ With `check` nothing is changed and the network is not used; the changes that se
 listed instead.
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -42,6 +43,9 @@ HOOKS_COPY_GLOBS = ("*.py", "gate/*.py", "gate/*.json")
 HOOKS_NOT_COPIED = ("ask_card_apply.py",)
 GATE_SCRIPT = "approval_gate.py"
 GATE_MATCHER = "Bash|mcp__.*"
+HOOK_TIMEOUT = 30
+MIN_HOOK_TIMEOUT = 10
+COPY_DIR_MODE = 0o555
 GATE_PROBE_TOOLS = ("Bash", "mcp__plugin_github_github__push_files")
 HOOK_REGISTRATIONS = (
     (GATE_SCRIPT, GATE_MATCHER, GATE_PROBE_TOOLS),
@@ -352,6 +356,10 @@ def _install_dictionaries(setup: _Setup) -> None:
     setup.result.fixed.append(f"dictionaries: download {PACKAGES} into {target}")
 
 
+def _mode_of(path: Path) -> int:
+    return stat.S_IMODE(path.stat().st_mode)
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -367,30 +375,47 @@ def _hook_sources(repo: Path) -> dict[str, Path]:
     return found
 
 
-def _ensure_dir(path: Path) -> None:
+@contextlib.contextmanager
+def _writable(folder: Path):
+    """Let the owner write in a folder of the copy (they are 0555) and put its mode back."""
+    mode = stat.S_IMODE(folder.stat().st_mode)
+    folder.chmod(mode | 0o200)
+    try:
+        yield
+    finally:
+        folder.chmod(mode)
+
+
+def _inside(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
+def _ensure_dir(path: Path, root: Path) -> None:
     if path.exists():
         return
-    _ensure_dir(path.parent)
-    path.mkdir(mode=0o755)
-    path.chmod(0o755)
+    _ensure_dir(path.parent, root)
+    with _writable(path.parent) if _inside(path.parent, root) else contextlib.nullcontext():
+        path.mkdir(mode=0o755)
+    path.chmod(COPY_DIR_MODE if _inside(path, root) else 0o755)
 
 
-def _write_read_only(target: Path, data: bytes) -> None:
+def _write_read_only(target: Path, data: bytes, root: Path) -> None:
     """Unlink and write, so a read-only file or a link is never written through."""
-    _ensure_dir(target.parent)
-    target.unlink(missing_ok=True)
-    target.write_bytes(data)
-    target.chmod(0o444)
+    _ensure_dir(target.parent, root)
+    with _writable(target.parent):
+        target.unlink(missing_ok=True)
+        target.write_bytes(data)
+        target.chmod(0o444)
 
 
 def _write_manifest(hooks_dir: Path, expected: dict[str, str]) -> None:
     text = json.dumps(expected, indent=2, sort_keys=True) + "\n"
-    _write_read_only(hooks_dir / HOOKS_MANIFEST, text.encode("utf-8"))
+    _write_read_only(hooks_dir / HOOKS_MANIFEST, text.encode("utf-8"), hooks_dir)
 
 
 def _write_copy(hooks_dir: Path, contents: dict[str, bytes], expected: dict[str, str]) -> None:
     for rel, data in contents.items():
-        _write_read_only(hooks_dir / rel, data)
+        _write_read_only(hooks_dir / rel, data, hooks_dir)
     _write_manifest(hooks_dir, expected)
 
 
@@ -414,17 +439,40 @@ def _copy_file_sha(path: Path) -> str | None:
         return None
 
 
-def _extra_files(hooks_dir: Path, expected: dict[str, str]) -> list[str]:
+def _copy_folders(expected: dict[str, str]) -> set[str]:
+    """The folders of the copy, as paths relative to it, that hold an expected file."""
+    folders = {""}
+    for rel in expected:
+        folders.update(parent.as_posix() for parent in PurePath(rel).parents)
+    return {"" if folder == "." else folder for folder in folders}
+
+
+def _extras(hooks_dir: Path, expected: dict[str, str]) -> list[str]:
+    """Files, links and folders of the copy that are not in the manifest, `__pycache__` included:
+    Python imports a stale `.pyc` or a folder that shadows a module before it reads the real one."""
+    folders = _copy_folders(expected)
     extras = set()
     for folder, dirnames, filenames in os.walk(hooks_dir):
         base = Path(folder)
-        links = [name for name in dirnames if (base / name).is_symlink()]
-        dirnames[:] = [name for name in dirnames if name not in links and name != "__pycache__"]
-        for name in [*filenames, *links]:
+        for name in list(dirnames):
+            rel = (base / name).relative_to(hooks_dir).as_posix()
+            if (base / name).is_symlink() or rel not in folders:
+                extras.add(rel)
+                dirnames.remove(name)
+        for name in filenames:
             rel = (base / name).relative_to(hooks_dir).as_posix()
             if rel not in expected and rel != HOOKS_MANIFEST:
                 extras.add(rel)
     return sorted(extras)
+
+
+def _remove_extra(hooks_dir: Path, rel: str) -> None:
+    target = hooks_dir / rel
+    with _writable(target.parent):
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        else:
+            target.unlink(missing_ok=True)
 
 
 def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
@@ -465,15 +513,23 @@ def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
             continue
         setup.fix(
             message,
-            lambda target=target, data=data: _write_read_only(target, data),
+            lambda target=target, data=data: _write_read_only(target, data, hooks_dir),
             f"{failure} ({rel})",
         )
-    for rel in _extra_files(hooks_dir, expected):
+    for rel in _extras(hooks_dir, expected):
         setup.fix(
             f"hooks copy {rel}: not in the repo; remove it",
-            lambda rel=rel: (hooks_dir / rel).unlink(missing_ok=True),
+            lambda rel=rel: _remove_extra(hooks_dir, rel),
             f"could not remove {hooks_dir / rel}",
         )
+    for folder in sorted(_copy_folders(expected)):
+        path = hooks_dir / folder
+        if path.is_dir() and not path.is_symlink() and (mode := _mode_of(path)) != COPY_DIR_MODE:
+            setup.fix(
+                f"hooks copy folder {folder or '.'}: chmod {COPY_DIR_MODE:o} (from {mode:04o})",
+                lambda path=path: path.chmod(COPY_DIR_MODE),
+                f"{path} is writable and chmod {COPY_DIR_MODE:o} failed",
+            )
     if manifest != expected or _copy_file_sha(hooks_dir / HOOKS_MANIFEST) is None:
         setup.fix(
             f"hooks copy: write the manifest {hooks_dir / HOOKS_MANIFEST}",
