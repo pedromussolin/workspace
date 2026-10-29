@@ -865,3 +865,84 @@ def test_the_environment_denial_comes_before_the_confidentiality_check(isolated_
 
     assert decision.kind == "deny"
     assert "environment branch" in decision.reason
+
+
+def fake_gh(tmp_path: Path, monkeypatch, body: str) -> Path:
+    log = tmp_path / "gh-calls.log"
+    script = tmp_path / "fake-gh"
+    script.write_text(f'#!/bin/sh\necho "$*" >> {log}\n{body}\n', encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("WS_GATE_GH_BIN", str(script))
+    return log
+
+
+def merge(**changes):
+    inputs = {"owner": "o", "repo": "deploy-argocd", "pullNumber": 7} | changes
+    return run(GH + "merge_pull_request", **inputs)
+
+
+def test_a_pr_merge_into_an_environment_branch_is_denied_in_any_repo(isolated_env, monkeypatch):
+    set_policy()
+    log = fake_gh(isolated_env, monkeypatch, "echo main")
+    decision = merge()
+
+    assert decision.kind == "deny"
+    assert decision.reason == (
+        "Blocked: PR #7 merges into main, an environment branch; the user merges it."
+    )
+    assert log.read_text(encoding="utf-8").splitlines() == [
+        "pr view --json baseRefName --jq .baseRefName --repo=o/deploy-argocd -- 7"
+    ]
+
+
+def test_a_pr_merge_into_another_branch_asks_with_its_base(isolated_env, monkeypatch):
+    set_policy()
+    fake_gh(isolated_env, monkeypatch, "echo feature/base")
+
+    assert lines(merge(pullNumber="8"))[1:3] == [
+        "Mesclar o PR o/deploy-argocd#8",
+        "Base: feature/base",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("changes", "body"),
+    [
+        ({}, "exit 1"),
+        ({}, "echo 'two words'"),
+        ({"pullNumber": "--web"}, "echo feature/base"),
+        ({"repo": "--web"}, "echo feature/base"),
+    ],
+)
+def test_a_pr_merge_whose_base_is_unknown_asks_with_a_warning(
+    changes, body, isolated_env, monkeypatch
+):
+    set_policy()
+    log = fake_gh(isolated_env, monkeypatch, body)
+    decision = merge(**changes)
+
+    assert lines(decision)[1] == "ATENÇÃO: não consegui ver a base do PR"
+    if changes:
+        assert not log.exists()
+
+
+def test_the_pr_lookup_runs_alongside_the_confidentiality_check(isolated_env, monkeypatch):
+    set_policy('personal_github_owners = ["o"]\n')
+    fake_gh(isolated_env, monkeypatch, "sleep 1.5; echo feature/base")
+    slow = isolated_env / "slow-ws"
+    slow.write_text("#!/bin/sh\nsleep 1.5\n", encoding="utf-8")
+    slow.chmod(0o755)
+    monkeypatch.setenv("WS_GATE_WS_BIN", str(slow))
+    started = time.monotonic()
+    decision = merge()
+
+    assert time.monotonic() - started < 2.8
+    assert "Base: feature/base" in lines(decision)
+    assert mcp_rules.SIGILO_CHECKED in lines(decision)
+
+
+def test_without_the_policy_a_pr_merge_runs_no_lookup(isolated_env, monkeypatch):
+    log = fake_gh(isolated_env, monkeypatch, "echo main")
+
+    assert merge().kind == "ask"
+    assert not log.exists()

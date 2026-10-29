@@ -210,7 +210,8 @@ GH_API_VALUES = GH_GLOBAL_VALUES | {
     "--preview",
 }
 GH_API_FIELDS = {"-f", "-F", "--field", "--raw-field", "--input"}
-API_REPO_PATH = re.compile(r"^repos/[^/]+/([^/]+)/(.+)$")
+API_REPO_PATH = re.compile(r"^repos/([^/]+)/([^/]+)/(.+)$")
+API_PULL_MERGE = re.compile(r"pulls/(\d+)/merge")
 GH_CHANGE_VALUES = GH_GLOBAL_VALUES | {
     "-B",
     "--base",
@@ -1122,7 +1123,8 @@ def _gh_api_environment(
 
     Covers file writes (`contents/...`, branch from the `branch` field, the default branch when
     it is missing), ref updates (`git/refs/heads/<branch>`, or `git/refs` with a `ref` field) and
-    server-side merges (`merges`, branch from `base`).
+    server-side merges (`merges`, branch from `base`). A PR merge (`pulls/N/merge`) is judged by
+    its base, as `gh pr merge` is.
     """
     parsed = parse_flags(args, GH_API_VALUES)
     if not parsed.positionals:
@@ -1131,7 +1133,15 @@ def _gh_api_environment(
     found = API_REPO_PATH.match(endpoint.text.split("?", 1)[0].strip("/"))
     if found is None:
         return [], ""
-    name, rest = found.group(1), found.group(2)
+    owner, name, rest = found.groups()
+    merge = API_PULL_MERGE.fullmatch(rest)
+    if merge is not None:
+        base = None
+        if not endpoint.expands:
+            repo = None if "{" in owner + name else f"{owner}/{name}"
+            base = branches.BaseLookup(merge.group(1), repo, cwd).result()
+        line, denied = branches.judge_merge(rules, base, merge.group(1))
+        return ([line] if line else []), denied
     fields = _api_fields(args)
     default = False
     branch: str | None = None
@@ -1161,6 +1171,19 @@ def _gh_api_environment(
     return ([warning] if warning else []), denied
 
 
+def _merge_base(
+    rules: branches.Policy, parsed: Parsed, given: str | None, cwd: str
+) -> tuple[str, str]:
+    """The base of the PR a `gh pr merge` names, judged by the policy: (box line, denial)."""
+    word = parsed.positionals[0] if parsed.positionals else None
+    repo = parsed.value("-R", "--repo") or given
+    if (word is not None and word.expands) or (repo and repo[:1] in INJECTING_START):
+        return branches.UNKNOWN_BASE, ""
+    ref = word.text if word is not None else None
+    base = branches.BaseLookup(ref, repo, cwd).result()
+    return branches.judge_merge(rules, base, ref)
+
+
 def _gh_change(
     group: str, action: str, tail: list[Word], cwd: str, texts: list[str], given: str | None
 ) -> Finding:
@@ -1182,6 +1205,11 @@ def _gh_change(
     elif (group, action) == ("pr", "merge"):
         method = next((GH_MERGE_METHODS[n] for n, _ in parsed.flags if n in GH_MERGE_METHODS), None)
         lines = [f"Mesclar o PR {target or 'da branch atual'} em {repo}"]
+        if rules := branches.policy():
+            line, denied = _merge_base(rules, parsed, given, cwd)
+            if denied:
+                return Finding(TITLE_GITHUB, (), denial=denied)
+            lines.append(line)
         lines.append(f"Método: {method or 'o padrão do repositório'}")
         if parsed.has("--admin"):
             lines.append("ATENÇÃO: --admin ignora as regras de proteção da branch")
@@ -1270,7 +1298,8 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
                 return [Finding(TITLE_GITHUB, (), denial=denied)]
             if warnings:
                 lines = (found.lines[0], *warnings, *found.lines[1:])
-                found = Finding(found.title, lines, alert=True)
+                alert = any(line.startswith("ATENÇÃO:") for line in warnings)
+                found = Finding(found.title, lines, alert=alert)
         return [found]
     rest = args[top.positions[1] + 1 :] if action else []
     before = args[: top.positions[1]] if action else args

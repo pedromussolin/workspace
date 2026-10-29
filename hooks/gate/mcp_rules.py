@@ -39,6 +39,8 @@ KRAKEN_CHECKED = frozenset(
     {"pull_request_create", "pull_request_create_review", "issues_create", "issues_add_comment"}
 )
 
+SAFE_NAME = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9._-]*")
+
 UNCLASSIFIED_LIMIT = 500
 RECORD_NAME = "unclassified.json"
 RECORDABLE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,128}")
@@ -689,6 +691,22 @@ def _environment(family: str, tool: str, inputs: dict) -> tuple[list[str], Decis
     return ([warning] if warning else []), None
 
 
+def _start_merge_lookup(
+    family: str, tool: str, inputs: dict
+) -> tuple[branches.Policy, branches.BaseLookup] | None:
+    """For `merge_pull_request` under the policy, the base lookup, started before the
+    confidentiality check so the two share the hook's time; None when the policy does not apply.
+    A number or a name gh could read as an option is never passed: the base is then unknown."""
+    rules = branches.policy() if (family, tool) == ("github", "merge_pull_request") else None
+    if rules is None:
+        return None
+    number = str(inputs.get("pullNumber", ""))
+    owner, repo = _text(inputs, "owner"), _text(inputs, "repo")
+    if number.isdigit() and all(SAFE_NAME.fullmatch(part) for part in (owner, repo)):
+        return rules, branches.BaseLookup(number, f"{owner}/{repo}", None)
+    return rules, branches.BaseLookup(None, None, None)
+
+
 def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     inputs = tool_input if isinstance(tool_input, dict) else {}
     parts = str(tool_name).split("__", 2)
@@ -712,10 +730,25 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     warnings, blocked = _environment(family, tool, inputs)
     if blocked is not None:
         return blocked
+    merge = _start_merge_lookup(family, tool, inputs)
     if family == "github" or (family == "gitkraken" and tool in KRAKEN_CHECKED):
-        blocked, sigilo = _confidentiality(family, tool, inputs)
+        try:
+            blocked, sigilo = _confidentiality(family, tool, inputs)
+        except BaseException:
+            if merge is not None:
+                merge[1].stop()
+            raise
         if blocked is not None:
+            if merge is not None:
+                merge[1].stop()
             return blocked
+    if merge is not None:
+        rules, lookup = merge
+        number = str(inputs.get("pullNumber", ""))
+        line, denied = branches.judge_merge(rules, lookup.result(), number)
+        if denied:
+            return deny(denied)
+        lines = [*lines[:1], line, *lines[1:]]
     if sigilo:
         lines = [*lines[:7], sigilo]
     lines = [*warnings, *lines]

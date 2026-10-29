@@ -2459,3 +2459,105 @@ def test_gh_api_reads_and_the_policy_off_behave_as_before(env):
     assert box("gh api repos/o/app/contents/a.md", env) is None
     write_config(env, "[gate]\n")
     assert "ATENÇÃO" not in box("gh api -X PUT repos/o/app/contents/a -f branch=main", env)
+
+
+def fake_gh(tmp_path, env, body):
+    """A `gh` for the PR base lookup that logs its folder and arguments and runs `body`."""
+    log = tmp_path / "gh-calls.log"
+    script = tmp_path / "fake-gh"
+    script.write_text(f'#!/bin/sh\necho "$PWD|$*" >> {log}\n{body}\n', encoding="utf-8")
+    script.chmod(0o755)
+    return {**env, "WS_GATE_GH_BIN": str(script)}, log
+
+
+BASE_ANSWERS = """case "$*" in
+  *" 7") echo main ;;
+  *" 8") echo feature/base ;;
+  *"/pull/9") echo staging ;;
+  *"--jq .baseRefName") echo sandbox ;;
+  *) exit 1 ;;
+esac"""
+LOOKUP = "pr view --json baseRefName --jq .baseRefName"
+
+
+@pytest.mark.parametrize(
+    ("command", "repo"),
+    [
+        ("gh pr merge 7 -R o/app --squash", "o/app"),
+        ("gh -R o/deploy-argocd pr merge 7", "o/deploy-argocd"),
+        ("gh pr merge 7 --repo o/app --admin", "o/app"),
+    ],
+)
+def test_a_pr_merge_into_an_environment_branch_is_denied(command, repo, env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, log = fake_gh(tmp_path, env, BASE_ANSWERS)
+
+    assert denial(command, gh_env) == (
+        "Blocked: PR #7 merges into main, an environment branch; the user merges it."
+    )
+    call = log.read_text(encoding="utf-8").splitlines()[0].split("|", 1)[1]
+    assert call == f"{LOOKUP} --repo={repo} -- 7"
+
+
+def test_a_pr_merge_by_url_or_of_the_current_branch_is_looked_up(env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, log = fake_gh(tmp_path, env, BASE_ANSWERS)
+    folder = tmp_path / "work"
+    folder.mkdir()
+
+    by_url = denial("gh pr merge https://github.com/o/app/pull/9", gh_env)
+    current = denial("gh pr merge --squash", gh_env, cwd=str(folder))
+
+    assert by_url.startswith("Blocked: PR #9 merges into staging,")
+    assert current.startswith("Blocked: PR of the current branch merges into sandbox,")
+    assert log.read_text(encoding="utf-8").splitlines()[1] == f"{folder}|{LOOKUP}"
+
+
+def test_a_pr_merge_into_another_branch_asks_with_its_base(env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, _ = fake_gh(tmp_path, env, BASE_ANSWERS)
+    lines = box("gh pr merge 8 -R o/app", gh_env).splitlines()
+
+    assert lines[1:3] == ["Mesclar o PR 8 em o/app", "Base: feature/base"]
+
+
+@pytest.mark.parametrize(
+    ("command", "body"),
+    [
+        ("gh pr merge 5 -R o/app", BASE_ANSWERS),
+        ("gh pr merge 7 -R o/app", "echo 'not a branch!'"),
+        ('gh pr merge "$N" -R o/app', BASE_ANSWERS),
+    ],
+)
+def test_a_pr_merge_whose_base_is_unknown_asks_with_a_warning(command, body, env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, _ = fake_gh(tmp_path, env, body)
+
+    assert box(command, gh_env).splitlines()[1] == "ATENÇÃO: não consegui ver a base do PR"
+
+
+def test_a_slow_pr_lookup_gives_up_within_the_hook_deadline(env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, _ = fake_gh(tmp_path, env, "sleep 30")
+    started = time.monotonic()
+    text = box("gh pr merge 7 -R o/app", gh_env)
+
+    assert time.monotonic() - started < 4.5
+    assert "ATENÇÃO: não consegui ver a base do PR" in text
+
+
+def test_a_pr_merge_through_gh_api_is_judged_by_its_base(env, tmp_path):
+    write_config(env, ENVIRONMENT_POLICY)
+    gh_env, log = fake_gh(tmp_path, env, BASE_ANSWERS)
+
+    reason = denial("gh api -X PUT repos/o/app/pulls/7/merge -f merge_method=squash", gh_env)
+    assert reason.startswith("Blocked: PR #7 merges into main,")
+    assert log.read_text(encoding="utf-8").splitlines()[0].endswith(f"{LOOKUP} --repo=o/app -- 7")
+    assert "Base: feature/base" in box("gh api -X PUT repos/o/app/pulls/8/merge", gh_env)
+
+
+def test_without_the_policy_a_pr_merge_runs_no_lookup(env, tmp_path):
+    gh_env, log = fake_gh(tmp_path, env, BASE_ANSWERS)
+
+    assert "Base:" not in box("gh pr merge 7 -R o/app", gh_env)
+    assert not log.exists()
