@@ -610,10 +610,53 @@ def test_push_without_asking_follows_symlinks_to_the_listed_folder(listed_repo, 
         "/usr/bin/git push",
         "git push $REMOTE",
         "git remote set-url origin https://example.com/x.git && git push",
+        "git push; echo ok",
+        "echo ok && git push",
+        "export X=1; git push",
+        "read X; git push",
+        "true | git push",
+        "git push > /tmp/out",
+        "git push < /dev/null",
+        "git push <<< x",
+        "echo $(git push)",
     ],
 )
 def test_push_exception_refuses_anything_beyond_the_plain_push(command, listed_repo, env):
     assert box(command, env, cwd=str(listed_repo))
+
+
+def test_the_no_box_push_reads_the_worktree_config_too(listed_repo, env, tmp_path):
+    _git(["config", "extensions.worktreeConfig", "true"], listed_repo, tmp_path)
+    _git(["config", "--worktree", "core.sshCommand", "ssh -i hidden-value"], listed_repo, tmp_path)
+    text = box("git push", env, cwd=str(listed_repo))
+
+    assert "ATENÇÃO: a configuração local do repositório define core.sshcommand" in text
+    assert "hidden-value" not in text
+
+
+def test_the_no_box_push_ignores_the_global_config(listed_repo, env):
+    gitconfig = Path(env["HOME"]) / ".gitconfig"
+    gitconfig.write_text("[credential]\n\thelper = store\n", encoding="utf-8")
+
+    assert box("git push", env, cwd=str(listed_repo)) is None
+
+
+@pytest.mark.parametrize("value", [".githooks", "./.githooks", ".githooks/", "{repo}/.githooks"])
+def test_the_no_box_push_allows_the_repo_hooks_path_however_written(
+    value, listed_repo, env, tmp_path
+):
+    hooks = value.format(repo=listed_repo)
+    _git(["config", "--local", "core.hooksPath", hooks], listed_repo, tmp_path)
+
+    assert box("git push", env, cwd=str(listed_repo)) is None
+
+
+def test_the_no_box_push_asks_for_the_hooks_of_another_repo(listed_repo, env, tmp_path):
+    other = tmp_path / "other" / ".githooks"
+    other.mkdir(parents=True)
+    _git(["config", "--local", "core.hooksPath", str(other)], listed_repo, tmp_path)
+
+    assert "core.hookspath" in box("git push", env, cwd=str(listed_repo))
 
 
 def test_push_exception_refuses_another_cwd(listed_repo, env, tmp_path):

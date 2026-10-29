@@ -28,11 +28,13 @@ name (`Path.home() / ... "credentials"`); a path built from pieces that name nei
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
 
 A plain `git push` (or `git push origin main`) shows no box only when all of these hold, in
-`[gate]` of `~/.config/workspace/config.toml`: the cwd is listed in `push_without_asking`; every
+`[gate]` of `~/.config/workspace/config.toml`: it is the whole command line (no other command,
+assignment or redirection); the cwd is listed in `push_without_asking`; every
 push URL of `origin` (`git remote get-url --push --all origin`) is listed in `push_remotes`; a
 bare `git push` is not sent to another remote by `branch.*.pushRemote`, `remote.pushDefault` or
-`branch.*.remote`; and the repository's local config sets none of the keys that run a program or
-redirect the push (`LOCAL_RISKY_KEYS`; `core.hooksPath` only as `.githooks`). `.git/config` can
+`branch.*.remote`; and the repository's local or worktree config (included files too) sets none
+of the keys that run a program or redirect the push (`LOCAL_RISKY_KEYS`; `core.hooksPath` only
+when it resolves to the repository's own `.githooks`). `.git/config` can
 change outside the gate (the Edit tool is not in its matcher), so these are read from git at each
 push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatch or a failed
 query asks, and the box shows the real push URL and the names (never the values) of the keys.
@@ -605,20 +607,43 @@ def _push_destination(folder: str, bare: bool) -> tuple[list[str], str | None] |
 
 
 def _local_risky_keys(folder: str) -> list[str] | None:
-    """Keys of the repository's local config that run a program or redirect a push; None if
-    git cannot tell. Only the names leave this function: a value may hold a secret."""
+    """Keys of the repository's own config that run a program or redirect a push; None if git
+    cannot tell. Only the names leave this function: a value may hold a secret.
+
+    Every scope is read (`--show-scope`), so the worktree config and included files count, but
+    only `local` and `worktree` keys are kept: the global config is the user's own.
+    """
     deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
-    done = _local_git(folder, ["config", "--local", "--get-regexp", LOCAL_RISKY_KEYS], deadline)
+    query = ["config", "--show-scope", "--get-regexp", LOCAL_RISKY_KEYS]
+    done = _local_git(folder, query, deadline)
     if done is None or done.returncode not in (0, 1):
         return None
     keys = []
     for line in done.stdout.splitlines():
-        key, _, value = line.partition(" ")
-        if key == "core.hookspath" and value.strip() == ".githooks":
+        scope, _, setting = line.partition("\t")
+        key, _, value = setting.partition(" ")
+        if scope not in ("local", "worktree"):
+            continue
+        if key == "core.hookspath" and _own_hooks(folder, value.strip(), deadline):
             continue
         if key and key not in keys:
             keys.append(key)
     return keys
+
+
+def _own_hooks(folder: str, value: str, deadline: float) -> bool:
+    """Whether a `core.hooksPath` value is the repository's own `.githooks` folder.
+
+    `ws setup` writes `.githooks`; git takes a relative value from the top of the work tree.
+    """
+    if not value:
+        return False
+    done = _local_git(folder, ["rev-parse", "--show-toplevel"], deadline)
+    top = done.stdout.strip() if done is not None and done.returncode == 0 else ""
+    if not top or "\n" in top:
+        return False
+    hooks = os.path.join(top, os.path.expanduser(value))
+    return os.path.realpath(hooks) == os.path.realpath(os.path.join(top, ".githooks"))
 
 
 def _allowed_push_remotes() -> set[str]:
@@ -736,6 +761,17 @@ def _is_plain_push(texts: list[str]) -> bool:
     return rest in ([], ["origin", "main"])
 
 
+def _only_command(scan: Scan, command: Command) -> bool:
+    """Whether `command` is the whole command line: nothing before or after it, no redirection."""
+    return (
+        len(scan.commands) == 1
+        and scan.commands[0] is command
+        and not (scan.unparsed or scan.scripts or scan.overrun)
+        and not (command.writes or command.reads or command.inner or command.piped)
+        and command.here_string is None
+    )
+
+
 def _could_become_remote_key(word: Word) -> bool:
     """A config key with an expansion whose literal start leaves a push-destination key possible."""
     if not word.expands:
@@ -789,6 +825,7 @@ def _git_verb(
         return [_git_credential(texts, verb)]
     if verb == "push":
         plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
+        plain = plain and _only_command(scan, command)
         destination = None
         warnings: list[str] = []
         if plain and _listed_for_push(cwd):
