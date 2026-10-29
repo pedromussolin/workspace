@@ -331,3 +331,59 @@ def test_cli_without_a_catalog_exits_1(home, monkeypatch, tmp_path, capsys):
 
     assert main(["gate", "catalog"]) == 1
     assert "not a catalog" in capsys.readouterr().err
+
+
+PLANTED = {
+    "good_server": {
+        "\x1b[2J\x1b[Hclean": {"count": 1, "last": "2026-10-29"},
+        "tool\nwith-newline": {"count": 1, "last": "2026-10-29"},
+        "x" * 129: {"count": 1, "last": "2026-10-29"},
+        "fine.tool-1": {"count": 2, "last": "\x1b[31mred\x1b[0m"},
+    },
+    "\x1b]0;title\x07srv": {"t": {"count": 1, "last": "2026-10-29"}},
+}
+
+
+def test_a_planted_record_never_reaches_the_terminal_with_escapes(home, capsys):
+    record(PLANTED)
+
+    assert main(["gate", "catalog"]) == 0
+    text = capsys.readouterr().out
+    assert main(["gate", "catalog", "--json"]) == 0
+    as_json = capsys.readouterr().out
+
+    for out in (text, as_json):
+        assert "\x1b" not in out
+        assert "\x07" not in out
+        assert "with-newline" not in out
+    assert "fine.tool-1  (2 asks, last )" in text
+    assert json.loads(as_json)["unclassified"] == {
+        "good_server": {"fine.tool-1": {"count": 2, "last": ""}}
+    }
+
+
+def test_a_record_that_is_a_link_is_not_rewritten_when_classifying(home, tmp_path):
+    victim = tmp_path / "victim.json"
+    victim.write_text(json.dumps({"srv": {"t": {"count": 1, "last": "2026-10-29"}}}))
+    record_path = gatecatalog.unclassified_path()
+    record_path.parent.mkdir(parents=True)
+    record_path.symlink_to(victim)
+    before = victim.read_text()
+
+    assert main(["gate", "catalog", "pass", "srv", "t"]) == 0
+
+    assert victim.read_text() == before
+    assert record_path.is_symlink()
+
+
+def test_a_data_folder_that_is_a_link_is_not_rewritten_when_classifying(home, tmp_path):
+    elsewhere = tmp_path / "elsewhere"
+    write_json(elsewhere / "unclassified.json", {"srv": {"t": {"count": 1, "last": ""}}})
+    before = (elsewhere / "unclassified.json").read_text()
+    folder = gatecatalog.unclassified_path().parent
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    folder.symlink_to(elsewhere)
+
+    assert main(["gate", "catalog", "pass", "srv", "t"]) == 0
+
+    assert (elsewhere / "unclassified.json").read_text() == before

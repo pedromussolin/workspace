@@ -26,6 +26,8 @@ LISTS = ("pass", "ask")
 TOOL_NAME = re.compile(r"[A-Za-z0-9_.-]+")
 PLUGIN_PART = re.compile(r"[^A-Za-z0-9_-]+")
 CONNECTOR_PART = re.compile(r"[^A-Za-z0-9]+")
+RECORDED_NAME = re.compile(r"[A-Za-z0-9_.-]{1,128}")
+RECORDED_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 class CatalogError(Exception):
@@ -126,17 +128,21 @@ def _listed(catalog: dict, server: str, tool: str) -> bool:
 
 
 def unclassified(catalog: dict) -> dict[str, dict[str, dict]]:
-    """What the gate recorded, minus what the catalog has classified since."""
+    """What the gate recorded, minus what the catalog has classified since. The record is a file
+    anyone could plant, and its names reach the terminal: a name outside the plain set is dropped
+    and a date that is not a date is blanked, so no escape sequence is ever printed."""
     result: dict[str, dict[str, dict]] = {}
     for server, tools in _dict(_json(unclassified_path())).items():
+        if not RECORDED_NAME.fullmatch(server):
+            continue
         for tool, entry in _dict(tools).items():
-            if _listed(catalog, server, tool):
+            if not RECORDED_NAME.fullmatch(tool) or _listed(catalog, server, tool):
                 continue
             count = _dict(entry).get("count")
             last = _dict(entry).get("last", "")
             result.setdefault(server, {})[tool] = {
                 "count": count if isinstance(count, int) else 0,
-                "last": str(last),
+                "last": last if isinstance(last, str) and RECORDED_DATE.fullmatch(last) else "",
             }
     return result
 
@@ -173,6 +179,8 @@ def _write_atomic(path: Path, text: str) -> None:
 
 def _forget(server: str, tools: list[str]) -> list[str]:
     path = unclassified_path()
+    if path.parent.is_symlink() or path.is_symlink():
+        return []
     data = _json(path)
     if not isinstance(data, dict) or not isinstance(data.get(server), dict):
         return []
