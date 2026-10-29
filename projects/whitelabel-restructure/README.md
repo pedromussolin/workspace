@@ -80,8 +80,8 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 37 | [Formalização numa página só e página que abre por outra](tasks/37-pages-and-titles.md) | na `release/20261027` (front e BFF) | `release/20261027` | **em produção** (27/10) (D134, D136) | TS-5439 |
 | 38 | [Telas sem uso removidas](tasks/38-unused-screens.md) | na `release/20261027` (front e BFF) | `release/20261027` | **em produção** (27/10) (D135) | TS-5440 |
 | 39 | [Apagar role na primeira tentativa](tasks/39-delete-role-first-try.md) | `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF) | `master` | **publicada** (28/10): 1 commit; 2438 testes | TS-5457 |
-| 40 | [Ações em lote nas tabelas do Controle de acesso](tasks/40-bulk-actions-in-tables.md) | `feature/TS-5463-acoes-em-lote-nas-tabelas` (front) | `master` | **em andamento** (28/10, D137) | TS-5463 |
-| 41 | [Serviços internos pelo FQDN e filtro pelo cabeçalho](tasks/41-fqdn-and-partner-header.md) | a criar | depois da 39 | **em desenho** (28/10) | a criar |
+| 40 | [Ações em lote nas tabelas do Controle de acesso](tasks/40-bulk-actions-in-tables.md) | `feature/TS-5463-acoes-em-lote-nas-tabelas` (front) | `master` | **publicada** (28/10): 3 commits, validada pelo Pietro no portal local | TS-5463 |
+| 41 | [Serviços internos pelo FQDN e filtro pelo cabeçalho](tasks/41-fqdn-and-partner-header.md) | `feature/TS-5464-escopo-do-parceiro` (cessão), `feature/TS-5465-cabecalho-do-parceiro` (BFF) | `master` | **em implementação** (28/10, D138) | TS-5464, TS-5465 |
 | 24 | [Deploy da reestruturação](tasks/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção**: 21/10 (`release/20261021`) e 27/10 (`release/20261027`); conferência de 27/10 feita em 28/10 | TS-5394 |
 
 ## Situação em 16/10

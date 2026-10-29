@@ -13,8 +13,8 @@ os cards dele estão concluídos; os novos (39, 30 e 40) entraram no mesmo épic
 |---|---|---|---|
 | [39](tasks/39-delete-role-first-try.md) | TS-5457 | BFF `fix/TS-5457-apagar-role-na-primeira-tentativa` | publicada; falta PR e release |
 | [30](tasks/30-bff-tests-in-english.md) | TS-5458 | BFF `test/TS-5458-testes-do-bff-em-ingles` | publicada; falta PR e release |
-| [40](tasks/40-bulk-actions-in-tables.md) | TS-5463 | front `feature/TS-5463-acoes-em-lote-nas-tabelas`, worktree `~/repos/apl-credit-whitelabel-wt/5463` | em implementação, sem commit |
-| [41](tasks/41-fqdn-and-partner-header.md) | a criar | — | em desenho (brainstorming) |
+| [40](tasks/40-bulk-actions-in-tables.md) | TS-5463 | front `feature/TS-5463-acoes-em-lote-nas-tabelas`, worktree `~/repos/apl-credit-whitelabel-wt/5463` | publicada; falta PR e release |
+| [41](tasks/41-fqdn-and-partner-header.md) | TS-5464 (cessão), TS-5465 (BFF) | cessão `feature/TS-5464-escopo-do-parceiro`, BFF `feature/TS-5465-cabecalho-do-parceiro` (worktrees `-wt/41`) | em implementação por subagentes ([plano](tasks/41-fqdn-and-partner-header-plan.md)) |
 
 - **Com o Pietro (Azure e Parameter Store):** apagar as roles e os grupos antigos, os das telas removidas e os de
   "Formalização (unidades)", as permissões `clients:read`, `portfolio-performance:read` e `simulate-proposal:read`, e

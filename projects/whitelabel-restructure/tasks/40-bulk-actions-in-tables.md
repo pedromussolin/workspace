@@ -2,7 +2,7 @@
 
 - **TS:** TS-5463 (épico TS-5357) · **Branch:** `feature/TS-5463-acoes-em-lote-nas-tabelas` (front), da `master`,
   worktree `~/repos/apl-credit-whitelabel-wt/5463`
-- **Status:** **em implementação** (28/10), sem commit até a revisão do Pietro.
+- **Status:** **publicada** (28/10): `refact` (barra compartilhada), `feat` (seleção e lote nas três abas) e `fix` (confirmação pede REMOVER); `validate.sh` ok, 5052 testes; validada pelo Pietro no portal local. Falta a PR.
 - **Decisão:** D137. **Depende de:** 39 em produção, para apagar role em lote passar na primeira tentativa.
 
 ## Desenho combinado
