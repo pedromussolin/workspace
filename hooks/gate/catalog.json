@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "servers": {
+    "claude_ai_Atlassian_MCP": {
+      "pass": [
+        "atlassianUserInfo",
+        "discover",
+        "executeRead",
+        "getAccessibleAtlassianResources",
+        "getConfluenceContent",
+        "getGraphContext",
+        "getGraphObject",
+        "getJiraIssue",
+        "getLoomObjectsContent",
+        "listJiraIssueComments",
+        "search",
+        "searchConfluence",
+        "searchJiraIssuesUsingJql"
+      ]
+    },
+    "plugin_productivity_atlassian": {
+      "pass": [
+        "atlassianUserInfo",
+        "fetch",
+        "getAccessibleAtlassianResources",
+        "getConfluenceCommentChildren",
+        "getConfluencePage",
+        "getConfluencePageDescendants",
+        "getConfluencePageFooterComments",
+        "getConfluencePageInlineComments",
+        "getConfluenceSpaces",
+        "getContentFormatGuide",
+        "getIssueLinkTypes",
+        "getJiraIssue",
+        "getJiraIssueRemoteIssueLinks",
+        "getJiraIssueTypeMetaWithFields",
+        "getJiraProjectIssueTypesMetadata",
+        "getPagesInConfluenceSpace",
+        "getTransitionsForJiraIssue",
+        "getVisibleJiraProjects",
+        "lookupJiraAccountId",
+        "search",
+        "searchConfluenceUsingCql",
+        "searchJiraIssuesUsingJql"
+      ]
+    },
+    "plugin_github_github": {
+      "pass": [
+        "get_commit",
+        "get_file_contents",
+        "get_label",
+        "get_latest_release",
+        "get_me",
+        "get_release_by_tag",
+        "get_tag",
+        "get_team_members",
+        "get_teams",
+        "issue_read",
+        "list_branches",
+        "list_commits",
+        "list_issue_fields",
+        "list_issue_types",
+        "list_issues",
+        "list_pull_requests",
+        "list_releases",
+        "list_repository_collaborators",
+        "list_tags",
+        "pull_request_read",
+        "search_code",
+        "search_commits",
+        "search_issues",
+        "search_pull_requests",
+        "search_repositories",
+        "search_users"
+      ]
+    },
+    "plugin_gitkraken_gitkraken": {
+      "pass": [
+        "git_add",
+        "git_blame",
+        "git_branch",
+        "git_checkout",
+        "git_commit",
+        "git_fetch",
+        "git_graph",
+        "git_log_or_diff",
+        "git_pull",
+        "git_stash",
+        "git_status",
+        "git_worktree",
+        "gitkraken_workspace_list",
+        "gitlens_launchpad",
+        "issues_assigned_to_me",
+        "issues_get_detail",
+        "pull_request_assigned_to_me",
+        "pull_request_get_comments",
+        "pull_request_get_detail",
+        "repository_get_file_content"
+      ]
+    },
+    "plugin_datadog_mcp": {
+      "pass": [
+        "aggregate_events",
+        "aggregate_rum_events",
+        "aggregate_spans",
+        "analyze_datadog_logs",
+        "ask_widget_expert",
+        "execute_code",
+        "get_change_stories",
+        "get_datadog_dashboard",
+        "get_datadog_incident",
+        "get_datadog_metric",
+        "get_datadog_metric_context",
+        "get_datadog_notebook",
+        "get_datadog_trace",
+        "get_widget_reference",
+        "list_datadog_skills",
+        "load_datadog_skill",
+        "search_datadog_dashboards",
+        "search_datadog_entities",
+        "search_datadog_events",
+        "search_datadog_hosts",
+        "search_datadog_incidents",
+        "search_datadog_logs",
+        "search_datadog_metrics",
+        "search_datadog_monitors",
+        "search_datadog_notebooks",
+        "search_datadog_rum_events",
+        "search_datadog_sdk",
+        "search_datadog_spans"
+      ]
+    },
+    "claude_ai_Microsoft_365": {
+      "pass": [
+        "chat_message_search",
+        "find_meeting_availability",
+        "get_granted_scopes",
+        "get_me",
+        "outlook_calendar_search",
+        "outlook_email_search",
+        "outlook_find_available_time",
+        "read_resource",
+        "search_people",
+        "sharepoint_folder_search",
+        "sharepoint_search",
+        "teams_list_channel_messages",
+        "teams_list_channels",
+        "teams_list_chats",
+        "teams_list_teams"
+      ]
+    },
+    "claude_ai_Claude_Docs": {
+      "pass": [
+        "export",
+        "guide",
+        "query",
+        "read"
+      ]
+    },
+    "plugin_pdf-viewer_pdf": {
+      "pass": [
+        "display_pdf",
+        "interact",
+        "list_pdfs"
+      ]
+    }
+  },
+  "notes": {
+    "plugin_datadog_mcp__execute_code": "Pass: the server states the credentials lack write permission, so the code can only read.",
+    "plugin_datadog_mcp__submit_mcp_feedback": "Not a pass: sends data out to the vendor.",
+    "plugin_datadog_mcp__ask_widget_expert": "Pass: a question answered by the server, nothing is stored.",
+    "plugin_datadog_mcp__recover_datadog_notebook": "Not a pass: restores a deleted notebook, a write.",
+    "plugin_github_github__run_secret_scanning": "Not a pass: sends the content to GitHub.",
+    "plugin_github_github__request_copilot_review": "Not a pass: triggers a review on GitHub.",
+    "plugin_github_github__add_comment_to_pending_review": "Not a pass: writes to a pending review on GitHub.",
+    "plugin_gitkraken_gitkraken__git_commit": "Pass: a local commit; git push is what leaves the machine.",
+    "plugin_gitkraken_gitkraken__git_branch": "Pass: lists or creates local branches only.",
+    "plugin_gitkraken_gitkraken__git_fetch": "Pass: downloads only, writes nothing remote.",
+    "plugin_gitkraken_gitkraken__git_pull": "Pass: downloads and merges into the local branch only.",
+    "plugin_gitkraken_gitkraken__git_commit_composer": "Not a pass: may send the diff to an AI service outside the machine.",
+    "plugin_gitkraken_gitkraken__git_resolve": "Not a pass: unclear whether it only edits local files.",
+    "plugin_gitkraken_gitkraken__gitlens_start_work": "Not a pass: may create branches or issues on the provider.",
+    "plugin_gitkraken_gitkraken__gitlens_start_review": "Not a pass: unclear whether it posts anything.",
+    "plugin_gitkraken_gitkraken__gitlens_launchpad": "Pass: lists pull requests and issues.",
+    "claude_ai_Atlassian_MCP__discover": "Pass: only lists operations; running them goes through executeRead, executeWrite or executeDestructive.",
+    "claude_ai_Atlassian_MCP__executeRead": "Pass: the server routes it as the read tier.",
+    "claude_ai_Atlassian_MCP__addGraphContext": "Not a pass: adds data to the Teamwork Graph.",
+    "plugin_productivity_atlassian__fetch": "Pass: fetches a resource by id.",
+    "claude_ai_Claude_Docs__query": "Pass: reads and searches docs.",
+    "claude_ai_Claude_Docs__export": "Pass: gives a copy of a doc, changes nothing.",
+    "claude_ai_Microsoft_365__read_resource": "Pass: every tool of this server found so far only reads.",
+    "plugin_pdf-viewer_pdf__interact": "Pass: acts on the local viewer only."
+  }
+}
