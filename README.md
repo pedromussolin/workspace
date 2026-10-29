@@ -48,7 +48,7 @@ Everything sensitive lives outside the repo, in `~/.config/workspace/`:
 |---|---|
 | `names.toml` | real name to analog table and company domains; the single source for `ws mask` and the secrets hook |
 | `private/<slug>.md` | real values of one project (hosts, URLs, real names behind the analogs) |
-| `config.toml`, `credentials` | Jira site and API token (mode 600), created with the Jira subprojects |
+| `config.toml`, `credentials` | Jira site, and the Jira and GitHub tokens (`credentials`, mode 600) |
 
 The folder is mode 700 and `names.toml` and `credentials` are mode 600; `ws setup` fixes any other
 mode and says what it fixed.
@@ -141,6 +141,21 @@ never writes it):
 | `push_without_asking` | list of repo paths (`~` allowed) where a plain push goes without asking |
 | `personal_github_owners` | list of GitHub owners that get the confidentiality check before a write |
 
+#### Secrets outside the session environment
+
+Every command Claude runs inherits the session environment, so a token exported in `~/.bashrc`
+(a GitHub token, an API key) is readable by it. The GitHub token lives in
+`~/.config/workspace/credentials` (`ws config token github`, in a terminal) and reaches the GitHub
+MCP server through Claude Code's `headersHelper`, which runs `ws mcp-headers github` when the
+server connects. The server is a user-scope one named `github` in `~/.claude.json`; its tools are
+`mcp__github__*`, and the write ones are in the `ask` rules. Other secret variables are blanked in
+Claude sessions only, with the `env` block of `~/.claude/settings.json` (`{"env": {"NAME": ""}}`),
+so terminals and VS Code keep them. `ws setup` never writes those two files: it lists as
+`needs you` the variables whose name looks like a secret (names only, never values), the settings
+snippet that blanks them, and the exact `claude mcp add-json github '<json>' --scope user` command
+when the server is missing or different. `WS_CLAUDE_JSON` and `WS_BIN` move `~/.claude.json` and the
+`ws` path used in that command.
+
 The gate `hooks/block_hook_bypass.py` blocks `--no-verify`, `git commit -n` and any
 `core.hooksPath` override, in every repo; `ws setup` checks that it is registered. Exceptions go in
 `.secrets-allow`, which is read from the index (an entry counts once staged) and excuses only the
@@ -174,6 +189,8 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws project new <slug>` | Copies `templates/project/` into `projects/<slug>/` |
 | `ws slot [-n N] -- <cmd>` | Runs a heavy command in one of N slots (file lock), so parallel agents do not exhaust memory; the command holds the lock and gets SIGTERM, SIGHUP and SIGINT forwarded, so the slot lasts until it exits |
 | `ws config token jira` | Reads the Jira API key from the terminal (hidden) and stores it in `~/.config/workspace/credentials` with mode 600; refuses to run outside a terminal |
+| `ws config token github` | Same for the GitHub token (`[github]` table of the same file; the other tables are kept); `ws mcp-headers github` reads it back |
+| `ws mcp-headers github` | Meant for Claude Code's `headersHelper`: prints `{"Authorization": "Bearer <token>"}` and nothing else; exit 2 without a token, or when `CLAUDE_CODE_MCP_SERVER_NAME` is unset (a guard against casual use, not a barrier: the approval gate asks before any command that names `ws mcp-headers`) |
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
 | `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
 | `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
