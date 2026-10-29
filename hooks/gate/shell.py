@@ -2,7 +2,7 @@
 
 Two parsers live here, on purpose. The first (`strip_heredocs`, `simple_commands`,
 `substitutions`, `locate_program`, `shell_script`) is the one `block_hook_bypass.py` always used,
-moved unchanged: that gate's behavior and tests stay as they were. The second (`scan`) is the
+moved here; its wrapper table and substitution search serve both gates. The second (`scan`) is the
 approval gate's: it keeps what the first throws away, namely which words carry an unquoted
 expansion, where each redirect points, and what feeds a command. It is heredoc-aware: the body of
 a quoted heredoc (`<<'EOF'`, `<<"EOF"`, `<<\\EOF`) is data, unless the command that owns it is a
@@ -12,6 +12,7 @@ unquoted heredoc is expanded by the shell, so its `$(...)` and backticks are sca
 
 import re
 import shlex
+import time
 from dataclasses import dataclass, field
 from pathlib import PurePath
 
@@ -33,6 +34,8 @@ SHELL_KEYWORDS = {"if", "then", "else", "elif", "while", "until", "do", "!", "{"
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 RUNS_ITS_INPUT = SHELLS | {"eval", "source", "."}
 MAX_DEPTH = 8
+MAX_WALKS = 2000
+WALK_SECONDS = 2.0
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 DURATION = re.compile(r"[0-9]+[smhd]?")
@@ -76,11 +79,13 @@ def simple_commands(text: str) -> list[list[str]]:
 
 
 def substitutions(text: str, quoting: bool = True) -> list[str]:
-    """Contents of every `$(...)` and backtick pair that the shell would run, nested ones too.
+    """Contents of the outermost `$(...)` and backtick pairs that the shell would run.
 
-    Single-quoted text is literal, so a commit message in single quotes that cites a command in
-    backticks is not a substitution. With `quoting` off, quotes mean nothing (the body of an
-    unquoted heredoc is expanded whatever quotes it holds).
+    Nested ones are found by scanning each content again; listing them here too made every
+    caller's recursion exponential in the nesting depth. Single-quoted text is literal, so a
+    commit message in single quotes that cites a command in backticks is not a substitution. With
+    `quoting` off, quotes mean nothing (the body of an unquoted heredoc is expanded whatever quotes
+    it holds) outside the substitution; inside it, the shell parses quotes as usual.
     """
     found = []
     single = double = False
@@ -96,11 +101,14 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
         elif char == "'" and not double and quoting:
             single = True
         elif text.startswith("$(", index):
-            depth, end = 1, index + 2
-            while end < len(text) and depth:
-                depth += (text[end] == "(") - (text[end] == ")")
-                end += 1
-            found.append(text[index + 2 : end - 1 if depth == 0 else end])
+            try:
+                end = _skip_group(text, index + 1, "(", ")")
+                found.append(text[index + 2 : end - 1])
+            except ValueError:
+                end = len(text)
+                found.append(text[index + 2 :])
+            index = end
+            continue
         elif char == "`":
             end = text.find("`", index + 1)
             found.append(text[index + 1 : end if end != -1 else len(text)])
@@ -187,9 +195,14 @@ class Heredoc:
 
 @dataclass
 class Scan:
+    """What `scan` found. `overrun`: it gave up on a command too big or too nested to read."""
+
     commands: list[Command] = field(default_factory=list)
     unparsed: list[str] = field(default_factory=list)
     scripts: list[str] = field(default_factory=list)
+    overrun: bool = False
+    walks: int = 0
+    deadline: float = 0.0
 
 
 HEREDOC_TAG = re.compile(r"""(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)""")
@@ -539,6 +552,11 @@ def invocations(command: Command) -> list[tuple[str, list[Word]]]:
 
 
 def _walk(text: str, result: Scan, depth: int) -> None:
+    result.walks += 1
+    if result.overrun or result.walks > MAX_WALKS or time.monotonic() > result.deadline:
+        result.overrun = True
+        result.unparsed.append(text)
+        return
     if depth > MAX_DEPTH:
         result.unparsed.append(text)
         return
@@ -579,7 +597,11 @@ def _walk(text: str, result: Scan, depth: int) -> None:
 
 
 def scan(text: str) -> Scan:
-    """Every simple command in `text`, at any depth: `bash -c`, `eval`, `$(...)`, heredocs."""
-    result = Scan()
+    """Every simple command in `text`, at any depth: `bash -c`, `eval`, `$(...)`, heredocs.
+
+    The work is bounded (`MAX_WALKS` texts, `WALK_SECONDS`): past it the scan stops with
+    `overrun`, because a hook that runs out of time lets the call through.
+    """
+    result = Scan(deadline=time.monotonic() + WALK_SECONDS)
     _walk(text, result, 0)
     return result

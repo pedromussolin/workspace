@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -289,3 +290,39 @@ def test_a_huge_command_is_answered(tmp_path):
     result = run(bash(command))
 
     assert decision_of(result)["permissionDecision"] == "ask"
+
+
+def test_rules_that_run_out_of_time_still_ask_and_exit_zero(hooks_copy):
+    # The stub shortens the hook's own timer so the test does not wait the full deadline.
+    stub(
+        hooks_copy,
+        "bash_rules",
+        "import signal, time\n"
+        "def decide(command, cwd):\n"
+        "    signal.setitimer(signal.ITIMER_REAL, 0.2)\n"
+        "    time.sleep(30)\n",
+    )
+    started = time.monotonic()
+    result = run(bash("git push"), hooks_copy)
+    decision = decision_of(result)
+
+    assert time.monotonic() - started < 10
+    assert decision["permissionDecision"] == "ask"
+    assert decision["permissionDecisionReason"].splitlines()[0] == (
+        "Não consegui ler esta chamada a tempo"
+    )
+    assert decision["permissionDecisionReason"].endswith(FOOTER)
+
+
+def test_the_hook_arms_a_deadline_of_at_most_five_seconds(hooks_copy):
+    stub(
+        hooks_copy,
+        "bash_rules",
+        "import signal\n"
+        "from .decision import ask\n"
+        "def decide(command, cwd):\n"
+        "    return ask('stub', [str(signal.getitimer(signal.ITIMER_REAL)[0])])\n",
+    )
+    left = float(decision_of(run(bash("x"), hooks_copy))["permissionDecisionReason"].split()[1])
+
+    assert 0 < left <= 5

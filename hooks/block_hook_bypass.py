@@ -13,11 +13,14 @@ too. A command that cannot be parsed is blocked only if its text mentions `--no-
 `hooksPath`.
 
 Exit 2 blocks the tool call and sends stderr back to Claude. Any internal error also exits 2,
-because Claude Code treats other non-zero codes as non-blocking and the gate would fail open.
+because Claude Code treats other non-zero codes as non-blocking and the gate would fail open; so
+does running out of time (`DEADLINE_SECONDS`), since a hook that times out lets the call run.
 """
 
 import json
+import os
 import re
+import signal
 import sys
 from pathlib import Path, PurePath
 
@@ -35,6 +38,8 @@ NO_VERIFY = "--no-verify"
 CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
 SHORT_OPTIONS_WITH_VALUE = "mFCctuS"
 GIT_OPTIONS_WITH_VALUE = {"-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix"}
+
+DEADLINE_SECONDS = 5.0
 
 UNPARSEABLE_BYPASS = re.compile(r"--no-verify|hookspath", re.IGNORECASE)
 
@@ -142,7 +147,15 @@ def _scan(text: str) -> str | None:
     return None
 
 
+def _late(signum, frame) -> None:
+    os.write(2, b"Hook-bypass gate could not check the command in time; blocking.\n")
+    os._exit(2)
+
+
 def main() -> int:
+    if hasattr(signal, "setitimer"):
+        signal.signal(signal.SIGALRM, _late)
+        signal.setitimer(signal.ITIMER_REAL, DEADLINE_SECONDS)
     try:
         payload = json.load(sys.stdin)
         command = payload.get("tool_input", {}).get("command", "")
@@ -152,6 +165,8 @@ def main() -> int:
     except Exception as error:
         print(f"Hook-bypass gate could not check the command ({error}); blocking.", file=sys.stderr)
         return 2
+    if hasattr(signal, "setitimer"):
+        signal.setitimer(signal.ITIMER_REAL, 0)
     if reason:
         print(
             f"Blocked: {reason}. The git hooks are a safety net and are never skipped or "

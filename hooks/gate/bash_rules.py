@@ -1028,7 +1028,17 @@ def decide(command: str, cwd: str) -> Decision:
             findings += _invocation(each, name, args, cwd, scan)
     findings += _after_entering_protection(scan)
     findings += _script_findings(scan)
-    if scan.unparsed and NAMES.search(command):
+    if scan.overrun:
+        findings.append(
+            Finding(
+                TITLE_UNSURE,
+                (
+                    "O comando é grande ou aninhado demais para ler a tempo",
+                    "Confira o comando antes de aprovar.",
+                ),
+            )
+        )
+    elif scan.unparsed and NAMES.search(command):
         findings.append(
             Finding(
                 TITLE_UNSURE,

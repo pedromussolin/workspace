@@ -2,6 +2,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -190,3 +191,11 @@ def test_it_blocks_when_the_shared_parser_is_missing(tmp_path):
 
     assert result.returncode == 2
     assert "could not load its parser" in result.stderr
+
+
+def test_deeply_nested_substitutions_are_checked_fast():
+    started = time.monotonic()
+    result = run_command("echo " + "$(" * 30 + "date" + ")" * 30)
+
+    assert time.monotonic() - started < 3
+    assert result.returncode == 0
