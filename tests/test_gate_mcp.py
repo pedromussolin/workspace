@@ -791,3 +791,77 @@ def test_the_record_is_opened_with_o_nofollow(monkeypatch):
     assert flags
     assert all(flag & os.O_NOFOLLOW for flag in flags)
     assert unclassified_file().exists()
+
+
+ENVIRONMENT_POLICY = (
+    '[gate]\nenvironment_branches = ["master", "main", "sandbox", "staging"]\n'
+    'direct_push_repos = ["*-argocd"]\n'
+)
+
+
+def set_policy(extra: str = "") -> None:
+    path = Path(os.environ["WS_CONFIG_DIR"]) / "config.toml"
+    path.write_text(ENVIRONMENT_POLICY + extra, encoding="utf-8")
+
+
+@pytest.mark.parametrize("tool", ["create_or_update_file", "push_files", "delete_file"])
+@pytest.mark.parametrize(
+    ("branch", "subject"),
+    [("main", "main"), (None, "the default branch"), ("", "the default branch")],
+)
+def test_a_github_write_to_an_environment_branch_is_denied(tool, branch, subject):
+    set_policy()
+    inputs = {"owner": "o", "repo": "app", "path": "a.md", "message": "m", "content": "x"}
+    if branch is not None:
+        inputs["branch"] = branch
+    decision = run(GH + tool, **inputs)
+
+    assert decision.kind == "deny"
+    assert decision.reason == (
+        f"Blocked: {subject} is an environment branch of app; "
+        "push a task branch and open a PR for the user to merge."
+    )
+
+
+def test_creating_an_environment_branch_is_denied():
+    set_policy()
+
+    assert run(GH + "create_branch", owner="o", repo="app", branch="staging").kind == "deny"
+
+
+def test_a_github_write_in_an_argo_repo_asks_with_the_warning_on_top():
+    set_policy()
+    decision = run(
+        GH + "create_or_update_file",
+        owner="o",
+        repo="deploy-argocd",
+        branch="master",
+        path="values.yaml",
+        message="m",
+        content="x",
+    )
+
+    assert decision.kind == "ask"
+    assert lines(decision)[:3] == [
+        "Gravar fora — GitHub",
+        "ATENÇÃO: branch de ambiente master no repo deploy-argocd",
+        "Gravar arquivo em o/deploy-argocd (branch master)",
+    ]
+
+
+def test_a_github_write_to_a_task_branch_or_with_the_policy_off_asks_as_before():
+    set_policy()
+    task = run(GH + "push_files", owner="o", repo="app", branch="feature/x", files=[], message="m")
+    assert task.kind == "ask" and "ATENÇÃO" not in task.reason
+    Path(os.environ["WS_CONFIG_DIR"], "config.toml").write_text("[gate]\n", encoding="utf-8")
+    off = run(GH + "delete_file", owner="o", repo="app", branch="main", path="a", message="m")
+    assert off.kind == "ask"
+
+
+def test_the_environment_denial_comes_before_the_confidentiality_check(isolated_env):
+    set_policy('personal_github_owners = ["me"]\n')
+    os.environ["WS_GATE_WS_BIN"] = str(isolated_env / "missing-ws")
+    decision = run(GH + "delete_file", owner="me", repo="app", branch="main", path="a", message="m")
+
+    assert decision.kind == "deny"
+    assert "environment branch" in decision.reason

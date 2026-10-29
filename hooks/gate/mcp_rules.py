@@ -5,7 +5,8 @@ so a tool nobody classified yet asks (fail closed). A tool in neither `pass` nor
 unclassified: its name is recorded for `ws gate catalog`. A GitHub write (the GitHub MCP, and the
 GitKraken tools that create PRs, reviews, issues and comments) whose owner is one of the personal
 accounts, or whose owner the call does not say, also has its text checked with `ws check-secrets`
-before the box is shown.
+before the box is shown. A GitHub write to an environment branch follows `branches`: denied, or
+asked with a warning in a `direct_push_repos` repository.
 """
 
 import contextlib
@@ -22,6 +23,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
+from . import branches
 from .decision import PASS, Decision, ask, body_summary, cut, deny
 
 CATALOG_PATH = Path(__file__).with_name("catalog.json")
@@ -32,6 +34,7 @@ GIT_INIT_TIMEOUT_SECONDS = 1
 GENERIC_LINES = 6
 PLAIN_KEYS = frozenset({"owner", "repo"})
 DESTINATION_KEYS = PLAIN_KEYS | {"repository_organization", "repository_name"}
+BRANCH_WRITES = frozenset({"create_or_update_file", "push_files", "delete_file", "create_branch"})
 KRAKEN_CHECKED = frozenset(
     {"pull_request_create", "pull_request_create_review", "issues_create", "issues_add_comment"}
 )
@@ -668,6 +671,24 @@ def _confidentiality(family: str, tool: str, inputs: dict) -> tuple[Decision | N
     return None, SIGILO_CHECKED
 
 
+def _environment(family: str, tool: str, inputs: dict) -> tuple[list[str], Decision | None]:
+    """The environment-branch policy of a GitHub write to a branch: (box warnings, a `deny`).
+
+    A call without `branch` writes to the default branch, which counts as an environment one.
+    """
+    if family != "github" or tool not in BRANCH_WRITES:
+        return [], None
+    rules = branches.policy()
+    if rules is None:
+        return [], None
+    branch = inputs.get("branch")
+    branch = branch if isinstance(branch, str) and branch.strip() else None
+    warning, denied = branches.judge(rules, branch, _text(inputs, "repo").strip() or None)
+    if denied:
+        return [], deny(denied)
+    return ([warning] if warning else []), None
+
+
 def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     inputs = tool_input if isinstance(tool_input, dict) else {}
     parts = str(tool_name).split("__", 2)
@@ -688,10 +709,14 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     lines = _summary(server, tool, inputs)
     sigilo = ""
     family = _family(server)
+    warnings, blocked = _environment(family, tool, inputs)
+    if blocked is not None:
+        return blocked
     if family == "github" or (family == "gitkraken" and tool in KRAKEN_CHECKED):
         blocked, sigilo = _confidentiality(family, tool, inputs)
         if blocked is not None:
             return blocked
     if sigilo:
         lines = [*lines[:7], sigilo]
+    lines = [*warnings, *lines]
     return ask(f"Gravar fora — {_service(server, tool)}", lines)

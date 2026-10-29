@@ -51,7 +51,7 @@ import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from . import branches, shell
 from .decision import PASS, Decision, ask, body_summary, cut, deny
@@ -210,6 +210,7 @@ GH_API_VALUES = GH_GLOBAL_VALUES | {
     "--preview",
 }
 GH_API_FIELDS = {"-f", "-F", "--field", "--raw-field", "--input"}
+API_REPO_PATH = re.compile(r"^repos/[^/]+/([^/]+)/(.+)$")
 GH_CHANGE_VALUES = GH_GLOBAL_VALUES | {
     "-B",
     "--base",
@@ -1083,6 +1084,83 @@ def _graphql_is_read(fields: list[tuple[str, str]]) -> bool:
     return not re.search(r"\bmutation\b", queries[0], re.IGNORECASE)
 
 
+def _api_fields(args: list[Word]) -> list[tuple[str, str, bool]]:
+    """The `gh api` fields as (flag, value, expands); `--input` gives its file name."""
+    found = []
+    for index, word in enumerate(args):
+        text = word.text
+        if text in GH_API_FIELDS and index + 1 < len(args):
+            value = args[index + 1]
+            found.append((text, value.text, value.expands))
+        elif text.startswith(("--field=", "--raw-field=", "--input=")):
+            flag, _, value = text.partition("=")
+            found.append((flag, value, word.expands))
+        elif text[:2] in ("-f", "-F") and len(text) > 2:
+            found.append((text[:2], text[2:], word.expands))
+    return found
+
+
+def _api_branch(fields: list[tuple[str, str, bool]], key: str) -> tuple[bool, str | None]:
+    """(present, value) of one field; the value is None when the shell or a file fills it in,
+    and an `--input` body may hold any field."""
+    present, value = False, None
+    for flag, text, expands in fields:
+        if flag == "--input":
+            present, value = True, None
+            continue
+        name, equals, given = text.partition("=")
+        if equals and name == key:
+            unreadable = expands or (flag in ("-F", "--field") and given.startswith("@"))
+            present, value = True, None if unreadable else given
+    return present, value
+
+
+def _gh_api_environment(
+    rules: branches.Policy, args: list[Word], cwd: str
+) -> tuple[list[str], str]:
+    """The environment-branch policy of a `gh api` write: (box warnings, denial).
+
+    Covers file writes (`contents/...`, branch from the `branch` field, the default branch when
+    it is missing), ref updates (`git/refs/heads/<branch>`, or `git/refs` with a `ref` field) and
+    server-side merges (`merges`, branch from `base`).
+    """
+    parsed = parse_flags(args, GH_API_VALUES)
+    if not parsed.positionals:
+        return [], ""
+    endpoint = parsed.positionals[0]
+    found = API_REPO_PATH.match(endpoint.text.split("?", 1)[0].strip("/"))
+    if found is None:
+        return [], ""
+    name, rest = found.group(1), found.group(2)
+    fields = _api_fields(args)
+    default = False
+    branch: str | None = None
+    if rest == "contents" or rest.startswith("contents/"):
+        present, branch = _api_branch(fields, "branch")
+        default = not present
+    elif rest.startswith("git/refs/heads/"):
+        if not endpoint.expands:
+            branch = unquote(rest.removeprefix("git/refs/heads/"))
+    elif rest in ("git/refs", "merges"):
+        _, branch = _api_branch(fields, "ref" if rest == "git/refs" else "base")
+        if branch is not None and rest == "git/refs":
+            if not branch.startswith("refs/heads/"):
+                return [], ""
+            branch = branch.removeprefix("refs/heads/")
+    else:
+        return [], ""
+    if endpoint.expands:
+        repo = None
+    elif name == "{repo}":
+        repo = _push_repo(None, cwd or None, time.monotonic() + BRANCH_QUERY_TIMEOUT)
+    else:
+        repo = name
+    if branch is None and not default:
+        return [branches.UNKNOWN_TARGET], ""
+    warning, denied = branches.judge(rules, branch, repo)
+    return ([warning] if warning else []), denied
+
+
 def _gh_change(
     group: str, action: str, tail: list[Word], cwd: str, texts: list[str], given: str | None
 ) -> Finding:
@@ -1184,7 +1262,16 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
         ):
             return [_unsure(texts, "Uma palavra do gh api vem de uma expansão e pode trazer -X.")]
         found = _gh_api(api_args)
-        return [found] if found else []
+        if found is None:
+            return []
+        if rules := branches.policy():
+            warnings, denied = _gh_api_environment(rules, api_args, cwd)
+            if denied:
+                return [Finding(TITLE_GITHUB, (), denial=denied)]
+            if warnings:
+                lines = (found.lines[0], *warnings, *found.lines[1:])
+                found = Finding(found.title, lines, alert=True)
+        return [found]
     rest = args[top.positions[1] + 1 :] if action else []
     before = args[: top.positions[1]] if action else args
     given = parse_flags(before, GH_GLOBAL_VALUES).value("-R", "--repo")

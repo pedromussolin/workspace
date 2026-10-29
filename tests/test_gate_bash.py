@@ -2380,3 +2380,82 @@ def test_a_slow_git_leaves_the_push_denied_or_asked_within_the_deadline(tmp_path
     assert time.monotonic() - started < 9
     assert "a repository the gate could not name" in reason
     assert "ATENÇÃO: não consegui ver a branch de destino" in text
+
+
+ENVIRONMENT_BLOCK = "push a task branch and open a PR for the user to merge."
+
+
+@pytest.mark.parametrize(
+    ("command", "subject"),
+    [
+        ("gh api -X PUT repos/o/app/contents/a.md -f message=m -f branch=main", "main"),
+        ("gh api -X PUT repos/o/app/contents/a.md -f message=m", "the default branch"),
+        ("gh api -X DELETE /repos/o/app/contents/a.md -f message=m", "the default branch"),
+        ("gh api -X PATCH repos/o/app/git/refs/heads/master -f sha=abc -F force=true", "master"),
+        ("gh api -X DELETE repos/o/app/git/refs/heads/staging", "staging"),
+        ("gh api repos/o/app/git/refs -f ref=refs/heads/sandbox -f sha=abc", "sandbox"),
+        ("gh api repos/o/app/merges -f base=main -f head=feature", "main"),
+        ("gh api --method PUT repos/o/app/contents/a --raw-field branch=main", "main"),
+    ],
+)
+def test_a_gh_api_write_to_an_environment_branch_is_denied(command, subject, env):
+    write_config(env, ENVIRONMENT_POLICY)
+
+    assert denial(command, env) == (
+        f"Blocked: {subject} is an environment branch of app; {ENVIRONMENT_BLOCK}"
+    )
+
+
+def test_a_gh_api_write_in_an_argo_repo_asks_with_a_warning(env):
+    write_config(env, ENVIRONMENT_POLICY)
+    named = box("gh api -X PUT repos/o/deploy-argocd/contents/a -f branch=main", env)
+    default = box("gh api -X PUT repos/o/deploy-argocd/contents/a -f message=m", env)
+
+    assert named.splitlines()[1] == "ATENÇÃO: branch de ambiente main no repo deploy-argocd"
+    assert default.splitlines()[1] == (
+        "ATENÇÃO: branch de ambiente (a branch padrão) no repo deploy-argocd"
+    )
+
+
+def test_a_gh_api_placeholder_repo_is_read_from_the_folder(make_repo, env):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+    command = "gh api -X PUT 'repos/{owner}/{repo}/contents/a' -f branch=main"
+
+    assert "environment branch of app;" in denial(command, env, cwd=str(repo))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh api -X PUT repos/o/app/contents/a -f branch=feature/x",
+        "gh api repos/o/app/git/refs -f ref=refs/tags/v1 -f sha=abc",
+        "gh api -X POST repos/o/app/issues -f title=t",
+    ],
+)
+def test_a_gh_api_write_elsewhere_asks_as_before(command, env):
+    write_config(env, ENVIRONMENT_POLICY)
+
+    assert "ATENÇÃO" not in box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh api -X PUT repos/o/app/contents/a --input body.json",
+        'gh api -X PUT repos/o/app/contents/a -f "branch=$B"',
+        "gh api -X PUT repos/o/app/contents/a -F branch=@name.txt",
+        "gh api repos/o/app/merges -f head=feature",
+    ],
+)
+def test_a_gh_api_write_whose_branch_is_not_written_asks_with_a_warning(command, env):
+    write_config(env, ENVIRONMENT_POLICY)
+
+    assert "ATENÇÃO: não consegui ver a branch de destino" in box(command, env).splitlines()
+
+
+def test_gh_api_reads_and_the_policy_off_behave_as_before(env):
+    write_config(env, ENVIRONMENT_POLICY)
+    assert box("gh api repos/o/app/contents/a.md", env) is None
+    write_config(env, "[gate]\n")
+    assert "ATENÇÃO" not in box("gh api -X PUT repos/o/app/contents/a -f branch=main", env)
