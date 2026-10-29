@@ -38,6 +38,10 @@ def claude_json_path() -> Path:
     return _env_path("WS_CLAUDE_JSON", Path.home() / ".claude.json")
 
 
+def claude_plugins_dir() -> Path:
+    return _env_path("WS_CLAUDE_PLUGINS_DIR", Path.home() / ".claude" / "plugins")
+
+
 def ws_executable() -> Path | None:
     """The absolute path of `ws`, for a command Claude Code runs without the shell PATH."""
     override = os.environ.get("WS_BIN")

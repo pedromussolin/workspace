@@ -14,6 +14,7 @@ from ws import (
     checkpoint,
     config,
     dictionary,
+    gatecatalog,
     gittools,
     jira,
     names,
@@ -619,6 +620,79 @@ def _cmd_mcp_headers(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_gate(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("gate", help="The Claude Code approval gate.")
+    commands = parser.add_subparsers(dest="gate_command", required=True)
+    catalog = commands.add_parser(
+        "catalog",
+        help="Show or classify the MCP tools the approval gate does not know.",
+        description=(
+            "Without a subcommand: lists the MCP servers configured in Claude Code that the "
+            "catalog (hooks/gate/catalog.json) does not know, and the tools the gate asked "
+            "about without finding them in it, with counts. `pass` and `ask` classify tools: "
+            "they edit the catalog in this repo, nothing else."
+        ),
+    )
+    catalog.add_argument("--json", action="store_true", help="print the report as JSON")
+    catalog.set_defaults(handler=_cmd_gate_catalog)
+    actions = catalog.add_subparsers(dest="catalog_command")
+    for name, meaning in (("pass", "reads, never write outside the machine"), ("ask", "writes")):
+        action = actions.add_parser(name, help=f"Classify tools as {meaning}.")
+        action.add_argument("server", help="the tool-name prefix: mcp__<server>__<tool>")
+        action.add_argument("tools", nargs="+", metavar="TOOL")
+        action.set_defaults(handler=_cmd_gate_classify, target=name)
+
+
+def _cmd_gate_catalog(args: argparse.Namespace) -> int:
+    try:
+        found = gatecatalog.report()
+    except gatecatalog.CatalogError as error:
+        print(f"ws gate catalog: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(found, indent=2, sort_keys=True))
+        return 0
+    missing, recorded = found["missing_servers"], found["unclassified"]
+    if not missing and not recorded:
+        print("Nothing to classify: the catalog knows every configured server and recorded tool.")
+        return 0
+    if missing:
+        print("MCP servers configured and missing from the catalog (every call asks):")
+        for server in missing:
+            print(f"  {server}")
+    if recorded:
+        print("Tools the gate asked about and the catalog does not classify:")
+        for server, tools in sorted(recorded.items()):
+            print(f"  {server}")
+            for tool, entry in sorted(tools.items()):
+                print(f"    {tool}  ({entry['count']} asks, last {entry['last']})")
+    print(
+        "Next: ws gate catalog pass SERVER TOOL... for reads, "
+        "ws gate catalog ask SERVER TOOL... for writes."
+    )
+    return 0
+
+
+def _cmd_gate_classify(args: argparse.Namespace) -> int:
+    try:
+        change = gatecatalog.classify(args.server, args.tools, args.target)
+    except gatecatalog.CatalogError as error:
+        print(f"ws gate catalog {args.target}: {error}", file=sys.stderr)
+        return 1
+    where = f"{args.server}: {args.target}"
+    if change.added:
+        print(f"added to {where}: {', '.join(change.added)}")
+    if change.already:
+        print(f"already in {where}: {', '.join(change.already)}")
+    if change.moved:
+        other = "ask" if args.target == "pass" else "pass"
+        print(f"removed from {args.server}: {other}: {', '.join(change.moved)}")
+    if change.forgotten:
+        print(f"removed from the unclassified record: {', '.join(change.forgotten)}")
+    print("commit the file and run ws setup in your terminal to update the protected copy.")
+    return 0
+
+
 def _iso_date(text: str) -> date:
     try:
         return date.fromisoformat(text)
@@ -912,6 +986,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_names(subparsers)
     _add_config(subparsers)
     _add_mcp_headers(subparsers)
+    _add_gate(subparsers)
     _add_task(subparsers)
     _add_card(subparsers)
     _add_standup(subparsers)
