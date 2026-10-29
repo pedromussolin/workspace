@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -8,13 +10,15 @@ from typing import NamedTuple
 
 import pytest
 
-from ws import dictionary
+from ws import config, dictionary
 from ws.bootstrap import ASK_RULES, SetupResult, run_setup
 from ws.cli import main
 
-HOOK_SCRIPT = "hooks/block_co_authored_by.py"
-BYPASS_SCRIPT = "hooks/block_hook_bypass.py"
-ASK_SCRIPT = "hooks/ask_card_apply.py"
+HOOK_SCRIPT = "block_co_authored_by.py"
+BYPASS_SCRIPT = "block_hook_bypass.py"
+GATE_SCRIPT = "approval_gate.py"
+GATE_MATCHER = "Bash|mcp__.*"
+LEGACY_CARD_SCRIPT = "hooks/ask_card_apply.py"
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 
@@ -37,18 +41,28 @@ def _write_settings(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
-def _hook_entry(script: str) -> dict:
-    command = f'python3 -I "$HOME/repos/acme/{script}"'
-    return {"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}
+@pytest.fixture(autouse=True)
+def _hooks_dir(tmp_path: Path, monkeypatch) -> Path:
+    path = tmp_path / "claude" / "hooks" / "workspace"
+    monkeypatch.setenv("WS_CLAUDE_HOOKS_DIR", str(path))
+    return path
+
+
+def _copy_command(script: str) -> str:
+    return f'python3 -I "{config.claude_hooks_dir() / script}"'
+
+
+def _hook_entry(script: str, matcher: str = "Bash") -> dict:
+    return {"matcher": matcher, "hooks": [{"type": "command", "command": _copy_command(script)}]}
 
 
 def _registered_gates() -> dict:
     return {
         "hooks": {
             "PreToolUse": [
+                _hook_entry(GATE_SCRIPT, GATE_MATCHER),
                 _hook_entry(HOOK_SCRIPT),
                 _hook_entry(BYPASS_SCRIPT),
-                _hook_entry(ASK_SCRIPT),
             ]
         },
         "permissions": {"deny": [DENY_RULE], "ask": list(ASK_RULES)},
@@ -408,9 +422,9 @@ def test_prints_one_merged_block_with_every_missing_claude_gate(env):
     assert "Claude applies this block after you approve" in header
     entries = block["hooks"]["PreToolUse"]
     assert [entry["hooks"][0]["command"] for entry in entries] == [
-        f'python3 -I "{env.repo / script}"' for script in (HOOK_SCRIPT, BYPASS_SCRIPT, ASK_SCRIPT)
+        _copy_command(script) for script in (GATE_SCRIPT, HOOK_SCRIPT, BYPASS_SCRIPT)
     ]
-    assert all(entry["matcher"] == "Bash" for entry in entries)
+    assert [entry["matcher"] for entry in entries] == [GATE_MATCHER, "Bash", "Bash"]
     assert block["permissions"] == {"deny": [DENY_RULE], "ask": list(ASK_RULES)}
     assert env.settings.read_bytes() == before
 
@@ -490,7 +504,7 @@ def test_the_block_holds_every_ask_rule_when_none_is_there(env):
 
 def test_the_block_holds_only_the_missing_bypass_gate(env):
     gates = _registered_gates()
-    del gates["hooks"]["PreToolUse"][1]
+    del gates["hooks"]["PreToolUse"][2]
     _write_settings(env.settings, gates)
 
     _, block = _needs_block(_setup(env))
@@ -783,17 +797,17 @@ def test_setup_reports_missing_sandbox_tools(env, monkeypatch):
     assert "only to run the evals" in problems[0]
 
 
-def test_the_card_approval_hook_is_one_of_the_registered_gates(env):
+def test_the_approval_gate_is_one_of_the_registered_gates(env):
     gates = _registered_gates()
-    gates["hooks"]["PreToolUse"].pop()
+    gates["hooks"]["PreToolUse"].pop(0)
     _write_settings(env.settings, gates)
 
     result = _setup(env)
 
     _, block = _needs_block(result)
-    assert [entry["hooks"][0]["command"] for entry in block["hooks"]["PreToolUse"]] == [
-        f'python3 -I "{env.repo / ASK_SCRIPT}"'
-    ]
+    [entry] = block["hooks"]["PreToolUse"]
+    assert entry["hooks"][0]["command"] == _copy_command(GATE_SCRIPT)
+    assert entry["matcher"] == GATE_MATCHER
 
 
 def test_card_gate_problems_name_what_is_missing(tmp_path):
@@ -815,10 +829,10 @@ def test_card_gate_problems_name_what_is_missing(tmp_path):
     assert "Bash(ws card apply:*)" in problem
 
     gates = _registered_gates()
-    gates["hooks"]["PreToolUse"].pop()
+    gates["hooks"]["PreToolUse"].pop(0)
     settings.write_text(json.dumps(gates), encoding="utf-8")
     [problem] = card_gate_problems(settings)
-    assert ASK_SCRIPT in problem
+    assert GATE_SCRIPT in problem
 
     settings.write_text(json.dumps(_registered_gates()), encoding="utf-8")
     assert card_gate_problems(settings) == []
@@ -827,7 +841,7 @@ def test_card_gate_problems_name_what_is_missing(tmp_path):
 def _settings_with_entry(entry: dict) -> dict:
     gates = _registered_gates()
     gates["hooks"]["PreToolUse"] = [
-        e for e in gates["hooks"]["PreToolUse"] if ASK_SCRIPT not in json.dumps(e)
+        e for e in gates["hooks"]["PreToolUse"] if GATE_SCRIPT not in json.dumps(e)
     ]
     gates["hooks"]["PreToolUse"].append(entry)
     return gates
@@ -840,25 +854,38 @@ def _entry(command: str, matcher: str | None = "Bash", kind: str = "command") ->
     return entry
 
 
+def _with_copy(entry: dict) -> dict:
+    """Fill `{dir}` in the command with the hooks copy folder of the test."""
+    if not isinstance(entry["hooks"], list):
+        return entry
+    folder = str(config.claude_hooks_dir())
+    hooks = [{**h, "command": h["command"].replace("{dir}", folder)} for h in entry["hooks"]]
+    return {**entry, "hooks": hooks}
+
+
+GATE = "{dir}/" + GATE_SCRIPT
+
+
 @pytest.mark.parametrize(
     "entry",
     [
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"'),
-        _entry(f"python3 /srv/ws/{ASK_SCRIPT}"),
-        _entry(f"python /srv/ws/{ASK_SCRIPT}"),
-        _entry(f"/usr/bin/python3.12 -I /srv/ws/{ASK_SCRIPT}"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Write|Bash"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Bash|Edit"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="*"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher=""),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher=None),
+        _entry(f'python3 -I "{GATE}"'),
+        _entry(f"python3 {GATE}"),
+        _entry(f"python {GATE}"),
+        _entry(f"/usr/bin/python3.12 -I {GATE}"),
+        _entry(f'python3 -I "{GATE}"', matcher="Write|Bash"),
+        _entry(f'python3 -I "{GATE}"', matcher="Bash|Edit"),
+        _entry(f'python3 -I "{GATE}"', matcher=GATE_MATCHER),
+        _entry(f'python3 -I "{GATE}"', matcher="*"),
+        _entry(f'python3 -I "{GATE}"', matcher=""),
+        _entry(f'python3 -I "{GATE}"', matcher=None),
     ],
 )
-def test_a_real_registration_of_the_card_hook_is_accepted(tmp_path, entry):
+def test_a_real_registration_of_the_gate_from_the_copy_is_accepted(tmp_path, entry):
     from ws.bootstrap import card_gate_problems
 
     settings = tmp_path / "settings.json"
-    settings.write_text(json.dumps(_settings_with_entry(entry)), encoding="utf-8")
+    settings.write_text(json.dumps(_settings_with_entry(_with_copy(entry))), encoding="utf-8")
 
     assert card_gate_problems(settings) == []
 
@@ -866,39 +893,420 @@ def test_a_real_registration_of_the_card_hook_is_accepted(tmp_path, entry):
 @pytest.mark.parametrize(
     "entry",
     [
-        _entry(f"echo {ASK_SCRIPT}", matcher="Write"),
-        _entry(f"echo {ASK_SCRIPT}"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Write"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="Bashful"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="bash"),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', matcher="("),
-        _entry(f'python3 -I "/srv/ws/{ASK_SCRIPT}"', kind="prompt"),
-        _entry(f'echo "python3 {ASK_SCRIPT}"'),
-        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT}; echo"),
-        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT}.bak"),
-        _entry(f"python3 -I /srv/ws/{ASK_SCRIPT} --dry"),
-        _entry(f"cat /srv/ws/{ASK_SCRIPT}"),
+        _entry(f"echo {GATE}", matcher="Write"),
+        _entry(f"echo {GATE}"),
+        _entry(f'python3 -I "{GATE}"', matcher="Write"),
+        _entry(f'python3 -I "{GATE}"', matcher="Bashful"),
+        _entry(f'python3 -I "{GATE}"', matcher="bash"),
+        _entry(f'python3 -I "{GATE}"', matcher="("),
+        _entry(f'python3 -I "{GATE}"', kind="prompt"),
+        _entry(f'echo "python3 {GATE}"'),
+        _entry(f"python3 -I {GATE}; echo"),
+        _entry(f"python3 -I {GATE}.bak"),
+        _entry(f"python3 -I {GATE} --dry"),
+        _entry(f"cat {GATE}"),
         _entry("python3 -I 'unterminated"),
+        _entry('python3 -I "/srv/ws/hooks/approval_gate.py"'),
+        _entry('python3 -I "/srv/other/approval_gate.py"'),
         {"matcher": "Bash", "hooks": "none"},
-        {"matcher": ["Bash"], "hooks": [{"type": "command", "command": f"python3 {ASK_SCRIPT}"}]},
+        {"matcher": ["Bash"], "hooks": [{"type": "command", "command": f"python3 {GATE}"}]},
     ],
 )
-def test_a_forged_or_misplaced_hook_entry_does_not_count(tmp_path, entry):
+def test_a_forged_or_misplaced_gate_entry_does_not_count(tmp_path, entry):
     from ws.bootstrap import card_gate_problems
 
     settings = tmp_path / "settings.json"
-    settings.write_text(json.dumps(_settings_with_entry(entry)), encoding="utf-8")
+    settings.write_text(json.dumps(_settings_with_entry(_with_copy(entry))), encoding="utf-8")
 
     [problem] = card_gate_problems(settings)
-    assert ASK_SCRIPT in problem
+    assert GATE_SCRIPT in problem
 
 
-def test_setup_asks_again_for_a_forged_hook_entry(env):
-    _write_settings(env.settings, _settings_with_entry(_entry(f"echo {ASK_SCRIPT}", "Write")))
+def test_setup_asks_again_for_a_forged_gate_entry(env):
+    entry = _with_copy(_entry(f"echo {GATE}", "Write"))
+    _write_settings(env.settings, _settings_with_entry(entry))
 
     result = _setup(env)
 
     _, block = _needs_block(result)
     assert [e["hooks"][0]["command"] for e in block["hooks"]["PreToolUse"]] == [
-        f'python3 -I "{env.repo / ASK_SCRIPT}"'
+        _copy_command(GATE_SCRIPT)
     ]
+
+
+MCP_PUSH = "mcp__plugin_github_github__push_files"
+
+
+@pytest.mark.parametrize(
+    ("matcher", "covers_mcp"),
+    [
+        (GATE_MATCHER, True),
+        ("mcp__.*|Bash", True),
+        ("*", True),
+        (None, True),
+        ("Bash", False),
+        ("Bash|mcp__plugin_gitkraken.*", False),
+        ("mcp__.*", False),
+    ],
+)
+def test_the_gate_matcher_must_cover_bash_and_mcp_tools(env, matcher, covers_mcp):
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"][0] = _entry(_copy_command(GATE_SCRIPT), matcher)
+    _write_settings(env.settings, gates)
+
+    needs = _setup(env).needs
+
+    if covers_mcp:
+        assert needs == []
+    else:
+        assert any("does not cover" in need for need in needs)
+        _, block = _needs_block(SetupResult(needs=needs))
+        assert block["hooks"]["PreToolUse"][0]["matcher"] == GATE_MATCHER
+    assert re.fullmatch(GATE_MATCHER, MCP_PUSH)
+
+
+def test_a_registration_that_still_points_at_the_repo_is_reported_with_its_replacement(env):
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"][1] = _entry(f'python3 -I "{env.repo}/hooks/{HOOK_SCRIPT}"')
+    gates["hooks"]["PreToolUse"].append(_entry(f'python3 -I "{env.repo}/{LEGACY_CARD_SCRIPT}"'))
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    stale = [need for need in result.needs if need.startswith("stale hook registration")]
+    assert len(stale) == 2
+    assert f"{env.repo}/hooks/{HOOK_SCRIPT} is replaced by {_copy_command(HOOK_SCRIPT)}" in stale[1]
+    assert (
+        f"{env.repo}/{LEGACY_CARD_SCRIPT} is replaced by {_copy_command(GATE_SCRIPT)}" in stale[0]
+    )
+    _, block = _needs_block(
+        SetupResult(needs=[n for n in result.needs if not n.startswith("stale")])
+    )
+    assert [e["hooks"][0]["command"] for e in block["hooks"]["PreToolUse"]] == [
+        _copy_command(HOOK_SCRIPT)
+    ]
+
+
+def test_a_home_variable_in_the_registered_path_is_expanded(env, monkeypatch):
+    monkeypatch.setenv("HOME", str(env.settings.parent))
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"][1] = _entry(f'python3 -I "$HOME/hooks/workspace/{HOOK_SCRIPT}"')
+    _write_settings(env.settings, gates)
+
+    assert _setup(env).needs == []
+
+
+def test_the_new_ask_rules_cover_the_github_and_gitkraken_writes():
+    for tool in (
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "create_branch",
+        "create_or_update_file",
+        "create_pull_request",
+        "create_repository",
+        "delete_file",
+        "delete_repository",
+        "fork_repository",
+        "issue_write",
+        "merge_pull_request",
+        "pull_request_review_write",
+        "push_files",
+        "request_copilot_review",
+        "run_secret_scanning",
+        "sub_issue_write",
+        "update_issue_comment",
+        "update_pull_request",
+        "update_pull_request_branch",
+    ):
+        assert f"mcp__plugin_github_github__{tool}" in ASK_RULES, tool
+    for tool in (
+        "git_push",
+        "issues_add_comment",
+        "issues_create",
+        "pull_request_create",
+        "pull_request_create_review",
+    ):
+        assert f"mcp__plugin_gitkraken_gitkraken__{tool}" in ASK_RULES, tool
+    assert "mcp__plugin_github_github__get_file_contents" not in ASK_RULES
+
+
+def _gate_config(env: Env, text: str) -> list[str]:
+    (env.config / "config.toml").write_text(text, encoding="utf-8")
+    return _setup(env).needs
+
+
+def test_the_gate_table_is_optional_and_accepts_the_two_keys(env):
+    assert _gate_config(env, "[jira]\n") == []
+    assert (
+        _gate_config(
+            env,
+            '[gate]\npush_without_asking = ["~/repos/workspace", "/srv/x"]\n'
+            'personal_github_owners = ["someone"]\n',
+        )
+        == []
+    )
+    assert _gate_config(env, "[gate]\n") == []
+
+
+@pytest.mark.parametrize(
+    ("text", "key"),
+    [
+        ('[gate]\npush_without_asking = "~/repos/workspace"\n', "push_without_asking"),
+        ("[gate]\npush_without_asking = [1]\n", "push_without_asking"),
+        ('[gate]\npersonal_github_owners = "someone"\n', "personal_github_owners"),
+        ("[gate]\npersonal_github_owners = [true]\n", "personal_github_owners"),
+    ],
+)
+def test_a_gate_key_of_the_wrong_type_is_reported(env, text, key):
+    [problem] = _gate_config(env, text)
+
+    assert f"[gate] {key} must be a list of strings" in problem
+
+
+def test_a_gate_that_is_not_a_table_is_reported(env):
+    [problem] = _gate_config(env, "gate = 3\n")
+
+    assert "[gate] must be a table" in problem
+
+
+def test_setup_does_not_write_the_gate_keys(env):
+    before = (env.config / "config.toml").read_bytes()
+
+    _setup(env)
+
+    assert (env.config / "config.toml").read_bytes() == before
+
+
+def _fake_hooks(repo: Path) -> dict[str, bytes]:
+    files = {
+        "hooks/approval_gate.py": b"print('gate')\n",
+        "hooks/block_co_authored_by.py": b"print('a')\n",
+        "hooks/block_hook_bypass.py": b"print('b')\n",
+        "hooks/ask_card_apply.py": b"print('old')\n",
+        "hooks/gate/rules.py": b"X = 1\n",
+        "hooks/gate/catalog.json": b'{"a": 1}\n',
+        "hooks/gate/notes.md": b"not copied\n",
+        "hooks/gate/deep/more.py": b"not copied\n",
+        "hooks/__pycache__/x.pyc": b"\x00",
+        "hooks/gate/__pycache__/y.pyc": b"\x00",
+        "hooks/readme.txt": b"not copied\n",
+    }
+    for rel, data in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_bytes(data)
+    return files
+
+
+COPIED = (
+    "approval_gate.py",
+    "block_co_authored_by.py",
+    "block_hook_bypass.py",
+    "gate/catalog.json",
+    "gate/rules.py",
+)
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _copy_files(hooks_dir: Path) -> list[str]:
+    return sorted(
+        p.relative_to(hooks_dir).as_posix()
+        for p in hooks_dir.rglob("*")
+        if p.is_file() and p.name != "manifest.json"
+    )
+
+
+def test_setup_copies_the_hooks_read_only_with_a_manifest(env, _hooks_dir):
+    files = _fake_hooks(env.repo)
+
+    result = _setup(env)
+
+    assert _copy_files(_hooks_dir) == list(COPIED)
+    for rel in COPIED:
+        assert (_hooks_dir / rel).read_bytes() == files[f"hooks/{rel}"]
+        assert _mode(_hooks_dir / rel) == 0o444
+    assert not (_hooks_dir / "ask_card_apply.py").exists()
+    manifest = json.loads((_hooks_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest == {rel: _sha(files[f"hooks/{rel}"]) for rel in COPIED}
+    assert _mode(_hooks_dir / "manifest.json") == 0o444
+    assert _mode(_hooks_dir) == 0o755
+    assert _mode(_hooks_dir / "gate") == 0o755
+    assert any(line.startswith(f"hooks copy: create {_hooks_dir}") for line in result.fixed)
+    assert _setup(env) == SetupResult()
+
+
+def test_check_reports_a_missing_copy_and_writes_nothing(env, _hooks_dir):
+    _fake_hooks(env.repo)
+
+    result = _setup(env, check=True)
+
+    assert not _hooks_dir.exists()
+    assert any(line.startswith(f"hooks copy: create {_hooks_dir}") for line in result.fixed)
+
+
+def _copy_in_place(env: Env) -> dict[str, bytes]:
+    files = _fake_hooks(env.repo)
+    assert _setup(env).needs == []
+    return files
+
+
+def test_a_stale_file_is_reported_and_fixed(env, _hooks_dir):
+    _copy_in_place(env)
+    (env.repo / "hooks/approval_gate.py").write_bytes(b"print('gate v2')\n")
+
+    check = _setup(env, check=True)
+
+    assert check.fixed[0] == "hooks copy approval_gate.py: stale; restore it from the repo"
+    assert (_hooks_dir / "approval_gate.py").read_bytes() == b"print('gate')\n"
+    _setup(env)
+    assert (_hooks_dir / "approval_gate.py").read_bytes() == b"print('gate v2')\n"
+    assert _mode(_hooks_dir / "approval_gate.py") == 0o444
+    manifest = json.loads((_hooks_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["approval_gate.py"] == _sha(b"print('gate v2')\n")
+    assert _setup(env) == SetupResult()
+
+
+def test_an_edited_file_is_reported_as_edited_and_restored(env, _hooks_dir):
+    files = _copy_in_place(env)
+    target = _hooks_dir / "block_hook_bypass.py"
+    target.chmod(0o644)
+    target.write_bytes(b"import sys\nsys.exit(0)\n")
+
+    check = _setup(env, check=True)
+
+    assert check.fixed == [
+        "hooks copy block_hook_bypass.py: edited after the copy "
+        "(differs from the manifest); restore it from the repo"
+    ]
+    _setup(env)
+    assert target.read_bytes() == files["hooks/block_hook_bypass.py"]
+    assert _mode(target) == 0o444
+
+
+def test_a_missing_file_is_copied_again(env, _hooks_dir):
+    _copy_in_place(env)
+    (_hooks_dir / "gate" / "rules.py").unlink()
+
+    check = _setup(env, check=True)
+    assert check.fixed == [
+        f"hooks copy gate/rules.py: missing; copy it to {_hooks_dir / 'gate' / 'rules.py'}"
+    ]
+
+    _setup(env)
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+
+
+def test_an_extra_file_is_reported_and_removed(env, _hooks_dir):
+    _copy_in_place(env)
+    (_hooks_dir / "gate" / "planted.py").write_bytes(b"x\n")
+    (_hooks_dir / "sitecustomize.py").write_bytes(b"x\n")
+
+    check = _setup(env, check=True)
+
+    assert check.fixed == [
+        "hooks copy gate/planted.py: not in the repo; remove it",
+        "hooks copy sitecustomize.py: not in the repo; remove it",
+    ]
+    _setup(env)
+    assert _copy_files(_hooks_dir) == list(COPIED)
+
+
+def test_a_symlink_in_the_copy_is_edited_and_replaced(env, _hooks_dir, tmp_path):
+    files = _copy_in_place(env)
+    target = _hooks_dir / "approval_gate.py"
+    target.unlink()
+    elsewhere = tmp_path / "elsewhere.py"
+    elsewhere.write_bytes(files["hooks/approval_gate.py"])
+    target.symlink_to(elsewhere)
+
+    check = _setup(env, check=True)
+    assert "edited" in check.fixed[0]
+
+    _setup(env)
+    assert not target.is_symlink()
+    assert elsewhere.read_bytes() == files["hooks/approval_gate.py"]
+
+
+def test_a_loose_mode_is_fixed(env, _hooks_dir):
+    _copy_in_place(env)
+    (_hooks_dir / "approval_gate.py").chmod(0o644)
+
+    check = _setup(env, check=True)
+    assert check.fixed == ["hooks copy approval_gate.py: chmod 444"]
+
+    _setup(env)
+    assert _mode(_hooks_dir / "approval_gate.py") == 0o444
+
+
+def test_a_lost_or_forged_manifest_is_written_again(env, _hooks_dir):
+    _copy_in_place(env)
+    manifest = _hooks_dir / "manifest.json"
+    manifest.unlink()
+
+    assert _setup(env, check=True).fixed == [f"hooks copy: write the manifest {manifest}"]
+    _setup(env)
+    assert _setup(env) == SetupResult()
+
+    manifest.chmod(0o644)
+    manifest.write_text("[]", encoding="utf-8")
+    assert _setup(env, check=True).fixed == [f"hooks copy: write the manifest {manifest}"]
+
+
+def test_a_copy_without_a_manifest_reports_a_different_file_as_stale(env, _hooks_dir):
+    _copy_in_place(env)
+    (_hooks_dir / "manifest.json").unlink()
+    (_hooks_dir / "approval_gate.py").chmod(0o644)
+    (_hooks_dir / "approval_gate.py").write_bytes(b"x\n")
+
+    check = _setup(env, check=True)
+
+    assert check.fixed[0] == "hooks copy approval_gate.py: stale; restore it from the repo"
+
+
+def test_a_copy_folder_that_is_a_file_needs_the_user(env, _hooks_dir):
+    _fake_hooks(env.repo)
+    _hooks_dir.parent.mkdir(parents=True, exist_ok=True)
+    _hooks_dir.write_text("x", encoding="utf-8")
+
+    result = _setup(env)
+
+    assert f"hooks copy: {_hooks_dir} exists and is not a folder" in result.needs
+
+
+def test_a_failed_copy_needs_the_user(env, _hooks_dir, monkeypatch):
+    _fake_hooks(env.repo)
+
+    def refuse(self, *args, **kwargs):
+        raise PermissionError("read-only file system")
+
+    monkeypatch.setattr(Path, "mkdir", refuse)
+    result = _setup(env)
+
+    assert any(
+        "could not write in" in need and "read-only file system" in need for need in result.needs
+    )
+
+
+def test_a_repo_without_hooks_makes_no_copy(env, _hooks_dir):
+    assert _setup(env).needs == []
+    assert not _hooks_dir.exists()
+
+
+def test_setup_reads_the_hooks_folder_from_the_environment(env, _hooks_dir, monkeypatch, tmp_path):
+    _fake_hooks(env.repo)
+    other = tmp_path / "other-hooks"
+    monkeypatch.setenv("WS_CLAUDE_HOOKS_DIR", str(other))
+
+    run_setup(env.repo, env.config, env.skills_target, env.settings)
+
+    assert (other / "approval_gate.py").is_file()
+    assert not _hooks_dir.exists()
+
+
+def test_the_default_hooks_folder_is_under_the_claude_folder(monkeypatch):
+    monkeypatch.delenv("WS_CLAUDE_HOOKS_DIR")
+
+    assert config.claude_hooks_dir() == Path.home() / ".claude" / "hooks" / "workspace"

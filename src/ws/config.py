@@ -33,5 +33,9 @@ def claude_settings_path() -> Path:
     return _env_path("WS_CLAUDE_SETTINGS", Path.home() / ".claude" / "settings.json")
 
 
+def claude_hooks_dir() -> Path:
+    return _env_path("WS_CLAUDE_HOOKS_DIR", Path.home() / ".claude" / "hooks" / "workspace")
+
+
 def repo_root() -> Path:
     return _env_path("WS_REPO_ROOT", Path(__file__).resolve().parents[2])

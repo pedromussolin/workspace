@@ -58,3 +58,22 @@ def test_non_string_command_blocks():
 def test_payload_that_is_not_an_object_blocks():
     assert run_hook("[]").returncode == 2
     assert run_hook("").returncode == 2
+
+
+def test_the_protected_copy_runs_the_hook_with_isolated_python(tmp_path):
+    from ws.bootstrap import run_setup
+
+    repo = tmp_path / "repo"
+    (repo / "hooks").mkdir(parents=True)
+    (repo / "hooks" / HOOK.name).write_bytes(HOOK.read_bytes())
+    copy = tmp_path / "claude" / "hooks" / "workspace"
+    run_setup(
+        repo, tmp_path / "config", tmp_path / "skills", tmp_path / "settings.json", hooks_dir=copy
+    )
+
+    trailer = "Co-Authored-" + "By: a"
+    payload = json.dumps({"tool_input": {"command": f"git commit -m 'x' -m '{trailer}'"}})
+    result = subprocess.run(
+        [sys.executable, "-I", str(copy / HOOK.name)], input=payload, capture_output=True, text=True
+    )
+    assert result.returncode == 2
