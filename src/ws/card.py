@@ -24,6 +24,13 @@ APPROVAL_WINDOW = timedelta(minutes=30)
 _CODE = re.compile(r"[0-9a-f]{12}")
 _PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _SUBFOLDERS = ("drafts", "pending", "done", "uncertain")
+_OPERATIONS = {
+    "create": "Criar card",
+    "edit": "Editar card",
+    "move": "Mover card",
+    "comment": "Comentar no card",
+    "worklog": "Lançar horas no card",
+}
 
 
 class SetupNeeded(Exception):
@@ -58,6 +65,29 @@ class Plan:
     @property
     def today(self) -> str | None:
         return self.verdicts[0].resolved.get("today") if self.verdicts else None
+
+    @property
+    def blocks(self) -> list[list[str]]:
+        """One block of PT-BR lines per draft: a header naming the operation and the card, then the
+        preview lines and the warnings. The printed preview and the pending record both use it."""
+        total = len(self.loaded)
+        blocks = []
+        for number, (item, verdict) in enumerate(zip(self.loaded, self.verdicts, strict=True), 1):
+            label = _OPERATIONS.get(item.draft.op, item.draft.op) if item.draft else "?"
+            key = verdict.resolved.get("card", {}).get("key")
+            header = f"[{number}/{total}] {label}{f' {key}' if key else ''} ({item.path.name})"
+            blocks.append(
+                [
+                    header,
+                    *[f"  {line}" for line in verdict.preview],
+                    *[f"  Aviso: {warning}" for warning in verdict.warnings],
+                ]
+            )
+        return blocks
+
+    @property
+    def summary(self) -> list[str]:
+        return [line for block in self.blocks for line in block]
 
 
 def _now() -> datetime:
@@ -193,8 +223,9 @@ def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
     return Plan(loaded, verdicts)
 
 
-def approval_code(site: str, requests: list[dict], befores: list[dict]) -> str:
-    """Covers what is sent and the state of the card the preview showed as "before"."""
+def approval_code(site: str, requests: list[dict], befores: list[dict], summary: list[str]) -> str:
+    """Covers what is sent, the state of the card the preview showed as "before" and the text the
+    person reads when approving, so the text cannot differ from what is sent."""
     material = {
         "site": site.rstrip("/"),
         "requests": [
@@ -202,6 +233,7 @@ def approval_code(site: str, requests: list[dict], befores: list[dict]) -> str:
             for item in requests
         ],
         "before": befores,
+        "summary": summary,
     }
     text = json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()[:12]
@@ -309,7 +341,7 @@ def _preview(argument: str, loaded: list[Loaded]) -> int:
     if not plan.ok:
         _print_problems(plan)
         return 1
-    code = approval_code(settings.site, plan.requests, plan.befores)
+    code = approval_code(settings.site, plan.requests, plan.befores, plan.summary)
     try:
         _purge_expired()
         _write_pending(code, settings.site, plan)
@@ -320,12 +352,9 @@ def _preview(argument: str, loaded: list[Loaded]) -> int:
         )
         return 1
     print(f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao Jira.")
-    for number, (item, verdict) in enumerate(zip(loaded, plan.verdicts, strict=True), start=1):
-        print(f"\n[{number}/{len(loaded)}] {item.path.name}")
-        for line in verdict.preview:
-            print(f"  {line}")
-        for warning in verdict.warnings:
-            print(f"  Aviso: {warning}")
+    for block, verdict in zip(plan.blocks, plan.verdicts, strict=True):
+        print()
+        print("\n".join(block))
         for request in verdict.requests:
             print(f"  Requisição: {request['method']} {request['path']}")
             body = json.dumps(request["body"], ensure_ascii=False, indent=2)
@@ -349,6 +378,7 @@ def _write_pending(code: str, site: str, plan: Plan) -> None:
         "drafts": [{"path": str(item.path), "sha256": item.sha256} for item in plan.loaded],
         "requests": plan.requests,
         "before": plan.befores,
+        "summary": plan.summary,
     }
     path = _pending_path(code)
     try:
@@ -399,8 +429,34 @@ def _purge_expired() -> None:
             path.unlink(missing_ok=True)
 
 
+def _interactive() -> bool:
+    """A person at a real terminal. Claude Code sets CLAUDECODE in the commands it runs, so a
+    pseudo-terminal opened by the model still does not count."""
+    return sys.stdin.isatty() and sys.stdout.isatty() and "CLAUDECODE" not in os.environ
+
+
+def _confirm(summary: list[str]) -> bool:
+    print("\n".join(summary))
+    try:
+        answer = input("Gravar no Jira? [s/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer.strip().lower() in ("s", "sim")
+
+
+def _record_matches_code(record: dict, code: str) -> bool:
+    try:
+        return code == approval_code(
+            record["site"], record["requests"], record["before"], record["summary"]
+        )
+    except (KeyError, TypeError, AttributeError):
+        return False
+
+
 def _approve(code: str, loaded: list[Loaded]) -> int:
-    if problems := bootstrap.card_gate_problems(claude_settings_path()):
+    by_hand = _interactive()
+    if not by_hand and (problems := bootstrap.card_gate_problems(claude_settings_path())):
         raise SetupNeeded(
             f"{'; '.join(problems)}. Run `ws setup` and add what it prints, so Claude Code asks "
             "you before every approval"
@@ -423,7 +479,13 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
             file=sys.stderr,
         )
         return 1
-    if record.get("sid") is None or record.get("sid") == _session_id():
+    if not _record_matches_code(record, code):
+        print(
+            "ws card apply: o registro pendente foi alterado; rode o ws card preview de novo",
+            file=sys.stderr,
+        )
+        return 1
+    if not by_hand and (record.get("sid") is None or record.get("sid") == _session_id()):
         print(
             "ws card apply: a prévia e a aprovação precisam ser passos separados "
             "(rode `ws card apply` em outro comando, depois de mostrar a prévia)",
@@ -443,11 +505,16 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
         _print_problems(plan)
         return 1
     site = settings.site.rstrip("/")
-    if approval_code(site, plan.requests, plan.befores) != code or record.get("site") != site:
+    if approval_code(site, plan.requests, plan.befores, plan.summary) != code or (
+        record.get("site") != site
+    ):
         print(f"ws card apply: {_why_it_differs(record, plan, site)}", file=sys.stderr)
         return 1
     if (refused := guard(settings.project, plan.requests)) is not None:
         print(f"ws card apply: request outside the allowed shapes: {refused}", file=sys.stderr)
+        return 1
+    if by_hand and not _confirm(plan.summary):
+        print("Nada foi enviado.")
         return 1
     try:
         _pending_path(code).unlink()

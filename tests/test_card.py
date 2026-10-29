@@ -2,6 +2,7 @@ import itertools
 import json
 import os
 import stat
+import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -143,6 +144,7 @@ class World:
 
 
 REAL_SESSION_ID = card._session_id
+REAL_INTERACTIVE = card._interactive
 
 
 def write_claude_settings(path, ask=("Bash(ws card apply:*)",), hook=True):
@@ -175,6 +177,7 @@ def world(ws_config, fake_jira, monkeypatch, claude_settings):
     monkeypatch.setattr(card, "_now", lambda: NOW)
     sessions = itertools.count(1000)
     monkeypatch.setattr(card, "_session_id", lambda: next(sessions))
+    monkeypatch.setattr(card, "_interactive", lambda: False)
     return World(fake_jira)
 
 
@@ -1495,19 +1498,22 @@ def test_a_malformed_code_never_reads_a_file_outside_the_pending_folder(world, c
     assert world.fake.requests == []
 
 
-def test_the_code_changes_with_the_path_the_site_and_the_before_state():
+def test_the_code_changes_with_the_path_the_site_the_before_state_and_the_summary():
     request = {"method": "PUT", "path": "/rest/api/3/issue/TS-1", "body": {"fields": {"a": 1}}}
-    base = card.approval_code("https://example.atlassian.net", [request], [{}])
+    site, lines = "https://example.atlassian.net", ["[1/1] Editar card TS-1 (e.md)"]
+    base = card.approval_code(site, [request], [{}], lines)
 
-    assert base == card.approval_code("https://example.atlassian.net/", [request], [{}])
+    assert base == card.approval_code(site + "/", [request], [{}], lines)
     other_key = {**request, "path": "/rest/api/3/issue/TS-2"}
-    assert card.approval_code("https://example.atlassian.net", [other_key], [{}]) != base
-    assert card.approval_code("https://other.atlassian.net", [request], [{}]) != base
+    assert card.approval_code(site, [other_key], [{}], lines) != base
+    assert card.approval_code("https://other.atlassian.net", [request], [{}], lines) != base
     other_method = {**request, "method": "POST"}
-    assert card.approval_code("https://example.atlassian.net", [other_method], [{}]) != base
+    assert card.approval_code(site, [other_method], [{}], lines) != base
     other_body = {**request, "body": {"fields": {"a": 2}}}
-    assert card.approval_code("https://example.atlassian.net", [other_body], [{}]) != base
-    assert card.approval_code("https://example.atlassian.net", [request], [{"a": 1}]) != base
+    assert card.approval_code(site, [other_body], [{}], lines) != base
+    assert card.approval_code(site, [request], [{"a": 1}], lines) != base
+    assert card.approval_code(site, [request], [{}], [*lines, "  Prazo: 2026-11-05"]) != base
+    assert card.approval_code(site, [request], [{}], ["[1/1] Outro texto"]) != base
 
 
 def test_a_pending_record_for_another_site_is_refused(world, capsys):
@@ -1515,13 +1521,17 @@ def test_a_pending_record_for_another_site_is_refused(world, capsys):
     _, code = preview(path, capsys)
     record_path, record = read_record()
     record["site"] = "https://other.atlassian.net"
-    record_path.write_text(json.dumps(record))
+    forged = card.approval_code(
+        record["site"], record["requests"], record["before"], record["summary"]
+    )
+    record["code"] = forged
+    record_path.with_name(f"{forged}.json").write_text(json.dumps(record))
+    record_path.with_name(f"{forged}.json").chmod(0o600)
 
-    assert approve(path, code) == 1
+    assert approve(path, forged) == 1
 
     assert "differ" in capsys.readouterr().err
     assert world.writes() == []
-    assert record_path.exists()
 
 
 def test_a_draft_outside_the_drafts_folder_is_refused_everywhere(world, capsys, tmp_path):
@@ -2035,3 +2045,275 @@ def test_a_record_without_a_session_id_is_refused(world, capsys):
 
     assert approve(path, code) == 1
     assert world.writes() == []
+
+
+def two_drafts():
+    return [
+        make_draft("a.md", "comment", "Oi.\n", key="TS-101"),
+        make_draft("b.md", "move", key="TS-101", to="Em Validação"),
+    ]
+
+
+def test_the_pending_record_keeps_the_summary_the_preview_prints(world, capsys):
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+
+    out, _ = preview(path, capsys)
+
+    _, record = read_record()
+    assert record["summary"][0] == "[1/1] Mover card TS-101 (m.md)"
+    assert "  Mover o card TS-101" in record["summary"]
+    assert "  Status: In Progress -> Em Validação" in record["summary"]
+    assert all(line in out for line in record["summary"])
+    assert not any("/rest/api" in line for line in record["summary"])
+
+
+def test_the_summary_has_one_header_per_draft_and_the_warnings(world, capsys):
+    world.set_card("TS-101", duedate="2026-10-20", **{START_FIELD: None})
+    folder = data_dir() / "cards" / "drafts"
+    make_draft("a.md", "comment", "Oi.\n", key="TS-101")
+    make_draft("b.md", "move", key="TS-101", to="Em Andamento")
+
+    out, _ = preview(folder, capsys)
+
+    _, record = read_record()
+    headers = [line for line in record["summary"] if line.startswith("[")]
+    assert headers == [
+        "[1/2] Comentar no card TS-101 (a.md)",
+        "[2/2] Mover card TS-101 (b.md)",
+    ]
+    assert any(line.startswith("  Aviso: ") for line in record["summary"])
+    assert "Criar card" not in out
+
+
+def test_a_create_header_has_no_card_key(world, capsys):
+    preview(create_draft(), capsys)
+
+    _, record = read_record()
+    assert record["summary"][0] == "[1/1] Criar card (create.md)"
+
+
+def test_a_record_with_an_edited_summary_and_the_same_code_is_refused(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    record_path, record = read_record()
+    record["summary"] = ["[1/1] Comentar no card TS-101 (c.md)", "  Um texto mais simpático"]
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+
+    assert approve(path, code) == 1
+
+    assert "foi alterado" in capsys.readouterr().err
+    assert world.writes() == []
+    assert record_path.exists()
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("requests", [{"method": "POST", "path": "/rest/api/3/issue/TS-101/comment", "body": {}}]),
+        ("before", [{"status": "Done"}]),
+        ("site", "https://other.atlassian.net"),
+        ("summary", None),
+    ],
+)
+def test_a_record_that_does_not_hash_to_its_code_is_refused(world, capsys, key, value):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    record_path, record = read_record()
+    record[key] = value
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+
+    assert approve(path, code) == 1
+
+    assert "foi alterado" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_a_record_without_a_summary_is_refused(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    record_path, record = read_record()
+    del record["summary"]
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+
+    assert approve(path, code) == 1
+
+    assert "foi alterado" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_the_summary_changes_the_code(world, capsys):
+    _, first = preview(make_draft("c.md", "comment", "Oi.\n", key="TS-101"), capsys)
+    _, other_name = preview(make_draft("d.md", "comment", "Oi.\n", key="TS-101"), capsys)
+
+    assert first != other_name
+
+
+def at_a_terminal(monkeypatch, *answers, tty=True):
+    """Both streams are TTYs, Claude Code is not around, and `input` answers from the list (an
+    exception in the list is raised). Returns the prompts shown."""
+    monkeypatch.setattr(card, "_interactive", REAL_INTERACTIVE)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: tty, raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: tty, raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    replies, prompts = iter(answers), []
+
+    def fake_input(prompt=""):
+        prompts.append(prompt)
+        reply = next(replies)
+        if isinstance(reply, BaseException):
+            raise reply
+        return reply
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    return prompts
+
+
+def prepared_comment(world, capsys):
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+    return path, code
+
+
+@pytest.mark.parametrize("answer", ["s", "sim", "S", "SIM", " Sim ", "sIm\t"])
+def test_by_hand_a_yes_sends_and_shows_the_summary_first(world, capsys, monkeypatch, answer):
+    path, code = prepared_comment(world, capsys)
+    prompts = at_a_terminal(monkeypatch, answer)
+
+    assert approve(path, code) == 0
+
+    out = capsys.readouterr().out
+    assert prompts == ["Gravar no Jira? [s/N] "]
+    assert "[1/1] Comentar no card TS-101 (c.md)" in out
+    assert len(world.writes()) == 1
+    assert pending_files() == []
+
+
+@pytest.mark.parametrize("answer", ["n", "N", "", "nao", "não", "y", "yes", "ss", "s s", "sim!"])
+def test_by_hand_anything_but_yes_sends_nothing_and_keeps_the_record(
+    world, capsys, monkeypatch, answer
+):
+    path, code = prepared_comment(world, capsys)
+    at_a_terminal(monkeypatch, answer)
+
+    assert approve(path, code) == 1
+
+    assert "Nada foi enviado." in capsys.readouterr().out
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+
+@pytest.mark.parametrize("error", [EOFError(), KeyboardInterrupt()])
+def test_by_hand_end_of_input_sends_nothing(world, capsys, monkeypatch, error):
+    path, code = prepared_comment(world, capsys)
+    at_a_terminal(monkeypatch, error)
+
+    assert approve(path, code) == 1
+
+    assert "Nada foi enviado." in capsys.readouterr().out
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+
+
+def test_by_hand_needs_no_claude_settings_and_allows_the_same_session(
+    world, capsys, monkeypatch, claude_settings
+):
+    path, code = prepared_comment(world, capsys)
+    claude_settings.unlink()
+    monkeypatch.setattr(card, "_session_id", lambda: 4242)
+    _, record = read_record()
+    record["sid"] = 4242
+    record_path, _ = read_record()
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+    at_a_terminal(monkeypatch, "s")
+
+    assert approve(path, code) == 0
+    assert len(world.writes()) == 1
+
+
+def test_by_hand_the_other_checks_still_come_first(world, capsys, monkeypatch):
+    path, code = prepared_comment(world, capsys)
+    prompts = at_a_terminal(monkeypatch, "s")
+
+    path.write_text(path.read_text() + "mais um texto\n")
+    assert approve(path, code) == 1
+    assert "changed" in capsys.readouterr().err
+
+    world.set_card("TS-101", assignee="acc-other")
+    path.write_text(path.read_text().replace("mais um texto\n", ""))
+    assert approve(path, code) == 1
+
+    assert prompts == []
+    assert world.writes() == []
+
+
+def test_by_hand_the_live_recheck_still_refuses_before_the_question(world, capsys, monkeypatch):
+    path = make_draft("m.md", "move", key="TS-101", to="Em Validação")
+    _, code = preview(path, capsys)
+    capsys.readouterr()
+    world.set_card("TS-101", status={"name": "Em Validação", "statusCategory": {"key": "new"}})
+    prompts = at_a_terminal(monkeypatch, "s")
+
+    assert approve(path, code) == 1
+
+    assert prompts == []
+    assert world.writes() == []
+
+
+def test_by_hand_a_tampered_record_is_refused_before_the_question(world, capsys, monkeypatch):
+    path, code = prepared_comment(world, capsys)
+    record_path, record = read_record()
+    record["summary"] = ["Nada de mais"]
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+    prompts = at_a_terminal(monkeypatch, "s")
+
+    assert approve(path, code) == 1
+
+    assert prompts == []
+    assert "foi alterado" in capsys.readouterr().err
+    assert world.writes() == []
+
+
+def test_without_a_terminal_both_rules_hold(world, capsys, monkeypatch, claude_settings):
+    path, code = prepared_comment(world, capsys)
+    prompts = at_a_terminal(monkeypatch, "s", tty=False)
+
+    claude_settings.unlink()
+    assert approve(path, code) == 2
+    assert "not found" in capsys.readouterr().err
+
+    write_claude_settings(claude_settings)
+    monkeypatch.setattr(card, "_session_id", lambda: 4242)
+    record_path, record = read_record()
+    record["sid"] = 4242
+    record_path.write_text(json.dumps(record))
+    record_path.chmod(0o600)
+    assert approve(path, code) == 1
+    assert "passos separados" in capsys.readouterr().err
+
+    assert prompts == []
+    assert world.writes() == []
+
+
+@pytest.mark.parametrize("stream", ["stdin", "stdout"])
+def test_one_stream_that_is_not_a_terminal_is_not_interactive(monkeypatch, stream):
+    at_a_terminal(monkeypatch, "s")
+    assert card._interactive() is True
+
+    monkeypatch.setattr(getattr(sys, stream), "isatty", lambda: False, raising=False)
+
+    assert card._interactive() is False
+
+
+@pytest.mark.parametrize("value", ["1", "0", ""])
+def test_claude_code_in_the_environment_is_not_interactive(monkeypatch, value):
+    at_a_terminal(monkeypatch, "s")
+
+    monkeypatch.setenv("CLAUDECODE", value)
+
+    assert card._interactive() is False
