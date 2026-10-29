@@ -1,10 +1,12 @@
 """Claude Code PreToolUse gate: blocks Bash commands that bypass or disable the git hooks.
 
 Blocked: `--no-verify` on any git command, `git commit -n` (also inside a flag group such as
-`-nm`), a `core.hooksPath` override (`git -c core.hooksPath=...`, `GIT_CONFIG_*` variables) and
-a `core.hooksPath` change (`git config`), except the exact `git config core.hooksPath .githooks`
-that `ws setup` runs. It applies in every repo: company repos have their own hooks, and the AI
-must not skip them either.
+`-nm`), a `core.hooksPath` override (`git -c core.hooksPath=...`, `GIT_CONFIG_*` variables) and a
+`core.hooksPath` change (`git config`), except the exact `git config core.hooksPath .githooks`
+that `ws setup` runs. An alias given with `-c` that skips the hooks is blocked, and so is an alias
+or an include whose value the gate cannot read (`--config-env`, `GIT_CONFIG_KEY_*`,
+`-c include.path`). It applies in every repo: company repos have their own hooks, and the AI must
+not skip them either.
 
 The command is split into simple commands (on `;`, `&&`, `||`, `|`, `&`, parentheses and
 newlines) and each one is checked as a token sequence, so `grep -- --no-verify` or
@@ -60,29 +62,42 @@ GIT_OPTIONS_WITH_VALUE = {"-C", "--git-dir", "--work-tree", "--namespace", "--su
 DEADLINE_SECONDS = 5.0
 
 UNPARSEABLE_BYPASS = re.compile(r"--no-verify|hookspath", re.IGNORECASE)
+ALIAS_KEY = re.compile(r"alias\.", re.IGNORECASE)
+INCLUDE_KEY = re.compile(r"include(?:if)?\.", re.IGNORECASE)
+# Keys whose value the gate cannot read when it comes from the environment: an alias is a command
+# line, an include is a file that can set anything.
+CONFIG_VARIABLE = re.compile(
+    r"GIT_CONFIG_(?:KEY_\d+=|PARAMETERS=(?:.*')?)(?:alias\.|include(?:if)?\.|core\.hookspath)",
+    re.IGNORECASE | re.DOTALL,
+)
+ENVIRONMENT_BUILTINS = {"export", "declare", "typeset", "readonly", "local"}
 
 
 def _is_hooks_path_key(text: str) -> bool:
     return text.lower().partition("=")[0] == HOOKS_PATH_KEY
 
 
-def _split_git(args: list[str]) -> tuple[list[str], str, list[str]]:
-    """Return the `-c` settings, the subcommand and its arguments of a `git ...` command."""
+def _split_git(args: list[str]) -> tuple[list[str], list[str], str, list[str]]:
+    """Return the `-c` settings, the `--config-env` ones, the subcommand and its arguments."""
     overrides: list[str] = []
+    from_environment: list[str] = []
     index = 0
     while index < len(args) and args[index].startswith("-"):
         option = args[index]
         index += 1
-        if option in ("-c", "--config-env") and index < len(args):
+        if option == "-c" and index < len(args):
             overrides.append(args[index])
             index += 1
+        elif option == "--config-env" and index < len(args):
+            from_environment.append(args[index])
+            index += 1
         elif option.startswith("--config-env="):
-            overrides.append(option.partition("=")[2])
+            from_environment.append(option.partition("=")[2])
         elif option in GIT_OPTIONS_WITH_VALUE:
             index += 1
     if index >= len(args):
-        return overrides, "", []
-    return overrides, args[index], args[index + 1 :]
+        return overrides, from_environment, "", []
+    return overrides, from_environment, args[index], args[index + 1 :]
 
 
 def _short_group_has_n(word: str) -> bool:
@@ -117,28 +132,28 @@ def _changes_hooks_path(args: list[str]) -> bool:
     return not (CONFIG_READ_FLAGS & set(args) or args[0] in ("get", "list"))
 
 
-def _check_alias(setting: str) -> str | None:
-    """Why a `-c alias.NAME=VALUE` bypasses the hooks: its value is read as a git command line."""
-    key, _, value = setting.partition("=")
-    if not key.lower().startswith("alias."):
-        return None
+def _check_alias(value: str) -> str | None:
+    """Why an alias with this value bypasses the hooks: git reads it as a command line."""
     if value.startswith("!"):
-        reason = _scan(value[1:])
-    else:
-        try:
-            reason = _check_git(shlex.split(value))
-        except ValueError:
-            reason = "an alias that cannot be parsed" if UNPARSEABLE_BYPASS.search(value) else None
-    return f"{reason}, inside a -c alias" if reason else None
+        return _scan(value[1:])
+    try:
+        return _check_git(shlex.split(value))
+    except ValueError:
+        return "an alias that cannot be parsed" if UNPARSEABLE_BYPASS.search(value) else None
 
 
 def _check_git(args: list[str]) -> str | None:
-    overrides, subcommand, rest = _split_git(args)
-    if any(_is_hooks_path_key(setting) for setting in overrides):
+    overrides, from_environment, subcommand, rest = _split_git(args)
+    if any(_is_hooks_path_key(setting) for setting in overrides + from_environment):
         return "a core.hooksPath override with -c"
+    if any(ALIAS_KEY.match(s) or INCLUDE_KEY.match(s) for s in from_environment):
+        return "an alias or an include read from the environment (--config-env), which is unseen"
     for setting in overrides:
-        if reason := _check_alias(setting):
-            return reason
+        key, _, value = setting.partition("=")
+        if INCLUDE_KEY.match(key):
+            return "an include of another config file with -c"
+        if ALIAS_KEY.match(key) and (reason := _check_alias(value)):
+            return f"{reason}, inside a -c alias"
     if subcommand == "config" and _changes_hooks_path(rest):
         return "a change of core.hooksPath"
     if _skips_verification(subcommand, rest):
@@ -151,12 +166,12 @@ def _check_simple(words: list[str]) -> str | None:
         if reason := _scan(script.text):
             return reason
     index = shell.locate_program(words)
+    name = None if index is None else PurePath(words[index]).name
+    assigned = words if index is None or name in ENVIRONMENT_BUILTINS else words[:index]
+    if any(CONFIG_VARIABLE.match(word) for word in assigned):
+        return "a core.hooksPath, alias or include override through GIT_CONFIG_* variables"
     if index is None:
         return None
-    for word in words[:index]:
-        if word.startswith("GIT_CONFIG") and "hookspath" in word.lower():
-            return "a core.hooksPath override through GIT_CONFIG_* variables"
-    name = PurePath(words[index]).name
     args = words[index + 1 :]
     if name == "git":
         return _check_git(args)

@@ -313,3 +313,51 @@ def test_a_heredoc_or_here_string_that_is_data_passes(command):
 
     assert result.returncode == 0, result.stderr
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "X='commit --no-verify' git --config-env=alias.ci=X ci",
+        "git --config-env alias.ci=X ci",
+        "git --config-env=ALIAS.ci=X ci",
+        "git --config-env=include.path=X commit",
+        "git --config-env=includeIf.gitdir:/x/.path=X commit",
+        "git --config-env=core.hookspath=X commit",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.ci GIT_CONFIG_VALUE_0='commit -n' git ci",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0=/tmp/e.cfg git commit",
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=includeIf.x.path GIT_CONFIG_VALUE_0=y git commit",
+        "GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x "
+        "GIT_CONFIG_KEY_1=alias.ci GIT_CONFIG_VALUE_1='commit -n' git ci",
+        "env GIT_CONFIG_KEY_0=alias.ci GIT_CONFIG_VALUE_0='commit -n' git ci",
+        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.ci GIT_CONFIG_VALUE_0=x; git ci",
+        "GIT_CONFIG_KEY_0=core.hooksPath; git commit",
+        "env GIT_CONFIG_PARAMETERS=\"'alias.ci=commit -n'\" git ci",
+        "git -c include.path=/tmp/e.cfg commit",
+        "git -c INCLUDE.path=/tmp/e.cfg commit",
+        "git -c includeIf.gitdir:/x/.path=/tmp/e.cfg commit",
+        "git -C repo -c include.path=e.cfg status",
+    ],
+)
+def test_a_config_whose_value_the_gate_cannot_see_is_blocked(command):
+    result = run_command(command)
+
+    assert result.returncode == 2, command
+    assert result.stderr.startswith("Blocked:")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=alias.x git commit",
+        "GIT_CONFIG_GLOBAL=/dev/null git status",
+        "git --config-env=user.name=NAME commit -m x",
+        "NAME=x git --config-env user.email=NAME commit -m x",
+        "git -c user.name=include.x commit -m x",
+        "echo GIT_CONFIG_KEY_0=alias.ci",
+    ],
+)
+def test_other_config_variables_and_keys_pass(command):
+    result = run_command(command)
+
+    assert result.returncode == 0, result.stderr
