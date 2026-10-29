@@ -124,6 +124,7 @@ RISKY_GIT_KEYS = re.compile(
 )
 STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
 STORE_PROGRAMS = {"env", "sudo"}
+PUSH_URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[^/:]+@[^/:]+:|[^/:]{2,}:|/|\.\.?/|~)", re.I)
 GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
 INJECTING_START = "$`{-"
@@ -302,6 +303,15 @@ class Finding:
     title: str
     lines: tuple[str, ...]
     denial: str = ""
+    brief: str = ""
+    alert: bool = False
+
+    def compact(self) -> str:
+        """Its one line in a box shared with other findings: destination first."""
+        text = self.brief or (self.lines[0] if self.lines else self.title)
+        text = text.removeprefix("ATENÇÃO: ")
+        alert = self.alert or self.title in (TITLE_UNSURE, TITLE_CREDENTIAL)
+        return f"ATENÇÃO: {text}" if alert else text
 
 
 @dataclass
@@ -376,7 +386,12 @@ def _line(command: Command | list[str], width: int = 110) -> str:
 
 
 def _unsure(texts: list[str], reason: str) -> Finding:
-    return Finding(TITLE_UNSURE, (reason, _line(texts), "Confira o comando antes de aprovar."))
+    brief = f"Não lido com certeza: {reason.removeprefix('ATENÇÃO: ')} ({cut(' '.join(texts), 60)})"
+    return Finding(
+        TITLE_UNSURE,
+        (reason, _line(texts), "Confira o comando antes de aprovar."),
+        brief=brief,
+    )
 
 
 def _config_dir() -> Path:
@@ -613,6 +628,9 @@ def _push(
         lines.append(
             f"Referências: {', '.join(names) if names else 'as configuradas no repositório'}"
         )
+    given_url = remote is not None and PUSH_URL.match(remote) is not None
+    if given_url:
+        lines.append(f"ATENÇÃO: envia para um endereço escrito no comando: {cut(remote, 100)}")
     for override in overrides:
         lines.append(f"ATENÇÃO: {cut(override, 120)} muda o que o git roda ou para onde envia")
     if forced:
@@ -624,7 +642,11 @@ def _push(
         lines.append("Opções: " + " ".join(extra))
     if moved:
         lines.append("Atenção: o comando muda de pasta; confira se é a pasta acima")
-    return Finding(TITLE_GITHUB, tuple(lines))
+    flags = " ".join([*forced[:1], *(["--delete"] if deleted else []), *extra])
+    refs = ", ".join(names) if names else "refs padrão"
+    brief = f"{shown} ← git push {flags + ' ' if flags else ''}{refs} da pasta {_pretty(folder)}"
+    alert = bool(given_url or overrides or forced or deleted or (destination and destination[1]))
+    return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=alert)
 
 
 def _is_plain_push(texts: list[str]) -> bool:
@@ -831,7 +853,8 @@ def _gh_change(group: str, action: str, tail: list[Word], cwd: str, texts: list[
             lines.append(f"Texto: {body}")
     else:
         lines = [f"Comando do gh que altera algo fora: gh {cut(' '.join(texts), 100)}"]
-    return Finding(TITLE_GITHUB, tuple(lines))
+    brief = f"{repo}: {lines[0].replace(f' em {repo}', '')}"
+    return Finding(TITLE_GITHUB, tuple(lines), brief=brief)
 
 
 def _gh_flag_before_action(args: list[Word], positions: list[int]) -> bool:
@@ -916,7 +939,8 @@ def _http(program: str, args: list[Word]) -> list[Finding]:
     lines = [f"{program} {method} → {place or 'destino não encontrado'}"]
     if data:
         lines.append("com dados")
-    return [Finding(TITLE_HTTP, tuple(lines))]
+    brief = f"{place or cut(url, 60)}: {program} {method}{' com dados' if data else ''}"
+    return [Finding(TITLE_HTTP, tuple(lines), brief=brief)]
 
 
 def _pending_summary(code: str) -> Finding:
@@ -945,7 +969,8 @@ def _pending_summary(code: str) -> Finding:
     if not isinstance(summary, list) or not summary or not all(isinstance(s, str) for s in summary):
         line = f"A prévia {code} não tem resumo; confira com `ws card preview` antes de aprovar"
         return Finding(TITLE_JIRA, (line,))
-    return Finding(TITLE_JIRA, (f"Aplicar a prévia {code}:", *summary))
+    brief = f"Jira: aplicar a prévia {code} ({len(summary)} mudanças)"
+    return Finding(TITLE_JIRA, (f"Aplicar a prévia {code}:", *summary), brief=brief)
 
 
 def _store_change(scan: Scan) -> str | None:
@@ -1370,10 +1395,8 @@ def _combine(findings: list[Finding]) -> Decision:
     if len(unique) == 1:
         return ask(unique[0].title, list(unique[0].lines))
     titles = {finding.title for finding in unique}
-    lines: list[str] = []
-    for finding in unique:
-        lines += finding.lines if len(titles) == 1 else [f"— {finding.title}", *finding.lines]
-    return ask(titles.pop() if len(titles) == 1 else "Vários comandos pedem aprovação", lines)
+    title = titles.pop() if len(titles) == 1 else "Vários comandos pedem aprovação"
+    return ask(title, [finding.compact() for finding in unique])
 
 
 def decide(command: str, cwd: str) -> Decision:

