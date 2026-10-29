@@ -1603,3 +1603,31 @@ def test_a_push_override_also_defeats_the_no_box_exception(listed_repo, env):
 )
 def test_harmless_git_config_overrides_pass(command, env):
     assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr --title view create --body x",
+        "gh pr -t view create",
+        "gh issue --body list create",
+        "gh --title view pr create",
+        "gh pr -R a/b --title view create",
+        "gh repo --description=x view",
+    ],
+)
+def test_a_gh_flag_before_the_action_asks(command, env):
+    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr -R a/b view 1",
+        "gh -R a/b pr list",
+        "gh pr --repo=a/b view 1",
+        "gh pr view --json title",
+    ],
+)
+def test_global_flags_before_a_gh_read_still_pass(command, env):
+    assert box(command, env) is None

@@ -747,6 +747,26 @@ def _gh_change(group: str, action: str, tail: list[Word], cwd: str, texts: list[
     return Finding(TITLE_GITHUB, tuple(lines))
 
 
+def _gh_flag_before_action(args: list[Word], positions: list[int]) -> bool:
+    """Whether a flag other than `-R/--repo/--hostname` sits before the group or the action.
+
+    gh's parser knows which flags take a value and the gate does not: in `gh pr --title view
+    create`, `view` is the title and `create` runs.
+    """
+    end = positions[-1] if positions else len(args)
+    index = 0
+    while index < end:
+        name, equals, _ = args[index].text.partition("=")
+        index += 1
+        if not name.startswith("-"):
+            continue
+        if name in GH_GLOBAL_VALUES:
+            index += 0 if equals else 1
+        elif name not in ("-h", "--help"):
+            return True
+    return False
+
+
 def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
     texts = [word.text for word in command.words]
     top = parse_flags(args, GH_GLOBAL_VALUES)
@@ -755,6 +775,8 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
     is_api = top.positionals[0].text == "api"
     if any(args[position].expands for position in top.positions[: 1 if is_api else 2]):
         return [_unsure(texts, "O subcomando do gh vem de uma expansão (variável ou comando).")]
+    if _gh_flag_before_action(args, top.positions[: 1 if is_api else 2]):
+        return [_unsure(texts, "Uma opção antes da ação do gh pode tomar a ação como valor.")]
     group = top.positionals[0].text
     action = top.positionals[1].text if len(top.positionals) > 1 else ""
     if group == "auth" and (
