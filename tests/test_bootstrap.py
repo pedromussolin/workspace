@@ -711,6 +711,7 @@ def test_missing_apt_needs_the_user_with_the_manual_command(
     bin_dir = tmp_path / "only-git"
     bin_dir.mkdir()
     (bin_dir / "git").symlink_to(real_git)
+    (bin_dir / "python3").symlink_to(shutil.which("python3"))
     for tool in ("bwrap", "socat"):
         (bin_dir / tool).symlink_to(env.repo.parent / "sandbox-bin" / tool)
     monkeypatch.setenv("PATH", str(bin_dir))
@@ -807,6 +808,26 @@ def test_setup_reports_missing_config_toml(env):
     problems = _setup(env).needs
 
     assert problems == [f'{env.config / "config.toml"} is missing; see "Local config" in README.md']
+
+
+def test_setup_reports_a_hook_python_without_tomllib(env, monkeypatch):
+    real_run = subprocess.run
+
+    def fake_run(command, *args, **kwargs):
+        if command[:3] == ["python3", "-I", "-c"]:
+            return subprocess.CompletedProcess(command, 1, "", "ModuleNotFoundError: tomllib")
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    problems = _setup(env).needs
+
+    assert len(problems) == 1
+    assert "older than 3.11" in problems[0]
+
+
+def test_setup_accepts_the_hook_python():
+    assert subprocess.run(["python3", "-I", "-c", "import tomllib"], check=False).returncode == 0
 
 
 def test_setup_reports_missing_sandbox_tools(env, monkeypatch):

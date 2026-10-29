@@ -156,6 +156,7 @@ def run_setup(
     _link_skills(setup, repo, skills_target)
     _check_config(setup, config)
     _check_sandbox_tools(setup)
+    _check_hook_python(setup)
     _install_dictionaries(setup)
     _sync_hooks_copy(setup, repo, hooks_dir)
     _check_claude_gates(setup, hooks_dir, settings)
@@ -312,6 +313,23 @@ def _check_sandbox_tools(setup: _Setup) -> None:
         setup.need(
             f"sandbox tools missing ({', '.join(missing)}); run "
             "sudo apt-get install -y bubblewrap socat (only to run the evals)"
+        )
+
+
+def _check_hook_python(setup: _Setup) -> None:
+    """The Claude Code hooks run with the system `python3`, not uv's, and the gate reads TOML."""
+    probe = "import sys, tomllib; print(*sys.version_info[:2])"
+    try:
+        result = subprocess.run(
+            ["python3", "-I", "-c", probe], capture_output=True, text=True, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        setup.need(f"python3 for the Claude Code hooks: could not run it ({error})")
+        return
+    if result.returncode != 0:
+        setup.need(
+            "python3 for the Claude Code hooks is older than 3.11 (no tomllib); the approval "
+            "gate would ask before every command. Install python3.11 or newer as python3"
         )
 
 
