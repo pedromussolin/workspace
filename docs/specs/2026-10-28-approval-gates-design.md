@@ -196,6 +196,22 @@ pytest, no network: the gate is run as a subprocess with JSON payloads, as today
 The cases of `tests/test_ask_card_apply_hook.py` move to the new gate tests and keep passing;
 2026-10-28's false alarm becomes a test that must pass silently.
 
+### Known limits of phase 1 (accepted 2026-10-29)
+
+Three review rounds (2026-10-28 and 29) closed the fail-open paths (hook timeout, crashes) and the
+bypasses a model would plausibly write. The gate reads text, so these stay open by design and close
+in phase 3, when the keys leave the model's reach:
+
+- a script file the command runs, `xargs`, `find -exec`, `ssh`, a double fork reparented to init
+  (it escapes the card's agent-ancestor walk), and code that builds a name at run time (Python string
+  concatenation of a credential path, `$'...'` ANSI-C quoting, a git config key held in a variable);
+- in the hook-bypass gate: commands piped into a shell (`cat <<EOF | bash`) and `GIT_CONFIG_GLOBAL`
+  pointing at another file;
+- a quoted word over 4 KB with spaces in it is parsed normally (the 4 KB guard splits on spaces);
+- the Edit and Write tools are outside the gate's matcher: an edited `.git/config` is caught only by
+  the push's local-config check, and an edited hook rule reaches the gate only through `ws setup` run
+  by hand, after the user reads its diff.
+
 ## Phase 2 (to design before building)
 
 Open: the broker transport (a Unix socket), the `ws approvals` pane in a terminal tab, whether
