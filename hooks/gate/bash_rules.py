@@ -209,6 +209,7 @@ GH_CHANGE_VALUES = GH_GLOBAL_VALUES | {
 GH_MERGE_VALUES = GH_GLOBAL_VALUES | {"-t", "--subject", "-b", "--body", "-F", "--body-file"}
 GH_MERGE_METHODS = {"-m": "merge", "--merge": "merge", "-s": "squash", "--squash": "squash"}
 GH_MERGE_METHODS |= {"-r": "rebase", "--rebase": "rebase"}
+GH_CALLED_OUT = ("--admin", "--force", "--delete-branch")
 
 CURL_VALUE_FLAGS = {
     "-A",
@@ -907,8 +908,16 @@ def _gh_change(
             lines.append(f"Texto: {body}")
     else:
         lines = [f"Comando do gh que altera algo fora: gh {cut(' '.join(texts), 100)}"]
+    called = [flag for flag in GH_CALLED_OUT if parsed.has(flag)]
+    if (group, action) == ("pr", "merge") and parsed.has("-d") and "--delete-branch" not in called:
+        called.append("--delete-branch")
+    for flag in called:
+        if not any(line.startswith(f"ATENÇÃO: {flag}") for line in lines):
+            lines.append(f"ATENÇÃO: {flag} no comando do gh")
     brief = f"{repo}: {lines[0].replace(f' em {repo}', '')}"
-    return Finding(TITLE_GITHUB, tuple(lines), brief=brief)
+    if called:
+        brief += f" ({' '.join(called)})"
+    return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=bool(called))
 
 
 def _gh_flag_before_action(args: list[Word], positions: list[int]) -> bool:

