@@ -68,7 +68,7 @@ produto.
 1. **Cabeçalho num ponto só.** Toda chamada do BFF a um serviço interno (cessão, TSE, product-manager, orquestrador,
    user-service, shared, ai-service, data lake) leva o `X-Identificador-Interno` com os `internal_id` do parceiro da
    sessão, separados por vírgula, como o Heimdall faz no gateway. A sessão interna (Poliedro) vai sem cabeçalho.
-   Nunca vai para serviço de fora (Azure, Graph, BlueDeck, CERC, S3).
+   Nunca vai para serviço de fora (Azure, Graph, fornecedores e registradoras, S3).
 2. **FQDN.** As URLs dos serviços internos (Parameter Store, uma variável por serviço) passam para o nome interno do
    cluster, uma por vez, primeiro na sandbox. Os nomes certos por ambiente ficam na pasta privada (em produção, os
    charts a partir da 2.4.14 não têm o sufixo do ambiente; o user-service ainda tem).
