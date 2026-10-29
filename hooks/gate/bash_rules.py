@@ -23,6 +23,16 @@ the endpoint (`$FLAGS`, `-X$M`, `-X $M`), since it could inject a method or fiel
 Text rules cannot see a script file the command runs, text piped to `python` or `node`, programs
 that start other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude Code reports stale.
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
+
+A plain `git push` (or `git push origin main`) shows no box only when all of these hold, in
+`[gate]` of `~/.config/workspace/config.toml`: the cwd is listed in `push_without_asking`; every
+push URL of `origin` (`git remote get-url --push --all origin`) is listed in `push_remotes`; a
+bare `git push` is not sent to another remote by `branch.*.pushRemote`, `remote.pushDefault` or
+`branch.*.remote`; and the repository's local config sets none of the keys that run a program or
+redirect the push (`LOCAL_RISKY_KEYS`; `core.hooksPath` only as `.githooks`). `.git/config` can
+change outside the gate (the Edit tool is not in its matcher), so these are read from git at each
+push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatch or a failed
+query asks, and the box shows the real push URL and the names (never the values) of the keys.
 """
 
 import fnmatch
@@ -125,6 +135,11 @@ RISKY_GIT_KEYS = re.compile(
 STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
 STORE_PROGRAMS = {"env", "sudo"}
 PUSH_URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[^/:]+@[^/:]+:|[^/:]{2,}:|/|\.\.?/|~)", re.I)
+LOCAL_RISKY_KEYS = (
+    r"^(core\.(sshcommand|askpass|hookspath)|credential\..*"
+    r"|remote\..*\.(receivepack|uploadpack|proxy|vcs)|url\..*\.(insteadof|pushinsteadof)"
+    r"|http\..*proxy.*|include\.path|includeif\..*)$"
+)
 GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
 INJECTING_START = "$`{-"
@@ -549,6 +564,23 @@ def _push_destination(folder: str, bare: bool) -> tuple[list[str], str | None] |
     return (urls, elsewhere) if urls else None
 
 
+def _local_risky_keys(folder: str) -> list[str] | None:
+    """Keys of the repository's local config that run a program or redirect a push; None if
+    git cannot tell. Only the names leave this function: a value may hold a secret."""
+    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
+    done = _local_git(folder, ["config", "--local", "--get-regexp", LOCAL_RISKY_KEYS], deadline)
+    if done is None or done.returncode not in (0, 1):
+        return None
+    keys = []
+    for line in done.stdout.splitlines():
+        key, _, value = line.partition(" ")
+        if key == "core.hookspath" and value.strip() == ".githooks":
+            continue
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
 def _allowed_push_remotes() -> set[str]:
     try:
         with open(_config_dir() / "config.toml", "rb") as handle:
@@ -593,6 +625,7 @@ def _push(
     moved: bool,
     overrides: list[str],
     destination: tuple[list[str], str | None] | None = None,
+    warnings: list[str] | None = None,
 ) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     names = [word.text for word in parsed.positionals]
@@ -620,6 +653,7 @@ def _push(
         lines.append(f"Endereço de envio do origin: {', '.join(urls)}")
         if elsewhere:
             lines.append(f"ATENÇÃO: {elsewhere} manda o git push para outro remoto")
+    lines += warnings or []
     if state:
         branch, upstream, ahead = state
         lines.append(f"Branch atual: {branch}, upstream {upstream}")
@@ -645,7 +679,8 @@ def _push(
     flags = " ".join([*forced[:1], *(["--delete"] if deleted else []), *extra])
     refs = ", ".join(names) if names else "refs padrão"
     brief = f"{shown} ← git push {flags + ' ' if flags else ''}{refs} da pasta {_pretty(folder)}"
-    alert = bool(given_url or overrides or forced or deleted or (destination and destination[1]))
+    alert = bool(given_url or overrides or forced or deleted or warnings)
+    alert = alert or bool(destination and destination[1])
     return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=alert)
 
 
@@ -715,13 +750,28 @@ def _git_verb(
     if verb == "push":
         plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
         destination = None
+        warnings: list[str] = []
         if plain and _listed_for_push(cwd):
             bare = not any(word.text == "origin" for word in rest)
             destination = _push_destination(cwd, bare)
             allowed = _allowed_push_remotes()
-            if destination and not destination[1] and set(destination[0]) <= allowed:
+            keys = _local_risky_keys(cwd)
+            if keys is None:
+                warnings = ["ATENÇÃO: não consegui ler a configuração local do repositório"]
+            else:
+                warnings = [
+                    f"ATENÇÃO: a configuração local do repositório define {cut(key, 80)}"
+                    for key in keys
+                ]
+            if (
+                destination
+                and not destination[1]
+                and set(destination[0]) <= allowed
+                and not warnings
+            ):
                 return []
-        return [_push(rest, directories, cwd, _runs_cd(scan), overrides, destination)]
+        found = _push(rest, directories, cwd, _runs_cd(scan), overrides, destination, warnings)
+        return [found]
     if verb == "remote":
         word = next((w for w in rest if not w.text.startswith("-")), None)
         if word is not None and word.expands:

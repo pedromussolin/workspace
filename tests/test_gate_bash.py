@@ -509,6 +509,53 @@ def test_the_no_box_push_check_runs_no_repository_code(listed_repo, env, tmp_pat
 
 
 @pytest.mark.parametrize(
+    ("key", "value", "shown"),
+    [
+        ("core.sshCommand", "ssh -i hidden-value", "core.sshcommand"),
+        ("core.askPass", "/tmp/hidden-value", "core.askpass"),
+        ("credential.helper", "store --file hidden-value", "credential.helper"),
+        ("credential.https://example.com.username", "hidden-value", "credential.https"),
+        ("remote.origin.receivepack", "hidden-value", "remote.origin.receivepack"),
+        ("remote.origin.uploadpack", "hidden-value", "remote.origin.uploadpack"),
+        ("remote.origin.proxy", "http://hidden-value", "remote.origin.proxy"),
+        ("remote.origin.vcs", "hidden-value", "remote.origin.vcs"),
+        ("url.https://other.example/.insteadOf", "hidden-value:", "url.https://other.example/"),
+        ("url.https://other.example/.pushInsteadOf", "hidden-value:", "pushinsteadof"),
+        ("http.proxy", "http://hidden-value", "http.proxy"),
+        ("http.https://example.com.proxy", "http://hidden-value", "http.https://example.com"),
+        ("core.hooksPath", "/tmp/hidden-value", "core.hookspath"),
+        ("include.path", "/tmp/hidden-value", "include.path"),
+        ("includeIf.gitdir:/tmp/.path", "/tmp/hidden-value", "includeif.gitdir:/tmp/.path"),
+    ],
+)
+def test_the_no_box_push_asks_when_the_local_config_runs_a_program_or_redirects(
+    key, value, shown, listed_repo, env, tmp_path
+):
+    _git(["config", "--local", key, value], listed_repo, tmp_path)
+    for command in ("git push", "git push origin main"):
+        text = box(command, env, cwd=str(listed_repo))
+
+        warning = next(line for line in text.splitlines() if "configuração local" in line)
+        assert warning.startswith("ATENÇÃO: a configuração local do repositório define ")
+        assert shown in warning
+        assert "hidden-value" not in text
+
+
+def test_the_no_box_push_allows_the_repo_hooks_path(listed_repo, env, tmp_path):
+    _git(["config", "--local", "core.hooksPath", ".githooks"], listed_repo, tmp_path)
+
+    assert box("git push", env, cwd=str(listed_repo)) is None
+
+
+def test_the_no_box_push_asks_when_the_local_config_cannot_be_read(listed_repo, env):
+    with (listed_repo / ".git" / "config").open("a", encoding="utf-8") as handle:
+        handle.write("[broken\n")
+    text = box("git push", env, cwd=str(listed_repo))
+
+    assert "ATENÇÃO: não consegui ler a configuração local do repositório" in text.splitlines()
+
+
+@pytest.mark.parametrize(
     "command",
     [
         "git push",
