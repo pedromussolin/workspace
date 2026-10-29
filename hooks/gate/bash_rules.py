@@ -1358,9 +1358,18 @@ def _credentials(command: Command, folders: list[str]) -> list[Finding]:
 
 
 def _program_by_expansion(command: Command, whole: str) -> list[Finding]:
+    """A program word built by an expansion: its name is unknown when it is in the last component.
+
+    `$HOME/.local/bin/uv` names `uv`; `${c}l` may name `curl`, whatever the rest of the text cites.
+    An expansion that ends after the last `/` leaves `}`, `)` or a backtick in the name.
+    """
     texts = [word.text for word in command.words]
     index = shell.locate_program(texts)
-    if index is None or not command.words[index].expands or not NAMES.search(whole):
+    if index is None or not command.words[index].expands:
+        return []
+    if set(texts[index].rsplit("/", 1)[-1]) & set("$`{}()"):
+        return [_unsure(texts, "O nome do programa vem de uma expansão; não sei o que vai rodar.")]
+    if not NAMES.search(whole):
         return []
     return [_unsure(texts, "O nome do programa vem de uma expansão e o comando cita ws, gh, git…")]
 
