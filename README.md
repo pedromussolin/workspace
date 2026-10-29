@@ -97,17 +97,12 @@ stale_workdays = 3
   `ws card` only touches cards of `project`.
 - The API key must be an unscoped token: a scoped token only works through the
   `api.atlassian.com/ex/jira/<cloudId>` gateway, and `ws` calls the site URL.
-- `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)` and on the Atlassian write
-  tools, and for the `hooks/ask_card_apply.py` PreToolUse hook, which asks for any command that
-  names `card` and `apply` as words, or `ws.card`, `from ws import card` or `run_apply` (never
-  editing `~/.claude/settings.json` itself), so every write needs your yes in Claude Code. It also
-  asks for `ws` or `card` together with a shell expansion or escape (`$`, a backtick, `{`,
-  `eval`, `base64`, ...). The hook reads text: a script file, a background process in a new session
-  (`setsid`, `nohup`) or an import route outside those patterns is not seen, and the auto-mode
-  classifier and your reading of each command remain the barrier there. `ws card apply --approve`
-  refuses (exit 2) without the rule and the hook registered for `Bash`, and (exit 1) when it runs
-  in the same shell session as the preview (a single command line cannot preview and apply; by
-  hand, run the apply in another terminal tab).
+- `ws setup` asks for `permissions.ask` rules on `Bash(ws card apply:*)`, on the Atlassian, GitHub
+  and GitKraken write tools, and for the approval gate (see "Claude Code hooks" below), so every
+  write needs your yes in Claude Code. `ws card apply --approve` refuses (exit 2) without the rule
+  and the gate registered for `Bash`, and (exit 1) when it runs in the same shell session as the
+  preview (a single command line cannot preview and apply; by hand, run the apply in another
+  terminal tab).
 - `site` must be `https://<name>.atlassian.net`: the API key is never sent anywhere else, and a
   `credentials` file that is a symlink or not yours is refused.
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in
@@ -126,7 +121,27 @@ Protection starts after `ws setup`: a fresh clone has no git hooks. From then on
 | `commit-msg` | the commit message; also warns about new words |
 | `pre-push` | every pushed commit: lines, message, author and committer e-mails; also blocks on new words |
 
-A Claude Code gate, `hooks/block_hook_bypass.py`, blocks `--no-verify`, `git commit -n` and any
+### Claude Code hooks
+
+The approval gate (`hooks/approval_gate.py`, rules in `hooks/gate/`) is a `PreToolUse` hook for
+`Bash` and `mcp__*` tools: it asks you before a write that leaves the machine (a push, a GitHub,
+GitKraken or Atlassian write, a card apply) and shows what will be sent. Two more hooks block
+commits with a co-author trailer and hook bypasses. `ws setup` copies them to
+`~/.claude/hooks/workspace/` (read-only files and a `manifest.json` of SHA-256 sums), reports a
+missing, stale, edited or extra file (`--check` only reports) and prints the settings JSON that
+registers `python3 -I "<copy>/<script>"`: the gate with the matcher `Bash|mcp__.*`, the other two
+with `Bash`. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
+reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_DIR`.
+
+The optional `[gate]` table of `config.toml` tunes the gate (`ws setup` reports a wrong type and
+never writes it):
+
+| Key | Meaning |
+|---|---|
+| `push_without_asking` | list of repo paths (`~` allowed) where a plain push goes without asking |
+| `personal_github_owners` | list of GitHub owners that get the confidentiality check before a write |
+
+The gate `hooks/block_hook_bypass.py` blocks `--no-verify`, `git commit -n` and any
 `core.hooksPath` override, in every repo; `ws setup` checks that it is registered. Exceptions go in
 `.secrets-allow`, which is read from the index (an entry counts once staged) and excuses only the
 span it matches, not the rest of the line.
