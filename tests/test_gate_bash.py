@@ -297,6 +297,29 @@ def test_push_box_with_dash_c_reads_the_branch_of_that_folder(repo_ahead, env, t
     assert "Branch atual: feature/x, upstream origin/feature/x" in text
 
 
+@pytest.mark.parametrize(
+    ("command", "shown"),
+    [
+        ("git --git-dir=/elsewhere/.git push", "--git-dir=/elsewhere/.git"),
+        ("git --git-dir /elsewhere/.git push", "--git-dir /elsewhere/.git"),
+        ("git --work-tree=/elsewhere push", "--work-tree=/elsewhere"),
+        ("GIT_DIR=/elsewhere/.git git push", "GIT_DIR=/elsewhere/.git"),
+        ("export GIT_WORK_TREE=/elsewhere; git push", "GIT_WORK_TREE=/elsewhere"),
+        ("env -C /elsewhere git push", "env -C /elsewhere"),
+        ("env --chdir=/elsewhere git push", "env --chdir=/elsewhere"),
+        ('git -C "$X" push', "-C $X"),
+    ],
+)
+def test_a_push_from_another_repository_says_so_and_reads_no_branch(
+    command, shown, repo_ahead, env
+):
+    lines = box(command, env, cwd=str(repo_ahead)).splitlines()
+
+    warning = next(line for line in lines if "outro repositório" in line)
+    assert warning.startswith("ATENÇÃO:") and shown in warning
+    assert not any(line.startswith("Branch atual:") for line in lines)
+
+
 def test_push_box_with_an_explicit_refspec_keeps_the_refspec_line(repo_ahead, env):
     text = box("git push origin feature/x", env, cwd=str(repo_ahead))
 

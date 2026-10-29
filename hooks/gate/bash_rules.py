@@ -691,6 +691,7 @@ def _push(
     overrides: list[str],
     destination: tuple[list[str], str | None] | None = None,
     warnings: list[str] | None = None,
+    elsewhere: list[str] | None = None,
 ) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     names = [word.text for word in parsed.positionals]
@@ -703,7 +704,7 @@ def _push(
     folder = _folder(cwd, directories)
     redirecting = [override for override in overrides if _redirects_push(override)]
     state = None
-    if not names and not moved and not any(word.expands for word in directories):
+    if not (names or moved or elsewhere or any(word.expands for word in directories)):
         state = _branch_state(folder)
     if redirecting:
         shown = f"{remote or 'o padrão'}, mudado por {redirecting[0]}"
@@ -719,6 +720,10 @@ def _push(
         if elsewhere:
             lines.append(f"ATENÇÃO: {elsewhere} manda o git push para outro remoto")
     lines += warnings or []
+    lines += [
+        f"ATENÇÃO: {cut(where, 100)} faz o git push usar outro repositório; a branch não foi lida"
+        for where in elsewhere or []
+    ]
     if state:
         branch, upstream, ahead = state
         lines.append(f"Branch atual: {branch}, upstream {upstream}")
@@ -744,7 +749,7 @@ def _push(
     flags = " ".join([*forced[:1], *(["--delete"] if deleted else []), *extra])
     refs = ", ".join(names) if names else "refs padrão"
     brief = f"{shown} ← git push {flags + ' ' if flags else ''}{refs} da pasta {_pretty(folder)}"
-    alert = bool(given_url or overrides or forced or deleted or warnings)
+    alert = bool(given_url or overrides or forced or deleted or warnings or elsewhere)
     alert = alert or bool(destination and destination[1])
     return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=alert)
 
@@ -759,6 +764,44 @@ def _is_plain_push(texts: list[str]) -> bool:
         return False
     rest = [word for word in rest if word not in QUIET_FLAGS]
     return rest in ([], ["origin", "main"])
+
+
+def _other_repository(command: Command, args: list[Word], scan: Scan) -> list[str]:
+    """What makes a push use a repository other than the one in its folder, as typed.
+
+    `--git-dir`, `--work-tree`, a `GIT_DIR`-like variable, `env -C` and a `-C` from an expansion:
+    the branch query would describe the cwd's repository, so the box must not show it.
+    """
+    found = []
+    index = 0
+    while index < len(args) and args[index].text.startswith("-"):
+        option = args[index].text
+        index += 1
+        if option.startswith(("--git-dir=", "--work-tree=")):
+            found.append(option)
+        elif option in ("--git-dir", "--work-tree", "-C") and index < len(args):
+            if option != "-C" or args[index].expands:
+                found.append(f"{option} {args[index].text}")
+            index += 1
+        elif option in GIT_VALUE_OPTIONS:
+            index += 1
+    texts = [word.text for word in command.words]
+    program = shell.locate_program(texts)
+    wrapper = ""
+    for position, text in enumerate(texts[:program]):
+        if program_name(text) in shell.WRAPPERS:
+            wrapper = program_name(text)
+        elif text.startswith("--chdir="):
+            found.append(f"{wrapper} {text}".strip())
+        elif text in ("-C", "--chdir", "-D") and position + 1 < len(texts):
+            found.append(f"{wrapper} {text} {texts[position + 1]}".strip())
+    found += [
+        word.text
+        for each in scan.commands
+        for word in each.words
+        if GIT_DIRECTORY_VARIABLE.match(word.text)
+    ]
+    return list(dict.fromkeys(found))
 
 
 def _only_command(scan: Scan, command: Command) -> bool:
@@ -847,7 +890,9 @@ def _git_verb(
                 and not warnings
             ):
                 return []
-        found = _push(rest, directories, cwd, _runs_cd(scan), overrides, destination, warnings)
+        elsewhere = _other_repository(command, args, scan)
+        moved = _runs_cd(scan)
+        found = _push(rest, directories, cwd, moved, overrides, destination, warnings, elsewhere)
         return [found]
     if verb == "remote":
         word = next((w for w in rest if not w.text.startswith("-")), None)
