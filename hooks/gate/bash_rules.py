@@ -479,6 +479,70 @@ def _in_repository(folder: str) -> bool:
     return path.is_dir() and any((each / ".git").exists() for each in (path, *path.parents))
 
 
+def _local_git(
+    folder: str, query: list[str], deadline: float
+) -> subprocess.CompletedProcess[str] | None:
+    """One local, read-only `git` query with the repository's `fsmonitor` and hooks switched off.
+
+    A hostile `.git/config` must not run code from the gate. None on any failure or timeout.
+    """
+    left = deadline - time.monotonic()
+    if left <= 0:
+        return None
+    environment = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
+    environment |= {"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+    base = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
+    try:
+        return subprocess.run(
+            [*base, *query],
+            cwd=folder,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=left,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def _push_destination(folder: str, bare: bool) -> tuple[list[str], str | None] | None:
+    """The push URLs of `origin` and, for a bare `git push`, a setting that sends it elsewhere.
+
+    `.git/config` can change without the gate seeing it (the Edit tool is outside its matcher),
+    so the no-box push checks where it really goes. None when git cannot tell.
+    """
+    if not _in_repository(folder):
+        return None
+    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
+    elsewhere = None
+    if bare:
+        pattern = r"^(branch\..*\.(pushremote|remote)|remote\.pushdefault)$"
+        done = _local_git(folder, ["config", "--get-regexp", pattern], deadline)
+        if done is None or done.returncode not in (0, 1):
+            return None
+        for line in done.stdout.splitlines():
+            key, _, value = line.partition(" ")
+            if value != "origin":
+                elsewhere = f"{key}={value}"
+                break
+    done = _local_git(folder, ["remote", "get-url", "--push", "--all", "origin"], deadline)
+    if done is None or done.returncode != 0:
+        return None
+    urls = [line.strip() for line in done.stdout.splitlines() if line.strip()]
+    return (urls, elsewhere) if urls else None
+
+
+def _allowed_push_remotes() -> set[str]:
+    try:
+        with open(_config_dir() / "config.toml", "rb") as handle:
+            listed = tomllib.load(handle)["gate"]["push_remotes"]
+        return {url for url in listed if isinstance(url, str)}
+    except (OSError, ValueError, KeyError, TypeError):
+        return set()
+
+
 def _branch_state(folder: str) -> tuple[str, str, int] | None:
     """The current branch, its upstream and how many commits it is ahead, or None.
 
@@ -488,9 +552,6 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
     """
     if not _in_repository(folder):
         return None
-    environment = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
-    environment |= {"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
-    base = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
     queries = (
         ["rev-parse", "--abbrev-ref", "HEAD"],
         ["rev-parse", "--abbrev-ref", "@{u}"],
@@ -499,24 +560,9 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
     deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
     answers: list[str] = []
     for query in queries:
-        left = deadline - time.monotonic()
-        if left <= 0:
-            return None
-        try:
-            done = subprocess.run(
-                [*base, *query],
-                cwd=folder,
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=left,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError, ValueError):
-            return None
-        answer = done.stdout.strip()
-        if done.returncode != 0 or not answer or "\n" in answer:
+        done = _local_git(folder, query, deadline)
+        answer = done.stdout.strip() if done else ""
+        if done is None or done.returncode != 0 or not answer or "\n" in answer:
             return None
         answers.append(answer)
     branch, upstream, ahead = answers
@@ -526,7 +572,12 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
 
 
 def _push(
-    rest: list[Word], directories: list[Word], cwd: str, moved: bool, overrides: list[str]
+    rest: list[Word],
+    directories: list[Word],
+    cwd: str,
+    moved: bool,
+    overrides: list[str],
+    destination: tuple[list[str], str | None] | None = None,
 ) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     names = [word.text for word in parsed.positionals]
@@ -549,6 +600,11 @@ def _push(
         f"Enviar commits (git push) da pasta {_pretty(folder)}",
         f"Remoto: {shown}",
     ]
+    if destination is not None:
+        urls, elsewhere = destination
+        lines.append(f"Endereço de envio do origin: {', '.join(urls)}")
+        if elsewhere:
+            lines.append(f"ATENÇÃO: {elsewhere} manda o git push para outro remoto")
     if state:
         branch, upstream, ahead = state
         lines.append(f"Branch atual: {branch}, upstream {upstream}")
@@ -636,9 +692,14 @@ def _git_verb(
         return [_git_credential(texts, verb)]
     if verb == "push":
         plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
+        destination = None
         if plain and _listed_for_push(cwd):
-            return []
-        return [_push(rest, directories, cwd, _runs_cd(scan), overrides)]
+            bare = not any(word.text == "origin" for word in rest)
+            destination = _push_destination(cwd, bare)
+            allowed = _allowed_push_remotes()
+            if destination and not destination[1] and set(destination[0]) <= allowed:
+                return []
+        return [_push(rest, directories, cwd, _runs_cd(scan), overrides, destination)]
     if verb == "remote":
         word = next((w for w in rest if not w.text.startswith("-")), None)
         if word is not None and word.expands:

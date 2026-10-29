@@ -446,12 +446,66 @@ def test_each_push_in_a_chain_is_described(env):
     assert "Criar PR em a/b" in text
 
 
+PUSH_URL = "https://example.com/me/repo.git"
+
+
 @pytest.fixture
 def listed_repo(env, tmp_path):
+    """A repository in a `push_without_asking` folder whose origin is in `push_remotes`."""
     repo = tmp_path / "home" / "repo"
-    repo.mkdir()
-    write_config(env, '[gate]\npush_without_asking = ["~/repo"]\n')
+    _git(["init", "-q", "-b", "main", str(repo)], tmp_path, tmp_path)
+    _git(["remote", "add", "origin", PUSH_URL], repo, tmp_path)
+    write_config(env, f'[gate]\npush_without_asking = ["~/repo"]\npush_remotes = ["{PUSH_URL}"]\n')
     return repo
+
+
+def test_the_no_box_push_needs_the_push_remotes_list(listed_repo, env):
+    write_config(env, '[gate]\npush_without_asking = ["~/repo"]\n')
+    lines = box("git push", env, cwd=str(listed_repo)).splitlines()
+
+    assert f"Endereço de envio do origin: {PUSH_URL}" in lines
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        ["remote", "set-url", "origin", "https://evil.example/x.git"],
+        ["remote", "set-url", "--push", "origin", "https://evil.example/x.git"],
+        ["remote", "set-url", "--add", "--push", "origin", "https://evil.example/x.git"],
+        ["config", "url.https://evil.example/.pushInsteadOf", "https://example.com/"],
+    ],
+)
+def test_the_no_box_push_asks_when_origin_was_changed_behind_the_gate(
+    change, listed_repo, env, tmp_path
+):
+    _git(change, listed_repo, tmp_path)
+    for command in ("git push", "git push origin main"):
+        text = box(command, env, cwd=str(listed_repo))
+
+        assert "Endereço de envio do origin: " in text
+        assert "https://evil.example/" in text
+
+
+def test_the_bare_no_box_push_asks_when_the_branch_pushes_to_another_remote(
+    listed_repo, env, tmp_path
+):
+    _git(["remote", "add", "evil", "https://evil.example/x.git"], listed_repo, tmp_path)
+    _git(["config", "branch.main.pushRemote", "evil"], listed_repo, tmp_path)
+
+    text = box("git push", env, cwd=str(listed_repo))
+    assert "ATENÇÃO: branch.main.pushremote=evil manda o git push para outro remoto" in text
+    assert box("git push origin main", env, cwd=str(listed_repo)) is None
+
+
+def test_the_no_box_push_check_runs_no_repository_code(listed_repo, env, tmp_path):
+    marker = tmp_path / "ran"
+    script = tmp_path / "monitor.sh"
+    script.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+    script.chmod(0o755)
+    _git(["config", "core.fsmonitor", str(script)], listed_repo, tmp_path)
+
+    assert box("git push", env, cwd=str(listed_repo)) is None
+    assert not marker.exists()
 
 
 @pytest.mark.parametrize(
