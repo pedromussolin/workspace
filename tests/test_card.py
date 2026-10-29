@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from ws import card, cardrules
+from ws import card, cardrules, humans
 from ws.adf import to_adf
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
@@ -145,7 +145,7 @@ class World:
 
 REAL_SESSION_ID = card._session_id
 REAL_INTERACTIVE = card._interactive
-REAL_UNDER_HARNESS = card._under_agent_harness
+REAL_UNDER_HARNESS = humans.under_agent_harness
 
 
 HOOKS_COPY = "/srv/claude/hooks/workspace"
@@ -2159,7 +2159,7 @@ def at_a_terminal(monkeypatch, *answers, tty=True):
     """Both streams are TTYs, Claude Code is not around, and `input` answers from the list (an
     exception in the list is raised). Returns the prompts shown."""
     monkeypatch.setattr(card, "_interactive", REAL_INTERACTIVE)
-    monkeypatch.setattr(card, "_under_agent_harness", lambda: False)
+    monkeypatch.setattr(humans, "under_agent_harness", lambda: False)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: tty, raising=False)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: tty, raising=False)
     monkeypatch.delenv("CLAUDECODE", raising=False)
@@ -2336,7 +2336,7 @@ def fake_proc(tmp_path, monkeypatch, chain):
         (folder / "stat").write_text(f"{pids[index]} ({comm}) S {parent} 1 1 0\n")
         (folder / "comm").write_text(comm + "\n")
         (folder / "cmdline").write_bytes("\0".join(words).encode() + b"\0")
-    monkeypatch.setattr(card, "PROC", root)
+    monkeypatch.setattr(humans, "PROC", root)
     return root
 
 
@@ -2354,31 +2354,41 @@ def fake_proc(tmp_path, monkeypatch, chain):
     ],
 )
 def test_an_agent_harness_ancestor_is_not_by_hand(tmp_path, monkeypatch, harness):
-    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    monkeypatch.setattr(humans, "under_agent_harness", REAL_UNDER_HARNESS)
     shell = ("bash", ["bash", "-c", "ws card apply"])
     fake_proc(tmp_path, monkeypatch, [("script", ["script", "-qec", "ws"]), shell, harness])
 
-    assert card._under_agent_harness() is True
+    assert humans.under_agent_harness() is True
 
 
 def test_a_terminal_without_a_harness_ancestor_is_by_hand(tmp_path, monkeypatch):
-    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    monkeypatch.setattr(humans, "under_agent_harness", REAL_UNDER_HARNESS)
     chain = [("bash", ["-bash"]), ("tmux: server", ["tmux", "new", "claude-notes.md"])]
     fake_proc(tmp_path, monkeypatch, chain)
 
-    assert card._under_agent_harness() is False
+    assert humans.under_agent_harness() is False
 
 
 def test_a_proc_that_cannot_be_read_is_not_by_hand(tmp_path, monkeypatch):
-    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
-    monkeypatch.setattr(card, "PROC", tmp_path / "missing")
+    monkeypatch.setattr(humans, "under_agent_harness", REAL_UNDER_HARNESS)
+    monkeypatch.setattr(humans, "PROC", tmp_path / "missing")
 
-    assert card._under_agent_harness() is True
+    assert humans.under_agent_harness() is True
 
 
 def test_a_pseudo_terminal_run_by_the_harness_is_not_interactive(tmp_path, monkeypatch):
     at_a_terminal(monkeypatch, "s")
-    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    monkeypatch.setattr(humans, "under_agent_harness", REAL_UNDER_HARNESS)
     fake_proc(tmp_path, monkeypatch, [("script", ["script"]), ("claude", ["claude"])])
 
     assert card._interactive() is False
+
+
+def test_the_by_hand_limit_says_what_the_gate_really_asks_for():
+    doc = " ".join(humans.by_hand.__doc__.split())
+
+    assert "only when the program they start is one it watches" in doc
+    for program in ("ws", "git", "gh", "curl", "wget"):
+        assert f"`{program}`" in doc
+    assert "double fork" in doc
+    assert "escapes the walk" in doc
