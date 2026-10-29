@@ -1683,6 +1683,8 @@ def test_harmless_mentions_of_a_watched_program_pass(command, env):
         ("git -c pager.log=./x log", "-c pager.log"),
         ("git -c sequence.editor=./x rebase -i main", "-c sequence.editor"),
         ("git -c diff.external=./x diff", "-c diff.external"),
+        ("git -c include.path=/tmp/e.cfg push", "-c include.path=/tmp/e.cfg"),
+        ("git -c includeIf.gitdir:/x/.path=/tmp/e.cfg log", "-c includeIf.gitdir:/x/.path"),
         ("git --config-env=alias.p=ALIAS p", "--config-env=alias.p=ALIAS"),
         ("git --config-env alias.p=ALIAS p", "--config-env alias.p=ALIAS"),
         ("GIT_CONFIG_PARAMETERS=\"'alias.p=push'\" git p", "GIT_CONFIG_PARAMETERS"),

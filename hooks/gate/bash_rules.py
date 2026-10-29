@@ -128,7 +128,8 @@ GIT_VALUE_OPTIONS = {
 }
 REMOTE_KEY_STARTS = ("remote.", "url.", "alias.", "branch.", "core.sshcommand")
 RISKY_GIT_KEYS = re.compile(
-    r"^(?:alias\.|credential\.|remote\.|url\.|pager\.|filter\.|core\.(?:pager|sshcommand|editor"
+    r"^(?:alias\.|credential\.|remote\.|url\.|pager\.|filter\.|include\.path$|includeif\."
+    r"|core\.(?:pager|sshcommand|editor"
     r"|fsmonitor|askpass|gitproxy|hookspath)$|sequence\.editor$|diff\.external$|gpg\.program$"
     r"|.*\.command$|.*\.textconv$)"
 )
