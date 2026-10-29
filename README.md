@@ -138,8 +138,11 @@ Another clone whose settings still register the old card hook keeps working:
 it prints. The hooks need the system `python3` at 3.11 or newer (`ws setup` checks it); the
 `[gate]` keys, the GitHub token and the `env` block below are per person and optional.
 An MCP server that `hooks/gate/catalog.json` does not list asks before every call, reads
-included, until its read and local-only tools are added there (a commit, so every clone
-gets them).
+included, until its tools are classified there (a commit, so every clone gets them). The catalog
+has a `pass` list (reads, local-only changes) and an `ask` list (writes) per server; a tool in
+neither is unclassified, and the gate records its name (never its parameters) in
+`~/.local/share/workspace/gate/unclassified.json`. `ws setup` warns about configured servers the
+catalog lacks, and `ws gate catalog` lists them with the recorded tools.
 
 The optional `[gate]` table of `config.toml` tunes the gate (`ws setup` reports a wrong type and
 never writes it):
@@ -199,6 +202,9 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws config token jira` | Reads the Jira API key from the terminal (hidden) and stores it in `~/.config/workspace/credentials` with mode 600; refuses to run outside a terminal |
 | `ws config token github` | Same for the GitHub token (`[github]` table of the same file; the other tables are kept); `ws mcp-headers github` reads it back |
 | `ws mcp-headers github` | Meant for Claude Code's `headersHelper`: prints `{"Authorization": "Bearer <token>"}` and nothing else; exit 2 without a token, or when `CLAUDE_CODE_MCP_SERVER_NAME` is unset (a guard against casual use, not a barrier: the approval gate asks before any command that names `ws mcp-headers`) |
+| `ws gate catalog [--json]` | Lists the MCP servers configured in Claude Code (plugins, user and local scope, claude.ai connectors; read-only, names only) that `hooks/gate/catalog.json` does not know, and the tools the gate asked about without knowing them, with counts and the next command |
+| `ws gate catalog pass SERVER TOOL…` | Puts the tools in the `pass` list of the server in the repo's `catalog.json` (creating the server), takes them out of `ask` and of the unclassified record; commit the file and run `ws setup` to update the protected copy |
+| `ws gate catalog ask SERVER TOOL…` | Same for the `ask` list (writes); a name outside `[A-Za-z0-9_.-]+` is refused |
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
 | `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
 | `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |

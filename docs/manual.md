@@ -57,6 +57,19 @@ The git hooks run `ws check-secrets` and the new-word check by themselves.
 - New words: `ws names review` asks about each one in the terminal (real name, harmless term,
   skip); `ws names pending` only lists them.
 
+## Classify an MCP server
+
+An MCP server the gate does not know asks before every call, reads included. `ws setup` says
+which configured servers are missing (`MCP servers the approval gate does not know: ...`).
+
+1. `ws gate catalog` lists those servers and the tools the gate already asked about, with counts.
+   A server's tools show up there after its first calls; until then, read its tool list in Claude
+   Code (`/mcp`).
+2. Reads and changes that stay on the machine: `ws gate catalog pass SERVER TOOL...`. Writes:
+   `ws gate catalog ask SERVER TOOL...`. When unsure, `ask`.
+3. Commit `hooks/gate/catalog.json`, then run `ws setup` in your terminal: it updates the
+   protected copy the gate reads.
+
 ## Approvals the gate would show
 
 By hand there is no gate: you are the one running the command. Before a write that leaves the
