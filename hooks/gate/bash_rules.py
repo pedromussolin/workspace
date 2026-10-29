@@ -61,7 +61,7 @@ TITLE_CREDENTIAL = "Lê uma credencial"
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
 APPROVE_CODE = re.compile(r"[0-9a-f]{12}")
-WS_BY_CODE = re.compile(r"\bfrom\s+ws\b|\bimport\s+ws\b|\bws\.card\b|run_apply")
+WS_IMPORT = re.compile(r"\b(?:from|import)\s+ws\b|(?:import_module|__import__)\(\s*['\"]ws\b")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
 CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
@@ -1478,10 +1478,18 @@ def _wrapper_script_by_expansion(command: Command) -> list[Finding]:
     return []
 
 
+def _applies_card(code: str) -> bool:
+    """Python that may apply a card preview: it names `run_apply`, or imports `ws` and names
+    `card` and `apply`."""
+    if "run_apply" in code:
+        return True
+    return bool(WS_IMPORT.search(code)) and "card" in code and "apply" in code
+
+
 def _script_findings(scan: Scan) -> list[Finding]:
     found = []
     for code in scan.scripts:
-        if WS_BY_CODE.search(code):
+        if _applies_card(code):
             found.append(
                 Finding(
                     TITLE_JIRA,

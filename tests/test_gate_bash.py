@@ -202,7 +202,7 @@ def test_heredoc_data_and_commit_messages_pass(command, env):
         "cat <<EOF\n$(ws card apply d --approve abcdef012345)\nEOF",
         "cat <<EOF\n`git push`\nEOF",
         "cat <<EOF\nquoted '$(git push)' still runs\nEOF",
-        "python3 - <<'EOF'\nfrom ws import card\nEOF",
+        "python3 - <<'EOF'\nfrom ws import card\ncard.apply(1)\nEOF",
         "cat <<'EOF' | bash\nws card apply d\nEOF",
         'echo "<<EOF"\nws card apply d --approve abcdef012345\nEOF',
         "echo '<<EOF'\ngit push\nEOF",
@@ -2052,3 +2052,29 @@ def test_python_that_writes_the_protection_asks_with_one_line(command, env):
 
     assert lines[0] == "Proteção do Claude Code"
     assert len([line for line in lines if "Mexe na proteção" in line]) == 1
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'uv run python -c "import ws; print(ws.__file__)"',
+        "python3 -c 'from ws import card; print(card.__doc__)'",
+        'python3 -c \'from ws.cli import main; main(["task", "list"])\'',
+        "python3 - <<'EOF'\nimport ws\nprint(ws.__version__)\nEOF",
+    ],
+)
+def test_python_that_imports_ws_without_applying_a_card_passes(command, env):
+    assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -c 'from ws.card import apply; apply(\"d\")'",
+        "python3 -c 'import importlib; importlib.import_module(\"ws.card\").apply()'",
+        "python3 -c 'from x import run_apply'",
+        "python3 - <<'EOF'\nimport ws.card\nws.card.apply_preview('d')\nEOF",
+    ],
+)
+def test_python_that_applies_a_card_asks_with_the_jira_title(command, env):
+    assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
