@@ -145,6 +145,7 @@ class World:
 
 REAL_SESSION_ID = card._session_id
 REAL_INTERACTIVE = card._interactive
+REAL_UNDER_HARNESS = card._under_agent_harness
 
 
 HOOKS_COPY = "/srv/claude/hooks/workspace"
@@ -2158,6 +2159,7 @@ def at_a_terminal(monkeypatch, *answers, tty=True):
     """Both streams are TTYs, Claude Code is not around, and `input` answers from the list (an
     exception in the list is raised). Returns the prompts shown."""
     monkeypatch.setattr(card, "_interactive", REAL_INTERACTIVE)
+    monkeypatch.setattr(card, "_under_agent_harness", lambda: False)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: tty, raising=False)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: tty, raising=False)
     monkeypatch.delenv("CLAUDECODE", raising=False)
@@ -2318,5 +2320,65 @@ def test_claude_code_in_the_environment_is_not_interactive(monkeypatch, value):
     at_a_terminal(monkeypatch, "s")
 
     monkeypatch.setenv("CLAUDECODE", value)
+
+    assert card._interactive() is False
+
+
+def fake_proc(tmp_path, monkeypatch, chain):
+    """A /proc where this process descends from `chain` (nearest first) as (comm, cmdline words)."""
+    root = tmp_path / "proc"
+    pids = [os.getpid(), *range(5000, 5000 + len(chain))]
+    processes = [("pytest", ["python3", "-m", "pytest"]), *chain]
+    for index, (comm, words) in enumerate(processes):
+        folder = root / str(pids[index])
+        folder.mkdir(parents=True)
+        parent = pids[index + 1] if index + 1 < len(pids) else 1
+        (folder / "stat").write_text(f"{pids[index]} ({comm}) S {parent} 1 1 0\n")
+        (folder / "comm").write_text(comm + "\n")
+        (folder / "cmdline").write_bytes("\0".join(words).encode() + b"\0")
+    monkeypatch.setattr(card, "PROC", root)
+    return root
+
+
+@pytest.mark.parametrize(
+    "harness",
+    [
+        ("claude", ["claude"]),
+        ("node", ["node", "/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"]),
+        ("node", ["/usr/bin/node", "/usr/lib/node_modules/@openai/codex/bin/codex.js"]),
+        ("MainThread", ["~/.local/bin/opencode", "--flag"]),
+        ("python3", ["python3", "-m", "aider"]),
+        ("cursor-agent", ["x"]),
+        ("goose", ["goose"]),
+        ("gemini", ["gemini"]),
+    ],
+)
+def test_an_agent_harness_ancestor_is_not_by_hand(tmp_path, monkeypatch, harness):
+    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    shell = ("bash", ["bash", "-c", "ws card apply"])
+    fake_proc(tmp_path, monkeypatch, [("script", ["script", "-qec", "ws"]), shell, harness])
+
+    assert card._under_agent_harness() is True
+
+
+def test_a_terminal_without_a_harness_ancestor_is_by_hand(tmp_path, monkeypatch):
+    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    chain = [("bash", ["-bash"]), ("tmux: server", ["tmux", "new", "claude-notes.md"])]
+    fake_proc(tmp_path, monkeypatch, chain)
+
+    assert card._under_agent_harness() is False
+
+
+def test_a_proc_that_cannot_be_read_is_not_by_hand(tmp_path, monkeypatch):
+    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    monkeypatch.setattr(card, "PROC", tmp_path / "missing")
+
+    assert card._under_agent_harness() is True
+
+
+def test_a_pseudo_terminal_run_by_the_harness_is_not_interactive(tmp_path, monkeypatch):
+    at_a_terminal(monkeypatch, "s")
+    monkeypatch.setattr(card, "_under_agent_harness", REAL_UNDER_HARNESS)
+    fake_proc(tmp_path, monkeypatch, [("script", ["script"]), ("claude", ["claude"])])
 
     assert card._interactive() is False
