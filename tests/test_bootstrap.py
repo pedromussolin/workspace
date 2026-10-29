@@ -1110,13 +1110,15 @@ def _gate_config(env: Env, text: str) -> list[str]:
     return _setup(env).needs
 
 
-def test_the_gate_table_is_optional_and_accepts_the_two_keys(env):
+def test_the_gate_table_is_optional_and_accepts_its_keys(env):
     assert _gate_config(env, "[jira]\n") == []
     assert (
         _gate_config(
             env,
             '[gate]\npush_without_asking = ["~/repos/workspace", "/srv/x"]\n'
-            'personal_github_owners = ["someone"]\n',
+            'personal_github_owners = ["someone"]\n'
+            'environment_branches = ["master", "main"]\n'
+            'direct_push_repos = ["*-argocd"]\n',
         )
         == []
     )
@@ -1130,6 +1132,10 @@ def test_the_gate_table_is_optional_and_accepts_the_two_keys(env):
         ("[gate]\npush_without_asking = [1]\n", "push_without_asking"),
         ('[gate]\npersonal_github_owners = "someone"\n', "personal_github_owners"),
         ("[gate]\npersonal_github_owners = [true]\n", "personal_github_owners"),
+        ('[gate]\nenvironment_branches = "main"\n', "environment_branches"),
+        ("[gate]\nenvironment_branches = [1]\n", "environment_branches"),
+        ('[gate]\ndirect_push_repos = "*-argocd"\n', "direct_push_repos"),
+        ("[gate]\ndirect_push_repos = [false]\n", "direct_push_repos"),
     ],
 )
 def test_a_gate_key_of_the_wrong_type_is_reported(env, text, key):

@@ -44,6 +44,13 @@ HOOKS_MANIFEST = "manifest.json"
 HOOKS_COPY_GLOBS = ("*.py", "gate/*.py", "gate/*.json")
 HOOKS_NOT_COPIED = ("ask_card_apply.py",)
 GATE_SCRIPT = "approval_gate.py"
+GATE_LIST_KEYS = (
+    "push_without_asking",
+    "push_remotes",
+    "personal_github_owners",
+    "environment_branches",
+    "direct_push_repos",
+)
 GATE_MATCHER = "Bash|mcp__.*"
 HOOK_TIMEOUT = 30
 MIN_HOOK_TIMEOUT = 10
@@ -962,7 +969,7 @@ def _check_gate_table(setup: _Setup, settings_file: Path) -> None:
     if not isinstance(gate, dict):
         setup.need(f"{settings_file}: [gate] must be a table")
         return
-    for key in ("push_without_asking", "push_remotes", "personal_github_owners"):
+    for key in GATE_LIST_KEYS:
         value = gate.get(key)
         if value is not None and not (
             isinstance(value, list) and all(isinstance(item, str) for item in value)
