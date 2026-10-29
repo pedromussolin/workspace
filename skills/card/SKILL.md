@@ -21,10 +21,11 @@ Nothing is written through the Atlassian MCP, ever.
 3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to Jira. Show the preview
    exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
-   and the Claude Code prompt on it is the approval (the `permissions.ask` rule plus the
-   `hooks/ask_card_apply.py` hook, which asks for any command that names `card` with `apply` or
-   imports `ws.card`, or that combines `ws`/`card` with a shell expansion; it reads text, so a
-   script file, a `setsid`/`nohup` background process or an odd import is not seen). Never ask the user
+   and the Claude Code prompt on it is the approval: the approval gate (`hooks/approval_gate.py`)
+   stops the command and shows the user the preview's summary, and the user's yes in that box
+   approves exactly that. The gate reads the command text, so a script file or a
+   `setsid`/`nohup` background process is not seen. The user can also run the same command by hand
+   in their own terminal: it prints the summary and asks `Gravar no Jira? [s/N]`. Never ask the user
    to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
    the prompt, and never run the preview and the apply in one command line: `apply` refuses when it
    shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards

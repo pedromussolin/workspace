@@ -57,6 +57,13 @@ prompt of Claude Code itself.
   with python). The preview is its own command (`ws card preview`) so the prompt appears only
   at the real write. There is no HMAC or signature on the pending record: the prompt (rule plus
   hook) is the barrier, the record is only checked to be the user's own private file.
+- **Changed on 2026-10-28** by the approval gates
+  ([design](2026-10-28-approval-gates-design.md)): `hooks/ask_card_apply.py` is replaced by the
+  approval gate (`hooks/approval_gate.py`), which shows the pending record's `summary` in the
+  box; the approval code also covers that summary, and `apply` refuses a record that does not hash
+  to its code. On a real terminal without `CLAUDECODE`, `apply` needs neither the Claude settings
+  nor a separate session: it prints the summary and asks `Gravar no Jira? [s/N]`. The rules above
+  hold only without a terminal.
 - **Writes go only through the REST API** with the user's API key (an unscoped token). No MCP
   write path in this skill. The key goes only to an Atlassian Cloud site: `[jira] site` must match
   `^https://[a-z0-9-]+\.atlassian\.net/?$`, checked when the config is read and again when the
