@@ -1754,3 +1754,72 @@ def test_a_relative_path_is_read_in_the_cwd(env):
 )
 def test_ordinary_reads_near_the_credentials_pass(command, env):
     assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws setup",
+        "uv run ws setup",
+        "python3 -m ws setup",
+        "/srv/ws/.venv/bin/ws setup",
+        "cd ~/repos/workspace && uv run ws setup",
+        "ws setup --check; ws setup",
+    ],
+)
+def test_ws_setup_that_updates_the_protected_copy_asks(command, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Proteção do Claude Code"
+    assert lines[1] == "Atualiza a cópia protegida dos hooks do Claude Code (ws setup)"
+
+
+@pytest.mark.parametrize(
+    ("command", "line"),
+    [
+        (
+            "ws gate catalog pass github create_pull_request merge_pull_request",
+            "Muda o catálogo do portão: github create_pull_request merge_pull_request "
+            "passam a ser liberadas sem caixa",
+        ),
+        (
+            "uv run ws gate catalog ask github get_me",
+            "Muda o catálogo do portão: github get_me passam a pedir aprovação",
+        ),
+        (
+            "python3 -m ws gate catalog pass jira search",
+            "Muda o catálogo do portão: jira search passam a ser liberadas sem caixa",
+        ),
+        (
+            "/srv/ws/.venv/bin/ws gate catalog ask jira x",
+            "Muda o catálogo do portão: jira x passam a pedir aprovação",
+        ),
+        ("ws gate catalog remove jira x", "Muda o catálogo do portão (ws gate catalog remove)"),
+    ],
+)
+def test_ws_gate_catalog_changes_ask(command, line, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Proteção do Claude Code"
+    assert lines[1] == line
+
+
+def test_ws_gate_catalog_with_an_expanded_action_is_not_read(env):
+    assert (
+        box('ws gate catalog "$A" github x', env).splitlines()[0] == "Comando não lido com certeza"
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws setup --check",
+        "uv run ws setup --check",
+        "python3 -m ws setup --check",
+        "/srv/ws/.venv/bin/ws setup --check",
+        "ws gate catalog",
+        "uv run ws gate catalog",
+    ],
+)
+def test_ws_setup_check_and_the_catalog_listing_pass(command, env):
+    assert box(command, env) is None

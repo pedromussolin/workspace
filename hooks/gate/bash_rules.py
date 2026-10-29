@@ -957,6 +957,23 @@ def _store_change(scan: Scan) -> str | None:
     return None
 
 
+def _gate_catalog(texts: list[str], args: list[Word], top: Parsed) -> list[Finding]:
+    """`ws gate catalog` lists; any action after it changes what the gate lets through."""
+    rest = top.positionals[2:]
+    if not rest:
+        return []
+    action, server, tools = rest[0].text, rest[1:2], rest[2:]
+    if any(args[position].expands for position in top.positions[2:]):
+        return [_unsure(texts, "A ação ou as ferramentas do catálogo vêm de uma expansão.")]
+    effect = {"pass": "passam a ser liberadas sem caixa", "ask": "passam a pedir aprovação"}
+    if action not in effect:
+        line = f"Muda o catálogo do portão (ws gate catalog {action})"
+    else:
+        named = " ".join(word.text for word in server + tools) or "(nenhuma ferramenta)"
+        line = f"Muda o catálogo do portão: {named} {effect[action]}"
+    return [Finding(TITLE_PROTECTION, (cut(line, 150), _line(texts)))]
+
+
 def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     texts = [word.text for word in command.words]
     top = parse_flags(args, set())
@@ -970,6 +987,14 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
                 ("Lê uma credencial: os cabeçalhos dos MCPs (ws mcp-headers)", _line(texts)),
             )
         ]
+    if names[:1] == ["setup"]:
+        checking = any(len(flag) > 2 and "--check".startswith(flag) for flag, _ in top.flags)
+        if checking:
+            return []
+        line = "Atualiza a cópia protegida dos hooks do Claude Code (ws setup)"
+        return [Finding(TITLE_PROTECTION, (line, _line(texts)))]
+    if names == ["gate", "catalog"]:
+        return _gate_catalog(texts, args, top)
     if names != ["card", "apply"]:
         return []
     code = None
