@@ -1,6 +1,7 @@
 """Paths used by ws. Each one can be overridden by an environment variable, which the tests use."""
 
 import os
+import shutil
 from pathlib import Path
 
 
@@ -31,6 +32,22 @@ def claude_skills_dir() -> Path:
 
 def claude_settings_path() -> Path:
     return _env_path("WS_CLAUDE_SETTINGS", Path.home() / ".claude" / "settings.json")
+
+
+def claude_json_path() -> Path:
+    return _env_path("WS_CLAUDE_JSON", Path.home() / ".claude.json")
+
+
+def ws_executable() -> Path | None:
+    """The absolute path of `ws`, for a command Claude Code runs without the shell PATH."""
+    override = os.environ.get("WS_BIN")
+    if override:
+        return Path(override).absolute()
+    found = shutil.which("ws")
+    if found:
+        return Path(found).absolute()
+    local = Path.home() / ".local" / "bin" / "ws"
+    return local if local.exists() else None
 
 
 def claude_hooks_dir() -> Path:

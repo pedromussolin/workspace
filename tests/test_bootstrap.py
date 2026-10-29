@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -10,7 +11,7 @@ from typing import NamedTuple
 
 import pytest
 
-from ws import config, dictionary
+from ws import bootstrap, config, dictionary, userconfig
 from ws.bootstrap import ASK_RULES, SetupResult, run_setup
 from ws.cli import main
 
@@ -39,6 +40,29 @@ def _git(repo: Path, *args: str) -> str:
 
 def _write_settings(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def _clean_environment(tmp_path: Path, monkeypatch) -> None:
+    """The real session holds secrets and a real ~/.claude.json; neither may reach these tests."""
+    for name in os.environ:
+        if bootstrap.ENV_PATTERN.search(name):
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("WS_CLAUDE_JSON", str(tmp_path / "claude.json"))
+    monkeypatch.setenv("WS_BIN", str(tmp_path / "bin" / "ws"))
+
+
+def _github_server(helper: str | None = None, **changes) -> dict:
+    spec = {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headersHelper": helper or f"{config.ws_executable()} mcp-headers github",
+    }
+    return {"mcpServers": {"github": {**spec, **changes}}}
+
+
+def _write_claude_json(data: dict) -> None:
+    config.claude_json_path().write_text(json.dumps(data), encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -96,6 +120,10 @@ def env(tmp_path: Path, monkeypatch) -> Env:
     (config / "names.toml").write_text("[names]\n", encoding="utf-8")
     (config / "names.toml").chmod(0o600)
     (config / "config.toml").write_text("[jira]\n", encoding="utf-8")
+
+    monkeypatch.setenv("WS_CONFIG_DIR", str(config))
+    userconfig.save_token("github", "fake-value")
+    _write_claude_json(_github_server())
 
     settings = tmp_path / "claude" / "settings.json"
     settings.parent.mkdir()
@@ -189,7 +217,7 @@ def test_reports_hooks_path_that_resolves_elsewhere(env, tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "elsewhere"))
 
-    problems = _setup(env).needs
+    problems = [need for need in _setup(env).needs if "hooks path" in need]
 
     assert len(problems) == 1
     assert str(tmp_path / "elsewhere") in problems[0]
@@ -294,7 +322,6 @@ def test_reports_missing_names_table(env):
 
 def test_fixes_loose_credentials_mode(env):
     credentials = env.config / "credentials"
-    credentials.write_text("token", encoding="utf-8")
     credentials.chmod(0o644)
 
     result = _setup(env)
@@ -306,7 +333,6 @@ def test_fixes_loose_credentials_mode(env):
 
 def test_accepts_credentials_mode_600(env):
     credentials = env.config / "credentials"
-    credentials.write_text("token", encoding="utf-8")
     credentials.chmod(0o600)
 
     result = _setup(env)
@@ -395,6 +421,8 @@ def test_creates_a_missing_config_folder_with_mode_700(env, tmp_path):
     assert result.needs == [
         f"{fresh / 'names.toml'} is missing; the secrets hook fails closed without it",
         f'{fresh / "config.toml"} is missing; see "Local config" in README.md',
+        "no usable GitHub token (none is stored); the GitHub MCP server needs one. "
+        "Run in a terminal, outside Claude: ws config token github",
     ]
     assert f"config folder {fresh}: create with mode 700" in result.fixed
     assert _mode(fresh) == 0o700
@@ -559,7 +587,6 @@ def _break_everything(env: Env) -> None:
     _write_hooks(env.repo, dict.fromkeys(HOOK_NAMES, 0o644))
     env.config.chmod(0o755)
     (env.config / "names.toml").chmod(0o644)
-    (env.config / "credentials").write_text("token", encoding="utf-8")
     (env.config / "credentials").chmod(0o666)
     _write_settings(env.settings, {})
 
@@ -1310,3 +1337,178 @@ def test_the_default_hooks_folder_is_under_the_claude_folder(monkeypatch):
     monkeypatch.delenv("WS_CLAUDE_HOOKS_DIR")
 
     assert config.claude_hooks_dir() == Path.home() / ".claude" / "hooks" / "workspace"
+
+
+def _need(result: SetupResult, word: str) -> str:
+    (item,) = [need for need in result.needs if word in need]
+    return item
+
+
+def test_secret_variables_get_one_snippet_with_names_and_never_values(env, monkeypatch):
+    monkeypatch.setenv("SERVICE_API_KEY", "value-one-xyz")
+    monkeypatch.setenv("my_password", "value-two-xyz")
+    monkeypatch.setenv("GITHUB_PERSONAL_ACCESS_TOKEN", "value-three-xyz")
+
+    item = _need(_setup(env), "secret variables")
+
+    header, block = item.split("\n", 1)
+    assert "Claude Code sessions only" in header
+    assert json.loads(block) == {
+        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "", "SERVICE_API_KEY": "", "my_password": ""}
+    }
+    assert "value-" not in item
+
+
+def test_secret_variables_skip_other_names_empty_values_and_ws_and_claude_ones(env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_MESSAGING_TOKEN", "x1")
+    monkeypatch.setenv("WS_SOME_KEY", "x2")
+    monkeypatch.setenv("EMPTY_TOKEN", "")
+    monkeypatch.setenv("PYTHONPATH", "/somewhere")
+    monkeypatch.setenv("EDITOR", "vim")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/run/agent.sock")
+
+    assert _setup(env).needs == []
+
+
+def test_a_pat_segment_is_a_secret_but_a_path_is_not(env, monkeypatch):
+    monkeypatch.setenv("GITHUB_PAT", "x1")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/lib")
+
+    block = json.loads(_need(_setup(env), "secret variables").split("\n", 1)[1])
+
+    assert block == {"env": {"GITHUB_PAT": ""}}
+
+
+def test_a_variable_the_claude_settings_already_blank_is_not_reported(env, monkeypatch):
+    monkeypatch.setenv("SERVICE_API_KEY", "value-one-xyz")
+    monkeypatch.setenv("OTHER_TOKEN", "value-two-xyz")
+    gates = _registered_gates()
+    gates["env"] = {"SERVICE_API_KEY": ""}
+    _write_settings(env.settings, gates)
+
+    block = json.loads(_need(_setup(env), "secret variables").split("\n", 1)[1])
+
+    assert block == {"env": {"OTHER_TOKEN": ""}}
+
+
+def test_check_reports_secret_variables_without_changing_the_settings(env, monkeypatch):
+    monkeypatch.setenv("SERVICE_API_KEY", "value-one-xyz")
+    before = env.settings.read_bytes()
+
+    result = _setup(env, check=True)
+
+    assert "SERVICE_API_KEY" in _need(result, "secret variables")
+    assert env.settings.read_bytes() == before
+
+
+def test_the_cli_prints_the_secret_variables_line_without_the_value(env, monkeypatch, capsys):
+    monkeypatch.setenv("SERVICE_API_KEY", "value-one-xyz")
+    monkeypatch.setenv("WS_REPO_ROOT", str(env.repo))
+    monkeypatch.setenv("WS_CLAUDE_SETTINGS", str(env.settings))
+    monkeypatch.setenv("WS_CLAUDE_SKILLS_DIR", str(env.skills_target))
+
+    assert main(["setup", "--check"]) == 1
+
+    out = capsys.readouterr().out
+    assert "needs you: secret variables in the environment: SERVICE_API_KEY." in out
+    assert "value-one-xyz" not in out
+
+
+def _github_command(result: SetupResult) -> tuple[str, dict]:
+    item = _need(result, "GitHub MCP server")
+    words = shlex.split(item.split("\n")[-1].strip())
+    assert words[-2:] == ["--scope", "user"]
+    return item, json.loads(words[words.index("add-json") + 2])
+
+
+def test_a_correct_github_server_needs_nothing(env):
+    assert _setup(env).needs == []
+
+
+def test_a_github_helper_with_the_bare_command_name_is_accepted(env):
+    _write_claude_json(_github_server("ws mcp-headers github"))
+
+    assert _setup(env).needs == []
+
+
+def test_a_missing_github_server_gets_the_command_with_the_absolute_ws_path(env, tmp_path):
+    config.claude_json_path().unlink()
+
+    item, spec = _github_command(_setup(env))
+
+    assert "is missing" in item
+    assert "remove" not in item
+    assert spec == {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headersHelper": f"{tmp_path / 'bin' / 'ws'} mcp-headers github",
+    }
+    assert not config.claude_json_path().exists()
+
+
+def test_a_claude_json_without_the_github_server_is_missing_it(env):
+    _write_claude_json({"mcpServers": {"other": {"type": "http", "url": "https://x.example/"}}})
+
+    assert "is missing" in _need(_setup(env), "GitHub MCP server")
+
+
+@pytest.mark.parametrize(
+    "server",
+    [
+        _github_server(type="sse"),
+        _github_server(url="https://api.githubcopilot.com/mcp/readonly"),
+        _github_server("echo ws mcp-headers github"),
+        _github_server("/tmp/ws mcp-headers github --extra"),
+        _github_server("/tmp/other mcp-headers github"),
+        _github_server("ws mcp-headers"),
+    ],
+)
+def test_a_different_github_server_gets_remove_then_add(env, server):
+    _write_claude_json(server)
+
+    item, spec = _github_command(_setup(env))
+
+    assert "is different" in item
+    assert "claude mcp remove github --scope user && claude mcp add-json github" in item
+    assert spec["type"] == "http"
+
+
+def test_an_unreadable_claude_json_is_reported(env):
+    config.claude_json_path().write_text("{not json", encoding="utf-8")
+
+    assert "unreadable" in _need(_setup(env), "GitHub MCP server")
+
+
+def test_without_a_github_token_setup_says_to_store_it_first(env):
+    (env.config / "credentials").unlink()
+    config.claude_json_path().unlink()
+
+    result = _setup(env)
+
+    assert "ws config token github" in _need(result, "usable GitHub token")
+    assert not any("claude mcp" in need for need in result.needs)
+
+
+def test_a_symlinked_credentials_file_is_not_trusted_as_a_github_token(env, tmp_path):
+    real = tmp_path / "elsewhere"
+    real.write_text((env.config / "credentials").read_text(encoding="utf-8"), encoding="utf-8")
+    (env.config / "credentials").unlink()
+    (env.config / "credentials").symlink_to(real)
+
+    assert "symlink" in _need(_setup(env), "usable GitHub token")
+
+
+def test_no_ws_executable_is_reported_instead_of_a_bare_command(env, monkeypatch):
+    config.claude_json_path().unlink()
+    monkeypatch.delenv("WS_BIN")
+    monkeypatch.setenv("HOME", str(env.config))
+    monkeypatch.setattr(shutil, "which", lambda name, *args, **kwargs: None)
+
+    assert "ws executable was not found" in _need(_setup(env), "GitHub MCP server")
+
+
+def test_ask_rules_cover_every_github_write_tool_of_the_user_scope_server():
+    for tool in bootstrap.GITHUB_WRITE_TOOLS:
+        assert f"mcp__github__{tool}" in ASK_RULES, tool
+    assert "mcp__github__get_me" not in ASK_RULES
+    assert len(ASK_RULES) == len(set(ASK_RULES))

@@ -170,8 +170,8 @@ def _refuse_foreign_credentials(path: Path) -> None:
         raise ConfigInvalid(f"{path} is not owned by you; the API key is not read from it")
 
 
-def load_token(service: str) -> str:
-    path = _credentials_path()
+def load_token(service: str, folder: Path | None = None) -> str:
+    path = _credentials_path() if folder is None else folder / "credentials"
     _refuse_foreign_credentials(path)
     data = _read_toml(path)
     stored = _table(data, service, path).get(STORED_FIELD)

@@ -25,8 +25,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
-from ws import dictionary
-from ws.config import claude_hooks_dir, claude_settings_path
+from ws import dictionary, userconfig
+from ws.config import (
+    claude_hooks_dir,
+    claude_json_path,
+    claude_settings_path,
+    ws_executable,
+)
 
 GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
@@ -78,6 +83,11 @@ GITHUB_WRITE_TOOLS = (
     "update_pull_request",
     "update_pull_request_branch",
 )
+GITHUB_SERVER_URL = "https://api.githubcopilot.com/mcp/"
+GITHUB_HEADERS_ARGS = ("mcp-headers", "github")
+ENV_PATTERN = re.compile(r"token|secret|key|pass|auth|cred|(?:^|_)pat(?:_|$)", re.IGNORECASE)
+ENV_SKIP_PREFIXES = ("CLAUDE_CODE_", "WS_")
+ENV_SKIP_NAMES = frozenset({"SSH_AUTH_SOCK"})
 GITKRAKEN_WRITE_TOOLS = (
     "git_push",
     "issues_add_comment",
@@ -89,6 +99,7 @@ ASK_RULES = (
     CARD_ASK_RULE,
     *(f"mcp__{server}__{tool}" for server in ATLASSIAN_SERVERS for tool in ATLASSIAN_WRITE_TOOLS),
     *(f"mcp__plugin_github_github__{tool}" for tool in GITHUB_WRITE_TOOLS),
+    *(f"mcp__github__{tool}" for tool in GITHUB_WRITE_TOOLS),
     *(f"mcp__plugin_gitkraken_gitkraken__{tool}" for tool in GITKRAKEN_WRITE_TOOLS),
 )
 PACKAGES = " and ".join(source.package for source in dictionary.SOURCES)
@@ -148,6 +159,8 @@ def run_setup(
     _install_dictionaries(setup)
     _sync_hooks_copy(setup, repo, hooks_dir)
     _check_claude_gates(setup, hooks_dir, settings)
+    _check_secret_variables(setup, settings)
+    _check_github_server(setup, config)
     return setup.result
 
 
@@ -519,6 +532,99 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> 
     if block:
         message = f"Claude Code gates missing in {settings_path}. {approval}"
         setup.need(_gates_needed(message, block))
+
+
+def _blanked_variables(settings_path: Path) -> set[str]:
+    """The names the Claude settings already blank in `env`; any read problem means none."""
+    try:
+        settings = json.loads(settings_path.read_bytes())
+    except (OSError, ValueError):
+        return set()
+    env = _as_dict(_as_dict(settings).get("env"))
+    return {name for name, value in env.items() if value == ""}
+
+
+def _check_secret_variables(setup: _Setup, settings_path: Path) -> None:
+    """Any command Claude runs reads the session environment: secrets there must be blanked."""
+    blanked = _blanked_variables(settings_path)
+    names = sorted(
+        name
+        for name, value in os.environ.items()
+        if value
+        and ENV_PATTERN.search(name)
+        and not name.upper().startswith(ENV_SKIP_PREFIXES)
+        and name not in ENV_SKIP_NAMES
+        and name not in blanked
+    )
+    if not names:
+        return
+    snippet = {"env": {name: "" for name in names}}
+    message = (
+        f"secret variables in the environment: {', '.join(names)}. Every command Claude Code "
+        f"runs can read them. This blanks them in Claude Code sessions only (terminals and "
+        f"VS Code keep them); add it to {settings_path}, which ws never writes:"
+    )
+    setup.need(_gates_needed(message, snippet))
+
+
+def _github_server_problem(claude_json: Path) -> str | None:
+    """None when the user-scope `github` server is the expected one, else what is wrong."""
+    try:
+        data = json.loads(claude_json.read_bytes())
+    except FileNotFoundError:
+        return "missing"
+    except (OSError, ValueError) as error:
+        return f"unreadable ({error})"
+    server = _as_dict(_as_dict(data).get("mcpServers")).get("github")
+    if server is None:
+        return "missing"
+    server = _as_dict(server)
+    if server.get("type") != "http" or server.get("url") != GITHUB_SERVER_URL:
+        return "different: it must be type http with the GitHub MCP url"
+    try:
+        words = shlex.split(str(server.get("headersHelper")))
+    except ValueError:
+        words = []
+    if (
+        len(words) != 3
+        or PurePath(words[0]).name != "ws"
+        or tuple(words[1:]) != GITHUB_HEADERS_ARGS
+    ):
+        return "different: headersHelper must run `ws mcp-headers github`"
+    return None
+
+
+def _check_github_server(setup: _Setup, config: Path) -> None:
+    """The GitHub MCP server reads its token from `credentials` through `ws mcp-headers`."""
+    claude_json = claude_json_path()
+    problem = _github_server_problem(claude_json)
+    try:
+        userconfig.load_token("github", config)
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        why = "none is stored" if isinstance(error, userconfig.ConfigMissing) else error
+        setup.need(
+            f"no usable GitHub token ({why}); the GitHub MCP server needs one. Run in a terminal, "
+            "outside Claude: ws config token github"
+        )
+        return
+    if problem is None:
+        return
+    executable = ws_executable()
+    if executable is None:
+        setup.need("GitHub MCP server: the ws executable was not found, so no command can be built")
+        return
+    spec = {
+        "type": "http",
+        "url": GITHUB_SERVER_URL,
+        "headersHelper": f"{shlex.quote(str(executable))} {' '.join(GITHUB_HEADERS_ARGS)}",
+    }
+    command = f"claude mcp add-json github {shlex.quote(json.dumps(spec))} --scope user"
+    if problem.startswith("different"):
+        command = f"claude mcp remove github --scope user && {command}"
+    setup.need(
+        f"GitHub MCP server in {claude_json} is {problem}. ws never writes that file; "
+        f"run in a terminal:\n  {command}"
+    )
 
 
 def _as_dict(value: object) -> dict:
