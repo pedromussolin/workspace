@@ -297,6 +297,12 @@ instalado só nos clientes de serviço interno, põe o cabeçalho. A troca para 
   interno.
 - [ ] Revisar os monitores e painéis do Datadog filtrados pelo host antigo.
 - [ ] Depois da cessão: o log dela mostra cabeçalho só nas chamadas de parceiro (sessão interna sai `sem_escopo`).
+- [ ] **A cessão vai primeiro na troca** (revisão final da parte A): enquanto o BFF passa pelo gateway, toda chamada
+  dele chega com o cabeçalho da conta de serviço, e as rotas de item da liquidação fazem a busca de produto em toda
+  chamada interna (pagamentos com mais de 20 remessas, reenviar e aprovar, este no primário). O volume é baixo, mas
+  até a troca vale olhar o p95 de `pagamentos/query`, `reenviar` e `aprovar`, e levar as três buscas para a DBA.
+- [ ] A contagem do INFO "Escopo de parceiro avaliado" é por avaliação, não por requisição: rota com produto e itens
+  registra duas linhas (D138, decisão R14 da execução).
 
 ### Tarefa C3: cessão em `aplicar`
 
@@ -304,3 +310,15 @@ instalado só nos clientes de serviço interno, põe o cabeçalho. A troca para 
 - [ ] `CESSAO_ESCOPO_PARCEIRO=aplicar` com `CESSAO_ESCOPO_PARCEIRO_SO_OBSERVAR=titulo_contratos,liquidacao_consolidar`,
   na sandbox, no staging e em produção, nessa ordem.
 - [ ] As duas rotas saem da lista só depois da validação do Pietro com o time (spec, "Para validar com o time").
+
+### Junção com outras branches e PR (revisão final da parte A)
+
+- **TS-5435 (Artemis), no `cessao/api/liquidacao/viewer.py`:** junta sem conflito de texto, mas há dois pontos de
+  sentido. As chaves `proc:<uuid>` do fechamento passam a ter `product_id` nulo; com escopo aplicado, as chaves da
+  própria remessa do parceiro somem do status do fechamento: resolver o produto delas pelos processos (ou pelo
+  `remittance_product_id` da TS-5435). E a leitura da chave do lote fake deve seguir o `FakeBatchKey.parse` da TS-5435.
+- **`-sdbx`:** no mesmo arquivo, os auxiliares novos entram ao lado do bloco `parser_pagamentos_rejeitados` da
+  sandbox; os dois lados só acrescentam linhas: manter os dois.
+- **Na PR, avisar:** o autor da exclusão de pagamentos passa a ser o `Acesso` do produto (nunca o `Authorization`), e
+  produto sem `Acesso` responde 400 sem enfileirar; com escopo, item inexistente responde 404 em CNAB, reenviar,
+  aprovar e rejeitar, enquanto quem chama sem cabeçalho continua recebendo 400.
