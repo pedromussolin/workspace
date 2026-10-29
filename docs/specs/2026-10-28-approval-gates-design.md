@@ -143,9 +143,13 @@ says "conferência de sigilo desligada (sem personal_github_owners)".
 
 ### Integrity
 
-`ws setup` copies the hook files to `~/.claude/hooks/workspace/` with a manifest of SHA-256 sums,
-reports a stale or edited copy, and prints the settings JSON pointing at the copy (it still never
-edits `settings.json`). Claude's Edit and Write tools prompt for files under `.claude`; Bash writes
+`ws setup` copies the hook files to `~/.claude/hooks/workspace/` (files 0444, folders 0555) with a
+manifest of SHA-256 sums, reports a stale or edited copy, and prints the settings JSON pointing at
+the copy (it still never edits `settings.json`). It updates the copy only when the user runs it by
+hand (a real terminal, no `CLAUDECODE`, no agent-harness ancestor): it prints a unified diff per
+changed file and asks `Atualizar a cópia protegida dos hooks? [s/N]`. Run by an agent, it writes
+nothing there and says to run it in the user's own terminal, so a rule edited in the repo never
+reaches the running gate without the user reading it. Claude's Edit and Write tools prompt for files under `.claude`; Bash writes
 there are covered by the gate's protection row. Full protection (a read-only mount) is phase 3.
 
 New `permissions.ask` rules, as a backstop if the hook itself does not run: the GitHub MCP and

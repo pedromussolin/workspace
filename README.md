@@ -129,7 +129,9 @@ GitKraken or Atlassian write, a card apply) and shows what will be sent. Two mor
 commits with a co-author trailer and hook bypasses. `ws setup` copies them to
 `~/.claude/hooks/workspace/` (read-only files and a `manifest.json` of SHA-256 sums), reports a
 missing, stale, edited or extra file (`--check` only reports) and prints the settings JSON that
-registers `python3 -I "<copy>/<script>"`: the gate with the matcher `Bash|mcp__.*`, the other two
+registers `python3 -I -B "<copy>/<script>"` with a 30 s timeout. It updates the copy only when you
+run it yourself in a terminal: it shows the diff of each changed file and asks `[s/N]`; run by an
+agent it writes nothing there. The registration: the gate with the matcher `Bash|mcp__.*`, the other two
 with `Bash`. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
 reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_DIR`.
 
