@@ -260,3 +260,56 @@ def test_a_module_planted_next_to_the_hook_does_not_shadow_the_standard_library(
     )
 
     assert result.returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "bash <<'EOF'\ngit commit --no-verify -m x\nEOF",
+        "sh <<EOF\ngit commit --no-verify -m x\nEOF",
+        "dash <<\\EOF\ngit push --no-verify\nEOF",
+        "zsh -s <<-'EOF'\n\tgit commit -n\nEOF",
+        "sudo bash <<'EOF'\ngit push --no-verify\nEOF",
+        "cd repo && bash <<'EOF'\ngit commit -n\nEOF",
+        "bash <<'EOF'\nbash -c 'git commit -n'\nEOF",
+        "bash <<'EOF'\nls\ngit add .\ngit commit --no-verify -m x\nEOF",
+        "source /dev/stdin <<'EOF'\ngit commit -n\nEOF",
+        ". /dev/stdin <<'EOF'\ngit commit -n\nEOF",
+        "bash -s <<< 'git commit --no-verify'",
+        'bash <<< "git commit -n -m x"',
+        "sh <<<'git push --no-verify'",
+        "sudo bash <<< 'git commit -n'",
+        "eval <<< 'git commit -n'",
+        ". /dev/stdin <<< 'git push --no-verify'",
+        "cat <<EOF\n$(git commit --no-verify -m x)\nEOF",
+        "cat <<EOF\n`git commit -n`\nEOF",
+        'echo "<<EOF"\ngit commit --no-verify\nEOF',
+    ],
+)
+def test_a_heredoc_or_here_string_that_a_shell_runs_is_scanned(command):
+    result = run_command(command)
+
+    assert result.returncode == 2, command
+    assert result.stderr.startswith("Blocked:")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -F- <<'EOF'\ndocs: never git commit --no-verify\nEOF",
+        "git commit -F - <<'EOF'\ndocs: never git commit -n\nEOF",
+        "cat <<'EOF'\ngit commit --no-verify\nEOF",
+        "cat <<'EOF' > notes.md\ngit commit -n\nEOF",
+        "cat <<EOF\ngit commit --no-verify, in prose\nEOF",
+        "grep -q x <<< 'git commit --no-verify'",
+        "cat <<< 'git commit -n'",
+        "bash <<< 'echo ok'",
+        "bash -s <<'EOF'\nls\nEOF",
+        "python3 - <<'EOF'\nprint('git commit --no-verify')\nEOF",
+    ],
+)
+def test_a_heredoc_or_here_string_that_is_data_passes(command):
+    result = run_command(command)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""

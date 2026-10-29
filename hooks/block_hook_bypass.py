@@ -9,8 +9,10 @@ must not skip them either.
 The command is split into simple commands (on `;`, `&&`, `||`, `|`, `&`, parentheses and
 newlines) and each one is checked as a token sequence, so `grep -- --no-verify` or
 `echo "git commit --no-verify"` pass. Command substitutions, `bash -c` and `eval` are scanned
-too. A command that cannot be parsed is blocked only if its text mentions `--no-verify` or
-`hooksPath`.
+too, and so are a heredoc body or a here-string that a shell, `eval`, `source` or `.` runs. Any
+other body is data (a commit message in `git commit -F- <<'EOF'`), unless it is unquoted: then
+its `$(...)` is scanned. A command that cannot be parsed is blocked only if its text mentions
+`--no-verify` or `hooksPath`.
 
 Exit 2 blocks the tool call and sends stderr back to Claude. Any internal error also exits 2,
 because Claude Code treats other non-zero codes as non-blocking and the gate would fail open; so
@@ -166,9 +168,41 @@ def _check_simple(words: list[str]) -> str | None:
     return None
 
 
+def _check_heredoc(heredoc: "shell.Heredoc") -> str | None:
+    """A body is data, unless a shell runs it or it is unquoted and so expands `$(...)`."""
+    if heredoc.owner in shell.RUNS_ITS_INPUT:
+        return _scan(heredoc.body)
+    if heredoc.quoted:
+        return None
+    for inner in shell.substitutions(heredoc.body, quoting=False):
+        if reason := _scan(inner):
+            return reason
+    return None
+
+
+def _check_here_strings(text: str) -> str | None:
+    """A here-string (`<<<`) is data, unless a shell, `eval`, `source` or `.` runs it."""
+    if "<<<" not in text:
+        return None
+    try:
+        commands = shell.parse_commands(text)
+    except ValueError:
+        if UNPARSEABLE_BYPASS.search(text):
+            return "text that mentions --no-verify or hooksPath and cannot be parsed"
+        return None
+    for command in commands:
+        runs_it = any(name in shell.RUNS_ITS_INPUT for name, _ in shell.invocations(command))
+        if runs_it and command.here_string is not None and (reason := _scan(command.here_string)):
+            return reason
+    return None
+
+
 def _scan(text: str) -> str | None:
     """Return why the command bypasses the git hooks, or None."""
-    text = shell.strip_heredocs(text)
+    text, heredocs = shell.split_heredocs(text)
+    for heredoc in heredocs:
+        if reason := _check_heredoc(heredoc):
+            return reason
     try:
         commands = shell.simple_commands(text)
     except ValueError:
@@ -178,6 +212,8 @@ def _scan(text: str) -> str | None:
     for reason in (_check_simple(words) for words in commands):
         if reason:
             return reason
+    if reason := _check_here_strings(text):
+        return reason
     for inner in shell.substitutions(text):
         if reason := _scan(inner):
             return reason
