@@ -73,7 +73,7 @@ def _hooks_dir(tmp_path: Path, monkeypatch) -> Path:
 
 
 def _copy_command(script: str) -> str:
-    return f'python3 -I "{config.claude_hooks_dir() / script}"'
+    return f'python3 -I -B "{config.claude_hooks_dir() / script}"'
 
 
 def _hook_entry(script: str, matcher: str = "Bash") -> dict:
@@ -895,8 +895,10 @@ def _settings_with_entry(entry: dict) -> dict:
     return gates
 
 
-def _entry(command: str, matcher: str | None = "Bash", kind: str = "command") -> dict:
+def _entry(command: str, matcher: str | None = "Bash", kind: str = "command", timeout=None) -> dict:
     entry: dict = {"hooks": [{"type": kind, "command": command}]}
+    if timeout is not None:
+        entry["hooks"][0]["timeout"] = timeout
     if matcher is not None:
         entry["matcher"] = matcher
     return entry
@@ -918,9 +920,12 @@ GATE = "{dir}/" + GATE_SCRIPT
     "entry",
     [
         _entry(f'python3 -I "{GATE}"'),
-        _entry(f"python3 {GATE}"),
-        _entry(f"python {GATE}"),
+        _entry(f"python3 -I -B {GATE}"),
+        _entry(f"python3 -IB {GATE}"),
+        _entry(f"python3 -B -I {GATE}"),
         _entry(f"/usr/bin/python3.12 -I {GATE}"),
+        _entry(f'python3 -I "{GATE}"', timeout=10),
+        _entry(f'python3 -I "{GATE}"', timeout=30),
         _entry(f'python3 -I "{GATE}"', matcher="Write|Bash"),
         _entry(f'python3 -I "{GATE}"', matcher="Bash|Edit"),
         _entry(f'python3 -I "{GATE}"', matcher=GATE_MATCHER),
@@ -943,6 +948,16 @@ def test_a_real_registration_of_the_gate_from_the_copy_is_accepted(tmp_path, ent
     [
         _entry(f"echo {GATE}", matcher="Write"),
         _entry(f"echo {GATE}"),
+        _entry(f"python3 {GATE}"),
+        _entry(f"python {GATE}"),
+        _entry(f"python3 -c pass {GATE}"),
+        _entry(f"python3 -I -c pass {GATE}"),
+        _entry(f"python3 -S -I {GATE}"),
+        _entry(f"python3 -B {GATE}"),
+        _entry(f'python3 -I "{GATE}"', timeout=9),
+        _entry(f'python3 -I "{GATE}"', timeout=0),
+        _entry(f'python3 -I "{GATE}"', timeout="30"),
+        _entry(f'python3 -I "{GATE}"', timeout=True),
         _entry(f'python3 -I "{GATE}"', matcher="Write"),
         _entry(f'python3 -I "{GATE}"', matcher="Bashful"),
         _entry(f'python3 -I "{GATE}"', matcher="bash"),
@@ -1586,3 +1601,90 @@ def test_an_empty_pycache_folder_is_reported_too(env, _hooks_dir):
     _hooks_dir.chmod(0o555)
 
     assert _setup(env, check=True).fixed == ["hooks copy __pycache__: not in the repo; remove it"]
+
+
+def test_the_printed_registration_isolates_python_and_sets_a_timeout(env):
+    _write_settings(env.settings, {"theme": "dark"})
+
+    _, block = _needs_block(_setup(env))
+
+    for entry in block["hooks"]["PreToolUse"]:
+        [hook] = entry["hooks"]
+        assert hook["command"].startswith('python3 -I -B "')
+        assert hook["timeout"] == 30
+
+
+@pytest.mark.parametrize("script", [GATE_SCRIPT, HOOK_SCRIPT, BYPASS_SCRIPT])
+@pytest.mark.parametrize("timeout", [1, 9, 9.5, 0, "30", True])
+def test_a_short_timeout_on_one_of_our_hooks_is_a_problem_and_is_printed_again(
+    env, script, timeout
+):
+    from ws.bootstrap import card_gate_problems
+
+    gates = _registered_gates()
+    for entry in gates["hooks"]["PreToolUse"]:
+        if script in entry["hooks"][0]["command"]:
+            entry["hooks"][0]["timeout"] = timeout
+    _write_settings(env.settings, gates)
+
+    problems = card_gate_problems(env.settings)
+    result = _setup(env)
+
+    assert any("timeout" in problem for problem in problems)
+    assert any("timeout" in need for need in result.needs)
+    _, block = _needs_block(result)
+    [entry] = block["hooks"]["PreToolUse"]
+    assert script in entry["hooks"][0]["command"]
+    assert entry["hooks"][0]["timeout"] == 30
+
+
+@pytest.mark.parametrize("timeout", [10, 30, 600])
+def test_a_timeout_of_ten_seconds_or_more_is_accepted(env, timeout):
+    from ws.bootstrap import card_gate_problems
+
+    gates = _registered_gates()
+    for entry in gates["hooks"]["PreToolUse"]:
+        entry["hooks"][0]["timeout"] = timeout
+    _write_settings(env.settings, gates)
+
+    assert card_gate_problems(env.settings) == []
+    assert _setup(env).needs == []
+
+
+@pytest.mark.parametrize("filename", ["settings.json", "settings.local.json"])
+def test_disable_all_hooks_is_a_problem_in_either_settings_file(env, filename):
+    from ws.bootstrap import card_gate_problems
+
+    gates = _registered_gates()
+    if filename == "settings.json":
+        gates["disableAllHooks"] = True
+    else:
+        _write_settings(env.settings.with_name(filename), {"disableAllHooks": True})
+    _write_settings(env.settings, gates)
+
+    [problem] = card_gate_problems(env.settings)
+    [need] = _setup(env).needs
+
+    assert "disableAllHooks" in problem
+    assert filename in problem
+    assert "disableAllHooks" in need
+    assert filename in need
+
+
+@pytest.mark.parametrize("value", [False, "true", None])
+def test_disable_all_hooks_that_is_not_true_is_fine(env, value):
+    from ws.bootstrap import card_gate_problems
+
+    _write_settings(env.settings, _registered_gates())
+    _write_settings(env.settings.with_name("settings.local.json"), {"disableAllHooks": value})
+
+    assert card_gate_problems(env.settings) == []
+
+
+def test_an_unreadable_local_settings_file_is_ignored(env):
+    from ws.bootstrap import card_gate_problems
+
+    _write_settings(env.settings, _registered_gates())
+    env.settings.with_name("settings.local.json").write_text("{nope", encoding="utf-8")
+
+    assert card_gate_problems(env.settings) == []

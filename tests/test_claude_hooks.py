@@ -1,4 +1,5 @@
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -73,7 +74,12 @@ def test_the_protected_copy_runs_the_hook_with_isolated_python(tmp_path):
 
     trailer = "Co-Authored-" + "By: a"
     payload = json.dumps({"tool_input": {"command": f"git commit -m 'x' -m '{trailer}'"}})
+    from ws.bootstrap import _hook_command
+
+    command = shlex.split(_hook_command(copy, HOOK.name))
+    assert command[1:3] == ["-I", "-B"]
     result = subprocess.run(
-        [sys.executable, "-I", str(copy / HOOK.name)], input=payload, capture_output=True, text=True
+        [sys.executable, *command[1:]], input=payload, capture_output=True, text=True
     )
     assert result.returncode == 2
+    assert not list(copy.rglob("__pycache__"))

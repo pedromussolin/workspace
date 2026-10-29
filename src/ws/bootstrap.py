@@ -539,14 +539,12 @@ def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
 
 
 def _hook_command(hooks_dir: Path, script: str) -> str:
-    return f'python3 -I "{hooks_dir.absolute() / script}"'
+    return f'python3 -I -B "{hooks_dir.absolute() / script}"'
 
 
 def _hook_entry(hooks_dir: Path, script: str, matcher: str) -> dict:
-    return {
-        "matcher": matcher,
-        "hooks": [{"type": "command", "command": _hook_command(hooks_dir, script)}],
-    }
+    hook = {"type": "command", "command": _hook_command(hooks_dir, script), "timeout": HOOK_TIMEOUT}
+    return {"matcher": matcher, "hooks": [hook]}
 
 
 def _hook_gate(hooks_dir: Path, scripts: tuple[str, ...] | None = None) -> dict:
@@ -592,6 +590,11 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> 
         setup.need(f"Claude settings {settings_path} is not a valid JSON object; fix it first")
         return
 
+    for path in _hooks_disabled(settings_path, settings):
+        setup.need(
+            f"disableAllHooks is true in {path}, which switches every gate off. ws never writes "
+            "that file: set it to false or remove it"
+        )
     missing_scripts = []
     for script, _, tools in HOOK_REGISTRATIONS:
         registered, notes = _registration_state(settings, hooks_dir, script, tools)
@@ -606,6 +609,20 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> 
     if block:
         message = f"Claude Code gates missing in {settings_path}. {approval}"
         setup.need(_gates_needed(message, block))
+
+
+def _hooks_disabled(settings_path: Path, settings: dict) -> list[str]:
+    """The settings files, `settings.json` and its sibling `settings.local.json`, that switch
+    every hook off."""
+    found = []
+    for path in (settings_path, settings_path.with_name("settings.local.json")):
+        try:
+            data = settings if path == settings_path else json.loads(path.read_bytes())
+        except (OSError, ValueError):
+            continue
+        if _as_dict(data).get("disableAllHooks") is True:
+            found.append(str(path))
+    return found
 
 
 def _blanked_variables(settings_path: Path) -> set[str]:
@@ -710,13 +727,13 @@ def _as_list(value: object) -> list:
 
 
 def _hook_commands(settings: dict):
-    """Every `PreToolUse` command hook as (matcher, command)."""
+    """Every `PreToolUse` command hook as (matcher, hook)."""
     for entry in _as_list(_as_dict(settings.get("hooks")).get("PreToolUse")):
         entry = _as_dict(entry)
         for hook in _as_list(entry.get("hooks")):
             hook = _as_dict(hook)
             if hook.get("type") == "command":
-                yield entry.get("matcher"), hook.get("command")
+                yield entry.get("matcher"), hook
 
 
 def _registration_state(
@@ -731,7 +748,8 @@ def _registration_state(
     replacement = _hook_command(hooks_dir, script)
     registered = False
     notes = []
-    for matcher, command in _hook_commands(settings):
+    for matcher, hook in _hook_commands(settings):
+        command = hook.get("command")
         path = _python_script(command)
         if path is None:
             continue
@@ -742,11 +760,47 @@ def _registration_state(
             continue
         elif _expand(path) != wanted:
             notes.append(f"{path} is replaced by {replacement}; remove the old entry")
+        elif not _isolated(command):
+            notes.append(
+                f"{command!r} does not run exactly python3 -I {path}; it is replaced by "
+                f"{replacement}; remove the old entry"
+            )
         elif not _matcher_covers_all(matcher, tools):
             notes.append(f"{path} has the matcher {matcher!r}, which does not cover {tools}")
+        elif not _timeout_ok(hook.get("timeout")):
+            notes.append(
+                f"{path} has timeout {hook.get('timeout')!r}, under {MIN_HOOK_TIMEOUT} seconds, "
+                f"so the hook can be cut short and then does not run; use {HOOK_TIMEOUT}"
+            )
         else:
             registered = True
     return registered, notes
+
+
+def _timeout_ok(value: object) -> bool:
+    """No timeout means Claude's own default, which is long; a short one cuts the gate off."""
+    if value is None:
+        return True
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and (value >= MIN_HOOK_TIMEOUT)
+    )
+
+
+def _isolated(command: object) -> bool:
+    """Exactly `python3 -I SCRIPT`, with `-B` allowed (`-I -B`, `-IB`): no other word, such as
+    `-c`, can stop the script from running."""
+    try:
+        words = shlex.split(command) if isinstance(command, str) else []
+    except ValueError:
+        return False
+    flags = words[1:-1]
+    return (
+        len(words) >= 3
+        and all(flag in ("-I", "-B", "-IB", "-BI") for flag in flags)
+        and any("I" in flag for flag in flags)
+    )
 
 
 def _expand(path: str) -> str:
@@ -817,14 +871,21 @@ def card_gate_problems(settings_path: Path) -> list[str]:
         return [f"Claude settings {settings_path} is not a valid, readable JSON file ({error})"]
     if not isinstance(settings, dict):
         return [f"Claude settings {settings_path} is not a valid JSON object"]
-    problems = []
+    problems = [
+        f"disableAllHooks is true in {path}, which switches every hook off"
+        for path in _hooks_disabled(settings_path, settings)
+    ]
     if CARD_ASK_RULE not in _as_list(_as_dict(settings.get("permissions")).get("ask")):
         problems.append(f"permissions.ask lacks {CARD_ASK_RULE}")
     hooks_dir = claude_hooks_dir()
-    registered, _ = _registration_state(settings, hooks_dir, GATE_SCRIPT, ("Bash",))
+    registered, notes = _registration_state(settings, hooks_dir, GATE_SCRIPT, ("Bash",))
     if not registered:
         problems.append(
             f"the PreToolUse hook {GATE_SCRIPT} is not registered from {hooks_dir} "
-            "with a matcher that covers Bash"
+            "with a matcher that covers Bash, as exactly python3 -I and a timeout of at least "
+            f"{MIN_HOOK_TIMEOUT} seconds"
         )
+    for script, _, tools in HOOK_REGISTRATIONS[1:]:
+        _, notes = _registration_state(settings, hooks_dir, script, tools)
+        problems += [note for note in notes if "timeout" in note]
     return problems
