@@ -8,10 +8,13 @@ accounts, or whose owner the call does not say, also has its text checked with `
 before the box is shown.
 """
 
+import contextlib
 import json
 import os
 import re
+import secrets
 import shutil
+import signal
 import subprocess
 import tempfile
 import tomllib
@@ -22,7 +25,10 @@ from pathlib import Path
 from .decision import PASS, Decision, ask, body_summary, cut, deny
 
 CATALOG_PATH = Path(__file__).with_name("catalog.json")
-CHECK_TIMEOUT_SECONDS = 20
+MAX_CHECK_BYTES = 2 * 1024 * 1024
+# The hook has 5 s: the git init and the check together stay under it.
+CHECK_TIMEOUT_SECONDS = 3
+GIT_INIT_TIMEOUT_SECONDS = 1
 GENERIC_LINES = 6
 PLAIN_KEYS = frozenset({"owner", "repo"})
 DESTINATION_KEYS = PLAIN_KEYS | {"repository_organization", "repository_name"}
@@ -31,6 +37,7 @@ KRAKEN_CHECKED = frozenset(
 )
 
 UNCLASSIFIED_LIMIT = 500
+RECORD_NAME = "unclassified.json"
 RECORDABLE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,128}")
 
 SIGILO_CHECKED = "Sigilo: conferido (check-secrets)"
@@ -56,35 +63,68 @@ def _data_dir() -> Path:
     return Path(value) if value else Path.home() / ".local" / "share" / "workspace"
 
 
+def _read_record(dir_fd: int) -> dict | None:
+    """The recorded counts; {} when there is none or it is damaged, None when the file is a link
+    or cannot be read (the caller then skips recording)."""
+    try:
+        descriptor = os.open(RECORD_NAME, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    except FileNotFoundError:
+        return {}
+    except OSError:
+        return None
+    with os.fdopen(descriptor, "r", encoding="utf-8", errors="replace") as handle:
+        try:
+            data = json.loads(handle.read())
+        except ValueError:
+            return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_record(dir_fd: int, data: dict) -> None:
+    temp = f"unclassified-{secrets.token_hex(8)}.tmp"
+    descriptor = os.open(
+        temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dir_fd
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, sort_keys=True)
+        os.replace(temp, RECORD_NAME, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+    except BaseException:
+        os.unlink(temp, dir_fd=dir_fd)
+        raise
+
+
 def _record_unclassified(server: str, tool: str) -> None:
     """Count one ask of a tool the catalog does not know, for `ws gate catalog`: names only, never
-    parameters. No lock (a lost count is harmless) and no failure may reach the decision."""
+    parameters. No lock (a lost count is harmless) and no failure may reach the decision. A folder
+    or file that is a link is not followed: the record is skipped, since a planted link would
+    send the write elsewhere."""
     try:
         if not (RECORDABLE_NAME.fullmatch(server) and RECORDABLE_NAME.fullmatch(tool)):
             return
         folder = _data_dir() / "gate"
-        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-        folder.chmod(0o700)
-        path = folder / "unclassified.json"
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, ValueError):
-            data = {}
-        data = data if isinstance(data, dict) else {}
-        tools = data.get(server)
-        tools = tools if isinstance(tools, dict) else {}
-        known = sum(len(value) for value in data.values() if isinstance(value, dict))
-        entry = tools.get(tool)
-        if not isinstance(entry, dict) and known >= UNCLASSIFIED_LIMIT:
+        if folder.is_symlink():
             return
-        count = entry.get("count") if isinstance(entry, dict) else 0
-        count = count if isinstance(count, int) else 0
-        tools[tool] = {"count": count + 1, "last": date.today().isoformat()}
-        data[server] = tools
-        descriptor, name = tempfile.mkstemp(dir=folder, prefix="unclassified-", suffix=".tmp")
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, sort_keys=True)
-        os.replace(name, path)
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        dir_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fchmod(dir_fd, 0o700)
+            data = _read_record(dir_fd)
+            if data is None:
+                return
+            tools = data.get(server)
+            tools = tools if isinstance(tools, dict) else {}
+            known = sum(len(value) for value in data.values() if isinstance(value, dict))
+            entry = tools.get(tool)
+            if not isinstance(entry, dict) and known >= UNCLASSIFIED_LIMIT:
+                return
+            count = entry.get("count") if isinstance(entry, dict) else 0
+            count = count if isinstance(count, int) else 0
+            tools[tool] = {"count": count + 1, "last": date.today().isoformat()}
+            data[server] = tools
+            _write_record(dir_fd, data)
+        finally:
+            os.close(dir_fd)
     except Exception:
         return
 
@@ -520,7 +560,11 @@ def _fresh_repo() -> Path:
     folder = Path(tempfile.mkdtemp(prefix="check-", dir=parent))
     try:
         subprocess.run(
-            ["git", "init", "-q"], cwd=folder, check=True, capture_output=True, timeout=10
+            ["git", "init", "-q"],
+            cwd=folder,
+            check=True,
+            capture_output=True,
+            timeout=GIT_INIT_TIMEOUT_SECONDS,
         )
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)
@@ -528,8 +572,32 @@ def _fresh_repo() -> Path:
     return folder
 
 
+def _run_check(binary: str, path: Path, folder: Path) -> subprocess.CompletedProcess[str]:
+    """Run the check in its own process group, so a timeout kills what it started too and no
+    child outlives the folder it works in."""
+    process = subprocess.Popen(
+        [binary, "check-secrets", str(path)],
+        cwd=folder,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=CHECK_TIMEOUT_SECONDS)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise
+    return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+
+
 def check_secrets(text: str) -> str | None:
     """None when `ws check-secrets` finds nothing; otherwise why the content cannot go."""
+    data = text.encode("utf-8", errors="replace")
+    if len(data) > MAX_CHECK_BYTES:
+        return "content too large to check"
     binary = _ws_binary()
     if binary is None:
         return "ws executable not found"
@@ -540,16 +608,10 @@ def check_secrets(text: str) -> str | None:
     try:
         descriptor, name = tempfile.mkstemp(dir=folder, prefix="content-", suffix=".txt")
         path = Path(name)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
         try:
-            result = subprocess.run(
-                [binary, "check-secrets", str(path)],
-                cwd=folder,
-                capture_output=True,
-                text=True,
-                timeout=CHECK_TIMEOUT_SECONDS,
-            )
+            result = _run_check(binary, path, folder)
         except subprocess.TimeoutExpired:
             return f"ws check-secrets timed out after {CHECK_TIMEOUT_SECONDS}s"
         except OSError as error:
@@ -598,8 +660,8 @@ def _confidentiality(family: str, tool: str, inputs: dict) -> tuple[Decision | N
         shown = owner or "unknown owner or authenticated account"
         return (
             deny(
-                f"Blocked: content for the personal GitHub ({shown}) has check-secrets "
-                f"findings: {problem}; mask it with ws mask and retry."
+                f"Blocked: content for the personal GitHub ({shown}) was not cleared by "
+                f"check-secrets: {problem}; mask it with ws mask and retry."
             ),
             "",
         )

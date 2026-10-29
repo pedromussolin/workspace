@@ -2,6 +2,7 @@ import json
 import os
 import stat
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -654,3 +655,139 @@ def test_names_that_are_not_plain_are_not_recorded():
     assert run("mcp__sr v__t").kind == "ask"
     assert run("mcp__srv__bad name").kind == "ask"
     assert not unclassified_file().exists()
+
+
+def _personal_comment(**changes):
+    inputs = {"owner": "me", "repo": "r", "issue_number": 1, "body": "x"} | changes
+    return run(GH + "add_issue_comment", **inputs)
+
+
+def _check_leftovers(isolated_env) -> list[str]:
+    folder = isolated_env / "cache" / "gate"
+    return [path.name for path in folder.iterdir()] if folder.exists() else []
+
+
+def test_the_check_deadline_leaves_room_in_the_five_second_hook_limit():
+    assert mcp_rules.CHECK_TIMEOUT_SECONDS == 3
+    assert mcp_rules.CHECK_TIMEOUT_SECONDS + mcp_rules.GIT_INIT_TIMEOUT_SECONDS < 5
+
+
+def test_a_check_that_takes_longer_than_three_seconds_denies(isolated_env):
+    set_owners("me")
+    slow = isolated_env / "slow-ws"
+    slow.write_text("#!/bin/sh\nsleep 4\n", encoding="utf-8")
+    slow.chmod(0o755)
+    os.environ["WS_GATE_WS_BIN"] = str(slow)
+
+    started = time.monotonic()
+    decision = _personal_comment()
+
+    assert time.monotonic() - started < 4
+    assert decision.kind == "deny"
+    assert "timed out" in decision.reason
+    assert _check_leftovers(isolated_env) == []
+
+
+def test_a_timeout_kills_what_the_check_started(isolated_env, monkeypatch):
+    set_owners("me")
+    monkeypatch.setattr(mcp_rules, "CHECK_TIMEOUT_SECONDS", 0.3)
+    marker = isolated_env / "child-alive"
+    slow = isolated_env / "forking-ws"
+    slow.write_text(
+        f"#!/bin/sh\n(sleep 1; touch '{marker}') &\nsleep 5\n",
+        encoding="utf-8",
+    )
+    slow.chmod(0o755)
+    os.environ["WS_GATE_WS_BIN"] = str(slow)
+
+    assert _personal_comment().kind == "deny"
+
+    time.sleep(1.5)
+    assert not marker.exists()
+
+
+def test_content_above_the_cap_denies_without_running_the_check(isolated_env):
+    set_owners("me")
+    ran = isolated_env / "ran"
+    probe = isolated_env / "probe-ws"
+    probe.write_text(f"#!/bin/sh\ntouch '{ran}'\n", encoding="utf-8")
+    probe.chmod(0o755)
+    os.environ["WS_GATE_WS_BIN"] = str(probe)
+
+    decision = _personal_comment(body="a" * (mcp_rules.MAX_CHECK_BYTES + 1))
+
+    assert decision.kind == "deny"
+    assert "content too large to check" in decision.reason
+    assert not ran.exists()
+    assert _check_leftovers(isolated_env) == []
+
+
+def test_the_cap_counts_bytes_not_characters(isolated_env):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
+    half = mcp_rules.MAX_CHECK_BYTES // 2
+
+    assert _personal_comment(body="é" * (half - 100)).kind == "ask"
+    assert _personal_comment(body="é" * (half + 1)).kind == "deny"
+
+
+def test_a_lone_surrogate_never_crashes_the_check(isolated_env):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
+
+    assert _personal_comment(body="a\ud800b").kind in ("ask", "deny")
+    assert _check_leftovers(isolated_env) == []
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_the_check_folder_is_gone_after_every_outcome(isolated_env, exit_code):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, exit_code, "finding")
+
+    _personal_comment()
+
+    assert _check_leftovers(isolated_env) == []
+
+
+def test_a_symlinked_gate_folder_is_not_followed(isolated_env):
+    target = isolated_env / "elsewhere"
+    target.mkdir()
+    gate = unclassified_file().parent
+    gate.parent.mkdir(parents=True, exist_ok=True)
+    gate.symlink_to(target)
+
+    assert run(GH + "brand_new_tool").kind == "ask"
+
+    assert list(target.iterdir()) == []
+    assert gate.is_symlink()
+
+
+def test_a_symlinked_record_file_is_not_followed_or_replaced(isolated_env):
+    target = isolated_env / "victim.json"
+    target.write_text('{"keep": {}}', encoding="utf-8")
+    record = unclassified_file()
+    record.parent.mkdir(parents=True)
+    record.symlink_to(target)
+
+    assert run(GH + "brand_new_tool").kind == "ask"
+
+    assert target.read_text(encoding="utf-8") == '{"keep": {}}'
+    assert record.is_symlink()
+    assert [path.name for path in record.parent.iterdir()] == ["unclassified.json"]
+
+
+def test_the_record_is_opened_with_o_nofollow(monkeypatch):
+    flags: list[int] = []
+    real_open = os.open
+
+    def spy(path, flag, *args, **kwargs):
+        flags.append(flag)
+        return real_open(path, flag, *args, **kwargs)
+
+    monkeypatch.setattr(mcp_rules.os, "open", spy)
+
+    run(GH + "brand_new_tool")
+
+    assert flags
+    assert all(flag & os.O_NOFOLLOW for flag in flags)
+    assert unclassified_file().exists()
