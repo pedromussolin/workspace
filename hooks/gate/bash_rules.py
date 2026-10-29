@@ -26,6 +26,8 @@ Credential reads from code are found by the path written in it, or by the home p
 name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
 (`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
+With `environment_branches` set, a push to one of them is denied, or asks with a warning in a
+`direct_push_repos` repository (`branches`); the repository name comes from one more local query.
 
 A plain `git push` (or `git push origin main`) shows no box only when all of these hold, in
 `[gate]` of `~/.config/workspace/config.toml`: it is the whole command line (no other command,
@@ -51,7 +53,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import shell
+from . import branches, shell
 from .decision import PASS, Decision, ask, body_summary, cut, deny
 from .shell import Command, Scan, Word, program_name
 
@@ -655,7 +657,7 @@ def _allowed_push_remotes() -> set[str]:
         return set()
 
 
-def _branch_state(folder: str) -> tuple[str, str, int] | None:
+def _branch_state(folder: str, deadline: float) -> tuple[str, str, int] | None:
     """The current branch, its upstream and how many commits it is ahead, or None.
 
     Three local queries, no network, with the repository's own `fsmonitor` and hooks switched off
@@ -669,7 +671,6 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
         ["rev-parse", "--abbrev-ref", "@{u}"],
         ["rev-list", "--count", "@{u}..HEAD"],
     )
-    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
     answers: list[str] = []
     for query in queries:
         done = _local_git(folder, query, deadline)
@@ -683,6 +684,77 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
     return branch, upstream, int(ahead)
 
 
+def _refspec_target(spec: str) -> str | None:
+    """The remote branch a refspec writes: `HEAD` for the current branch's name, "" for a ref
+    that is not a branch (a tag), None when the gate cannot tell."""
+    spec = spec.removeprefix("+")
+    colon = ":" in spec
+    target = spec.rpartition(":")[2]
+    if target in ("HEAD", "@"):
+        return None if colon else "HEAD"
+    if target.startswith("refs/heads/"):
+        target = target.removeprefix("refs/heads/")
+    elif target.startswith("refs/"):
+        return ""
+    return target or None
+
+
+def _current_branch(folder: str, deadline: float) -> str | None:
+    done = _local_git(folder, ["rev-parse", "--abbrev-ref", "HEAD"], deadline)
+    answer = done.stdout.strip() if done is not None and done.returncode == 0 else ""
+    return answer if answer and answer != "HEAD" and "\n" not in answer else None
+
+
+def _push_repo(remote: Word | None, folder: str | None, deadline: float) -> str | None:
+    """The name of the repository a push writes to: from the URL written in the command, or from
+    the push URL of the remote (`origin` when none is named); None when the gate cannot tell."""
+    if remote is not None and remote.expands:
+        return None
+    if remote is not None and PUSH_URL.match(remote.text):
+        return branches.repo_name(remote.text)
+    if folder is None or not _in_repository(folder):
+        return None
+    name = remote.text if remote is not None else "origin"
+    done = _local_git(folder, ["remote", "get-url", "--push", name], deadline)
+    url = done.stdout.strip() if done is not None and done.returncode == 0 else ""
+    return branches.repo_name(url) if url and "\n" not in url else None
+
+
+def _push_environment(
+    rules: branches.Policy,
+    parsed: Parsed,
+    specs: list[Word],
+    remote: Word | None,
+    folder: str | None,
+    state: tuple[str, str, int] | None,
+    deadline: float,
+) -> tuple[list[str], str]:
+    """The environment-branch policy of one push: (box warnings, denial).
+
+    `folder` is None when the push may run in another repository, so nothing is read there.
+    Without a refspec the push goes to the upstream branch (`push.default` simple or upstream).
+    """
+    flag = next((name for name, _ in parsed.flags if name in ("--all", "--mirror")), "")
+    targets: list[str | None] = []
+    if specs:
+        for word in specs:
+            target = None if word.expands else _refspec_target(word.text)
+            if target == "HEAD":
+                target = _current_branch(folder, deadline) if folder else None
+            targets.append(target)
+    elif not (flag or parsed.has("--tags", "--delete", "-d")):
+        targets.append(state[1].partition("/")[2] if state else None)
+    environment = [target for target in targets if target and rules.is_environment(target)]
+    unknown = [branches.UNKNOWN_TARGET] if None in targets else []
+    if not (flag or environment):
+        return unknown, ""
+    if remote is None and state is not None:
+        remote = Word(state[1].partition("/")[0])
+    repo = _push_repo(remote, folder, deadline)
+    warning, denied = branches.judge(rules, environment[0] if environment else "*", repo, flag)
+    return [warning, *unknown], denied
+
+
 def _push(
     rest: list[Word],
     directories: list[Word],
@@ -694,18 +766,31 @@ def _push(
     elsewhere: list[str] | None = None,
 ) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
-    names = [word.text for word in parsed.positionals]
-    remote = parsed.value("--repo")
-    if remote is None and names:
-        remote, names = names[0], names[1:]
+    specs = list(parsed.positionals)
+    given = parsed.value("--repo")
+    remote_word = Word(given) if given is not None else None
+    if remote_word is None and specs:
+        remote_word, specs = specs[0], specs[1:]
+    remote = remote_word.text if remote_word is not None else None
+    names = [word.text for word in specs]
     forced = [name for name, _ in parsed.flags if name.startswith(FORCE_FLAGS)]
     forced += ["+" + spec[1:] for spec in names if spec.startswith("+")]
     deleted = parsed.has("--delete", "-d") or any(spec.startswith(":") for spec in names)
     folder = _folder(cwd, directories)
     redirecting = [override for override in overrides if _redirects_push(override)]
+    readable = not (moved or elsewhere or any(word.expands for word in directories))
+    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
     state = None
-    if not (names or moved or elsewhere or any(word.expands for word in directories)):
-        state = _branch_state(folder)
+    if readable and not names:
+        state = _branch_state(folder, deadline)
+    environment: list[str] = []
+    denied = ""
+    if rules := branches.policy():
+        environment, denied = _push_environment(
+            rules, parsed, specs, remote_word, folder if readable else None, state, deadline
+        )
+    if denied:
+        return Finding(TITLE_GITHUB, (), denial=denied)
     if redirecting:
         shown = f"{remote or 'o padrão'}, mudado por {redirecting[0]}"
     else:
@@ -713,6 +798,7 @@ def _push(
     lines = [
         f"Enviar commits (git push) da pasta {_pretty(folder)}",
         f"Remoto: {shown}",
+        *environment,
     ]
     if destination is not None:
         urls, elsewhere = destination
@@ -749,7 +835,9 @@ def _push(
     flags = " ".join([*forced[:1], *(["--delete"] if deleted else []), *extra])
     refs = ", ".join(names) if names else "refs padrão"
     brief = f"{shown} ← git push {flags + ' ' if flags else ''}{refs} da pasta {_pretty(folder)}"
-    alert = bool(given_url or overrides or forced or deleted or warnings or elsewhere)
+    alert = bool(
+        given_url or overrides or forced or deleted or warnings or elsewhere or environment
+    )
     alert = alert or bool(destination and destination[1])
     return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=alert)
 

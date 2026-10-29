@@ -2193,3 +2193,190 @@ def test_python_that_imports_ws_without_applying_a_card_passes(command, env):
 )
 def test_python_that_applies_a_card_asks_with_the_jira_title(command, env):
     assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
+
+
+ENVIRONMENT_POLICY = (
+    '[gate]\nenvironment_branches = ["master", "main", "sandbox", "staging"]\n'
+    'direct_push_repos = ["*-argocd"]\n'
+)
+
+
+@pytest.fixture
+def make_repo(tmp_path):
+    """A clone of a bare `NAME.git` on `main`, tracking `origin/main`, one commit ahead."""
+
+    def make(name):
+        remote = tmp_path / f"{name}.git"
+        work = tmp_path / name
+        _git(["init", "-q", "--bare", "-b", "main", str(remote)], tmp_path, tmp_path)
+        _git(["init", "-q", "-b", "main", str(work)], tmp_path, tmp_path)
+        _git(["remote", "add", "origin", str(remote)], work, tmp_path)
+        _commit(work, "a.txt", tmp_path)
+        _git(["push", "-q", "-u", "origin", "main"], work, tmp_path)
+        _commit(work, "b.txt", tmp_path)
+        return work
+
+    return make
+
+
+def denial(command, env, cwd="/work"):
+    found = decision(command, env, cwd)
+    assert found is not None and found["permissionDecision"] == "deny", found
+    return found["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize(
+    ("command", "branch"),
+    [
+        ("git push", "main"),
+        ("git push origin", "main"),
+        ("git push -u origin HEAD", "main"),
+        ("git push origin main", "main"),
+        ("git push origin HEAD:master", "master"),
+        ("git push origin feature:refs/heads/staging", "staging"),
+        ("git push origin +master", "master"),
+        ("git push --force origin sandbox", "sandbox"),
+        ("git push origin :master", "master"),
+        ("git push origin --delete master", "master"),
+        ("git push origin feature/x main", "main"),
+        ("git push origin 'refs/heads/*:refs/heads/*'", "refs/heads/*:refs/heads/*"),
+    ],
+)
+def test_a_push_to_an_environment_branch_is_denied(command, branch, make_repo, env):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+    reason = denial(command, env, cwd=str(repo))
+
+    shown = "*" if "*" in branch else branch
+    assert reason == (
+        f"Blocked: {shown} is an environment branch of app; "
+        "push a task branch and open a PR for the user to merge."
+    )
+
+
+@pytest.mark.parametrize("flag", ["--all", "--mirror"])
+def test_a_push_of_every_branch_counts_as_environment(flag, make_repo, env):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+
+    assert denial(f"git push {flag} origin", env, cwd=str(repo)).startswith(
+        f"Blocked: git push {flag} writes every environment branch of app;"
+    )
+
+
+def test_an_environment_push_in_an_argo_repo_asks_with_a_warning(make_repo, env):
+    repo = make_repo("deploy-argocd")
+    write_config(env, ENVIRONMENT_POLICY)
+    lines = box("git push origin main", env, cwd=str(repo)).splitlines()
+
+    assert lines[:2] == [
+        "Gravar fora — GitHub",
+        "ATENÇÃO: branch de ambiente main no repo deploy-argocd",
+    ]
+    assert "Referências: main" in lines
+    bare = box("git push", env, cwd=str(repo))
+    assert "ATENÇÃO: branch de ambiente main no repo deploy-argocd" in bare
+    every = box("git push --all", env, cwd=str(repo))
+    assert "ATENÇÃO: branch de ambiente git push --all no repo deploy-argocd" in every
+
+
+def test_the_repo_name_comes_from_the_url_written_in_the_push(make_repo, env):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+
+    text = box("git push git@github.com:org/infra-argocd.git main", env, cwd=str(repo))
+    assert "ATENÇÃO: branch de ambiente main no repo infra-argocd" in text
+    reason = denial("git push https://github.com/org/other.git main", env, cwd=str(repo))
+    assert "environment branch of other;" in reason
+
+
+def test_a_push_to_a_task_branch_or_a_tag_asks_as_before(make_repo, env, tmp_path):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+    _git(["checkout", "-q", "-b", "feature/x"], repo, tmp_path)
+    _git(["push", "-q", "-u", "origin", "feature/x"], repo, tmp_path)
+
+    for command in (
+        "git push",
+        "git push origin feature/x",
+        "git push -u origin HEAD",
+        "git push origin v1.0",
+        "git push origin refs/tags/main",
+        "git push --tags",
+    ):
+        text = box(command, env, cwd=str(repo))
+        assert "ATENÇÃO" not in text, command
+
+
+@pytest.mark.parametrize("command", ['git push origin "$B"', "git push"])
+def test_an_unknown_push_target_asks_with_a_warning(command, make_repo, env, tmp_path):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+    _git(["checkout", "-q", "-b", "lonely"], repo, tmp_path)
+    lines = box(command, env, cwd=str(repo)).splitlines()
+
+    assert lines[1] == "ATENÇÃO: não consegui ver a branch de destino"
+
+
+def test_an_environment_push_from_another_folder_is_denied_without_reading_it(make_repo, env):
+    repo = make_repo("deploy-argocd")
+    write_config(env, ENVIRONMENT_POLICY)
+    reason = denial(f"cd {repo} && git push origin main", env, cwd=str(repo))
+
+    assert "environment branch of a repository the gate could not name;" in reason
+
+
+def test_without_the_environment_list_the_policy_is_off(make_repo, env):
+    repo = make_repo("app")
+    write_config(env, '[gate]\ndirect_push_repos = ["*-argocd"]\n')
+
+    assert "Branch atual: main" in box("git push", env, cwd=str(repo))
+    assert box("git push origin master", env, cwd=str(repo))
+
+
+def test_the_no_box_push_comes_before_the_environment_policy(listed_repo, env):
+    write_config(
+        env,
+        f'[gate]\npush_without_asking = ["~/repo"]\npush_remotes = ["{PUSH_URL}"]\n'
+        'environment_branches = ["main"]\n',
+    )
+
+    assert box("git push origin main", env, cwd=str(listed_repo)) is None
+
+
+ENVIRONMENT_ANSWERS = """case "$*" in
+  *"--abbrev-ref HEAD") echo main ;;
+  *"--abbrev-ref @{u}") echo origin/main ;;
+  *"--count"*) echo 1 ;;
+  *"get-url --push origin") echo git@github.com:org/app.git ;;
+  *) exit 1 ;;
+esac"""
+
+
+def test_the_repo_name_is_read_locally_without_repo_code(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    write_config(env, ENVIRONMENT_POLICY)
+    path_env, log = fake_git(tmp_path, env, ENVIRONMENT_ANSWERS)
+    reason = denial("git push", path_env, cwd=str(repo))
+    calls = [call.split("|", 1)[1] for call in log.read_text(encoding="utf-8").splitlines()]
+
+    assert "environment branch of app;" in reason
+    assert (
+        calls[-1]
+        == "-c core.fsmonitor=false -c core.hooksPath=/dev/null remote get-url --push origin"
+    )
+
+
+def test_a_slow_git_leaves_the_push_denied_or_asked_within_the_deadline(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    write_config(env, ENVIRONMENT_POLICY)
+    path_env, _ = fake_git(tmp_path, env, "sleep 30")
+    started = time.monotonic()
+    reason = denial("git push origin main", path_env, cwd=str(repo))
+    text = box("git push", path_env, cwd=str(repo))
+
+    assert time.monotonic() - started < 9
+    assert "a repository the gate could not name" in reason
+    assert "ATENÇÃO: não consegui ver a branch de destino" in text
