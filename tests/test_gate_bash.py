@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -226,6 +227,187 @@ def test_push_box_uses_dash_c_for_the_folder(env):
     assert "/srv/repo" not in text
 
 
+def _git(args, cwd, tmp_path):
+    subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(tmp_path),
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.com",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.com",
+        },
+    )
+
+
+def _commit(repo, name, tmp_path):
+    (repo / name).write_text(name, encoding="utf-8")
+    _git(["add", name], repo, tmp_path)
+    _git(["commit", "-q", "-m", name], repo, tmp_path)
+
+
+@pytest.fixture
+def repo_ahead(tmp_path):
+    """A clone on `feature/x` that tracks `origin/feature/x` and is 2 commits ahead of it."""
+    remote = tmp_path / "remote.git"
+    work = tmp_path / "work"
+    _git(["init", "-q", "--bare", "-b", "main", str(remote)], tmp_path, tmp_path)
+    _git(["init", "-q", "-b", "main", str(work)], tmp_path, tmp_path)
+    _git(["remote", "add", "origin", str(remote)], work, tmp_path)
+    _commit(work, "a.txt", tmp_path)
+    _git(["checkout", "-q", "-b", "feature/x"], work, tmp_path)
+    _git(["push", "-q", "-u", "origin", "feature/x"], work, tmp_path)
+    _commit(work, "b.txt", tmp_path)
+    _commit(work, "c.txt", tmp_path)
+    return work
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["git push", "git push origin", "git push -u origin", "git push --quiet", "git push --tags"],
+)
+def test_push_box_without_a_refspec_names_the_branch_upstream_and_commits_ahead(
+    command, repo_ahead, env
+):
+    lines = box(command, env, cwd=str(repo_ahead)).splitlines()
+
+    assert "Branch atual: feature/x, upstream origin/feature/x" in lines
+    assert "Commits à frente do upstream: 2" in lines
+    assert not any(line.startswith("Referências:") for line in lines)
+
+
+def test_push_box_with_dash_c_reads_the_branch_of_that_folder(repo_ahead, env, tmp_path):
+    text = box(f"git -C {repo_ahead} push", env, cwd=str(tmp_path))
+
+    assert "Branch atual: feature/x, upstream origin/feature/x" in text
+
+
+def test_push_box_with_an_explicit_refspec_keeps_the_refspec_line(repo_ahead, env):
+    text = box("git push origin feature/x", env, cwd=str(repo_ahead))
+
+    assert "Referências: feature/x" in text
+    assert "Branch atual" not in text
+
+
+def test_push_box_falls_back_when_the_branch_has_no_upstream(repo_ahead, env, tmp_path):
+    _git(["checkout", "-q", "-b", "lonely"], repo_ahead, tmp_path)
+    text = box("git push", env, cwd=str(repo_ahead))
+
+    assert "Referências: as configuradas no repositório" in text
+    assert "Branch atual" not in text
+
+
+def test_push_box_falls_back_on_a_detached_head(repo_ahead, env, tmp_path):
+    _git(["checkout", "-q", "--detach"], repo_ahead, tmp_path)
+
+    assert "Referências: as configuradas" in box("git push", env, cwd=str(repo_ahead))
+
+
+def fake_git(tmp_path, env, body):
+    """Put a `git` that logs how it was called and answers `body` first on the gate's PATH."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "git-calls.log"
+    script = bin_dir / "git"
+    script.write_text(f'#!/bin/sh\necho "$PWD|$*" >> {log}\n{body}\n', encoding="utf-8")
+    script.chmod(0o755)
+    return {**env, "PATH": f"{bin_dir}:{env['PATH']}"}, log
+
+
+ANSWERS = """case "$*" in
+  *"--abbrev-ref HEAD") echo feature/y ;;
+  *"--abbrev-ref @{u}") echo origin/feature/y ;;
+  *"--count"*) echo 4 ;;
+  *) exit 1 ;;
+esac"""
+
+
+def test_push_box_runs_only_the_three_local_queries_without_repo_code(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, log = fake_git(tmp_path, env, ANSWERS)
+    text = box("git push", path_env, cwd=str(repo))
+    calls = log.read_text(encoding="utf-8").splitlines()
+    options = "-c core.fsmonitor=false -c core.hooksPath=/dev/null"
+
+    assert "Branch atual: feature/y, upstream origin/feature/y" in text
+    assert "Commits à frente do upstream: 4" in text
+    assert [call.split("|", 1)[1] for call in calls] == [
+        f"{options} rev-parse --abbrev-ref HEAD",
+        f"{options} rev-parse --abbrev-ref @{{u}}",
+        f"{options} rev-list --count @{{u}}..HEAD",
+    ]
+    assert {call.split("|", 1)[0] for call in calls} == {str(repo.resolve())}
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["git push origin main", "git push origin feature/y", "cd /srv/other && git push"],
+)
+def test_push_box_runs_nothing_when_it_names_a_refspec_or_the_folder_may_differ(
+    command, tmp_path, env
+):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, log = fake_git(tmp_path, env, ANSWERS)
+
+    assert box(command, path_env, cwd=str(repo))
+    assert not log.exists()
+
+
+def test_push_box_runs_nothing_when_the_folder_is_not_a_repository(tmp_path, env):
+    folder = tmp_path / "plain"
+    folder.mkdir()
+    path_env, log = fake_git(tmp_path, env, ANSWERS)
+    text = box("git push", path_env, cwd=str(folder))
+
+    assert "Referências: as configuradas no repositório" in text
+    assert box("git push", path_env, cwd=str(tmp_path / "missing"))
+    assert not log.exists()
+
+
+def test_push_box_runs_nothing_when_dash_c_comes_from_an_expansion(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, log = fake_git(tmp_path, env, ANSWERS)
+
+    assert "Referências: as configuradas" in box('git -C "$r" push', path_env, cwd=str(repo))
+    assert not log.exists()
+
+
+def test_push_box_falls_back_when_git_fails(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, _ = fake_git(tmp_path, env, "exit 128")
+
+    assert "Referências: as configuradas no repositório" in box("git push", path_env, str(repo))
+
+
+def test_push_box_falls_back_when_git_prints_nonsense(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, _ = fake_git(tmp_path, env, 'echo one; echo two; case "$*" in *count*) echo x;; esac')
+
+    assert "Referências: as configuradas no repositório" in box("git push", path_env, str(repo))
+
+
+def test_push_box_gives_up_on_a_slow_git_after_three_seconds(tmp_path, env):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    path_env, _ = fake_git(tmp_path, env, "sleep 30")
+    started = time.monotonic()
+    text = box("git push", path_env, cwd=str(repo))
+
+    assert time.monotonic() - started < 8
+    assert "Referências: as configuradas no repositório" in text
+
+
 @pytest.mark.parametrize(
     ("command", "called_out"),
     [
@@ -263,7 +445,19 @@ def listed_repo(env, tmp_path):
     return repo
 
 
-@pytest.mark.parametrize("command", ["git push", "git push origin main"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push",
+        "git push origin main",
+        "git push -q",
+        "git push --quiet",
+        "git push -q origin main",
+        "git push --quiet origin main",
+        "git push origin main -q",
+        "git push origin main --quiet",
+    ],
+)
 def test_push_without_asking_in_a_listed_folder(command, listed_repo, env):
     assert box(command, env, cwd=str(listed_repo)) is None
 
@@ -279,6 +473,13 @@ def test_push_without_asking_follows_symlinks_to_the_listed_folder(listed_repo, 
     "command",
     [
         "git push --force",
+        "git push -q --force",
+        "git push -qf",
+        "git push -q -q",
+        "git push --quiet -q origin main",
+        "git push -q origin feature",
+        "git push -q upstream main",
+        "git push -v",
         "git push origin main --tags",
         "git push origin feature",
         "git push -u origin main",
@@ -747,16 +948,30 @@ def test_reading_or_unrelated_paths_do_not_trigger_protection(command, env):
         "git `echo push`",
         "git push origin $BRANCH",
         "git push origin ${BRANCH}",
-        "git log $(git merge-base a b)..HEAD",
-        "git add src/{a,b}.py",
-        "git checkout -b feature/{x,y}",
         'git "$verb" origin main',
         'git --no-pager "$verb"',
+        'git -C "$r" "$verb"',
+        "git $v log",
+        'git -c "x=$y" $verb',
+        'git remote "$action" origin url',
+        "git remote $action add x y",
+        'git config "$key" value',
+        "git config $key value",
         "gh pr $action 12",
         "gh $(echo pr) merge 12",
         'gh "$group" merge 12',
+        'gh -R "$r" $a 12',
+        "gh $x view",
         "gh api repos/a/b $FLAGS",
+        "gh api $ENDPOINT",
         "gh api repos/a/b -X $METHOD",
+        "gh api repos/a/b -X$METHOD",
+        "gh api repos/a/b --method=$METHOD",
+        "gh api repos/$o/b $FLAGS",
+        "gh api `echo -X POST` repos/a/b",
+        "gh api repos/a/b {-X,POST}",
+        'gh api graphql -f query="$QUERY"',
+        "gh api graphql -f query=$QUERY",
         "curl -X $METHOD https://api.example.com/x",
         "curl $OPTIONS https://api.example.com/x",
         "curl https://api.example.com/{a,b}",
@@ -769,9 +984,6 @@ def test_reading_or_unrelated_paths_do_not_trigger_protection(command, env):
         "env X=1 git $(echo push)",
         "bash -c 'git $(echo push)'",
         "echo ok && git push origin $(git branch --show-current)",
-        'git commit -m "feat" --author=$AUTHOR',
-        "git tag v{1..3}",
-        "gh pr view \\$x $y",
     ],
 )
 def test_an_unquoted_expansion_in_a_watched_command_asks(command, env):
@@ -781,10 +993,84 @@ def test_an_unquoted_expansion_in_a_watched_command_asks(command, env):
 
 
 def test_obfuscation_box_says_it_is_not_sure_and_shows_the_command(env):
-    lines = box("gh pr view $N", env).splitlines()
+    lines = box("ws card preview $(cat name)", env).splitlines()
 
     assert lines[0] == "Comando não lido com certeza"
-    assert "Comando: gh pr view $N" in lines
+    assert "Comando: ws card preview $(cat name)" in lines
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git log --oneline main..$B",
+        "git diff --stat e493f74 $B",
+        "git log $(git merge-base a b)..HEAD",
+        "git diff $(git merge-base HEAD main) -- src",
+        "git add src/{a,b}.py",
+        "git checkout -b feature/{x,y}",
+        "git checkout $BRANCH",
+        "git branch -D $OLD",
+        'git commit -m "feat" --author=$AUTHOR',
+        "git tag v{1..3}",
+        "git fetch $REMOTE",
+        "git show ${REV}:file.txt",
+        "git rebase $(git merge-base a b)",
+        "git -C $dir status",
+        'git -C "$r" status --short',
+        'git -C "$r" config --get core.fsmonitor',
+        "git -c user.name=$NAME commit -m x",
+        'git --git-dir="$d" log',
+        'git --work-tree "$w" status',
+        "git --exec-path=$X status",
+        "git --namespace $ns log",
+        "git config user.name $NAME",
+        'git config --get "$key"',
+        "git config --list | grep $x",
+        "git remote -v | grep $x",
+        "git remote show $r",
+        "gh pr view $N",
+        "gh pr view $N --json title --jq .title",
+        "gh pr list --search $QUERY",
+        "gh pr checks $N",
+        "gh issue view $N --json title",
+        "gh run view $ID --log",
+        'gh -R "$r" pr view $N',
+        "gh --repo $r pr list",
+        "gh repo clone $slug",
+        "gh pr view \\$x $y",
+        "gh api repos/$OWNER/$REPO/pulls",
+        "gh api repos/$o/$r/pulls/$n/comments --jq '.[].body'",
+        'gh api -H "Accept: $X" repos/a/b',
+        "gh api repos/a/b/{issues,pulls}",
+        "gh api graphql -f query='{ viewer { login } }' -F n=$N",
+        'echo ok; for r in ~/repos/*/; do git -C "$r" status -s; done',
+    ],
+)
+def test_expansions_in_the_arguments_of_a_read_verb_pass(command, env):
+    assert box(command, env) is None
+
+
+def test_the_fsmonitor_loop_passes(env):
+    command = (
+        'for r in ~/repos/*/; do v=$(git -C "$r" config --get core.fsmonitor 2>/dev/null); done'
+    )
+
+    assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    ("command", "title"),
+    [
+        ("gh pr merge $N --squash", "Gravar fora — GitHub"),
+        ("gh pr create -t $TITLE", "Gravar fora — GitHub"),
+        ("gh api repos/$o/$r/issues -f title=$T", "Gravar fora — GitHub"),
+        ("git push origin $B", "Gravar fora — GitHub"),
+        ("git remote add $name $url", "Destino do git push"),
+        ("git config remote.$name.url $url", "Destino do git push"),
+    ],
+)
+def test_the_write_families_judge_expanded_arguments_by_their_own_rules(command, title, env):
+    assert box(command, env).splitlines()[0] == title
 
 
 @pytest.mark.parametrize(
@@ -946,3 +1232,160 @@ def test_a_long_box_is_cut_to_ten_lines(env):
 )
 def test_wrappers_and_shell_forms_do_not_hide_a_push(command, env):
     assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+
+
+CREDENTIAL_TITLE = "Lê uma credencial"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat ~/.config/workspace/credentials",
+        "cat $HOME/.config/workspace/credentials",
+        "cat ${HOME}/.config/workspace/credentials",
+        "cat .config/workspace/credentials",
+        "head -c 20 ~/.config/workspace/credentials",
+        "grep token ~/.config/workspace/credentials",
+        "cp ~/.config/workspace/credentials /tmp/x",
+        "source ~/.config/workspace/credentials",
+        ". ~/.config/workspace/credentials",
+        "cat ~/.config/workspace/*",
+        "cat ~/.config/workspace/cred*",
+        "cat ~/.config/workspace/c?edentials",
+        "tar czf /tmp/x.tgz ~/.config/workspace",
+        "cp -r ~/.config/workspace/ /tmp/x",
+        "grep -r token ~/.config/workspace",
+        "cat $WS_CONFIG_DIR/credentials",
+        "cat ~/.config/gh/hosts.yml",
+        "cat $HOME/.config/gh/hosts.yml",
+        "cat ${HOME}/.config/gh/hosts.yml",
+        "cat ~/.config/gh/*",
+        "cp -r ~/.config/gh /tmp/x",
+        "sed -n 1p ~/.config/gh/hosts.yml",
+        "cat ~/.ssh/id_ed25519",
+        "cat ~/.ssh/id_rsa",
+        "cat ~/.ssh/id_ecdsa",
+        "cat ~/.ssh/id_custom_key",
+        "cat $HOME/.ssh/id_rsa",
+        "ssh-keygen -y -f ~/.ssh/id_rsa",
+        "ssh -i ~/.ssh/id_rsa host",
+        "cat ~/.ssh/id_*",
+        "cat ~/.ssh/*",
+        "cp -r ~/.ssh /tmp/x",
+        "cat ~/.ssh/id_rsa > /tmp/x",
+        "base64 < ~/.ssh/id_rsa",
+        "echo x > ~/.config/workspace/credentials",
+        "cd ~/.ssh && cat id_rsa",
+        "cd ~/.ssh && cat *",
+        "cd ~/.ssh/ && head -1 id_ed25519",
+        "cd ~/.config/workspace && cat credentials",
+        "cd ~/.config/gh; cat hosts.yml",
+        "cd $WS_CONFIG_DIR && cat credentials",
+        "pushd ~/.ssh && cat id_rsa",
+        "bash -c 'cat ~/.ssh/id_rsa'",
+        "echo $(cat ~/.ssh/id_rsa)",
+        'echo "$(cat ~/.config/workspace/credentials)"',
+        "python3 -c \"print(open('/root/.config/workspace/credentials').read())\"",
+        "python3 -c \"open('/root/.ssh/id_rsa')\"",
+        "python3 - <<'EOF'\nprint(open('/root/.config/gh/hosts.yml').read())\nEOF",
+        "test -e x$(cat ~/.ssh/id_rsa)",
+    ],
+)
+def test_reading_a_credential_asks(command, env):
+    assert CREDENTIAL_TITLE in box(command, env).splitlines()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh auth token",
+        "gh auth token --hostname github.com",
+        "gh auth status --show-token",
+        "gh auth status -t",
+        "gh -R a/b auth token",
+        "uv run gh auth token",
+        "value=$(gh auth token)",
+        'curl -H "Authorization: Bearer $(gh auth token)" https://api.example.com/x',
+        "ws mcp-headers",
+        "ws mcp-headers --server x",
+        "uv run ws mcp-headers",
+        "python3 -m ws mcp-headers",
+        "/srv/ws/.venv/bin/ws mcp-headers",
+    ],
+)
+def test_commands_that_print_a_credential_ask(command, env):
+    assert CREDENTIAL_TITLE in box(command, env).splitlines()
+
+
+def test_credential_box_names_the_path_and_the_command(env):
+    home = env["HOME"]
+    lines = box(f"cat {home}/.config/workspace/credentials", env).splitlines()
+
+    assert lines[0] == CREDENTIAL_TITLE
+    assert lines[1] == "Lê uma credencial: ~/.config/workspace/credentials"
+    assert lines[2].startswith("Comando: cat ")
+
+
+def test_credential_box_for_the_configured_folder(env):
+    config = env["WS_CONFIG_DIR"]
+    lines = box(f"cat {config}/credentials", env).splitlines()
+
+    assert lines[0] == CREDENTIAL_TITLE
+    assert lines[1] == f"Lê uma credencial: {config}/credentials"
+
+
+def test_credential_box_for_a_command_names_it(env):
+    lines = box("gh auth token", env).splitlines()
+
+    assert lines[1] == "Lê uma credencial: o token do GitHub (gh auth token)"
+    assert lines[2] == "Comando: gh auth token"
+    lines = box("ws mcp-headers", env).splitlines()
+    assert lines[1] == "Lê uma credencial: os cabeçalhos dos MCPs (ws mcp-headers)"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws config token jira",
+        "ws config token",
+        "uv run ws config token jira",
+        "python3 -m ws config token jira",
+        "test -e ~/.config/workspace/credentials",
+        "test -f ~/.config/workspace/credentials && echo ok",
+        "test -f ~/.ssh/id_rsa",
+        "test -d ~/.ssh",
+        "test -s $HOME/.ssh/id_ed25519",
+        "[ -f ~/.config/gh/hosts.yml ]",
+        "[ -e $HOME/.ssh/id_ed25519 ] && echo ok",
+        "stat ~/.config/workspace/credentials",
+        "stat -c %a ~/.ssh/id_rsa",
+        "ls -la ~/.ssh",
+        "ls ~/.ssh/id_rsa",
+        "ls -l ~/.config/workspace/credentials",
+        "ls ~/.config/gh",
+        "ls ~/.config/workspace",
+        "cd ~/.ssh && ls -la",
+        "cd ~/.ssh && stat id_rsa",
+        "cd ~/.config/workspace && ls",
+        "cat ~/.ssh/id_rsa.pub",
+        "cat ~/.ssh/id_ed25519.pub",
+        "cat ~/.ssh/known_hosts",
+        "cat ~/.ssh/config",
+        "cat ~/.ssh/*.pub",
+        "cat ~/.config/workspace/names.toml",
+        "cat ~/.config/workspace/config.toml",
+        "cat ~/.config/workspace/private/project.md",
+        "cat ~/.config/gh/config.yml",
+        "ls ~/.config/workspace/private",
+        "cd ~/.config/workspace && cat names.toml",
+        "cd ~/.ssh && cat id_rsa.pub",
+        "cd ~/.ssh && cat known_hosts",
+        "gh auth status",
+        "git commit -m 'docs: não ler ~/.config/workspace/credentials'",
+        'echo "ver ~/.ssh/id_rsa"',
+        "grep -rn credentials docs",
+        "python3 -c 'print(1)'",
+    ],
+)
+def test_metadata_public_keys_and_other_files_pass(command, env):
+    assert box(command, env) is None

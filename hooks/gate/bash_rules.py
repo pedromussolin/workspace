@@ -12,13 +12,25 @@ A `$(...)` inside double quotes (`git commit -m "$(cat <<'EOF' ...)"`) is one ar
 prints, so it is not obfuscation; only a double-quoted expansion standing in the subcommand
 (`git "$x"`) is, since there it picks the verb.
 
+What the rule covers depends on the program. `curl`, `wget` and `ws`: any unquoted expansion in
+the arguments. `git` and `gh`: only the program word and the subcommand words (`git`: the first
+word after the global options and their values; `gh`: the two words after `-R/--repo VALUE`),
+because a read verb with an expanded argument (`git log main..$B`) cannot become a write, while
+the write families (`push`, `remote`, `config` of the push destination, `gh` writes) judge their
+own arguments. `gh api` also asks for a word that starts with an expansion or a dash and is not
+the endpoint (`$FLAGS`, `-X$M`, `-X $M`), since it could inject a method or fields.
+
 Text rules cannot see a script file the command runs, text piped to `python` or `node`, programs
 that start other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude Code reports stale.
+The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
 """
 
+import fnmatch
 import json
 import os
 import re
+import subprocess
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +46,7 @@ TITLE_HTTP = "Gravar fora — HTTP"
 TITLE_PROTECTION = "Proteção do Claude Code"
 TITLE_UNSURE = "Comando não lido com certeza"
 TITLE_REMOTE = "Destino do git push"
+TITLE_CREDENTIAL = "Lê uma credencial"
 
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
@@ -53,7 +66,35 @@ PROTECTED_PATH = re.compile(
 PROTECTED_IN_CODE = re.compile(r"\.claude/(?:hooks|settings)|\.githooks|\.git/(?:config|hooks)")
 PROTECTED_DIRECTORY = re.compile(r"(?:^|/)(?:\.claude(?:/hooks)?|\.githooks)/?$")
 
-GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix"}
+CREDENTIAL_FILE = re.compile(r"(?:^|/)\.config/(?:workspace/credentials|gh/hosts\.yml)$")
+CREDENTIAL_FOLDER = re.compile(r"(?:^|/)(?:\.config/workspace|\.config/gh|\.ssh)/?$")
+CREDENTIAL_GLOB = re.compile(r"(?:^|/)(\.config/workspace|\.config/gh|\.ssh)/([^/]*[*?\[][^/]*)$")
+SSH_PRIVATE_KEY = re.compile(r"(?:^|/)\.ssh/id_[^/]*$")
+CREDENTIAL_IN_CODE = re.compile(
+    r"\.config/workspace/credentials|\.config/gh/hosts\.yml|\.ssh/id_[\w.-]*"
+)
+CREDENTIAL_SAMPLES = {
+    ".config/workspace": ("credentials",),
+    ".config/gh": ("hosts.yml",),
+    ".ssh": ("id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"),
+}
+METADATA_PROGRAMS = {"ls", "stat"}
+TEST_PROGRAMS = {"test", "[", "[["}
+TEST_METADATA_FLAGS = {"-e", "-f", "-d", "-s", "-r", "-w", "-x", "-L", "-h"}
+
+GIT_VALUE_OPTIONS = {
+    "-C",
+    "-c",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--super-prefix",
+    "--config-env",
+}
+REMOTE_KEY_STARTS = ("remote.", "url.", "alias.", "branch.", "core.sshcommand")
+QUIET_FLAGS = ("-q", "--quiet")
+INJECTING_START = "$`{-"
+BRANCH_QUERY_TIMEOUT = 3.0
 PUSH_VALUE_FLAGS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 FORCE_FLAGS = ("-f", "--force", "--force-with-lease", "--force-if-includes")
 REMOTE_CHANGES = {"add", "set-url", "rename", "remove", "rm", "set-head", "set-branches"}
@@ -325,11 +366,19 @@ def _listed_for_push(cwd: str) -> bool:
         return False
 
 
+def _runs_cd(scan: Scan) -> bool:
+    return any(
+        name in NAVIGATION
+        for command in scan.commands
+        for name, _ in shell.invocations(command)[:1]
+    )
+
+
 def _changes_directory(scan: Scan) -> bool:
+    """Whether anything in the command line could make a push run in another folder."""
+    if _runs_cd(scan):
+        return True
     for command in scan.commands:
-        for name, _ in shell.invocations(command)[:1]:
-            if name in NAVIGATION:
-                return True
         for word in command.words:
             text = word.text
             if text == "-C" or text.startswith(("--git-dir", "--work-tree")):
@@ -339,28 +388,79 @@ def _changes_directory(scan: Scan) -> bool:
     return False
 
 
-def _split_git(args: list[Word]) -> tuple[list[str], int | None]:
+def _split_git(args: list[Word]) -> tuple[list[Word], int | None]:
     """The `-C` directories and the index of the subcommand among the arguments."""
-    directories: list[str] = []
+    directories: list[Word] = []
     index = 0
     while index < len(args) and args[index].text.startswith("-"):
         option = args[index].text
         index += 1
         if option in GIT_VALUE_OPTIONS and index < len(args):
             if option == "-C":
-                directories.append(args[index].text)
+                directories.append(args[index])
             index += 1
     return directories, index if index < len(args) else None
 
 
-def _folder(cwd: str, directories: list[str]) -> str:
+def _folder(cwd: str, directories: list[Word]) -> str:
     folder = cwd or "."
     for directory in directories:
-        folder = os.path.normpath(os.path.join(folder, os.path.expanduser(directory)))
+        folder = os.path.normpath(os.path.join(folder, os.path.expanduser(directory.text)))
     return folder
 
 
-def _push(rest: list[Word], directories: list[str], cwd: str, moved: bool) -> Finding:
+def _in_repository(folder: str) -> bool:
+    path = Path(folder)
+    return path.is_dir() and any((each / ".git").exists() for each in (path, *path.parents))
+
+
+def _branch_state(folder: str) -> tuple[str, str, int] | None:
+    """The current branch, its upstream and how many commits it is ahead, or None.
+
+    Three local queries, no network, with the repository's own `fsmonitor` and hooks switched off
+    (a hostile `.git/config` must not run code from the gate) and a shared deadline. Any failure,
+    a branch without upstream and a detached HEAD included, gives None.
+    """
+    if not _in_repository(folder):
+        return None
+    environment = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
+    environment |= {"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+    base = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
+    queries = (
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+        ["rev-parse", "--abbrev-ref", "@{u}"],
+        ["rev-list", "--count", "@{u}..HEAD"],
+    )
+    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
+    answers: list[str] = []
+    for query in queries:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return None
+        try:
+            done = subprocess.run(
+                [*base, *query],
+                cwd=folder,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=left,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+        answer = done.stdout.strip()
+        if done.returncode != 0 or not answer or "\n" in answer:
+            return None
+        answers.append(answer)
+    branch, upstream, ahead = answers
+    if branch == "HEAD" or not ahead.isdigit():
+        return None
+    return branch, upstream, int(ahead)
+
+
+def _push(rest: list[Word], directories: list[Word], cwd: str, moved: bool) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     names = [word.text for word in parsed.positionals]
     remote = parsed.value("--repo")
@@ -369,11 +469,22 @@ def _push(rest: list[Word], directories: list[str], cwd: str, moved: bool) -> Fi
     forced = [name for name, _ in parsed.flags if name.startswith(FORCE_FLAGS)]
     forced += ["+" + spec[1:] for spec in names if spec.startswith("+")]
     deleted = parsed.has("--delete", "-d") or any(spec.startswith(":") for spec in names)
+    folder = _folder(cwd, directories)
+    state = None
+    if not names and not moved and not any(word.expands for word in directories):
+        state = _branch_state(folder)
     lines = [
-        f"Enviar commits (git push) da pasta {_pretty(_folder(cwd, directories))}",
+        f"Enviar commits (git push) da pasta {_pretty(folder)}",
         f"Remoto: {remote or 'o padrão do repositório'}",
-        f"Referências: {', '.join(names) if names else 'as configuradas no repositório'}",
     ]
+    if state:
+        branch, upstream, ahead = state
+        lines.append(f"Branch atual: {branch}, upstream {upstream}")
+        lines.append(f"Commits à frente do upstream: {ahead}")
+    else:
+        lines.append(
+            f"Referências: {', '.join(names) if names else 'as configuradas no repositório'}"
+        )
     if forced:
         lines.append(f"ATENÇÃO: {forced[0]} força o envio e pode reescrever o histórico do remoto")
     if deleted:
@@ -386,26 +497,49 @@ def _push(rest: list[Word], directories: list[str], cwd: str, moved: bool) -> Fi
     return Finding(TITLE_GITHUB, tuple(lines))
 
 
+def _is_plain_push(texts: list[str]) -> bool:
+    """`git push` or `git push origin main`, with at most one `-q` or `--quiet`."""
+    if texts[:2] != ["git", "push"]:
+        return False
+    rest = texts[2:]
+    quiet = [word for word in rest if word in QUIET_FLAGS]
+    if len(quiet) > 1:
+        return False
+    rest = [word for word in rest if word not in QUIET_FLAGS]
+    return rest in ([], ["origin", "main"])
+
+
+def _could_become_remote_key(word: Word) -> bool:
+    """A config key with an expansion whose literal start leaves a push-destination key possible."""
+    if not word.expands:
+        return False
+    start = re.split(r"[$`{]", word.text, maxsplit=1)[0].lower()
+    return not start or any(
+        key.startswith(start) or start.startswith(key) for key in REMOTE_KEY_STARTS
+    )
+
+
 def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Finding]:
     texts = [word.text for word in command.words]
     directories, verb_index = _split_git(args)
     if verb_index is None:
         return []
-    if any(word.expands for word in args[: verb_index + 1]):
+    if args[verb_index].expands:
         return [_unsure(texts, "O subcomando do git vem de uma expansão (variável ou comando).")]
     verb, rest = args[verb_index].text, args[verb_index + 1 :]
     if verb == "push":
-        quiet = texts in (["git", "push"], ["git", "push", "origin", "main"])
-        if quiet and not _changes_directory(scan) and _listed_for_push(cwd):
+        if _is_plain_push(texts) and not _changes_directory(scan) and _listed_for_push(cwd):
             return []
-        return [_push(rest, directories, cwd, _changes_directory(scan))]
+        return [_push(rest, directories, cwd, _runs_cd(scan))]
     if verb == "remote":
-        action = next((w.text for w in rest if not w.text.startswith("-")), "")
-        if action in REMOTE_CHANGES:
+        word = next((w for w in rest if not w.text.startswith("-")), None)
+        if word is not None and word.expands:
+            return [_unsure(texts, "A ação do git remote vem de uma expansão.")]
+        if word is not None and word.text in REMOTE_CHANGES:
             return [
                 Finding(
                     TITLE_REMOTE,
-                    (f"Muda os remotos do repositório (git remote {action})", _line(texts)),
+                    (f"Muda os remotos do repositório (git remote {word.text})", _line(texts)),
                 )
             ]
     if verb == "config":
@@ -415,8 +549,12 @@ def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Findi
             ["get"],
             ["list"],
         )
+        if reading:
+            return []
         key = next((name for name in names if REMOTE_KEYS.match(name)), None)
-        if key and not reading:
+        if key is None and parsed.positionals and _could_become_remote_key(parsed.positionals[0]):
+            return [_unsure(texts, "A chave do git config vem de uma expansão.")]
+        if key:
             return [
                 Finding(
                     TITLE_REMOTE,
@@ -441,6 +579,18 @@ def _gh_body(parsed: Parsed) -> str | None:
     return None if name is None else f"arquivo {name}"
 
 
+def _query_is_expanded(args: list[Word]) -> bool:
+    """Whether the shell fills in the GraphQL `query` field, so its text is not what runs."""
+    for index, word in enumerate(args):
+        if word.text in GH_API_FIELDS and index + 1 < len(args):
+            value = args[index + 1]
+            if value.expands and value.text.startswith("query="):
+                return True
+        elif word.expands and "query=" in word.text and word.text.startswith(("-f", "-F", "--f")):
+            return True
+    return False
+
+
 def _gh_api(args: list[Word], cwd: str) -> Finding | None:
     parsed = parse_flags(args, GH_API_VALUES)
     names = [word.text for word in parsed.positionals]
@@ -451,7 +601,7 @@ def _gh_api(args: list[Word], cwd: str) -> Finding | None:
     method = parsed.value("-X", "--method")
     method = method.upper() if method else ("POST" if fields else "GET")
     if endpoint.strip("/") == "graphql":
-        if _graphql_is_read(fields, cwd):
+        if not _query_is_expanded(args) and _graphql_is_read(fields, cwd):
             return None
         shown = "mutation ou consulta que não consegui ler"
         return Finding(TITLE_GITHUB, ("Consulta GraphQL (gh api graphql)", f"Conteúdo: {shown}"))
@@ -520,14 +670,29 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
     top = parse_flags(args, GH_GLOBAL_VALUES)
     if not top.positionals:
         return []
-    if any(args[position].expands for position in top.positions[:2]):
+    is_api = top.positionals[0].text == "api"
+    if any(args[position].expands for position in top.positions[: 1 if is_api else 2]):
         return [_unsure(texts, "O subcomando do gh vem de uma expansão (variável ou comando).")]
     group = top.positionals[0].text
     action = top.positionals[1].text if len(top.positionals) > 1 else ""
+    if group == "auth" and (
+        action == "token" or (action == "status" and top.has("-t", "--show-token"))
+    ):
+        return [
+            Finding(
+                TITLE_CREDENTIAL,
+                (f"Lê uma credencial: o token do GitHub (gh auth {action})", _line(texts)),
+            )
+        ]
     if group in GH_ANY_ACTION or action in GH_READS.get(group, set()):
         return []
     if group == "api":
-        found = _gh_api(args[top.positions[0] + 1 :], cwd)
+        api_args = args[top.positions[0] + 1 :]
+        if any(
+            word.bare and word.text[:1] and word.text[0] in INJECTING_START for word in api_args
+        ):
+            return [_unsure(texts, "Uma palavra do gh api vem de uma expansão e pode trazer -X.")]
+        found = _gh_api(api_args, cwd)
         return [found] if found else []
     rest = args[top.positions[1] + 1 :] if action else []
     return [_gh_change(group, action, rest, cwd, [word.text for word in args])]
@@ -583,6 +748,13 @@ def _ws(command: Command, args: list[Word]) -> list[Finding]:
     names = [word.text for word in top.positionals[:2]]
     if any(args[position].expands for position in top.positions[:2]):
         return [_unsure(texts, "O subcomando do ws vem de uma expansão (variável ou comando).")]
+    if names[:1] == ["mcp-headers"]:
+        return [
+            Finding(
+                TITLE_CREDENTIAL,
+                ("Lê uma credencial: os cabeçalhos dos MCPs (ws mcp-headers)", _line(texts)),
+            )
+        ]
     if names != ["card", "apply"]:
         return []
     code = None
@@ -644,7 +816,7 @@ def _invocation(
         ]
     if name not in WATCHED:
         return []
-    if any(word.bare for word in args):
+    if name in ("curl", "wget", "ws") and any(word.bare for word in args):
         return [_unsure(texts, "Tem $, crase ou chaves fora de aspas; não sei o que vai rodar.")]
     if name == "git":
         return _git(command, args, cwd, scan)
@@ -714,6 +886,88 @@ def _after_entering_protection(scan: Scan) -> list[Finding]:
     return []
 
 
+def _credential_places() -> set[str]:
+    home = Path.home()
+    return {
+        os.path.normpath(_config_dir()),
+        os.path.normpath(_config_dir() / "credentials"),
+        os.path.normpath(home / ".config" / "workspace"),
+        os.path.normpath(home / ".config" / "workspace" / "credentials"),
+        os.path.normpath(home / ".config" / "gh"),
+        os.path.normpath(home / ".config" / "gh" / "hosts.yml"),
+        os.path.normpath(home / ".ssh"),
+    }
+
+
+def _credential_path(text: str, folder: str | None = None) -> str | None:
+    """The credential a path-like word names, or None.
+
+    Covers the credentials file of `ws`, the `gh` hosts file, the `~/.ssh` private keys (`id_*`
+    but not `.pub`), those folders themselves (a copy or an archive reads what is inside) and a
+    glob that could match them. `folder` is one the command entered with `cd`: a bare name is then
+    looked up in it.
+    """
+    if folder is not None:
+        if "/" in text:
+            return None
+        text = f"{folder.rstrip('/')}/{text}"
+    if CREDENTIAL_FILE.search(text) or CREDENTIAL_FOLDER.search(text):
+        return text
+    if SSH_PRIVATE_KEY.search(text) and not text.endswith(".pub"):
+        return text
+    glob = CREDENTIAL_GLOB.search(text)
+    if glob and any(
+        fnmatch.fnmatchcase(name, glob.group(2)) for name in CREDENTIAL_SAMPLES[glob.group(1)]
+    ):
+        return text
+    expanded = os.path.normpath(os.path.expandvars(os.path.expanduser(text)))
+    return text if expanded in _credential_places() else None
+
+
+def _credential_in_code(code: str) -> str | None:
+    for found in CREDENTIAL_IN_CODE.finditer(code):
+        if not found.group().endswith(".pub"):
+            return found.group()
+    return None
+
+
+def _entered_credential_folders(scan: Scan) -> list[str]:
+    folders = []
+    for command in scan.commands:
+        for name, args in shell.invocations(command)[:1]:
+            if name in NAVIGATION and args and _credential_path(args[-1].text):
+                folders.append(args[-1].text)
+    return folders
+
+
+def _credentials(command: Command, folders: list[str]) -> list[Finding]:
+    texts = [word.text for word in command.words]
+    index = shell.locate_program(texts)
+    program = "" if index is None else program_name(texts[index])
+    args = texts if index is None else texts[index + 1 :]
+    redirected = [*command.writes, *command.reads]
+    hits = [path for text in redirected if (path := _credential_path(text))]
+    metadata = program in METADATA_PROGRAMS or (
+        program in TEST_PROGRAMS and bool(args) and args[0] in TEST_METADATA_FLAGS
+    )
+    if not (metadata or program in NAVIGATION):
+        for text in args:
+            if " " in text:
+                code = _credential_in_code(text) if INTERPRETERS.fullmatch(program) else None
+                hits += [code] if code else []
+                continue
+            path = next((p for f in (None, *folders) if (p := _credential_path(text, f))), None)
+            hits += [path] if path else []
+    if not hits:
+        return []
+    return [
+        Finding(
+            TITLE_CREDENTIAL,
+            (f"Lê uma credencial: {_pretty(cut(hits[0], 100))}", _line(command)),
+        )
+    ]
+
+
 def _program_by_expansion(command: Command, whole: str) -> list[Finding]:
     texts = [word.text for word in command.words]
     index = shell.locate_program(texts)
@@ -730,6 +984,13 @@ def _script_findings(scan: Scan) -> list[Finding]:
                 Finding(
                     TITLE_JIRA,
                     ("Código Python que chama o módulo ws: pode aplicar uma prévia de card",),
+                )
+            )
+        if reading := _credential_in_code(code):
+            found.append(
+                Finding(
+                    TITLE_CREDENTIAL,
+                    (f"Lê uma credencial: {reading}", "Código Python que cita o arquivo"),
                 )
             )
         if PROTECTED_IN_CODE.search(code):
@@ -758,8 +1019,10 @@ def _combine(findings: list[Finding]) -> Decision:
 def decide(command: str, cwd: str) -> Decision:
     scan = shell.scan(command)
     findings: list[Finding] = []
+    folders = _entered_credential_folders(scan)
     for each in scan.commands:
         findings += _protection(each)
+        findings += _credentials(each, folders)
         findings += _program_by_expansion(each, command)
         for name, args in shell.invocations(each):
             findings += _invocation(each, name, args, cwd, scan)

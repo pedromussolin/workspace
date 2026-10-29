@@ -169,9 +169,13 @@ class Command:
     words: list[Word] = field(default_factory=list)
     writes: list[str] = field(default_factory=list)
     piped: bool = False
-    reads_file: bool = False
+    reads: list[str] = field(default_factory=list)
     here_string: str | None = None
     inner: list[str] = field(default_factory=list)
+
+    @property
+    def reads_file(self) -> bool:
+        return bool(self.reads)
 
 
 @dataclass(frozen=True)
@@ -510,7 +514,7 @@ def parse_commands(text: str) -> list[Command]:
                 if not (redirect.endswith("&") and (word.text.isdigit() or word.text == "-")):
                     current.writes.append(word.text)
             elif redirect in ("<", "<&"):
-                current.reads_file = True
+                current.reads.append(word.text)
             redirect = None
     finish()
     return commands
