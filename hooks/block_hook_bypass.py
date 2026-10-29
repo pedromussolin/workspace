@@ -2,11 +2,11 @@
 
 Blocked: `--no-verify` on any git command, `git commit -n` (also inside a flag group such as
 `-nm`), a `core.hooksPath` override (`git -c core.hooksPath=...`, `GIT_CONFIG_*` variables) and a
-`core.hooksPath` change (`git config`), except the exact `git config core.hooksPath .githooks`
-that `ws setup` runs. An alias given with `-c` that skips the hooks is blocked, and so is an alias
-or an include whose value the gate cannot read (`--config-env`, `GIT_CONFIG_KEY_*`,
-`-c include.path`). It applies in every repo: company repos have their own hooks, and the AI must
-not skip them either.
+`core.hooksPath` change (`git config`, also removing or renaming the `core` section), except the
+exact `git config core.hooksPath .githooks` that `ws setup` runs. An alias given with `-c` that
+skips the hooks is blocked, and so is an alias or an include whose value the gate cannot read
+(`--config-env`, `GIT_CONFIG_KEY_*`, `-c include.path`). It applies in every repo: company repos
+have their own hooks, and the AI must not skip them either.
 
 The command is split into simple commands (on `;`, `&&`, `||`, `|`, `&`, parentheses and
 newlines) and each one is checked as a token sequence, so `grep -- --no-verify` or
@@ -55,7 +55,9 @@ except Exception as error:
 HOOKS_PATH_KEY = "core.hookspath"
 ALLOWED_CONFIG_ARGS = ["core.hookspath", ".githooks"]
 NO_VERIFY = "--no-verify"
-CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
+CONFIG_READ_OPTIONS = ("--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list")
+CONFIG_VALUE_OPTIONS = ("--file", "--blob", "--type", "--default", "--comment")
+CONFIG_SUBCOMMANDS = {"set", "get", "unset", "list", "rename-section", "remove-section"}
 SHORT_OPTIONS_WITH_VALUE = "mFCctuS"
 GIT_OPTIONS_WITH_VALUE = {"-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix"}
 
@@ -75,6 +77,12 @@ ENVIRONMENT_BUILTINS = {"export", "declare", "typeset", "readonly", "local"}
 
 def _is_hooks_path_key(text: str) -> bool:
     return text.lower().partition("=")[0] == HOOKS_PATH_KEY
+
+
+def _long_flag(word: str, *names: str) -> bool:
+    """Whether `word` is a long option of `names` or an abbreviation of one (git takes both)."""
+    option = word.partition("=")[0]
+    return len(option) > 2 and any(name.startswith(option) for name in names)
 
 
 def _split_git(args: list[str]) -> tuple[list[str], list[str], str, list[str]]:
@@ -124,12 +132,53 @@ def _skips_verification(subcommand: str, args: list[str]) -> bool:
     return False
 
 
-def _changes_hooks_path(args: list[str]) -> bool:
-    if not any(_is_hooks_path_key(word) for word in args):
-        return False
-    if [args[0].lower(), *args[1:]] == ALLOWED_CONFIG_ARGS:
-        return False
-    return not (CONFIG_READ_FLAGS & set(args) or args[0] in ("get", "list"))
+def _split_config(args: list[str]) -> tuple[list[str], list[str]]:
+    """The flags and the operands (key, value...) of `git config` arguments.
+
+    The subcommands of the newer syntax (`set`, `get`, `remove-section`...) count as flags.
+    """
+    flags: list[str] = []
+    operands: list[str] = []
+    index = 0
+    while index < len(args):
+        word = args[index]
+        index += 1
+        if word == "--":
+            operands += args[index:]
+            break
+        if not word.startswith("-"):
+            operands.append(word)
+            continue
+        option, equals, _ = word.partition("=")
+        flags.append(option)
+        if not equals and (option == "-f" or _long_flag(option, *CONFIG_VALUE_OPTIONS)):
+            index += 1
+    if operands and operands[0] in CONFIG_SUBCOMMANDS:
+        flags.append("--" + operands.pop(0))
+    return flags, operands
+
+
+def _check_config(args: list[str]) -> str | None:
+    """Why a `git config` command disables the hooks, or None.
+
+    A key with no value is a read (`git config core.hooksPath`), the only exception being the
+    unset flags.
+    """
+    flags, operands = _split_config(args)
+    if any(_long_flag(flag, "--remove-section", "--rename-section") for flag in flags) and any(
+        operand.lower() == "core" for operand in operands
+    ):
+        return "a change of the core section, which holds core.hooksPath"
+    if "-l" in flags or any(_long_flag(flag, *CONFIG_READ_OPTIONS) for flag in flags):
+        return None
+    unsets = any(_long_flag(flag, "--unset", "--unset-all") for flag in flags)
+    if len(operands) < 2 and not unsets:
+        return None
+    if any(_is_hooks_path_key(word) for word in args) and (
+        [args[0].lower(), *args[1:]] != ALLOWED_CONFIG_ARGS
+    ):
+        return "a change of core.hooksPath"
+    return None
 
 
 def _check_alias(value: str) -> str | None:
@@ -154,8 +203,8 @@ def _check_git(args: list[str]) -> str | None:
             return "an include of another config file with -c"
         if ALIAS_KEY.match(key) and (reason := _check_alias(value)):
             return f"{reason}, inside a -c alias"
-    if subcommand == "config" and _changes_hooks_path(rest):
-        return "a change of core.hooksPath"
+    if subcommand == "config" and (reason := _check_config(rest)):
+        return reason
     if _skips_verification(subcommand, rest):
         return "skipping the hooks with --no-verify (or -n on git commit)"
     return None

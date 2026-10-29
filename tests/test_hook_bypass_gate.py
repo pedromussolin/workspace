@@ -122,6 +122,12 @@ def test_bypass_is_blocked(command):
         "uv run pytest -q",
         HEREDOC_MESSAGE,
         HEREDOC_TO_FILE,
+        "git config core.hooksPath",
+        "git config --global core.hooksPath",
+        "git config --show-origin --get-all core.hooksPath",
+        "git config --get-regexp 'hooks|alias'",
+        "git config --unset user.name",
+        "git config --remove-section alias",
     ],
 )
 def test_ordinary_commands_pass(command):
@@ -361,3 +367,29 @@ def test_other_config_variables_and_keys_pass(command):
     result = run_command(command)
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git config --remove-section core",
+        "git config --global --remove-section Core",
+        "git config --rename-section core x",
+        "git config --rename-section x core",
+        "git config --remove-sec core",
+        "git config remove-section core",
+        "git config rename-section core x",
+        "git config --unset core.hooksPath",
+        "git config --unset-all core.hooksPath",
+        "git config --unset-a core.hooksPath",
+        "git config --global --unset core.hooksPath",
+        "git config unset core.hooksPath",
+        "git config -f /tmp/x.cfg core.hooksPath /dev/null",
+        "git config --comment why core.hooksPath /dev/null",
+    ],
+)
+def test_removing_or_renaming_the_core_section_is_blocked(command):
+    result = run_command(command)
+
+    assert result.returncode == 2, command
+    assert result.stderr.startswith("Blocked:")
