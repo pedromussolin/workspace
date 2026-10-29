@@ -1406,3 +1406,100 @@ def test_a_command_too_big_to_read_asks_even_without_a_watched_name(env):
 
     assert text.splitlines()[0] == "Comando não lido com certeza"
     assert "a tempo" in text
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env -u CLAUDECODE git push",
+        "env -C /srv/repo git push",
+        "env --unset CLAUDECODE git push",
+        "timeout -s KILL 10 git push",
+        "timeout --signal=KILL -k 5 10 git push",
+        "stdbuf -oL git push",
+        "stdbuf -o L git push",
+        "flock /tmp/l git push",
+        "flock -w 5 /tmp/l git push",
+        "ionice -c3 git push",
+        "ionice -c 3 -n 7 git push",
+        "nice -n 10 git push",
+        "sudo -u root git push",
+        "watch -n 60 git push",
+        "nohup git push &",
+        "echo s | env -u CLAUDECODE timeout -s KILL 10 nice -n 5 git push",
+    ],
+)
+def test_wrapper_flags_with_values_do_not_hide_a_push(command, env):
+    assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'script -qec "git push" /dev/null',
+        'script -q -c "git push" /dev/null',
+        'script --command="git push" /dev/null',
+        "watch 'git push'",
+        'env -S "git push"',
+        'flock /tmp/l -c "git push"',
+    ],
+)
+def test_wrappers_that_run_a_command_line_have_it_read(command, env):
+    assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'echo s | env -u CLAUDECODE script -qec "ws card apply d --approve abcdef012345" /dev/null',
+        "setsid -f ws card apply d --approve abcdef012345",
+    ],
+)
+def test_wrappers_do_not_hide_a_card_apply(command, env):
+    assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "xargs git push < remotes",
+        r"find . -maxdepth 0 -exec git push \;",
+        "parallel git push ::: a b",
+        "unknown-wrapper --opt git push",
+        "/usr/bin/xargs -n1 /usr/bin/git push",
+        "xargs -I{} gh pr merge {}",
+        "xargs curl -d @f",
+        "some-runner python -m ws card apply d --approve abcdef012345",
+        "some-runner .venv/bin/ws card apply d",
+        'script -qc "$CMD" /dev/null',
+        'watch "$CMD"',
+    ],
+)
+def test_a_watched_program_under_an_unknown_program_asks(command, env):
+    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo git push",
+        "grep -rn git src",
+        "rg ws src",
+        "cat git",
+        "ls ws",
+        "sed -n 1p gh",
+        "which git",
+        "type gh",
+        "test -x git",
+        "cd ws",
+        "uv run ws card preview d",
+        "python3 -m ws card preview d",
+        "timeout 10 git status",
+        "env -u X git log",
+        "watch -n 5 git status",
+        'script -qec "git status" /dev/null',
+        "mkdir src/ws",
+    ],
+)
+def test_harmless_mentions_of_a_watched_program_pass(command, env):
+    assert box(command, env) is None

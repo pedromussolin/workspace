@@ -18,18 +18,6 @@ from pathlib import PurePath
 
 OPERATOR_CHARS = ";()<>|&\n"
 REDIRECT_CHARS = "<>"
-WRAPPERS = {
-    "env",
-    "command",
-    "exec",
-    "time",
-    "nice",
-    "nohup",
-    "sudo",
-    "builtin",
-    "setsid",
-    "timeout",
-}
 SHELL_KEYWORDS = {"if", "then", "else", "elif", "while", "until", "do", "!", "{"}
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 RUNS_ITS_INPUT = SHELLS | {"eval", "source", "."}
@@ -38,9 +26,61 @@ MAX_WALKS = 2000
 WALK_SECONDS = 2.0
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-DURATION = re.compile(r"[0-9]+[smhd]?")
 HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PYTHON = re.compile(r"python[0-9.]*")
+
+
+@dataclass(frozen=True)
+class Wrapper:
+    """How a program that runs another one reads its own arguments.
+
+    `values`: flags followed by a value. `scripts`: flags whose value is a command line the
+    wrapper hands to a shell or splits into a command. `operands`: its own words before the
+    program (the `timeout` duration, the `flock` lock file). `joins`: the rest is joined and run by
+    `sh -c` (`watch`). `runs_none`: no program follows, only a `scripts` value (`script`).
+    """
+
+    values: frozenset[str] = frozenset()
+    scripts: frozenset[str] = frozenset()
+    operands: int = 0
+    joins: bool = False
+    runs_none: bool = False
+
+
+def _flags(text: str) -> frozenset[str]:
+    return frozenset(text.split())
+
+
+WRAPPERS = {
+    "env": Wrapper(_flags("-u --unset -C --chdir"), _flags("-S --split-string")),
+    "command": Wrapper(),
+    "exec": Wrapper(_flags("-a")),
+    "time": Wrapper(_flags("-f --format -o --output")),
+    "nice": Wrapper(_flags("-n --adjustment")),
+    "nohup": Wrapper(),
+    "sudo": Wrapper(
+        _flags(
+            "-u --user -g --group -C --close-from -D --chdir -p --prompt -r --role -t --type "
+            "-T --command-timeout -U --other-user -h --host"
+        )
+    ),
+    "builtin": Wrapper(),
+    "setsid": Wrapper(),
+    "timeout": Wrapper(_flags("-s --signal -k --kill-after"), operands=1),
+    "ionice": Wrapper(_flags("-c --class -n --classdata -p --pid -P --pgid -u --uid")),
+    "flock": Wrapper(
+        _flags("-w --wait --timeout -E --conflict-exit-code"), _flags("-c --command"), operands=1
+    ),
+    "watch": Wrapper(_flags("-n --interval -q --equexit"), joins=True),
+    "stdbuf": Wrapper(_flags("-i --input -o --output -e --error")),
+    "script": Wrapper(
+        _flags(
+            "-E --echo -I --log-in -O --log-out -B --log-io -T --log-timing -m --logging-format"
+        ),
+        _flags("-c --command"),
+        runs_none=True,
+    ),
+}
 
 
 def strip_heredocs(text: str) -> str:
@@ -118,24 +158,94 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
     return found
 
 
-def locate_program(words: list[str]) -> int | None:
-    """Index of the program a simple command runs, after assignments, keywords and wrappers."""
+def _wrapper_flags(
+    words: list[str], index: int, wrapper: Wrapper, scripts: list[tuple[int, int, bool]]
+) -> int:
+    """Index past the flags of a wrapper that start at `index`; script values go to `scripts`."""
+    while index < len(words):
+        word = words[index]
+        if word == "--":
+            return index + 1
+        if ASSIGNMENT.match(word):
+            index += 1
+            continue
+        if not word.startswith("-"):
+            return index
+        index += 1
+        if word.startswith("--"):
+            name, equals, _ = word.partition("=")
+            if equals:
+                if name in wrapper.scripts:
+                    scripts.append((index - 1, len(name) + 1, False))
+            elif name in wrapper.values | wrapper.scripts and index < len(words):
+                if name in wrapper.scripts:
+                    scripts.append((index, 0, False))
+                index += 1
+            continue
+        for offset in range(1, len(word)):
+            flag = "-" + word[offset]
+            if flag not in wrapper.values | wrapper.scripts:
+                continue
+            if offset + 1 < len(word):
+                if flag in wrapper.scripts:
+                    scripts.append((index - 1, offset + 1, False))
+            elif index < len(words):
+                if flag in wrapper.scripts:
+                    scripts.append((index, 0, False))
+                index += 1
+            break
+    return index
+
+
+def _unwrap(words: list[str]) -> tuple[int | None, list[tuple[int, int, bool]]]:
+    """The program's index and the command lines wrappers run on their own.
+
+    Each command line is (word index, offset in that word, whether the words from there on are
+    joined into one line, as `watch` does).
+    """
+    scripts: list[tuple[int, int, bool]] = []
     index = 0
     while index < len(words):
         word = words[index]
         if ASSIGNMENT.match(word) or word in SHELL_KEYWORDS:
             index += 1
-        elif PurePath(word).name in WRAPPERS:
-            index += 1
-            while index < len(words) and (
-                words[index].startswith("-")
-                or ASSIGNMENT.match(words[index])
-                or DURATION.fullmatch(words[index])
-            ):
-                index += 1
+            continue
+        wrapper = WRAPPERS.get(PurePath(word).name)
+        if wrapper is None:
+            return index, scripts
+        index = _wrapper_flags(words, index + 1, wrapper, scripts)
+        index = min(index + wrapper.operands, len(words))
+        if index < len(words) and words[index].partition("=")[0] in wrapper.scripts:
+            index = _wrapper_flags(words, index, wrapper, scripts)
+        if wrapper.runs_none:
+            return None, scripts
+        if wrapper.joins and index < len(words):
+            scripts.append((index, 0, True))
+    return None, scripts
+
+
+def locate_program(words: list[str]) -> int | None:
+    """Index of the program a simple command runs, after assignments, keywords and wrappers."""
+    return _unwrap(words)[0]
+
+
+def wrapper_scripts(words: list["Word"]) -> list["Word"]:
+    """The command lines that wrappers such as `script -c`, `env -S` and `watch` run."""
+    found = []
+    for index, offset, joined in _unwrap([word.text for word in words])[1]:
+        if joined:
+            rest = words[index:]
+            found.append(
+                Word(
+                    " ".join(word.text for word in rest),
+                    any(word.bare for word in rest),
+                    any(word.expands for word in rest),
+                )
+            )
         else:
-            return index
-    return None
+            word = words[index]
+            found.append(Word(word.text[offset:], word.bare, word.expands))
+    return found
 
 
 def shell_script(args: list[str]) -> str | None:
@@ -570,6 +680,8 @@ def _walk(text: str, result: Scan, depth: int) -> None:
         result.commands.append(command)
         for inner in command.inner:
             _walk(inner, result, depth + 1)
+        for script in wrapper_scripts(command.words):
+            _walk(script.text, result, depth + 1)
         for name, args in invocations(command):
             texts = [word.text for word in args]
             if name in SHELLS:

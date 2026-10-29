@@ -111,6 +111,9 @@ def _check_git(args: list[str]) -> str | None:
 
 
 def _check_simple(words: list[str]) -> str | None:
+    for script in shell.wrapper_scripts([shell.Word(word) for word in words]):
+        if reason := _scan(script.text):
+            return reason
     index = shell.locate_program(words)
     if index is None:
         return None

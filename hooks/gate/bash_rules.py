@@ -54,6 +54,7 @@ APPROVE_CODE = re.compile(r"[0-9a-f]{12}")
 WS_BY_CODE = re.compile(r"\bfrom\s+ws\b|\bimport\s+ws\b|\bws\.card\b|run_apply")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
+CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
 READ_ONLY = {"cat", "head", "tail", "less", "ls", "stat", "sha256sum", "diff", "grep", "rg", "jq"}
 READ_ONLY_GIT = {"add", "diff", "log", "show", "status", "blame", "ls-files", "grep"}
 NAVIGATION = {"cd", "pushd", "popd"}
@@ -976,6 +977,50 @@ def _program_by_expansion(command: Command, whole: str) -> list[Finding]:
     return [_unsure(texts, "O nome do programa vem de uma expansão e o comando cita ws, gh, git…")]
 
 
+def _names_watched_program(text: str) -> bool:
+    name = program_name(text)
+    return name in WATCHED and (text == name or text.endswith("/bin/" + name))
+
+
+def _hidden_program(command: Command) -> list[Finding]:
+    """A watched program named as an argument of a program that may run it (`xargs git push`).
+
+    The gate reads a fixed list of wrappers; any other program that starts its arguments as a
+    command (`xargs`, `find -exec`, `parallel`, an unknown wrapper) would hide the write.
+    """
+    texts = [word.text for word in command.words]
+    index = shell.locate_program(texts)
+    if index is None:
+        return []
+    program = program_name(texts[index])
+    args = texts[index + 1 :]
+    if (
+        program in CATCH_ALL_HARMLESS
+        or program in NAVIGATION
+        or program in WATCHED
+        or program in ("uv", "uvx")
+        or (program == "sed" and "-n" in args and not any(a.startswith("-i") for a in args))
+    ):
+        return []
+    for position, text in enumerate(texts[1:], start=1):
+        if position == index or not _names_watched_program(text):
+            continue
+        if shell.PYTHON.fullmatch(program) and texts[position - 1] == "-m":
+            continue
+        return [
+            _unsure(texts, f"O comando passa {text} como argumento de {program}; pode rodá-lo.")
+        ]
+    return []
+
+
+def _wrapper_script_by_expansion(command: Command) -> list[Finding]:
+    for script in shell.wrapper_scripts(command.words):
+        if script.expands and script.text.lstrip().startswith(("$", "`")):
+            texts = [word.text for word in command.words]
+            return [_unsure(texts, "O script vem de uma expansão (variável ou comando).")]
+    return []
+
+
 def _script_findings(scan: Scan) -> list[Finding]:
     found = []
     for code in scan.scripts:
@@ -1024,6 +1069,8 @@ def decide(command: str, cwd: str) -> Decision:
         findings += _protection(each)
         findings += _credentials(each, folders)
         findings += _program_by_expansion(each, command)
+        findings += _hidden_program(each)
+        findings += _wrapper_script_by_expansion(each)
         for name, args in shell.invocations(each):
             findings += _invocation(each, name, args, cwd, scan)
     findings += _after_entering_protection(scan)

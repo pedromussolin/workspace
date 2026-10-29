@@ -199,3 +199,20 @@ def test_deeply_nested_substitutions_are_checked_fast():
 
     assert time.monotonic() - started < 3
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env -u CLAUDECODE git commit --no-verify",
+        "timeout -s KILL 10 git commit -n",
+        "stdbuf -oL git push --no-verify",
+        "flock /tmp/l git commit --no-verify",
+        "ionice -c 3 git commit -n",
+        'script -qec "git commit --no-verify" /dev/null',
+        'env -S "git commit --no-verify"',
+        "watch -n 60 git push --no-verify",
+    ],
+)
+def test_wrappers_with_values_do_not_hide_a_bypass(command):
+    assert run_command(command).returncode == 2
