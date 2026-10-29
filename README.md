@@ -154,6 +154,8 @@ never writes it):
 | `push_without_asking` | list of repo paths (`~` allowed) where a plain push goes without asking, when `push_remotes` also matches |
 | `push_remotes` | list of push URLs of `origin` allowed for that no-box push (`git remote get-url --push --all origin`); missing or different, the push asks |
 | `personal_github_owners` | list of GitHub owners that get the confidentiality check before a write |
+| `environment_branches` | list of environment branches (`master`, `main`, `sandbox`, `staging`): a `git push`, a GitHub file or ref write and a PR merge into one of them are blocked; missing, the policy is off |
+| `direct_push_repos` | `fnmatch` patterns on the repo name (`*-argocd`) where a write to an environment branch asks, with a warning, instead of being blocked; PR merges into one stay blocked |
 
 #### Secrets outside the session environment
 

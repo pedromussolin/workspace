@@ -141,6 +141,24 @@ checked with `ws check-secrets PATH`. A finding or a failure to run the check an
 the check's output as the reason. No owner list in the config: the check is skipped and the box
 says "conferência de sigilo desligada (sem personal_github_owners)".
 
+### Environment branches
+
+Decided with the user on 2026-10-29: the model never writes to an environment branch; everything
+goes through a task branch and a PR the user merges. `[gate] environment_branches` lists them and
+`[gate] direct_push_repos` holds `fnmatch` patterns on the repo name (`*-argocd`); without the
+first key the policy is off. Code: `hooks/gate/branches.py`.
+
+| Write | Branch read from | Environment branch |
+|---|---|---|
+| `git push` | the refspec (`HEAD:master`, `+main`, `:staging`, `--delete`); none: the upstream; `--all`, `--mirror` count | `deny`; in a `direct_push_repos` repo (name from the URL in the command or `git remote get-url --push`) asks with `ATENÇÃO: branch de ambiente …` |
+| GitHub MCP `create_or_update_file`, `push_files`, `delete_file`, `create_branch`; `gh api` on `contents/…`, `git/refs…`, `merges` | `branch` (none: the default branch, which counts), the ref path, `ref` or `base` | same as `git push` |
+| `gh pr merge`, `gh api …/pulls/N/merge`, MCP `merge_pull_request` | the PR base, read with `gh pr view --json baseRefName` (3 s, read-only) | `deny` in every repo; otherwise the box shows `Base: …` |
+
+The no-box workspace push is checked first. A target the gate cannot read (an expansion, a failed
+query, an `--input` body) asks with an `ATENÇÃO:` line. The lookups share the 3 s query deadline,
+and the MCP base lookup runs while `check-secrets` does. Known limit: push refspecs set in
+`remote.*.push` are not read.
+
 ### Integrity
 
 `ws setup` copies the hook files to `~/.claude/hooks/workspace/` (files 0444, folders 0555) with a
