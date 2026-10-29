@@ -83,6 +83,25 @@ def test_every_catalog_entry_is_a_string_list():
     }
 
 
+def test_the_user_scope_github_server_has_the_same_pass_list_as_the_plugin():
+    servers = json.loads(mcp_rules.CATALOG_PATH.read_text(encoding="utf-8"))["servers"]
+    assert servers["github"]["pass"] == servers["plugin_github_github"]["pass"]
+
+    user_scope = "mcp__github__"
+    assert run(user_scope + "get_me").kind == "pass"
+    push = run(
+        user_scope + "push_files",
+        owner="o",
+        repo="r",
+        branch="b",
+        message="m",
+        files=[{"path": "a.md", "content": "1"}],
+    )
+    assert push.kind == "ask"
+    assert lines(push)[0] == "Gravar fora — GitHub"
+    assert "Enviar 1 arquivo(s) para o/r (branch b)" in lines(push)
+
+
 @pytest.mark.parametrize("name", ["", "mcp__", "mcp__server", "mcp____tool", "other__a__b"])
 def test_malformed_names_ask_generically(name):
     decision = mcp_rules.decide(name, {"k": "v"}, "/tmp")
