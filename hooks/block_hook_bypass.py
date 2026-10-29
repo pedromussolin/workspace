@@ -18,106 +18,25 @@ because Claude Code treats other non-zero codes as non-blocking and the gate wou
 
 import json
 import re
-import shlex
 import sys
-from pathlib import PurePath
+from pathlib import Path, PurePath
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+try:
+    from gate import shell
+except Exception as error:
+    print(f"Hook-bypass gate could not load its parser ({error}); blocking.", file=sys.stderr)
+    sys.exit(2)
 
 HOOKS_PATH_KEY = "core.hookspath"
 ALLOWED_CONFIG_ARGS = ["core.hookspath", ".githooks"]
 NO_VERIFY = "--no-verify"
 CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
-OPERATOR_CHARS = ";()<>|&\n"
-REDIRECT_CHARS = "<>"
 SHORT_OPTIONS_WITH_VALUE = "mFCctuS"
 GIT_OPTIONS_WITH_VALUE = {"-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix"}
-WRAPPERS = {
-    "env",
-    "command",
-    "exec",
-    "time",
-    "nice",
-    "nohup",
-    "sudo",
-    "builtin",
-    "setsid",
-    "timeout",
-}
-SHELL_KEYWORDS = {"if", "then", "else", "elif", "while", "until", "do", "!", "{"}
-SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 
-ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-DURATION = re.compile(r"[0-9]+[smhd]?")
-HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 UNPARSEABLE_BYPASS = re.compile(r"--no-verify|hookspath", re.IGNORECASE)
-
-
-def _strip_heredocs(text: str) -> str:
-    """Drop heredoc bodies (and their delimiter lines): they are data, not commands."""
-    lines = text.split("\n")
-    kept: list[str] = []
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        kept.append(line)
-        index += 1
-        for _, tag in HEREDOC.findall(line):
-            end = next((i for i in range(index, len(lines)) if lines[i].strip() == tag), None)
-            if end is not None:
-                index = end + 1
-    return "\n".join(kept)
-
-
-def _simple_commands(text: str) -> list[list[str]]:
-    lexer = shlex.shlex(text.replace("\\\n", " "), posix=True, punctuation_chars=OPERATOR_CHARS)
-    lexer.whitespace = " \t\r"
-    lexer.whitespace_split = True
-    lexer.commenters = ""
-    commands: list[list[str]] = []
-    current: list[str] = []
-    for token in lexer:
-        if not set(token) <= set(OPERATOR_CHARS):
-            current.append(token)
-        elif not set(token) & set(REDIRECT_CHARS):
-            if current:
-                commands.append(current)
-            current = []
-    if current:
-        commands.append(current)
-    return commands
-
-
-def _substitutions(text: str) -> list[str]:
-    """Contents of every `$(...)` and backtick pair that the shell would run, nested ones too.
-
-    Single-quoted text is literal, so a commit message in single quotes that cites a command in
-    backticks is not a substitution.
-    """
-    found = []
-    single = double = False
-    index = 0
-    while index < len(text):
-        char = text[index]
-        if single:
-            single = char != "'"
-        elif char == "\\":
-            index += 1
-        elif char == '"':
-            double = not double
-        elif char == "'" and not double:
-            single = True
-        elif text.startswith("$(", index):
-            depth, end = 1, index + 2
-            while end < len(text) and depth:
-                depth += (text[end] == "(") - (text[end] == ")")
-                end += 1
-            found.append(text[index + 2 : end - 1 if depth == 0 else end])
-        elif char == "`":
-            end = text.find("`", index + 1)
-            found.append(text[index + 1 : end if end != -1 else len(text)])
-            if end != -1:
-                index = end
-        index += 1
-    return found
 
 
 def _is_hooks_path_key(text: str) -> bool:
@@ -186,37 +105,8 @@ def _check_git(args: list[str]) -> str | None:
     return None
 
 
-def _locate_program(words: list[str]) -> int | None:
-    """Index of the program a simple command runs, after assignments, keywords and wrappers."""
-    index = 0
-    while index < len(words):
-        word = words[index]
-        if ASSIGNMENT.match(word) or word in SHELL_KEYWORDS:
-            index += 1
-        elif PurePath(word).name in WRAPPERS:
-            index += 1
-            while index < len(words) and (
-                words[index].startswith("-")
-                or ASSIGNMENT.match(words[index])
-                or DURATION.fullmatch(words[index])
-            ):
-                index += 1
-        else:
-            return index
-    return None
-
-
-def _shell_script(args: list[str]) -> str | None:
-    for position, arg in enumerate(args):
-        if not arg.startswith("-"):
-            return None
-        if not arg.startswith("--") and "c" in arg[1:]:
-            return args[position + 1] if position + 1 < len(args) else None
-    return None
-
-
 def _check_simple(words: list[str]) -> str | None:
-    index = _locate_program(words)
+    index = shell.locate_program(words)
     if index is None:
         return None
     for word in words[:index]:
@@ -226,8 +116,8 @@ def _check_simple(words: list[str]) -> str | None:
     args = words[index + 1 :]
     if name == "git":
         return _check_git(args)
-    if name in SHELLS:
-        script = _shell_script(args)
+    if name in shell.SHELLS:
+        script = shell.shell_script(args)
         return _scan(script) if script is not None else None
     if name == "eval":
         return _scan(" ".join(args))
@@ -236,9 +126,9 @@ def _check_simple(words: list[str]) -> str | None:
 
 def _scan(text: str) -> str | None:
     """Return why the command bypasses the git hooks, or None."""
-    text = _strip_heredocs(text)
+    text = shell.strip_heredocs(text)
     try:
-        commands = _simple_commands(text)
+        commands = shell.simple_commands(text)
     except ValueError:
         if UNPARSEABLE_BYPASS.search(text):
             return "text that mentions --no-verify or hooksPath and cannot be parsed"
@@ -246,7 +136,7 @@ def _scan(text: str) -> str | None:
     for reason in (_check_simple(words) for words in commands):
         if reason:
             return reason
-    for inner in _substitutions(text):
+    for inner in shell.substitutions(text):
         if reason := _scan(inner):
             return reason
     return None

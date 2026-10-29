@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -156,3 +157,36 @@ def test_payload_with_a_wrong_shape_blocks():
     assert run_hook("[]").returncode == 2
     assert run_hook("").returncode == 2
     assert run_hook(json.dumps({"tool_input": []})).returncode == 2
+
+
+def test_it_runs_under_isolated_mode_from_any_folder(tmp_path):
+    """Registered as `python3 -I`, which does not put the script's folder on the path."""
+    payload = json.dumps({"tool_input": {"command": "git commit --no-verify -m x"}})
+    result = subprocess.run(
+        [sys.executable, "-I", str(HOOK)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "--no-verify" in result.stderr
+
+
+def test_it_blocks_when_the_shared_parser_is_missing(tmp_path):
+    """Failing to import must not turn into a crash, which Claude Code reads as "go ahead"."""
+    copy = tmp_path / "hooks"
+    copy.mkdir()
+    shutil.copy(HOOK, copy / HOOK.name)
+    result = subprocess.run(
+        [sys.executable, "-I", str(copy / HOOK.name)],
+        input=json.dumps({"tool_input": {"command": "ls"}}),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "could not load its parser" in result.stderr
