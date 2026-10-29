@@ -147,13 +147,15 @@ REAL_SESSION_ID = card._session_id
 REAL_INTERACTIVE = card._interactive
 
 
+HOOKS_COPY = "/srv/claude/hooks/workspace"
+
+
 def write_claude_settings(path, ask=("Bash(ws card apply:*)",), hook=True):
     gates = {"permissions": {"ask": list(ask)}}
     if hook:
-        command = 'python3 -I "/srv/ws/hooks/ask_card_apply.py"'
-        gates["hooks"] = {
-            "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]
-        }
+        command = f'python3 -I "{HOOKS_COPY}/approval_gate.py"'
+        entry = {"matcher": "Bash|mcp__.*", "hooks": [{"type": "command", "command": command}]}
+        gates["hooks"] = {"PreToolUse": [entry]}
     path.write_text(json.dumps(gates), encoding="utf-8")
 
 
@@ -162,6 +164,7 @@ def claude_settings(tmp_path, monkeypatch):
     path = tmp_path / "claude-settings.json"
     write_claude_settings(path)
     monkeypatch.setenv("WS_CLAUDE_SETTINGS", str(path))
+    monkeypatch.setenv("WS_CLAUDE_HOOKS_DIR", HOOKS_COPY)
     return path
 
 
@@ -1859,7 +1862,7 @@ def test_approve_needs_the_ask_rule_and_the_hook_in_the_claude_settings(
 
     write_claude_settings(claude_settings, hook=False)
     assert approve(path, code) == 2
-    assert "ask_card_apply.py" in capsys.readouterr().err
+    assert "approval_gate.py" in capsys.readouterr().err
 
     claude_settings.unlink()
     assert approve(path, code) == 2
