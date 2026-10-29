@@ -345,8 +345,9 @@ def test_generic_fallback_caps_lines_and_compacts_json():
     assert shown[0] == "Gravar fora — Datadog"
     assert shown[1] == "Ferramenta: upsert_datadog_dashboard"
     assert shown[2] == 'k0: {"a":[1,2]}'
-    assert shown[-2] == "k5: 5"
-    assert len(shown) == 9
+    assert shown[-3] == "k5: 5"
+    assert shown[-2] == "(+3 campos)"
+    assert len(shown) == 10
 
 
 def test_summary_survives_unexpected_shapes():
@@ -441,8 +442,39 @@ def test_temporary_file_is_removed_and_folder_is_private(isolated_env):
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
     run(GH + "add_issue_comment", owner="me", repo="r", issue_number=1, body="x")
     folder = isolated_env / "cache" / "gate"
-    assert [p.name for p in folder.iterdir()] == [".git"]
+    assert list(folder.iterdir()) == []
     assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+
+
+def test_every_check_runs_in_a_fresh_private_repo(isolated_env):
+    set_owners("me")
+    probe = isolated_env / "cwd-ws"
+    probe.write_text(
+        "#!/bin/sh\n"
+        'echo "$(pwd) $(stat -c %a .) $(test -d .git && echo repo) $(ls -A | wc -l)"'
+        ' >> "$(dirname "$0")/cwds.txt"\n',
+        encoding="utf-8",
+    )
+    probe.chmod(0o755)
+    os.environ["WS_GATE_WS_BIN"] = str(probe)
+    for _ in range(2):
+        run(GH + "add_issue_comment", owner="me", repo="r", issue_number=1, body="x")
+    first, second = (isolated_env / "cwds.txt").read_text(encoding="utf-8").splitlines()
+    assert first.split()[0] != second.split()[0]
+    for entry in (first, second):
+        assert entry.split()[1:] == ["700", "repo", "2"]
+        assert not Path(entry.split()[0]).exists()
+
+
+def test_a_planted_allowlist_does_not_excuse_a_finding(isolated_env):
+    (Path(os.environ["WS_CONFIG_DIR"]) / "names.toml").write_text("", encoding="utf-8")
+    set_owners("me")
+    planted = isolated_env / "cache" / "gate"
+    planted.mkdir(parents=True)
+    (planted / ".secrets-allow").write_text("* secret-assignment hunter2abc\n", encoding="utf-8")
+    dirty = run(GH + "add_issue_comment", owner="me", repo="r", issue_number=1, body=FAKE_LEAK)
+    assert dirty.kind == "deny"
+    assert "secret-assignment" in dirty.reason
 
 
 def test_temporary_file_is_mode_600_while_checked(isolated_env):
@@ -464,3 +496,76 @@ def test_real_check_secrets(isolated_env):
     assert dirty.kind == "deny"
     assert "secret-assignment" in dirty.reason
     assert "hunter2abc" not in dirty.reason
+
+
+KRAKEN_CHECKED_CALLS = {
+    "pull_request_create": {"title": FAKE_LEAK, "source_branch": "a", "target_branch": "b"},
+    "pull_request_create_review": {"review": FAKE_LEAK, "pull_request_id": "4"},
+    "issues_create": {"title": FAKE_LEAK, "provider": "github"},
+    "issues_add_comment": {"comment": FAKE_LEAK, "issue_id": "3", "provider": "github"},
+}
+
+
+@pytest.mark.parametrize("tool", sorted(KRAKEN_CHECKED_CALLS))
+def test_gitkraken_writes_to_a_personal_owner_are_checked(isolated_env, tool):
+    (Path(os.environ["WS_CONFIG_DIR"]) / "names.toml").write_text("", encoding="utf-8")
+    set_owners("me")
+    call = {**KRAKEN_CHECKED_CALLS[tool], "repository_organization": "Me", "repository_name": "r"}
+    dirty = run(KRAKEN + tool, **call)
+    assert dirty.kind == "deny"
+    assert "secret-assignment" in dirty.reason
+    clean = run(KRAKEN + tool, **{**call, "repository_organization": "company"})
+    assert clean.kind == "ask"
+    assert "Sigilo" not in clean.reason
+
+
+def test_gitkraken_without_an_owner_is_checked_unless_the_provider_is_another(isolated_env):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
+    unknown = run(KRAKEN + "issues_add_comment", issue_id="3", comment="oi", provider="github")
+    assert lines(unknown)[-2] == mcp_rules.SIGILO_CHECKED
+    jira = run(KRAKEN + "issues_create", provider="jira", title="T", repository_name="TS")
+    assert "Sigilo" not in jira.reason
+
+
+def test_gitkraken_git_push_is_not_a_confidentiality_check(isolated_env):
+    set_owners("me")
+    assert "Sigilo" not in run(KRAKEN + "git_push", directory="/x").reason
+
+
+def test_fork_is_checked_by_its_target_not_its_source(isolated_env):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
+    to_me = run(GH + "fork_repository", owner="company", repo="app", organization="me")
+    assert lines(to_me)[-2] == mcp_rules.SIGILO_CHECKED
+    assert "company/app" in (isolated_env / "seen.txt").read_text(encoding="utf-8")
+    to_account = run(GH + "fork_repository", owner="company", repo="app")
+    assert lines(to_account)[-2] == mcp_rules.SIGILO_CHECKED
+    to_company = run(GH + "fork_repository", owner="me", repo="app", organization="company")
+    assert "Sigilo" not in to_company.reason
+
+
+def test_fork_with_a_finding_denies(isolated_env):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 1, "content:2: real-name: acme")
+    decision = run(GH + "fork_repository", owner="acme", repo="app")
+    assert decision.kind == "deny"
+    assert "real-name" in decision.reason
+
+
+@pytest.mark.parametrize("owner", [None, "", "  "])
+def test_a_github_write_without_an_owner_is_checked(isolated_env, owner):
+    set_owners("me")
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
+    call = {"repo": "r", "issue_number": 1, "body": "oi"}
+    decision = run(GH + "add_issue_comment", **call, **({} if owner is None else {"owner": owner}))
+    assert lines(decision)[-2] == mcp_rules.SIGILO_CHECKED
+    os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 1, "finding")
+    blocked = run(GH + "add_issue_comment", **call)
+    assert blocked.kind == "deny"
+    assert "unknown owner" in blocked.reason
+
+
+def test_a_github_write_without_an_owner_and_no_owners_configured_is_off():
+    decision = run(GH + "add_issue_comment", repo="r", issue_number=1, body="oi")
+    assert lines(decision)[-2] == mcp_rules.SIGILO_OFF

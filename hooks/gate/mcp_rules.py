@@ -1,8 +1,10 @@
 """MCP rules of the gate: catalog lookup, the PT-BR summary of each write and the sigilo check.
 
 `decide` passes a tool the catalog lists under its server and asks for everything else, so a tool
-nobody classified yet asks (fail closed). A GitHub write whose owner is one of the personal
-accounts also has its text checked with `ws check-secrets` before the box is shown.
+nobody classified yet asks (fail closed). A GitHub write (the GitHub MCP, and the GitKraken tools
+that create PRs, reviews, issues and comments) whose owner is one of the personal accounts, or
+whose owner the call does not say, also has its text checked with `ws check-secrets` before the
+box is shown.
 """
 
 import json
@@ -20,6 +22,10 @@ CATALOG_PATH = Path(__file__).with_name("catalog.json")
 CHECK_TIMEOUT_SECONDS = 20
 GENERIC_LINES = 6
 PLAIN_KEYS = frozenset({"owner", "repo"})
+DESTINATION_KEYS = PLAIN_KEYS | {"repository_organization", "repository_name"}
+KRAKEN_CHECKED = frozenset(
+    {"pull_request_create", "pull_request_create_review", "issues_create", "issues_add_comment"}
+)
 
 SIGILO_CHECKED = "Sigilo: conferido (check-secrets)"
 SIGILO_OFF = "Sigilo: conferência desligada (sem personal_github_owners)"
@@ -56,8 +62,11 @@ def _compact(value: object) -> str:
 
 def _generic(tool: str, inputs: dict) -> list[str]:
     lines = [f"Ferramenta: {tool}"]
-    for key, value in list(inputs.items())[:GENERIC_LINES]:
+    items = list(inputs.items())
+    for key, value in items[:GENERIC_LINES]:
         lines.append(f"{key}: {cut(_compact(value))}")
+    if len(items) > GENERIC_LINES:
+        lines.append(f"(+{len(items) - GENERIC_LINES} campos)")
     return lines
 
 
@@ -430,10 +439,13 @@ def _strings(value: object) -> list[str]:
 
 
 def sent_text(inputs: dict) -> str:
-    """Every string the call sends (contents, paths, titles, bodies, messages); owner and repo are
-    left out, they are the destination."""
+    """Every string the call sends (contents, paths, titles, bodies, messages); the destination
+    (owner and repo) is left out."""
     parts = [
-        text for key, value in inputs.items() if key not in PLAIN_KEYS for text in _strings(value)
+        text
+        for key, value in inputs.items()
+        if key not in DESTINATION_KEYS
+        for text in _strings(value)
     ]
     return "\n".join(parts)
 
@@ -449,16 +461,20 @@ def _ws_binary() -> str | None:
     return str(local) if local.exists() else None
 
 
-def _gate_folder() -> Path:
-    """A private folder that is its own git repo: `ws check-secrets PATH` needs a repo as its cwd,
-    and this one has no `.secrets-allow`, so nothing is excused."""
-    folder = _cache_dir() / "gate"
-    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    folder.chmod(0o700)
-    if not (folder / ".git").exists():
+def _fresh_repo() -> Path:
+    """A new private folder that is its own git repo: `ws check-secrets PATH` needs a repo as its
+    cwd, and a folder made for this one check cannot hold a `.secrets-allow` planted earlier."""
+    parent = _cache_dir() / "gate"
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    parent.chmod(0o700)
+    folder = Path(tempfile.mkdtemp(prefix="check-", dir=parent))
+    try:
         subprocess.run(
             ["git", "init", "-q"], cwd=folder, check=True, capture_output=True, timeout=10
         )
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     return folder
 
 
@@ -468,12 +484,12 @@ def check_secrets(text: str) -> str | None:
     if binary is None:
         return "ws executable not found"
     try:
-        folder = _gate_folder()
-        descriptor, name = tempfile.mkstemp(dir=folder, prefix="content-", suffix=".txt")
+        folder = _fresh_repo()
     except (OSError, subprocess.SubprocessError) as error:
         return f"could not prepare the check folder ({error})"
-    path = Path(name)
     try:
+        descriptor, name = tempfile.mkstemp(dir=folder, prefix="content-", suffix=".txt")
+        path = Path(name)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(text)
         try:
@@ -492,26 +508,44 @@ def check_secrets(text: str) -> str | None:
             return None
         output = (result.stdout + result.stderr).strip().replace(str(path), "content")
         return cut(output, 500) or f"ws check-secrets exited {result.returncode}"
+    except OSError as error:
+        return f"could not prepare the check folder ({error})"
     finally:
-        path.unlink(missing_ok=True)
+        shutil.rmtree(folder, ignore_errors=True)
 
 
-def _confidentiality(tool: str, inputs: dict) -> tuple[Decision | None, str]:
+def _destination(family: str, tool: str, inputs: dict) -> str:
+    """The lowercased account the write lands on; empty when the call does not say (the
+    authenticated account for a create or a fork, or simply missing)."""
+    if family == "gitkraken":
+        key = "repository_organization"
+    elif tool in ("create_repository", "fork_repository"):
+        key = "organization"
+    else:
+        key = "owner"
+    return _text(inputs, key).strip().lower()
+
+
+def _confidentiality(family: str, tool: str, inputs: dict) -> tuple[Decision | None, str]:
     """A `deny`, or None with the box line that says how the content was checked."""
     try:
         owners = personal_owners()
     except ValueError as error:
         return deny(f"Blocked: cannot tell whether the GitHub owner is personal: {error}."), ""
-    owner = (_text(inputs, "owner") or _text(inputs, "organization")).lower()
-    if tool == "create_repository" and not owner:
-        owner = "(authenticated account)"
     if owners is None:
         return None, SIGILO_OFF
-    if owner != "(authenticated account)" and owner not in owners:
+    owner = _destination(family, tool, inputs)
+    provider = _text(inputs, "provider").strip().lower()
+    if family == "gitkraken" and not owner and provider not in ("", "github"):
         return None, ""
-    problem = check_secrets(sent_text(inputs))
+    if owner and owner not in owners:
+        return None, ""
+    text = sent_text(inputs)
+    if tool == "fork_repository":
+        text += f"\n{_where(inputs)}"
+    problem = check_secrets(text)
     if problem is not None:
-        shown = _text(inputs, "owner") or "authenticated account"
+        shown = owner or "unknown owner or authenticated account"
         return (
             deny(
                 f"Blocked: content for the personal GitHub ({shown}) has check-secrets "
@@ -538,8 +572,9 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
         return PASS
     lines = _summary(server, tool, inputs)
     sigilo = ""
-    if _family(server) == "github":
-        blocked, sigilo = _confidentiality(tool, inputs)
+    family = _family(server)
+    if family == "github" or (family == "gitkraken" and tool in KRAKEN_CHECKED):
+        blocked, sigilo = _confidentiality(family, tool, inputs)
         if blocked is not None:
             return blocked
     if sigilo:
