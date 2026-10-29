@@ -1,3 +1,4 @@
+import json
 import stat
 import sys
 from pathlib import Path
@@ -10,7 +11,9 @@ from ws.userconfig import (
     ConfigMissing,
     load_config,
     load_jira_token,
+    load_token,
     save_jira_token,
+    save_token,
 )
 
 CONFIG = """\
@@ -140,14 +143,37 @@ def test_load_token_missing_file_or_key_raises_config_missing(config_dir):
         load_jira_token()
 
 
-def test_save_token_refuses_to_overwrite_another_table(config_dir):
+def test_save_token_keeps_the_other_sections(config_dir):
     credentials = config_dir / "credentials"
     credentials.write_text('[other]\nkey = "v"\n', encoding="utf-8")
 
-    with pytest.raises(ConfigInvalid, match="credentials"):
-        save_jira_token("secret")
+    save_token("github", "gh-secret")
 
-    assert credentials.read_text(encoding="utf-8") == '[other]\nkey = "v"\n'
+    assert load_token("github") == "gh-secret"
+    assert 'key = "v"' in credentials.read_text(encoding="utf-8")
+    save_jira_token("jira-secret")
+    assert load_token("github") == "gh-secret"
+    assert load_jira_token() == "jira-secret"
+    assert 'key = "v"' in credentials.read_text(encoding="utf-8")
+    assert _mode(credentials) == 0o600
+
+
+def test_save_token_refuses_content_it_cannot_rewrite(config_dir):
+    credentials = config_dir / "credentials"
+    original = '[other]\nlist = ["a", "b"]\n'
+    credentials.write_text(original, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match="cannot rewrite"):
+        save_token("github", "secret")
+
+    assert credentials.read_text(encoding="utf-8") == original
+
+
+def test_load_token_of_a_service_without_it_names_the_service(config_dir):
+    save_jira_token("jira-secret")
+
+    with pytest.raises(ConfigMissing, match="GitHub token"):
+        load_token("github")
 
 
 def test_save_token_replaces_an_existing_jira_token(config_dir):
@@ -173,6 +199,73 @@ def test_cli_token_saves_what_getpass_reads(config_dir, monkeypatch):
 
     assert main(["config", "token", "jira"]) == 0
     assert load_jira_token() == "typed-token"
+
+
+def test_cli_token_github_saves_what_getpass_reads_and_keeps_jira(config_dir, monkeypatch, capsys):
+    save_jira_token("jira-secret")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "gh-typed")
+
+    assert main(["config", "token", "github"]) == 0
+
+    assert load_token("github") == "gh-typed"
+    assert load_jira_token() == "jira-secret"
+    assert "saved the GitHub token" in capsys.readouterr().out
+
+
+def test_cli_token_github_refuses_without_tty_and_on_empty_input(config_dir, monkeypatch, capsys):
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    assert main(["config", "token", "github"]) == 2
+    assert "run this in your own terminal: ws config token github" in capsys.readouterr().err
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "  ")
+    assert main(["config", "token", "github"]) == 2
+    assert not (config_dir / "credentials").exists()
+
+
+def test_mcp_headers_prints_only_the_authorization_header(config_dir, monkeypatch, capsys):
+    save_token("github", "gh-secret")
+    monkeypatch.setenv("CLAUDE_CODE_MCP_SERVER_NAME", "github")
+
+    assert main(["mcp-headers", "github"]) == 0
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {"Authorization": "Bearer gh-secret"}
+    assert captured.out.count("\n") == 1
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_mcp_headers_refuses_outside_claude_code(config_dir, monkeypatch, capsys, value):
+    save_token("github", "gh-secret")
+    if value is None:
+        monkeypatch.delenv("CLAUDE_CODE_MCP_SERVER_NAME", raising=False)
+    else:
+        monkeypatch.setenv("CLAUDE_CODE_MCP_SERVER_NAME", value)
+
+    assert main(["mcp-headers", "github"]) == 2
+
+    captured = capsys.readouterr()
+    assert "headersHelper" in captured.err
+    assert "gh-secret" not in captured.out + captured.err
+
+
+def test_mcp_headers_without_a_token_exits_2_on_stderr(config_dir, monkeypatch, capsys):
+    monkeypatch.setenv("CLAUDE_CODE_MCP_SERVER_NAME", "github")
+
+    assert main(["mcp-headers", "github"]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "credentials" in captured.err
+
+
+def test_mcp_headers_help_says_the_gate_asks(capsys):
+    with pytest.raises(SystemExit):
+        main(["mcp-headers", "--help"])
+
+    assert "approval gate asks" in capsys.readouterr().out
 
 
 CARD_KEYS = """\

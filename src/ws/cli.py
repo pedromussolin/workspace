@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -562,27 +563,59 @@ def _add_config(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]
     commands = parser.add_subparsers(dest="config_command", required=True)
     stored = commands.add_parser("token", help="Store a service credential, typed hidden.")
     services = stored.add_subparsers(dest="service", required=True)
-    jira = services.add_parser(
-        "jira",
-        help="Read the Jira API token from the terminal (hidden) and store it with mode 600.",
-    )
-    jira.set_defaults(handler=_cmd_config_token_jira)
+    for service, label in userconfig.TOKEN_SERVICES.items():
+        command = services.add_parser(
+            service,
+            help=f"Read the {label} token from the terminal (hidden) and store it with mode 600.",
+        )
+        command.set_defaults(handler=_cmd_config_token)
 
 
-def _cmd_config_token_jira(args: argparse.Namespace) -> int:
+def _cmd_config_token(args: argparse.Namespace) -> int:
+    service = args.service
+    label = userconfig.TOKEN_SERVICES[service]
     if not sys.stdin.isatty():
-        print("run this in your own terminal: ws config token jira", file=sys.stderr)
+        print(f"run this in your own terminal: ws config token {service}", file=sys.stderr)
         return 2
-    typed = getpass.getpass("Jira API key (hidden): ").strip()
+    typed = getpass.getpass(f"{label} API key (hidden): ").strip()
     if not typed:
-        print("ws config token jira: empty token, nothing saved", file=sys.stderr)
+        print(f"ws config token {service}: empty token, nothing saved", file=sys.stderr)
         return 2
     try:
-        path = userconfig.save_jira_token(typed)
+        path = userconfig.save_token(service, typed)
     except (userconfig.ConfigInvalid, OSError) as error:
-        print(f"ws config token jira: {error}", file=sys.stderr)
+        print(f"ws config token {service}: {error}", file=sys.stderr)
         return 2
-    print(f"saved the Jira token in {path}")
+    print(f"saved the {label} token in {path}")
+    return 0
+
+
+def _add_mcp_headers(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser(
+        "mcp-headers",
+        help="Print the HTTP headers of an MCP server (Claude Code's headersHelper).",
+        description=(
+            "Meant for Claude Code's headersHelper: prints the headers of the MCP server as one "
+            "JSON object, with the token read from ~/.config/workspace/credentials, so the token "
+            "never sits in the session environment. It refuses to run outside Claude Code "
+            "(CLAUDE_CODE_MCP_SERVER_NAME unset), which only guards against casual use: the "
+            "approval gate asks before any command that names `ws mcp-headers`."
+        ),
+    )
+    parser.add_argument("server", choices=["github"], help="the MCP server")
+    parser.set_defaults(handler=_cmd_mcp_headers)
+
+
+def _cmd_mcp_headers(args: argparse.Namespace) -> int:
+    if not os.environ.get("CLAUDE_CODE_MCP_SERVER_NAME"):
+        print("ws mcp-headers is meant for Claude Code's headersHelper", file=sys.stderr)
+        return 2
+    try:
+        bearer = userconfig.load_token(args.server)
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws mcp-headers {args.server}: {error}", file=sys.stderr)
+        return 2
+    print(json.dumps({"Authorization": f"Bearer {bearer}"}))
     return 0
 
 
@@ -878,6 +911,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_check_secrets(subparsers)
     _add_names(subparsers)
     _add_config(subparsers)
+    _add_mcp_headers(subparsers)
     _add_task(subparsers)
     _add_card(subparsers)
     _add_standup(subparsers)

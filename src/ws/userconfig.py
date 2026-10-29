@@ -1,8 +1,9 @@
-"""Local, per-user config of ws: `config.toml` (no secrets) and the Jira token in `credentials`."""
+"""Local, per-user config of ws: `config.toml` (no secrets) and the tokens of `credentials`."""
 
 import errno
 import json
 import os
+import re
 import stat
 import tomllib
 from dataclasses import dataclass
@@ -13,6 +14,9 @@ from ws.jira import SiteRefused, check_site
 from ws.taskmodel import Status
 
 DEFAULT_STALE_WORKDAYS = 3
+TOKEN_SERVICES = {"jira": "Jira", "github": "GitHub"}
+STORED_FIELD = "token"
+BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
 
 
 class ConfigMissing(Exception):
@@ -166,25 +170,47 @@ def _refuse_foreign_credentials(path: Path) -> None:
         raise ConfigInvalid(f"{path} is not owned by you; the API key is not read from it")
 
 
-def load_jira_token() -> str:
+def load_token(service: str) -> str:
     path = _credentials_path()
     _refuse_foreign_credentials(path)
     data = _read_toml(path)
-    stored = _table(data, "jira", path).get("token")
+    stored = _table(data, service, path).get(STORED_FIELD)
     if not isinstance(stored, str) or not stored:
-        raise ConfigMissing(path, "Jira token in")
+        raise ConfigMissing(path, f"{TOKEN_SERVICES[service]} token in")
     return stored
 
 
-def save_jira_token(value: str) -> Path:
+def load_jira_token() -> str:
+    return load_token("jira")
+
+
+def _credentials_text(tables: dict, path: Path) -> str:
+    """Every table back as TOML; only tables of plain strings can be rewritten without loss."""
+    chunks = []
+    for name, table in tables.items():
+        if not isinstance(table, dict) or not BARE_KEY.fullmatch(name):
+            raise ConfigInvalid(f"{path} holds content ws cannot rewrite; add the token by hand")
+        lines = [f"[{name}]"]
+        for key, value in table.items():
+            if not isinstance(value, str) or not BARE_KEY.fullmatch(key):
+                raise ConfigInvalid(
+                    f"{path} holds content ws cannot rewrite; add the token by hand"
+                )
+            lines.append(f"{key} = {json.dumps(value)}")
+        chunks.append("\n".join(lines) + "\n")
+    return "\n".join(chunks)
+
+
+def save_token(service: str, value: str) -> Path:
     path = _credentials_path()
     _refuse_foreign_credentials(path)
     try:
-        existing = _read_toml(path)
+        tables = _read_toml(path)
     except ConfigMissing:
-        existing = {}
-    if set(existing) - {"jira"}:
-        raise ConfigInvalid(f"{path} holds other tables; add the Jira token by hand")
+        tables = {}
+    text = _credentials_text(
+        {**tables, service: {**_table(tables, service, path), STORED_FIELD: value}}, path
+    )
     folder = path.parent
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     folder.chmod(0o700)
@@ -199,5 +225,9 @@ def save_jira_token(value: str) -> Path:
         raise
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         os.fchmod(handle.fileno(), 0o600)
-        handle.write(f"[jira]\ntoken = {json.dumps(value)}\n")
+        handle.write(text)
     return path
+
+
+def save_jira_token(value: str) -> Path:
+    return save_token("jira", value)
