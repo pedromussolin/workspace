@@ -20,6 +20,7 @@ does running out of time (`DEADLINE_SECONDS`), since a hook that times out lets 
 import json
 import os
 import re
+import shlex
 import signal
 import sys
 from pathlib import Path, PurePath
@@ -99,10 +100,28 @@ def _changes_hooks_path(args: list[str]) -> bool:
     return not (CONFIG_READ_FLAGS & set(args) or args[0] in ("get", "list"))
 
 
+def _check_alias(setting: str) -> str | None:
+    """Why a `-c alias.NAME=VALUE` bypasses the hooks: its value is read as a git command line."""
+    key, _, value = setting.partition("=")
+    if not key.lower().startswith("alias."):
+        return None
+    if value.startswith("!"):
+        reason = _scan(value[1:])
+    else:
+        try:
+            reason = _check_git(shlex.split(value))
+        except ValueError:
+            reason = "an alias that cannot be parsed" if UNPARSEABLE_BYPASS.search(value) else None
+    return f"{reason}, inside a -c alias" if reason else None
+
+
 def _check_git(args: list[str]) -> str | None:
     overrides, subcommand, rest = _split_git(args)
     if any(_is_hooks_path_key(setting) for setting in overrides):
         return "a core.hooksPath override with -c"
+    for setting in overrides:
+        if reason := _check_alias(setting):
+            return reason
     if subcommand == "config" and _changes_hooks_path(rest):
         return "a change of core.hooksPath"
     if _skips_verification(subcommand, rest):

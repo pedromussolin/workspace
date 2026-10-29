@@ -93,6 +93,12 @@ GIT_VALUE_OPTIONS = {
     "--config-env",
 }
 REMOTE_KEY_STARTS = ("remote.", "url.", "alias.", "branch.", "core.sshcommand")
+RISKY_GIT_KEYS = re.compile(
+    r"^(?:alias\.|credential\.|remote\.|url\.|pager\.|filter\.|core\.(?:pager|sshcommand|editor"
+    r"|fsmonitor|askpass|gitproxy|hookspath)$|sequence\.editor$|diff\.external$|gpg\.program$"
+    r"|.*\.command$|.*\.textconv$)"
+)
+GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
 INJECTING_START = "$`{-"
 BRANCH_QUERY_TIMEOUT = 3.0
@@ -403,6 +409,35 @@ def _split_git(args: list[Word]) -> tuple[list[Word], int | None]:
     return directories, index if index < len(args) else None
 
 
+def _git_overrides(args: list[Word]) -> list[str]:
+    """The `-c` and `--config-env` settings among git's global options, as typed."""
+    found: list[str] = []
+    index = 0
+    while index < len(args) and args[index].text.startswith("-"):
+        option = args[index].text
+        index += 1
+        if option.startswith("--config-env="):
+            found.append(option)
+        elif option in GIT_VALUE_OPTIONS and index < len(args):
+            if option in ("-c", "--config-env"):
+                found.append(f"{option} {args[index].text}")
+            index += 1
+    return found
+
+
+def _override_key(override: str) -> str:
+    setting = override.split(" ", 1)[1] if " " in override else override.partition("=")[2]
+    return setting.partition("=")[0].lower()
+
+
+def _risky_overrides(overrides: list[str]) -> list[str]:
+    return [override for override in overrides if RISKY_GIT_KEYS.match(_override_key(override))]
+
+
+def _redirects_push(override: str) -> bool:
+    return _override_key(override).startswith(("remote.", "url.", "alias.", "core.sshcommand"))
+
+
 def _folder(cwd: str, directories: list[Word]) -> str:
     folder = cwd or "."
     for directory in directories:
@@ -461,7 +496,9 @@ def _branch_state(folder: str) -> tuple[str, str, int] | None:
     return branch, upstream, int(ahead)
 
 
-def _push(rest: list[Word], directories: list[Word], cwd: str, moved: bool) -> Finding:
+def _push(
+    rest: list[Word], directories: list[Word], cwd: str, moved: bool, overrides: list[str]
+) -> Finding:
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     names = [word.text for word in parsed.positionals]
     remote = parsed.value("--repo")
@@ -471,12 +508,17 @@ def _push(rest: list[Word], directories: list[Word], cwd: str, moved: bool) -> F
     forced += ["+" + spec[1:] for spec in names if spec.startswith("+")]
     deleted = parsed.has("--delete", "-d") or any(spec.startswith(":") for spec in names)
     folder = _folder(cwd, directories)
+    redirecting = [override for override in overrides if _redirects_push(override)]
     state = None
     if not names and not moved and not any(word.expands for word in directories):
         state = _branch_state(folder)
+    if redirecting:
+        shown = f"{remote or 'o padrão'}, mudado por {redirecting[0]}"
+    else:
+        shown = remote or "o padrão do repositório"
     lines = [
         f"Enviar commits (git push) da pasta {_pretty(folder)}",
-        f"Remoto: {remote or 'o padrão do repositório'}",
+        f"Remoto: {shown}",
     ]
     if state:
         branch, upstream, ahead = state
@@ -486,6 +528,8 @@ def _push(rest: list[Word], directories: list[Word], cwd: str, moved: bool) -> F
         lines.append(
             f"Referências: {', '.join(names) if names else 'as configuradas no repositório'}"
         )
+    for override in overrides:
+        lines.append(f"ATENÇÃO: {cut(override, 120)} muda o que o git roda ou para onde envia")
     if forced:
         lines.append(f"ATENÇÃO: {forced[0]} força o envio e pode reescrever o histórico do remoto")
     if deleted:
@@ -520,7 +564,38 @@ def _could_become_remote_key(word: Word) -> bool:
     )
 
 
+def _git_config_in_environment(scan: Scan) -> list[str]:
+    return [
+        word.text
+        for command in scan.commands
+        for word in command.words
+        if GIT_CONFIG_VARIABLE.match(word.text)
+    ]
+
+
 def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Finding]:
+    texts = [word.text for word in command.words]
+    overrides = _risky_overrides(_git_overrides(args)) + _git_config_in_environment(scan)
+    found = []
+    _, verb_index = _split_git(args)
+    pushing = verb_index is not None and args[verb_index].text == "push"
+    if overrides and not pushing:
+        found.append(
+            Finding(
+                TITLE_UNSURE,
+                (
+                    f"ATENÇÃO: {cut(overrides[0], 120)} muda o que o git roda ou para onde envia",
+                    _line(texts),
+                    "Confira o comando antes de aprovar.",
+                ),
+            )
+        )
+    return found + _git_verb(command, args, cwd, scan, overrides)
+
+
+def _git_verb(
+    command: Command, args: list[Word], cwd: str, scan: Scan, overrides: list[str]
+) -> list[Finding]:
     texts = [word.text for word in command.words]
     directories, verb_index = _split_git(args)
     if verb_index is None:
@@ -529,9 +604,10 @@ def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Findi
         return [_unsure(texts, "O subcomando do git vem de uma expansão (variável ou comando).")]
     verb, rest = args[verb_index].text, args[verb_index + 1 :]
     if verb == "push":
-        if _is_plain_push(texts) and not _changes_directory(scan) and _listed_for_push(cwd):
+        plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
+        if plain and _listed_for_push(cwd):
             return []
-        return [_push(rest, directories, cwd, _runs_cd(scan))]
+        return [_push(rest, directories, cwd, _runs_cd(scan), overrides)]
     if verb == "remote":
         word = next((w for w in rest if not w.text.startswith("-")), None)
         if word is not None and word.expands:

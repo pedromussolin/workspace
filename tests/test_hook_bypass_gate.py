@@ -216,3 +216,30 @@ def test_deeply_nested_substitutions_are_checked_fast():
 )
 def test_wrappers_with_values_do_not_hide_a_bypass(command):
     assert run_command(command).returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'git -c alias.c="commit --no-verify" c',
+        "git -c alias.c='commit -n' c -m x",
+        "git -c alias.c='commit -anm x' c",
+        "git -c 'alias.c=!git commit --no-verify' c",
+        "git -c 'alias.c=-c core.hooksPath=/dev/null commit' c",
+        "git -c alias.h='config core.hooksPath /dev/null' h",
+        "git -c alias.p='push --no-ver' p",
+    ],
+)
+def test_an_alias_given_with_dash_c_that_skips_the_hooks_is_blocked(command):
+    result = run_command(command)
+
+    assert result.returncode == 2
+    assert "alias" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["git -c alias.st=status st", "git -c alias.c='commit -m x' c", "git -c alias.l='!git log' l"],
+)
+def test_an_ordinary_alias_given_with_dash_c_passes(command):
+    assert run_command(command).returncode == 0
