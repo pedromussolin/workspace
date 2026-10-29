@@ -4,7 +4,10 @@
 - **Repo:** apl-credit-whitelabel-api (BFF); o front só se o tratamento do erro temporário mudar.
 - **Status (26/10):** publicada. `fix/TS-5429-renovacao-tokens-azure` em front e BFF, juntada na release (hoje `release/20261027`)
   e dela na `-sdbx`. Sandbox desde 26/10 (BFF #226, front #239 mergeadas); produção em 27/10 pelas PRs BFF #227 e front #240 (D132);
-  o merge fica com o Pietro. Falta, depois do deploy, ler o AADSTS do log novo e fechar a causa (item 4).
+  o merge fica com o Pietro.
+- **Depois do deploy (28/10):** o evento `Azure token refresh rejected` não apareceu nenhuma vez de 26/10 a 28/10, nem na
+  sandbox nem em produção, e os 401 do BFF caíram de 65 para 51 nas ~20 h depois do deploy. Não há AADSTS para ler: o
+  item 4 fica fechado, e reabre se o evento aparecer.
 
 ## Contexto (Pietro, 23/10)
 

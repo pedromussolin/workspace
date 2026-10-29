@@ -1,7 +1,11 @@
 # 30 — Nomes e docstrings dos testes do BFF em inglês
 
-- **TS:** a criar · **Branch:** a criar, da `master` depois do ciclo do deploy de 21/10
-- **Status:** aberta (21/10), **depois do deploy**
+- **TS:** TS-5458 (épico TS-5357) · **Branch:** `test/TS-5458-testes-do-bff-em-ingles` (BFF), da `master`
+- **Status:** **publicada** (28/10): 20 commits, um por módulo, e o último com a regra no README e o teste de
+  arquitetura (`test_test_names_are_in_english`, `tests/test_arch.py`). Falta a PR e entrar numa release.
+- **Resultado:** 698 nomes, 112 docstrings e 60 comentários traduzidos em 92 arquivos, sem mudar asserção nem `src/`;
+  2431 testes antes e 2432 depois (o novo é o de arquitetura), todos passando. `cessao` fica nos nomes, porque é o
+  nome do serviço, como no `src`.
 - **Depende de:** 24 (deploy de 21/10) fechada
 
 ## O que é

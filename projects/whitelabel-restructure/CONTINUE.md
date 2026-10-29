@@ -1,10 +1,30 @@
-# Continuar em outro chat ou no Codex (26/10)
+# Continuar em outro chat ou no Codex (28/10)
 
 Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
-mesmo), o README (tabela de Tarefas), o `decisions.md` (D108 a D132) e o
+mesmo), o README (tabela de Tarefas), o `decisions.md` (D108 a D137) e o
 `~/.config/workspace/private/whitelabel-restructure.md` (nomes reais).
 
-## Onde está
+## Onde está (28/10)
+
+A release 20261027 está em produção desde 27/10 e foi conferida em 28/10 (tarefa 24). No Jira, o épico TS-5357 e
+os cards dele estão concluídos; os novos (39, 30 e 40) entraram no mesmo épico.
+
+| Tarefa | TS | Branch | Situação |
+|---|---|---|---|
+| [39](tasks/39-delete-role-first-try.md) | TS-5457 | BFF `fix/TS-5457-apagar-role-na-primeira-tentativa` | publicada; falta PR e release |
+| [30](tasks/30-bff-tests-in-english.md) | TS-5458 | BFF `test/TS-5458-testes-do-bff-em-ingles` | publicada; falta PR e release |
+| [40](tasks/40-bulk-actions-in-tables.md) | TS-5463 | front `feature/TS-5463-acoes-em-lote-nas-tabelas`, worktree `~/repos/apl-credit-whitelabel-wt/5463` | em implementação, sem commit |
+| [41](tasks/41-fqdn-and-partner-header.md) | a criar | — | em desenho (brainstorming) |
+
+- **Com o Pietro (Azure e Parameter Store):** apagar as roles e os grupos antigos, os das telas removidas e os de
+  "Formalização (unidades)", as permissões `clients:read`, `portfolio-performance:read` e `simulate-proposal:read`, e
+  a variável `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED`; rodar o `renomear-grupos.sh`, se ainda não rodou.
+- **Worktrees:** limpas em 28/10. Das 125 da reestruturação, 90 foram removidas e 35 guardadas antes (diff e arquivos
+  novos em `~/repos/.reestrutura_whitelabel/arquivo-worktrees/`, commit em `refs/archive/wt/*` de cada repo). As do
+  Artemis ficaram.
+- **Releases antigas no GitHub** (`release/20261026` e `-sdbx`): ficam por enquanto, por escolha do Pietro.
+
+## Onde estava (26/10)
 
 **Release 20261027 (deploy de produção em 27/10, D132; era a 20261026):** as PRs 1, 5, 2, 4 e 3 da tarefa 31 e as
 tarefas 34 e 35 estão commitadas nas branches de cada tarefa e juntadas na `release/20261027` de cada repo, com a

@@ -1,7 +1,15 @@
 # 24 — Deploy da reestruturação
 
 - **TS:** TS-5394 · **Branch:** `release/AAAAMMDD` (front e BFF)
-- **Status:** **em produção desde 21/10, 19:29** (conferido no argocd e nas `master`):
+- **Release 20261027 (27/10, ~20h20):** shared #76, BFF #227 e front #240 mergeadas na `master` e com a tag trocada no
+  argocd. Conferência no Datadog em 28/10, comparando ~20 h antes e depois do deploy:
+  - nenhum 403; 401 de 65 para 51; 5xx de 4 para 8, todos de serviço externo (estoque Validus, credenciais da
+    whitelist, cadastro pendente), nenhum da release;
+  - nenhum e-mail barrado em produção (`Send blocked outside production`);
+  - apagar role pela aba Permissões falhava na primeira tentativa: corrigido na tarefa 39 (TS-5457).
+  - Falta, com o Pietro: apagar no Azure as roles e os grupos antigos, os das telas removidas e os de
+    "Formalização (unidades)", e a variável `CFG_ACCESS_CONTROL_GROUP_ASSIGNMENT_ENABLED` do Parameter Store.
+- **Status (21/10):** **em produção desde 21/10, 19:29** (conferido no argocd e nas `master`):
   - front: PR #233 mergeada (`f7bb2d84`), tag `prod-f7bb2d8` nos três deploys;
   - BFF: PR #220 mergeada (`bb877db`), tag `prod-bb877db`;
   - antes do BFF: TSE #305 (`prod-09f63aa`, 19:29) e orquestrador #41 (`prod-766a9dd`, 19:05). O data lake #116
