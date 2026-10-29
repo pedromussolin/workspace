@@ -37,7 +37,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import shell
-from .decision import PASS, Decision, ask, body_summary, cut
+from .decision import PASS, Decision, ask, body_summary, cut, deny
 from .shell import Command, Scan, Word, program_name
 
 TITLE_GITHUB = "Gravar fora — GitHub"
@@ -98,6 +98,8 @@ RISKY_GIT_KEYS = re.compile(
     r"|fsmonitor|askpass|gitproxy|hookspath)$|sequence\.editor$|diff\.external$|gpg\.program$"
     r"|.*\.command$|.*\.textconv$)"
 )
+STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
+STORE_PROGRAMS = {"env", "sudo"}
 GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
 INJECTING_START = "$`{-"
@@ -271,8 +273,11 @@ SAFE_METHODS = {"GET", "HEAD"}
 
 @dataclass(frozen=True)
 class Finding:
+    """What one command asks for; a `denial` (English, for the model) blocks the call instead."""
+
     title: str
     lines: tuple[str, ...]
+    denial: str = ""
 
 
 @dataclass
@@ -804,22 +809,45 @@ def _http(program: str, args: list[Word]) -> list[Finding]:
     return [Finding(TITLE_HTTP, tuple(lines))]
 
 
-def _pending_summary(code: str) -> list[str]:
+def _pending_summary(code: str) -> Finding:
+    """The box for applying the pending preview `code`; a record that is not there is denied.
+
+    Denied, not asked: a box that cannot show what `apply` will write is a rubber stamp.
+    """
     path = _data_dir() / "cards" / "pending" / f"{code}.json"
-    missing = [f"Sem prévia pendente com o código {code}; o ws card apply vai recusar"]
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return missing
+        return Finding(
+            TITLE_JIRA,
+            (),
+            f"Blocked: no pending preview with code {code} in the default store; "
+            "run ws card preview first.",
+        )
     except (OSError, ValueError):
-        return [f"A prévia {code} existe mas não consegui ler; o ws card apply pode recusar"]
+        return Finding(
+            TITLE_JIRA,
+            (),
+            f"Blocked: the pending preview with code {code} could not be read; "
+            "run ws card preview again.",
+        )
     summary = record.get("summary") if isinstance(record, dict) else None
     if not isinstance(summary, list) or not summary or not all(isinstance(s, str) for s in summary):
-        return [f"A prévia {code} não tem resumo; confira com `ws card preview` antes de aprovar"]
-    return [f"Aplicar a prévia {code}:", *summary]
+        line = f"A prévia {code} não tem resumo; confira com `ws card preview` antes de aprovar"
+        return Finding(TITLE_JIRA, (line,))
+    return Finding(TITLE_JIRA, (f"Aplicar a prévia {code}:", *summary))
 
 
-def _ws(command: Command, args: list[Word]) -> list[Finding]:
+def _store_change(scan: Scan) -> str | None:
+    """A word of the command line that may point `ws` at a store other than the gate's."""
+    for command in scan.commands:
+        for word in command.words:
+            if STORE_VARIABLE.match(word.text) or program_name(word.text) in STORE_PROGRAMS:
+                return word.text
+    return None
+
+
+def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     texts = [word.text for word in command.words]
     top = parse_flags(args, set())
     names = [word.text for word in top.positionals[:2]]
@@ -843,8 +871,14 @@ def _ws(command: Command, args: list[Word]) -> list[Finding]:
         lines = ["ws card apply sem --approve; o ws vai recusar"]
     elif not APPROVE_CODE.fullmatch(code):
         lines = [f"Código de aprovação inválido ({cut(code, 30)}); o ws card apply vai recusar"]
+    elif changed := _store_change(scan):
+        reason = (
+            f"ATENÇÃO: {cut(changed, 60)} pode mudar a pasta de onde o ws lê a prévia; "
+            "a caixa não sabe o que será aplicado."
+        )
+        return [_unsure(texts, reason)]
     else:
-        lines = _pending_summary(code)
+        return [_pending_summary(code)]
     return [Finding(TITLE_JIRA, tuple(lines))]
 
 
@@ -900,7 +934,7 @@ def _invocation(
     if name == "gh":
         return _gh(command, args, cwd)
     if name == "ws":
-        return _ws(command, args)
+        return _ws(command, args, scan)
     return _http(name, args)
 
 
@@ -1128,6 +1162,8 @@ def _combine(findings: list[Finding]) -> Decision:
     unique = list(dict.fromkeys(findings))
     if not unique:
         return PASS
+    if denial := next((finding.denial for finding in unique if finding.denial), None):
+        return deny(denial)
     if len(unique) == 1:
         return ask(unique[0].title, list(unique[0].lines))
     titles = {finding.title for finding in unique}

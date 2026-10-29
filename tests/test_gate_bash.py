@@ -16,15 +16,24 @@ CODE = "abcdef012345"
 
 @pytest.fixture
 def env(tmp_path):
+    """A private home, config and data folder, with a pending preview for `CODE`."""
     (tmp_path / "home").mkdir()
     (tmp_path / "config").mkdir()
     (tmp_path / "data").mkdir()
+    folder = tmp_path / "data" / "cards" / "pending"
+    folder.mkdir(parents=True)
+    (folder / f"{CODE}.json").write_text(json.dumps({"summary": ["TS-9: mover"]}), "utf-8")
     return {
         "PATH": os.environ["PATH"],
         "HOME": str(tmp_path / "home"),
         "WS_CONFIG_DIR": str(tmp_path / "config"),
         "WS_DATA_DIR": str(tmp_path / "data"),
     }
+
+
+def decision(command, env, cwd="/work"):
+    out = run(command, env, cwd)
+    return json.loads(out)["hookSpecificOutput"] if out else None
 
 
 def run(command, env, cwd="/work"):
@@ -815,8 +824,6 @@ def test_card_apply_box_with_equals_and_an_abbreviated_flag(env):
 @pytest.mark.parametrize(
     ("record", "expected"),
     [
-        (None, f"Sem prévia pendente com o código {CODE}; o ws card apply vai recusar"),
-        ("not json", f"A prévia {CODE} existe mas não consegui ler"),
         ({"code": CODE}, f"A prévia {CODE} não tem resumo"),
         ({"summary": []}, f"A prévia {CODE} não tem resumo"),
         ({"summary": "texto"}, f"A prévia {CODE} não tem resumo"),
@@ -824,11 +831,52 @@ def test_card_apply_box_with_equals_and_an_abbreviated_flag(env):
         ([], f"A prévia {CODE} não tem resumo"),
     ],
 )
-def test_card_apply_still_asks_when_the_record_is_missing_or_unusable(record, expected, env):
-    if record is not None:
-        write_pending(env, CODE, record)
+def test_card_apply_still_asks_when_the_record_has_no_summary(record, expected, env):
+    write_pending(env, CODE, record)
 
     assert expected in box(f"ws card apply d --approve {CODE}", env)
+
+
+def test_card_apply_without_a_pending_record_is_denied_with_a_reason_for_the_model(env):
+    (Path(env["WS_DATA_DIR"]) / "cards" / "pending" / f"{CODE}.json").unlink()
+    found = decision(f"ws card apply d --approve {CODE}", env)
+
+    assert found["permissionDecision"] == "deny"
+    assert found["permissionDecisionReason"] == (
+        f"Blocked: no pending preview with code {CODE} in the default store; "
+        "run ws card preview first."
+    )
+
+
+@pytest.mark.parametrize("record", ["not json", "{"])
+def test_card_apply_with_an_unreadable_pending_record_is_denied(record, env):
+    write_pending(env, CODE, record)
+    found = decision(f"ws card apply d --approve {CODE}", env)
+
+    assert found["permissionDecision"] == "deny"
+    assert found["permissionDecisionReason"].startswith("Blocked: the pending preview")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"WS_DATA_DIR=/tmp/x ws card apply d --approve {CODE}",
+        f"HOME=/tmp/x ws card apply d --approve {CODE}",
+        f"env WS_DATA_DIR=/tmp/x ws card apply d --approve {CODE}",
+        f"env -i ws card apply d --approve {CODE}",
+        f"export WS_DATA_DIR=/tmp/x; ws card apply d --approve {CODE}",
+        f"export HOME=/tmp/x && uv run ws card apply d --approve {CODE}",
+        f"unset WS_DATA_DIR; ws card apply d --approve {CODE}",
+        f"sudo -u other ws card apply d --approve {CODE}",
+        f"WS_DATA_DIR=/tmp/x python3 -m ws card apply d --approve {CODE}",
+    ],
+)
+def test_card_apply_that_may_read_another_store_asks_and_says_why(command, env):
+    (Path(env["WS_DATA_DIR"]) / "cards" / "pending" / f"{CODE}.json").unlink()
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Comando não lido com certeza"
+    assert "pode mudar a pasta de onde o ws lê a prévia" in lines[1]
 
 
 @pytest.mark.parametrize("code", ["short", "ABCDEF012345", "abcdef01234g", "abcdef0123456", "../x"])
@@ -1448,15 +1496,11 @@ def test_wrappers_that_run_a_command_line_have_it_read(command, env):
     assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        'echo s | env -u CLAUDECODE script -qec "ws card apply d --approve abcdef012345" /dev/null',
-        "setsid -f ws card apply d --approve abcdef012345",
-    ],
-)
-def test_wrappers_do_not_hide_a_card_apply(command, env):
+def test_wrappers_do_not_hide_a_card_apply(env):
+    command = "setsid -f ws card apply d --approve abcdef012345"
     assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
+    command = 'echo s | env -u X script -qec "ws card apply d --approve abcdef012345" /dev/null'
+    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
 
 
 @pytest.mark.parametrize(

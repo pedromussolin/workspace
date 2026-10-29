@@ -21,6 +21,10 @@ def run(shim: Path, command: str) -> subprocess.CompletedProcess[str]:
 
 def test_the_old_path_runs_the_gate(tmp_path, monkeypatch):
     monkeypatch.setenv("WS_DATA_DIR", str(tmp_path))
+    (tmp_path / "cards" / "pending").mkdir(parents=True)
+    (tmp_path / "cards" / "pending" / "abcdef012345.json").write_text(
+        json.dumps({"summary": ["TS-1: mover"]}), encoding="utf-8"
+    )
     result = run(SHIM, "ws card apply d.md --approve abcdef012345")
     assert result.returncode == 0
     hook = json.loads(result.stdout)["hookSpecificOutput"]
