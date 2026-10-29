@@ -387,3 +387,41 @@ def test_save_token_refuses_a_file_of_another_owner(config_dir, monkeypatch):
 
     with pytest.raises(ConfigInvalid, match="owned"):
         save_jira_token("second")
+
+
+@pytest.mark.parametrize("token", ["a\x7fb", "emoji-\U0001f600-end", "tab\tnl\nbell\x07", "á ç"])
+def test_save_token_stores_what_json_would_break(config_dir, token):
+    save_token("github", token)
+
+    assert load_token("github") == token
+
+
+def test_save_token_failing_to_replace_keeps_the_old_file_and_leaves_no_temporary(
+    config_dir, monkeypatch
+):
+    save_jira_token("old")
+    credentials = config_dir / "credentials"
+    before = credentials.read_text(encoding="utf-8")
+
+    def broken(source, target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("os.replace", broken)
+
+    with pytest.raises(OSError, match="disk full"):
+        save_jira_token("new")
+
+    assert credentials.read_text(encoding="utf-8") == before
+    assert [path.name for path in config_dir.iterdir()] == ["credentials"]
+
+
+def test_save_token_that_is_not_encodable_leaves_the_file_untouched(config_dir):
+    save_jira_token("old")
+    credentials = config_dir / "credentials"
+    before = credentials.read_text(encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match="nothing was written"):
+        save_jira_token("lone-\ud800-surrogate")
+
+    assert credentials.read_text(encoding="utf-8") == before
+    assert _mode(credentials) == 0o600

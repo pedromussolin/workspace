@@ -1,10 +1,9 @@
 """Local, per-user config of ws: `config.toml` (no secrets) and the tokens of `credentials`."""
 
-import errno
-import json
 import os
 import re
 import stat
+import tempfile
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -184,6 +183,30 @@ def load_jira_token() -> str:
     return load_token("jira")
 
 
+TOML_ESCAPES = {
+    "\\": "\\\\",
+    '"': '\\"',
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
+
+
+def _toml_string(value: str) -> str:
+    """A TOML basic string; `json.dumps` is not one (DEL stays raw, astral characters split)."""
+    out = []
+    for char in value:
+        if char in TOML_ESCAPES:
+            out.append(TOML_ESCAPES[char])
+        elif ord(char) < 0x20 or ord(char) == 0x7F:
+            out.append(f"\\u{ord(char):04x}")
+        else:
+            out.append(char)
+    return '"' + "".join(out) + '"'
+
+
 def _credentials_text(tables: dict, path: Path) -> str:
     """Every table back as TOML; only tables of plain strings can be rewritten without loss."""
     chunks = []
@@ -196,7 +219,7 @@ def _credentials_text(tables: dict, path: Path) -> str:
                 raise ConfigInvalid(
                     f"{path} holds content ws cannot rewrite; add the token by hand"
                 )
-            lines.append(f"{key} = {json.dumps(value)}")
+            lines.append(f"{key} = {_toml_string(value)}")
         chunks.append("\n".join(lines) + "\n")
     return "\n".join(chunks)
 
@@ -214,19 +237,29 @@ def save_token(service: str, value: str) -> Path:
     folder = path.parent
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     folder.chmod(0o700)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
-    try:
-        descriptor = os.open(path, flags, 0o600)
-    except OSError as error:
-        if error.errno == errno.ELOOP:
-            raise ConfigInvalid(
-                f"{path} is a symlink; the API key is not written through it"
-            ) from None
-        raise
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        os.fchmod(handle.fileno(), 0o600)
-        handle.write(text)
+    _replace_atomically(path, text)
     return path
+
+
+def _replace_atomically(path: Path, text: str) -> None:
+    """Write beside the file and rename over it: a failure never leaves a truncated credentials."""
+    try:
+        data = text.encode("utf-8")
+        tomllib.loads(text)
+    except (UnicodeEncodeError, tomllib.TOMLDecodeError):
+        raise ConfigInvalid("the token cannot be stored as TOML; nothing was written") from None
+    descriptor, name = tempfile.mkstemp(prefix=".credentials-", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def save_jira_token(value: str) -> Path:
