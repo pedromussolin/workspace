@@ -569,3 +569,88 @@ def test_a_github_write_without_an_owner_is_checked(isolated_env, owner):
 def test_a_github_write_without_an_owner_and_no_owners_configured_is_off():
     decision = run(GH + "add_issue_comment", repo="r", issue_number=1, body="oi")
     assert lines(decision)[-2] == mcp_rules.SIGILO_OFF
+
+
+def unclassified_file() -> Path:
+    return Path(os.environ["WS_DATA_DIR"]) / "gate" / "unclassified.json"
+
+
+def test_catalog_ask_lists_are_sorted_and_never_overlap_pass():
+    servers = json.loads(mcp_rules.CATALOG_PATH.read_text(encoding="utf-8"))["servers"]
+    for server, entry in servers.items():
+        assert entry["ask"] == sorted(set(entry["ask"])), server
+        assert not set(entry["ask"]) & set(entry["pass"]), server
+
+
+def test_a_tool_in_the_ask_list_asks_without_being_recorded():
+    assert run(GH + "push_files", owner="o", repo="r", branch="b", files=[]).kind == "ask"
+    assert run(CLOUD + "createJiraIssue", projectKey="TS").kind == "ask"
+    assert not unclassified_file().exists()
+
+
+def test_a_tool_that_passes_is_not_recorded():
+    assert run(GH + "get_me").kind == "pass"
+    assert not unclassified_file().exists()
+
+
+def test_an_unclassified_tool_asks_and_is_recorded_with_a_count():
+    assert run(GH + "brand_new_tool", note="hunter2").kind == "ask"
+    assert run(GH + "brand_new_tool").kind == "ask"
+    assert run("mcp__some_new_server__do_it", a=1).kind == "ask"
+
+    data = json.loads(unclassified_file().read_text(encoding="utf-8"))
+    assert set(data) == {"plugin_github_github", "some_new_server"}
+    entry = data["plugin_github_github"]["brand_new_tool"]
+    assert entry["count"] == 2
+    assert len(entry["last"]) == 10
+    assert "hunter2" not in unclassified_file().read_text(encoding="utf-8")
+
+
+def test_the_record_folder_is_private_and_leaves_no_temp_file():
+    run(GH + "brand_new_tool")
+
+    folder = unclassified_file().parent
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+    assert [path.name for path in folder.iterdir()] == ["unclassified.json"]
+
+
+def test_the_record_stops_at_500_tools_but_keeps_counting_known_ones():
+    path = unclassified_file()
+    path.parent.mkdir(parents=True)
+    tools = {f"tool_{n}": {"count": 1, "last": "2026-01-01"} for n in range(500)}
+    path.write_text(json.dumps({"srv": tools}), encoding="utf-8")
+
+    assert run("mcp__srv__one_more").kind == "ask"
+    assert run("mcp__srv__tool_3").kind == "ask"
+
+    data = json.loads(path.read_text(encoding="utf-8"))["srv"]
+    assert "one_more" not in data
+    assert data["tool_3"]["count"] == 2
+
+
+@pytest.mark.parametrize("content", ["not json", "[1, 2]", '{"srv": 5}', '{"srv": {"t": 7}}'])
+def test_a_damaged_record_is_replaced_not_fatal(content):
+    path = unclassified_file()
+    path.parent.mkdir(parents=True)
+    path.write_text(content, encoding="utf-8")
+
+    assert run("mcp__srv__t").kind == "ask"
+
+    assert json.loads(path.read_text(encoding="utf-8"))["srv"]["t"]["count"] == 1
+
+
+def test_a_failure_to_record_never_changes_the_decision(tmp_path, monkeypatch):
+    blocker = tmp_path / "not-a-folder"
+    blocker.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("WS_DATA_DIR", str(blocker))
+
+    decision = run(GH + "brand_new_tool")
+
+    assert decision.kind == "ask"
+    assert lines(decision)[0] == "Gravar fora — GitHub"
+
+
+def test_names_that_are_not_plain_are_not_recorded():
+    assert run("mcp__sr v__t").kind == "ask"
+    assert run("mcp__srv__bad name").kind == "ask"
+    assert not unclassified_file().exists()

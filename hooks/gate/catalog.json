@@ -16,6 +16,17 @@
         "search",
         "searchConfluence",
         "searchJiraIssuesUsingJql"
+      ],
+      "ask": [
+        "addGraphContext",
+        "addOrEditJiraIssueComment",
+        "createConfluenceContent",
+        "createJiraIssue",
+        "editJiraIssue",
+        "executeDestructive",
+        "executeWrite",
+        "transitionJiraIssue",
+        "updateConfluenceContent"
       ]
     },
     "plugin_productivity_atlassian": {
@@ -42,6 +53,18 @@
         "search",
         "searchConfluenceUsingCql",
         "searchJiraIssuesUsingJql"
+      ],
+      "ask": [
+        "addCommentToJiraIssue",
+        "addWorklogToJiraIssue",
+        "createConfluenceFooterComment",
+        "createConfluenceInlineComment",
+        "createConfluencePage",
+        "createIssueLink",
+        "createJiraIssue",
+        "editJiraIssue",
+        "transitionJiraIssue",
+        "updateConfluencePage"
       ]
     },
     "plugin_github_github": {
@@ -72,6 +95,28 @@
         "search_pull_requests",
         "search_repositories",
         "search_users"
+      ],
+      "ask": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "create_branch",
+        "create_or_update_file",
+        "create_pull_request",
+        "create_repository",
+        "delete_file",
+        "delete_repository",
+        "fork_repository",
+        "issue_write",
+        "merge_pull_request",
+        "pull_request_review_write",
+        "push_files",
+        "request_copilot_review",
+        "run_secret_scanning",
+        "sub_issue_write",
+        "update_issue_comment",
+        "update_pull_request",
+        "update_pull_request_branch"
       ]
     },
     "github": {
@@ -102,6 +147,28 @@
         "search_pull_requests",
         "search_repositories",
         "search_users"
+      ],
+      "ask": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "create_branch",
+        "create_or_update_file",
+        "create_pull_request",
+        "create_repository",
+        "delete_file",
+        "delete_repository",
+        "fork_repository",
+        "issue_write",
+        "merge_pull_request",
+        "pull_request_review_write",
+        "push_files",
+        "request_copilot_review",
+        "run_secret_scanning",
+        "sub_issue_write",
+        "update_issue_comment",
+        "update_pull_request",
+        "update_pull_request_branch"
       ]
     },
     "plugin_gitkraken_gitkraken": {
@@ -126,6 +193,17 @@
         "pull_request_get_comments",
         "pull_request_get_detail",
         "repository_get_file_content"
+      ],
+      "ask": [
+        "git_commit_composer",
+        "git_push",
+        "git_resolve",
+        "gitlens_start_review",
+        "gitlens_start_work",
+        "issues_add_comment",
+        "issues_create",
+        "pull_request_create",
+        "pull_request_create_review"
       ]
     },
     "plugin_datadog_mcp": {
@@ -158,6 +236,14 @@
         "search_datadog_rum_events",
         "search_datadog_sdk",
         "search_datadog_spans"
+      ],
+      "ask": [
+        "create_datadog_notebook",
+        "delete_datadog_notebook",
+        "edit_datadog_notebook",
+        "recover_datadog_notebook",
+        "submit_mcp_feedback",
+        "upsert_datadog_dashboard"
       ]
     },
     "claude_ai_Microsoft_365": {
@@ -177,7 +263,8 @@
         "teams_list_channels",
         "teams_list_chats",
         "teams_list_teams"
-      ]
+      ],
+      "ask": []
     },
     "claude_ai_Claude_Docs": {
       "pass": [
@@ -185,6 +272,12 @@
         "guide",
         "query",
         "read"
+      ],
+      "ask": [
+        "batch",
+        "create",
+        "delete",
+        "update"
       ]
     },
     "plugin_pdf-viewer_pdf": {
@@ -192,7 +285,8 @@
         "display_pdf",
         "interact",
         "list_pdfs"
-      ]
+      ],
+      "ask": []
     }
   },
   "notes": {

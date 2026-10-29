@@ -1,19 +1,22 @@
 """MCP rules of the gate: catalog lookup, the PT-BR summary of each write and the sigilo check.
 
-`decide` passes a tool the catalog lists under its server and asks for everything else, so a tool
-nobody classified yet asks (fail closed). A GitHub write (the GitHub MCP, and the GitKraken tools
-that create PRs, reviews, issues and comments) whose owner is one of the personal accounts, or
-whose owner the call does not say, also has its text checked with `ws check-secrets` before the
-box is shown.
+`decide` passes a tool the catalog lists under `pass` for its server and asks for everything else,
+so a tool nobody classified yet asks (fail closed). A tool in neither `pass` nor `ask` is
+unclassified: its name is recorded for `ws gate catalog`. A GitHub write (the GitHub MCP, and the
+GitKraken tools that create PRs, reviews, issues and comments) whose owner is one of the personal
+accounts, or whose owner the call does not say, also has its text checked with `ws check-secrets`
+before the box is shown.
 """
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import tomllib
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 
 from .decision import PASS, Decision, ask, body_summary, cut, deny
@@ -27,16 +30,63 @@ KRAKEN_CHECKED = frozenset(
     {"pull_request_create", "pull_request_create_review", "issues_create", "issues_add_comment"}
 )
 
+UNCLASSIFIED_LIMIT = 500
+RECORDABLE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,128}")
+
 SIGILO_CHECKED = "Sigilo: conferido (check-secrets)"
 SIGILO_OFF = "Sigilo: conferência desligada (sem personal_github_owners)"
 
 
-def _load_catalog() -> dict[str, set[str]]:
+def _load_catalog() -> dict[str, dict[str, set[str]]]:
     try:
         data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        return {server: set(entry["pass"]) for server, entry in data["servers"].items()}
+        return {
+            server: {
+                "pass": set(entry["pass"]),
+                "ask": set(entry.get("ask", [])),
+            }
+            for server, entry in data["servers"].items()
+        }
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return {}
+
+
+def _data_dir() -> Path:
+    value = os.environ.get("WS_DATA_DIR")
+    return Path(value) if value else Path.home() / ".local" / "share" / "workspace"
+
+
+def _record_unclassified(server: str, tool: str) -> None:
+    """Count one ask of a tool the catalog does not know, for `ws gate catalog`: names only, never
+    parameters. No lock (a lost count is harmless) and no failure may reach the decision."""
+    try:
+        if not (RECORDABLE_NAME.fullmatch(server) and RECORDABLE_NAME.fullmatch(tool)):
+            return
+        folder = _data_dir() / "gate"
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        folder.chmod(0o700)
+        path = folder / "unclassified.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, ValueError):
+            data = {}
+        data = data if isinstance(data, dict) else {}
+        tools = data.get(server)
+        tools = tools if isinstance(tools, dict) else {}
+        known = sum(len(value) for value in data.values() if isinstance(value, dict))
+        entry = tools.get(tool)
+        if not isinstance(entry, dict) and known >= UNCLASSIFIED_LIMIT:
+            return
+        count = entry.get("count") if isinstance(entry, dict) else 0
+        count = count if isinstance(count, int) else 0
+        tools[tool] = {"count": count + 1, "last": date.today().isoformat()}
+        data[server] = tools
+        descriptor, name = tempfile.mkstemp(dir=folder, prefix="unclassified-", suffix=".tmp")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, sort_keys=True)
+        os.replace(name, path)
+    except Exception:
+        return
 
 
 def _text(inputs: dict, key: str) -> str:
@@ -568,8 +618,11 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
             ],
         )
     _, server, tool = parts
-    if tool in _load_catalog().get(server, set()):
+    entry = _load_catalog().get(server, {})
+    if tool in entry.get("pass", ()):
         return PASS
+    if tool not in entry.get("ask", ()):
+        _record_unclassified(server, tool)
     lines = _summary(server, tool, inputs)
     sigilo = ""
     family = _family(server)
