@@ -12,6 +12,7 @@ listed instead.
 """
 
 import contextlib
+import difflib
 import hashlib
 import json
 import os
@@ -26,11 +27,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 
-from ws import dictionary, gatecatalog, userconfig
+from ws import dictionary, gatecatalog, humans, userconfig
 from ws.config import (
     claude_hooks_dir,
     claude_json_path,
     claude_settings_path,
+    repo_root,
     ws_executable,
 )
 
@@ -119,9 +121,16 @@ class SetupResult:
 
 
 class _Setup:
-    def __init__(self, apply: bool):
+    def __init__(self, apply: bool, by_hand: bool | None = None):
         self.apply = apply
         self.result = SetupResult()
+        self._by_hand = by_hand
+
+    @property
+    def by_hand(self) -> bool:
+        if self._by_hand is None:
+            self._by_hand = humans.by_hand()
+        return self._by_hand
 
     def fix(self, message: str, action: Callable[[], None], failure: str) -> bool:
         """Make a change and record it; with `check`, only record it. False when it failed."""
@@ -146,13 +155,18 @@ def run_setup(
     *,
     check: bool = False,
     hooks_dir: Path | None = None,
+    by_hand: bool | None = None,
 ) -> SetupResult:
-    """Wire the clone, fix what can be fixed and return what was done and what is left."""
+    """Wire the clone, fix what can be fixed and return what was done and what is left.
+
+    The protected copy of the hooks is written only by hand (`by_hand`, by default the terminal
+    test of `ws.humans`), after the user reads the diff and answers; run by an agent, setup only
+    reports it."""
     if settings is None:
         settings = claude_settings_path()
     if hooks_dir is None:
         hooks_dir = claude_hooks_dir()
-    setup = _Setup(apply=not check)
+    setup = _Setup(apply=not check, by_hand=by_hand)
     hooks_path_ok = _set_hooks_path(setup, repo)
     _fix_hook_bits(setup, repo)
     if hooks_path_ok:
@@ -163,7 +177,7 @@ def run_setup(
     _check_hook_python(setup)
     _install_dictionaries(setup)
     _sync_hooks_copy(setup, repo, hooks_dir)
-    _check_claude_gates(setup, hooks_dir, settings)
+    _check_claude_gates(setup, hooks_dir, settings, repo)
     _check_secret_variables(setup, settings)
     _check_github_server(setup, config)
     _check_mcp_catalog(setup, repo, settings)
@@ -476,6 +490,80 @@ def _remove_extra(hooks_dir: Path, rel: str) -> None:
             target.unlink(missing_ok=True)
 
 
+_UNSAFE = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029]")
+
+
+def _visible(line: str) -> str:
+    """Escape what could move the cursor or hide a diff line on the user's terminal."""
+    return _UNSAFE.sub(lambda match: f"\\x{ord(match.group()):02x}", line)
+
+
+def _lines(text: str) -> list[str]:
+    return text.removesuffix("\n").split("\n") if text else []
+
+
+def _diff_lines(rel: str, old: bytes, new: bytes) -> list[str]:
+    """What the user reads before the copy changes; `.json` files as pretty JSON."""
+
+    def text(data: bytes) -> str:
+        decoded = data.decode("utf-8", errors="replace")
+        if rel.endswith(".json"):
+            try:
+                return json.dumps(json.loads(decoded), indent=2, ensure_ascii=False) + "\n"
+            except ValueError:
+                pass
+        return decoded
+
+    diff = difflib.unified_diff(
+        _lines(text(old)),
+        _lines(text(new)),
+        fromfile=f"copia/{rel}",
+        tofile=f"repo/{rel}",
+        lineterm="",
+    )
+    return [_visible(line) for line in diff]
+
+
+def _current_bytes(path: Path) -> bytes:
+    try:
+        if path.is_symlink() or not path.is_file():
+            return b""
+        return path.read_bytes()
+    except OSError:
+        return b""
+
+
+def _confirm_copy(hooks_dir: Path, changes: list[tuple[str, str, bytes]]) -> bool:
+    print(f"Cópia protegida dos hooks em {hooks_dir}: {len(changes)} arquivo(s) mudam.")
+    for rel, reason, data in changes:
+        print(f"\n== {rel} ({reason})")
+        diff = _diff_lines(rel, _current_bytes(hooks_dir / rel), data)
+        print("\n".join(diff) if diff else "(sem diferença de conteúdo)")
+    try:
+        answer = input("\nAtualizar a cópia protegida dos hooks? [s/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer.strip().lower() in ("s", "sim")
+
+
+def _content_approved(
+    setup: _Setup, hooks_dir: Path, changes: list[tuple[str, str, bytes]]
+) -> bool:
+    """Whether the copy may take the repo's content: only by hand, after the diff and an `s`.
+    Anything the repo holds could have been edited by an agent, so an agent never writes it."""
+    if not changes or not setup.apply:
+        return True
+    if not setup.by_hand:
+        listed = ", ".join(f"{rel} ({reason})" for rel, reason, _ in changes)
+        setup.need(f"hooks copy: {listed}; run ws setup in your own terminal to review and apply")
+        return False
+    if _confirm_copy(hooks_dir, changes):
+        return True
+    setup.need("hooks copy: not updated, the change was not approved")
+    return False
+
+
 def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
     """Keep `hooks_dir` a read-only copy of the repo hooks, with a manifest of SHA-256 sums."""
     sources = _hook_sources(repo)
@@ -488,35 +576,43 @@ def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
         setup.need(f"hooks copy: {hooks_dir} exists and is not a folder")
         return
     if not hooks_dir.exists():
-        setup.fix(
-            f"hooks copy: create {hooks_dir} with {len(expected)} files and the manifest",
-            lambda: _write_copy(hooks_dir, contents, expected),
-            failure,
-        )
+        changes = [(rel, "novo", data) for rel, data in contents.items()]
+        if _content_approved(setup, hooks_dir, changes):
+            setup.fix(
+                f"hooks copy: create {hooks_dir} with {len(expected)} files and the manifest",
+                lambda: _write_copy(hooks_dir, contents, expected),
+                failure,
+            )
         return
     manifest = _read_manifest(hooks_dir)
+    changes = []
+    messages: dict[str, str] = {}
     for rel, data in contents.items():
         target = hooks_dir / rel
         if not (target.is_symlink() or target.exists()):
-            message = f"hooks copy {rel}: missing; copy it to {target}"
+            messages[rel] = f"hooks copy {rel}: missing; copy it to {target}"
+            changes.append((rel, "ausente na cópia", data))
         elif (actual := _copy_file_sha(target)) != expected[rel]:
             edited = actual is None or (rel in manifest and actual != manifest[rel])
             reason = "edited after the copy (differs from the manifest)" if edited else "stale"
-            message = f"hooks copy {rel}: {reason}; restore it from the repo"
+            messages[rel] = f"hooks copy {rel}: {reason}; restore it from the repo"
+            changes.append((rel, "editado depois da cópia" if edited else "desatualizado", data))
+    approved = _content_approved(setup, hooks_dir, changes)
+    for rel, data in contents.items():
+        target = hooks_dir / rel
+        if rel in messages:
+            if approved:
+                setup.fix(
+                    messages[rel],
+                    lambda target=target, data=data: _write_read_only(target, data, hooks_dir),
+                    f"{failure} ({rel})",
+                )
         elif stat.S_IMODE(target.stat().st_mode) != 0o444:
             setup.fix(
                 f"hooks copy {rel}: chmod 444",
                 lambda target=target: target.chmod(0o444),
                 f"{target} is not read-only and chmod 444 failed",
             )
-            continue
-        else:
-            continue
-        setup.fix(
-            message,
-            lambda target=target, data=data: _write_read_only(target, data, hooks_dir),
-            f"{failure} ({rel})",
-        )
     for rel in _extras(hooks_dir, expected):
         setup.fix(
             f"hooks copy {rel}: not in the repo; remove it",
@@ -531,7 +627,7 @@ def _sync_hooks_copy(setup: _Setup, repo: Path, hooks_dir: Path) -> None:
                 lambda path=path: path.chmod(COPY_DIR_MODE),
                 f"{path} is writable and chmod {COPY_DIR_MODE:o} failed",
             )
-    if manifest != expected or _copy_file_sha(hooks_dir / HOOKS_MANIFEST) is None:
+    if approved and (manifest != expected or _copy_file_sha(hooks_dir / HOOKS_MANIFEST) is None):
         setup.fix(
             f"hooks copy: write the manifest {hooks_dir / HOOKS_MANIFEST}",
             lambda: _write_manifest(hooks_dir, expected),
@@ -570,7 +666,7 @@ def _gates_needed(message: str, snippet: dict) -> str:
     return f"{message}\n{textwrap.indent(json.dumps(snippet, indent=2), '  ')}"
 
 
-def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> None:
+def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path, repo: Path) -> None:
     """ws never writes the Claude settings: it asks for one block with everything missing."""
     approval = "ws never writes that file; Claude applies this block after you approve:"
     try:
@@ -591,7 +687,7 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> 
         setup.need(f"Claude settings {settings_path} is not a valid JSON object; fix it first")
         return
 
-    for path in _hooks_disabled(settings_path, settings):
+    for path in _hooks_disabled(settings_path, settings, repo):
         setup.need(
             f"disableAllHooks is true in {path}, which switches every gate off. ws never writes "
             "that file: set it to false or remove it"
@@ -612,11 +708,17 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path) -> 
         setup.need(_gates_needed(message, block))
 
 
-def _hooks_disabled(settings_path: Path, settings: dict) -> list[str]:
-    """The settings files, `settings.json` and its sibling `settings.local.json`, that switch
-    every hook off."""
+def _hooks_disabled(settings_path: Path, settings: dict, repo: Path) -> list[str]:
+    """The settings files that switch every hook off: `settings.json` and its sibling
+    `settings.local.json`, and the project-level pair in the `.claude` folder of the repo."""
+    project = repo / ".claude"
     found = []
-    for path in (settings_path, settings_path.with_name("settings.local.json")):
+    for path in (
+        settings_path,
+        settings_path.with_name("settings.local.json"),
+        project / "settings.json",
+        project / "settings.local.json",
+    ):
         try:
             data = settings if path == settings_path else json.loads(path.read_bytes())
         except (OSError, ValueError):
@@ -889,7 +991,7 @@ def card_gate_problems(settings_path: Path) -> list[str]:
         return [f"Claude settings {settings_path} is not a valid JSON object"]
     problems = [
         f"disableAllHooks is true in {path}, which switches every hook off"
-        for path in _hooks_disabled(settings_path, settings)
+        for path in _hooks_disabled(settings_path, settings, repo_root())
     ]
     if CARD_ASK_RULE not in _as_list(_as_dict(settings.get("permissions")).get("ask")):
         problems.append(f"permissions.ask lacks {CARD_ASK_RULE}")

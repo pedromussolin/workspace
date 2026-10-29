@@ -73,6 +73,14 @@ def _hooks_dir(tmp_path: Path, monkeypatch) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def _answers(monkeypatch) -> list[str]:
+    """What the user types at the question of the protected copy; `s` unless a test changes it."""
+    answers = ["s"]
+    monkeypatch.setattr("builtins.input", lambda prompt="": answers[0])
+    return answers
+
+
 def _copy_command(script: str) -> str:
     return f'python3 -I -B "{config.claude_hooks_dir() / script}"'
 
@@ -98,8 +106,10 @@ def _link_state(folder: Path) -> dict[str, tuple[str, int]]:
     return {p.name: (os.readlink(p), p.lstat().st_ino) for p in folder.iterdir()}
 
 
-def _setup(env: Env, check: bool = False) -> SetupResult:
-    return run_setup(env.repo, env.config, env.skills_target, env.settings, check=check)
+def _setup(env: Env, check: bool = False, by_hand: bool = True) -> SetupResult:
+    return run_setup(
+        env.repo, env.config, env.skills_target, env.settings, check=check, by_hand=by_hand
+    )
 
 
 def _mode(path: Path) -> int:
@@ -1377,7 +1387,7 @@ def test_setup_reads_the_hooks_folder_from_the_environment(env, _hooks_dir, monk
     other = tmp_path / "other-hooks"
     monkeypatch.setenv("WS_CLAUDE_HOOKS_DIR", str(other))
 
-    run_setup(env.repo, env.config, env.skills_target, env.settings)
+    run_setup(env.repo, env.config, env.skills_target, env.settings, by_hand=True)
 
     assert (other / "approval_gate.py").is_file()
     assert not _hooks_dir.exists()
@@ -1742,3 +1752,242 @@ def test_setup_is_quiet_when_every_server_is_in_the_catalog(env):
 
 def test_setup_without_a_catalog_in_the_repo_skips_the_mcp_check(env):
     assert _mcp_needs(_setup(env)) == []
+
+
+QUESTION = "Atualizar a cópia protegida dos hooks? [s/N] "
+REVIEW = "run ws setup in your own terminal to review and apply"
+
+
+def _ask_log(monkeypatch, answer: str) -> list[str]:
+    asked: list[str] = []
+
+    def reply(prompt: str = "") -> str:
+        asked.append(prompt)
+        return answer
+
+    monkeypatch.setattr("builtins.input", reply)
+    return asked
+
+
+def _forbid_questions(monkeypatch) -> None:
+    def refuse(prompt: str = "") -> str:
+        raise AssertionError("setup asked a question")
+
+    monkeypatch.setattr("builtins.input", refuse)
+
+
+def _edit_in_repo(env: Env, rel: str, data: bytes) -> None:
+    (env.repo / "hooks" / rel).write_bytes(data)
+
+
+def test_an_agent_never_writes_the_copy_and_says_how_to_apply_it(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _forbid_questions(monkeypatch)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+    manifest = (_hooks_dir / "manifest.json").read_bytes()
+
+    result = _setup(env, by_hand=False)
+
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+    assert (_hooks_dir / "manifest.json").read_bytes() == manifest
+    [need] = [need for need in result.needs if need.startswith("hooks copy")]
+    assert "gate/rules.py" in need
+    assert need.endswith(REVIEW)
+    assert not [line for line in result.fixed if "gate/rules.py" in line]
+
+
+def test_an_agent_does_not_create_the_copy_either(env, _hooks_dir, monkeypatch):
+    _fake_hooks(env.repo)
+    _forbid_questions(monkeypatch)
+
+    result = _setup(env, by_hand=False)
+
+    assert not _hooks_dir.exists()
+    assert any(need.endswith(REVIEW) for need in result.needs)
+
+
+def test_an_agent_still_fixes_the_rest_of_setup(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+    (_hooks_dir / "approval_gate.py").chmod(0o644)
+    _plant(_hooks_dir / "sitecustomize.py")
+    _git(env.repo, "config", "core.hooksPath", "elsewhere")
+
+    result = _setup(env, by_hand=False)
+
+    assert _mode(_hooks_dir / "approval_gate.py") == 0o444
+    assert not (_hooks_dir / "sitecustomize.py").exists()
+    assert _git(env.repo, "config", "core.hooksPath").strip() == ".githooks"
+    assert any("gate/rules.py" in need for need in result.needs)
+
+
+def test_without_by_hand_setup_asks_the_terminal_test(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+    monkeypatch.setattr(bootstrap.humans, "by_hand", lambda: False)
+
+    result = run_setup(env.repo, env.config, env.skills_target, env.settings)
+
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+    assert any(need.endswith(REVIEW) for need in result.needs)
+
+
+def test_by_hand_prints_the_diff_of_each_changed_file_then_asks(
+    env, _hooks_dir, monkeypatch, capsys
+):
+    _copy_in_place(env)
+    asked = _ask_log(monkeypatch, "s")
+    _edit_in_repo(env, "approval_gate.py", b"print('gate v2')\n")
+    _edit_in_repo(env, "gate/rules.py", b"X = 1\nY = 2\n")
+    capsys.readouterr()
+
+    _setup(env)
+
+    out = capsys.readouterr().out
+    assert f"Cópia protegida dos hooks em {_hooks_dir}: 2 arquivo(s) mudam." in out
+    assert "== approval_gate.py (desatualizado)" in out
+    assert "--- copia/approval_gate.py\n+++ repo/approval_gate.py" in out
+    assert "-print('gate')\n+print('gate v2')" in out
+    assert "== gate/rules.py (desatualizado)" in out
+    assert "+Y = 2" in out
+    assert "block_hook_bypass.py" not in out
+    assert asked == ["\n" + QUESTION]
+    assert (_hooks_dir / "approval_gate.py").read_bytes() == b"print('gate v2')\n"
+
+
+@pytest.mark.parametrize("answer", ["s", "sim", " SIM "])
+def test_by_hand_writes_only_after_a_yes(env, _hooks_dir, monkeypatch, answer):
+    _copy_in_place(env)
+    _ask_log(monkeypatch, answer)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+
+    result = _setup(env)
+
+    assert result.needs == []
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 2\n"
+    assert _setup(env) == SetupResult()
+
+
+@pytest.mark.parametrize("answer", ["", "n", "não", "talvez"])
+def test_by_hand_without_a_yes_leaves_the_copy_and_the_manifest(
+    env, _hooks_dir, monkeypatch, answer
+):
+    _copy_in_place(env)
+    _ask_log(monkeypatch, answer)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+    manifest = (_hooks_dir / "manifest.json").read_bytes()
+
+    result = _setup(env)
+
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+    assert (_hooks_dir / "manifest.json").read_bytes() == manifest
+    assert "hooks copy: not updated, the change was not approved" in result.needs
+
+
+def test_an_interrupted_question_is_a_no(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+
+    def interrupt(prompt: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", interrupt)
+
+    _setup(env)
+
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+
+
+def test_the_catalog_diff_is_the_pretty_json(env, _hooks_dir, monkeypatch, capsys):
+    _copy_in_place(env)
+    _edit_in_repo(env, "gate/catalog.json", b'{"a":1,"servers":{"x":{"pass":["t"]}}}\n')
+    capsys.readouterr()
+
+    _setup(env)
+
+    out = capsys.readouterr().out
+    assert '-  "a": 1\n+  "a": 1,\n+  "servers": {\n+    "x": {\n' in out
+    assert '{"a":1' not in out
+
+
+def test_control_characters_of_the_repo_file_are_shown_escaped(env, _hooks_dir, capsys):
+    _copy_in_place(env)
+    _edit_in_repo(env, "gate/rules.py", b"X = 1  # \x1b[2K\x1b[1A\r\x07ok\n")
+    capsys.readouterr()
+
+    _setup(env)
+
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "\r" not in out
+    assert "\x07" not in out
+    assert "\\x1b[2K\\x1b[1A\\x0d\\x07ok" in out
+
+
+def test_nothing_to_change_asks_nothing(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _forbid_questions(monkeypatch)
+
+    assert _setup(env) == SetupResult()
+
+
+def test_check_never_asks_and_never_writes(env, _hooks_dir, monkeypatch):
+    _copy_in_place(env)
+    _forbid_questions(monkeypatch)
+    _edit_in_repo(env, "gate/rules.py", b"X = 2\n")
+
+    check = _setup(env, check=True)
+
+    assert check.fixed[0] == "hooks copy gate/rules.py: stale; restore it from the repo"
+    assert (_hooks_dir / "gate" / "rules.py").read_bytes() == b"X = 1\n"
+
+
+def test_a_first_copy_by_hand_shows_every_file_as_new(env, _hooks_dir, capsys):
+    _fake_hooks(env.repo)
+
+    result = _setup(env)
+
+    out = capsys.readouterr().out
+    assert f"{_hooks_dir}: {len(COPIED)} arquivo(s) mudam." in out
+    assert "== gate/rules.py (novo)" in out
+    assert "+X = 1" in out
+    assert result.needs == []
+    assert (_hooks_dir / "gate" / "rules.py").is_file()
+
+
+def _project_settings(env: Env, name: str, content: str = '{"disableAllHooks": true}') -> Path:
+    path = env.repo / ".claude" / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("name", ["settings.json", "settings.local.json"])
+def test_setup_reports_disable_all_hooks_in_the_project_settings(env, name):
+    path = _project_settings(env, name)
+
+    result = _setup(env, check=True)
+
+    [need] = [need for need in result.needs if "disableAllHooks" in need]
+    assert str(path) in need
+
+
+def test_project_settings_that_keep_the_hooks_on_are_fine(env):
+    _project_settings(env, "settings.json", '{"disableAllHooks": false}')
+    _project_settings(env, "settings.local.json", "{not json")
+
+    assert not [n for n in _setup(env, check=True).needs if "disableAllHooks" in n]
+
+
+@pytest.mark.parametrize("name", ["settings.json", "settings.local.json"])
+def test_card_gate_problems_report_disable_all_hooks_in_the_project_settings(
+    env, monkeypatch, name
+):
+    monkeypatch.setenv("WS_REPO_ROOT", str(env.repo))
+    assert bootstrap.card_gate_problems(env.settings) == []
+    path = _project_settings(env, name)
+
+    [problem] = bootstrap.card_gate_problems(env.settings)
+
+    assert "disableAllHooks" in problem
+    assert str(path) in problem
