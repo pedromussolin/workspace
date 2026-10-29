@@ -273,7 +273,19 @@ instalado só nos clientes de serviço interno, põe o cabeçalho. A troca para 
 - [ ] A cessão sobe com `CESSAO_ESCOPO_PARCEIRO` ausente (vale `observar`). No Datadog, o INFO "Escopo de parceiro
   avaliado" aparece nas 18 rotas; enquanto o BFF passa pelo gateway, as chamadas dele trazem o cabeçalho do produto da
   conta de serviço (a decisão sai `filtraria`): é a prova do que o gateway faz hoje.
-- [ ] O BFF sobe com B1 a B3. Nada muda nas respostas: pelo gateway, o Heimdall sobrescreve o cabeçalho.
+- [ ] O BFF sobe com B1 a B3. Nada muda nas respostas, por dois motivos diferentes:
+  - os seis serviços atrás do gateway do Istio (cessão, TSE, product-manager, shared, ai-service, data lake): o
+    Heimdall sobrescreve o cabeçalho;
+  - o orquestrador (atrás do ingress-nginx) e o user-service (já chamado pelo nome interno) recebem o cabeçalho
+    intacto desde já, mas nenhuma das rotas que o BFF chama neles lê o cabeçalho (conferido na `master` de cada um,
+    revisão final da parte B). Conferir no Datadog os 4xx e 5xx das chamadas de parceiro a esses dois logo depois
+    da subida.
+  - Atenção para o futuro: o `start-subflow` e o `start-operation` do orquestrador e o `get_internal_id` do
+    user-service leem um identificador só; uma chamada nova do BFF a essas rotas quebra para parceiro com mais de um
+    produto (o cabeçalho vai com vírgula).
+- [ ] Antes de um serviço passar a filtrar uma listagem pelo cabeçalho, conferir no BFF se a resposta dela fica em
+  cache compartilhado: a revisão final da parte B separou por escopo os caches de `tse_products`, `product_list` e
+  `orchestrator_product_list`; cache novo segue o mesmo cuidado.
 
 ### Tarefa C2: troca para o FQDN, um serviço por vez
 
