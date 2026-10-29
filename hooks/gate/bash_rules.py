@@ -79,6 +79,30 @@ CREDENTIAL_SAMPLES = {
     ".config/gh": ("hosts.yml",),
     ".ssh": ("id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"),
 }
+CREDENTIAL_TARGETS = (
+    "~/.config/workspace/credentials",
+    "~/.config/gh/hosts.yml",
+    "~/.ssh/id_rsa",
+    "~/.ssh/id_ed25519",
+    "~/.ssh/id_ecdsa",
+    "~/.ssh/id_dsa",
+    "~/.config/workspace",
+    "~/.config/gh",
+    "~/.ssh",
+)
+PARENT_TARGETS = ("~", "~/.config")
+PARENT_FOLDER = re.compile(r"(?:^|/)\.config/?$|^(?:~|\$HOME|\$\{HOME\})/?$")
+CODE_HOME = re.compile(r"Path\.home\(\)|expanduser\(|environ\b.{0,4}HOME|getenv\(\s*.HOME")
+CODE_CREDENTIAL_NAME = re.compile(r"credentials|hosts\.yml|\.ssh\b")
+RECURSIVE_PROGRAMS = {"rg", "tar", "bsdtar", "zip", "7z", "rsync"}
+RECURSIVE_FLAGS = {
+    "grep": ("rR", ("--recursive", "--dereference-recursive")),
+    "egrep": ("rR", ("--recursive", "--dereference-recursive")),
+    "fgrep": ("rR", ("--recursive", "--dereference-recursive")),
+    "cp": ("rRa", ("--recursive", "--archive")),
+    "scp": ("r", ()),
+}
+FIND_RUNS = {"-exec", "-execdir", "-ok", "-okdir"}
 METADATA_PROGRAMS = {"ls", "stat"}
 TEST_PROGRAMS = {"test", "[", "[["}
 TEST_METADATA_FLAGS = {"-e", "-f", "-d", "-s", "-r", "-w", "-x", "-L", "-h"}
@@ -608,6 +632,8 @@ def _git_verb(
     if args[verb_index].expands:
         return [_unsure(texts, "O subcomando do git vem de uma expansão (variável ou comando).")]
     verb, rest = args[verb_index].text, args[verb_index + 1 :]
+    if verb.startswith("credential"):
+        return [_git_credential(texts, verb)]
     if verb == "push":
         plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
         if plain and _listed_for_push(cwd):
@@ -780,7 +806,8 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
     group = top.positionals[0].text
     action = top.positionals[1].text if len(top.positionals) > 1 else ""
     if group == "auth" and (
-        action == "token" or (action == "status" and top.has("-t", "--show-token"))
+        action in ("token", "git-credential")
+        or (action == "status" and top.has("-t", "--show-token"))
     ):
         return [
             Finding(
@@ -1032,18 +1059,19 @@ def _credential_places() -> set[str]:
     }
 
 
-def _credential_path(text: str, folder: str | None = None) -> str | None:
+def _credential_path(text: str, folder: str | None = None, recursive: bool = False) -> str | None:
     """The credential a path-like word names, or None.
 
     Covers the credentials file of `ws`, the `gh` hosts file, the `~/.ssh` private keys (`id_*`
     but not `.pub`), those folders themselves (a copy or an archive reads what is inside) and a
-    glob that could match them. `folder` is one the command entered with `cd`: a bare name is then
-    looked up in it.
+    glob that could match them. `folder` is the cwd or one the command entered with `cd`: a
+    relative path is then looked up in it. `recursive`: the program reads whole trees (`grep -r`,
+    `tar`, `cp -r`), so the home and `~/.config`, which hold the credentials, count too.
     """
     if folder is not None:
-        if "/" in text:
+        if text.startswith(("/", "~", "$")):
             return None
-        text = f"{folder.rstrip('/')}/{text}"
+        text = os.path.normpath(f"{folder.rstrip('/')}/{text}")
     if CREDENTIAL_FILE.search(text) or CREDENTIAL_FOLDER.search(text):
         return text
     if SSH_PRIVATE_KEY.search(text) and not text.endswith(".pub"):
@@ -1053,24 +1081,87 @@ def _credential_path(text: str, folder: str | None = None) -> str | None:
         fnmatch.fnmatchcase(name, glob.group(2)) for name in CREDENTIAL_SAMPLES[glob.group(1)]
     ):
         return text
+    if _glob_names_credential(text, recursive):
+        return text
     expanded = os.path.normpath(os.path.expandvars(os.path.expanduser(text)))
-    return text if expanded in _credential_places() else None
+    if expanded in _credential_places():
+        return text
+    home = os.path.normpath(Path.home())
+    if recursive and (PARENT_FOLDER.search(text) or expanded in (home, f"{home}/.config")):
+        return text
+    return None
+
+
+def _glob_names_credential(text: str, recursive: bool) -> bool:
+    """Whether a glob can match a credential, its folder or (`recursive`) a parent folder.
+
+    Matched one path component at a time, as the shell does: `*` stops at `/` and does not match
+    a leading dot. A pattern that does not start at the home is compared with the end of the path.
+    """
+    if not any(char in text for char in "*?["):
+        return False
+    pattern = text.rstrip("/")
+    for prefix in ("$HOME", "${HOME}", str(Path.home())):
+        if pattern == prefix or pattern.startswith(prefix + "/"):
+            pattern = "~" + pattern[len(prefix) :]
+    wanted = pattern.split("/")
+    for target in CREDENTIAL_TARGETS + (PARENT_TARGETS if recursive else ()):
+        parts = target.split("/")
+        if pattern.startswith("~"):
+            if len(parts) != len(wanted):
+                continue
+        elif len(wanted) > len(parts) - 1:
+            continue
+        else:
+            parts = parts[len(parts) - len(wanted) :]
+        if all(_component_matches(part, glob) for part, glob in zip(parts, wanted, strict=True)):
+            return True
+    return False
+
+
+def _component_matches(name: str, glob: str) -> bool:
+    if name.startswith(".") and not glob.startswith("."):
+        return False
+    return fnmatch.fnmatchcase(name, glob)
+
+
+def _reads_trees(program: str, args: list[str]) -> bool:
+    if program in RECURSIVE_PROGRAMS:
+        return True
+    if program == "find":
+        return any(arg in FIND_RUNS for arg in args)
+    letters, names = RECURSIVE_FLAGS.get(program, ("", ()))
+    for arg in args:
+        if arg in names:
+            return True
+        if arg.startswith("-") and not arg.startswith("--") and set(arg[1:]) & set(letters):
+            return True
+    return False
 
 
 def _credential_in_code(code: str) -> str | None:
     for found in CREDENTIAL_IN_CODE.finditer(code):
         if not found.group().endswith(".pub"):
             return found.group()
+    if CODE_HOME.search(code) and (name := CODE_CREDENTIAL_NAME.search(code)):
+        return f"um caminho na home montado no código ({name.group()})"
     return None
 
 
-def _entered_credential_folders(scan: Scan) -> list[str]:
+def _entered_folders(scan: Scan) -> list[str]:
     folders = []
     for command in scan.commands:
         for name, args in shell.invocations(command)[:1]:
-            if name in NAVIGATION and args and _credential_path(args[-1].text):
+            if name in NAVIGATION and args:
                 folders.append(args[-1].text)
     return folders
+
+
+def _git_credential(texts: list[str], verb: str) -> Finding:
+    return Finding(
+        TITLE_CREDENTIAL,
+        (f"Lê uma credencial: o ajudante de credenciais do git (git {verb})", _line(texts)),
+    )
 
 
 def _credentials(command: Command, folders: list[str]) -> list[Finding]:
@@ -1083,13 +1174,17 @@ def _credentials(command: Command, folders: list[str]) -> list[Finding]:
     metadata = program in METADATA_PROGRAMS or (
         program in TEST_PROGRAMS and bool(args) and args[0] in TEST_METADATA_FLAGS
     )
+    recursive = _reads_trees(program, args)
     if not (metadata or program in NAVIGATION):
         for text in args:
             if " " in text:
                 code = _credential_in_code(text) if INTERPRETERS.fullmatch(program) else None
                 hits += [code] if code else []
                 continue
-            path = next((p for f in (None, *folders) if (p := _credential_path(text, f))), None)
+            path = next(
+                (p for f in (None, *folders) if (p := _credential_path(text, f, recursive))),
+                None,
+            )
             hits += [path] if path else []
     if not hits:
         return []
@@ -1198,7 +1293,7 @@ def _combine(findings: list[Finding]) -> Decision:
 def decide(command: str, cwd: str) -> Decision:
     scan = shell.scan(command)
     findings: list[Finding] = []
-    folders = _entered_credential_folders(scan)
+    folders = ([cwd] if cwd else []) + _entered_folders(scan)
     for each in scan.commands:
         findings += _protection(each)
         findings += _credentials(each, folders)
