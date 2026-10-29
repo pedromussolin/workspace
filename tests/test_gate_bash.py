@@ -2057,6 +2057,55 @@ def test_python_that_writes_the_protection_asks_with_one_line(command, env):
 @pytest.mark.parametrize(
     "command",
     [
+        "cat ~/.config/workspace/{credentials,x}",
+        "cat ~/.config/{workspace,x}/credentials",
+        "cat ~/.ssh/id_{rsa,x}",
+        "cat ~/.{ssh,x}/id_rsa",
+        "cat ~/.config/{gh/hosts.yml,x}",
+        "cat ~/.ssh/id_{a..z}*",
+        "grep -r token /home",
+        "grep -rn token /home/",
+        "grep -r token /",
+        "grep -r token $HOME",
+        "tar czf /tmp/x.tgz /home",
+        "rg token /",
+        "grep -r token ~/.claude",
+        "cat ~/.claude/.credentials.json",
+        "cp $HOME/.claude/.credentials.json /tmp/x",
+        "cat ~/.git-credentials",
+        "cat ~/.git-cred*",
+        "python3 -c \"print(open('/root/.claude/.credentials.json').read())\"",
+        "python3 -c \"print(open('/root/.git-credentials').read())\"",
+    ],
+)
+def test_braces_whole_trees_and_more_credential_files_ask(command, env):
+    assert CREDENTIAL_TITLE in box(command, env).splitlines()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cat ~/.config/workspace/{config.toml,names.example}",
+        "ls /home",
+        "cat ~/.claude/settings.json",
+        "ls -la ~/.claude",
+        "grep -r token ~/.claude/skills",
+    ],
+)
+def test_reads_next_to_the_new_credential_paths_pass(command, env):
+    assert box(command, env) is None
+
+
+def test_a_recursive_read_of_the_folder_above_the_home_asks_but_a_sibling_passes(env):
+    above = Path(env["HOME"]).parent
+
+    assert CREDENTIAL_TITLE in box(f"grep -r token {above}", env).splitlines()
+    assert box(f"grep -r token {above}/other/src", env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         'uv run python -c "import ws; print(ws.__file__)"',
         "python3 -c 'from ws import card; print(card.__doc__)'",
         'python3 -c \'from ws.cli import main; main(["task", "list"])\'',

@@ -22,6 +22,9 @@ the endpoint (`$FLAGS`, `-X$M`, `-X $M`), since it could inject a method or fiel
 
 Text rules cannot see a script file the command runs, text piped to `python` or `node`, programs
 that start other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude Code reports stale.
+Credential reads from code are found by the path written in it, or by the home plus a credential
+name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
+(`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
 
 A plain `git push` (or `git push origin main`) shows no box only when all of these hold, in
@@ -84,12 +87,16 @@ CODE_WRITES = re.compile(
 )
 PROTECTED_DIRECTORY = re.compile(r"(?:^|/)(?:\.claude(?:/hooks)?|\.githooks)/?$")
 
-CREDENTIAL_FILE = re.compile(r"(?:^|/)\.config/(?:workspace/credentials|gh/hosts\.yml)$")
+CREDENTIAL_FILE = re.compile(
+    r"(?:^|/)(?:\.config/(?:workspace/credentials|gh/hosts\.yml)|\.claude/\.credentials\.json"
+    r"|\.git-credentials)$"
+)
 CREDENTIAL_FOLDER = re.compile(r"(?:^|/)(?:\.config/workspace|\.config/gh|\.ssh)/?$")
 CREDENTIAL_GLOB = re.compile(r"(?:^|/)(\.config/workspace|\.config/gh|\.ssh)/([^/]*[*?\[][^/]*)$")
 SSH_PRIVATE_KEY = re.compile(r"(?:^|/)\.ssh/id_[^/]*$")
 CREDENTIAL_IN_CODE = re.compile(
     r"\.config/workspace/credentials|\.config/gh/hosts\.yml|\.ssh/id_[\w.-]*"
+    r"|\.claude/\.credentials\.json|\.git-credentials"
 )
 CREDENTIAL_SAMPLES = {
     ".config/workspace": ("credentials",),
@@ -103,12 +110,17 @@ CREDENTIAL_TARGETS = (
     "~/.ssh/id_ed25519",
     "~/.ssh/id_ecdsa",
     "~/.ssh/id_dsa",
+    "~/.claude/.credentials.json",
+    "~/.git-credentials",
     "~/.config/workspace",
     "~/.config/gh",
     "~/.ssh",
 )
-PARENT_TARGETS = ("~", "~/.config")
-PARENT_FOLDER = re.compile(r"(?:^|/)\.config/?$|^(?:~|\$HOME|\$\{HOME\})/?$")
+PARENT_TARGETS = ("~", "~/.config", "~/.claude")
+MAX_BRACE_WORDS = 64
+PARENT_FOLDER = re.compile(
+    r"(?:^|/)\.config/?$|^(?:~|\$HOME|\$\{HOME\})(?:/\.claude)?/?$|^/(?:home/?)?$"
+)
 CODE_HOME = re.compile(r"Path\.home\(\)|expanduser\(|environ\b.{0,4}HOME|getenv\(\s*.HOME")
 CODE_CREDENTIAL_NAME = re.compile(r"credentials|hosts\.yml|\.ssh\b")
 RECURSIVE_PROGRAMS = {"rg", "tar", "bsdtar", "zip", "7z", "rsync"}
@@ -1277,17 +1289,21 @@ def _credential_places() -> set[str]:
         os.path.normpath(home / ".config" / "gh"),
         os.path.normpath(home / ".config" / "gh" / "hosts.yml"),
         os.path.normpath(home / ".ssh"),
+        os.path.normpath(home / ".claude" / ".credentials.json"),
+        os.path.normpath(home / ".git-credentials"),
     }
 
 
 def _credential_path(text: str, folder: str | None = None, recursive: bool = False) -> str | None:
     """The credential a path-like word names, or None.
 
-    Covers the credentials file of `ws`, the `gh` hosts file, the `~/.ssh` private keys (`id_*`
-    but not `.pub`), those folders themselves (a copy or an archive reads what is inside) and a
-    glob that could match them. `folder` is the cwd or one the command entered with `cd`: a
-    relative path is then looked up in it. `recursive`: the program reads whole trees (`grep -r`,
-    `tar`, `cp -r`), so the home and `~/.config`, which hold the credentials, count too.
+    Covers the credentials file of `ws`, the `gh` hosts file, Claude Code's `.credentials.json`,
+    `~/.git-credentials`, the `~/.ssh` private keys (`id_*` but not `.pub`), those folders
+    themselves (a copy or an archive reads what is inside) and a glob that could match them.
+    Brace expansions are opened by the caller (`_brace_words`). `folder` is the cwd or one the
+    command entered with `cd`: a relative path is then looked up in it. `recursive`: the program
+    reads whole trees (`grep -r`, `tar`, `cp -r`), so `/`, `/home`, the home, `~/.config` and
+    `~/.claude` count too.
     """
     if folder is not None:
         if text.startswith(("/", "~", "$")):
@@ -1308,7 +1324,8 @@ def _credential_path(text: str, folder: str | None = None, recursive: bool = Fal
     if expanded in _credential_places():
         return text
     home = os.path.normpath(Path.home())
-    if recursive and (PARENT_FOLDER.search(text) or expanded in (home, f"{home}/.config")):
+    parents = (home, f"{home}/.config", f"{home}/.claude", os.path.dirname(home))
+    if recursive and (PARENT_FOLDER.search(text) or expanded in parents):
         return text
     return None
 
@@ -1385,6 +1402,26 @@ def _git_credential(texts: list[str], verb: str) -> Finding:
     )
 
 
+def _brace_words(text: str) -> list[str]:
+    """The words a brace expansion gives (`id_{rsa,x}`); a range or too many become a glob `*`."""
+    pending, done = [text], []
+    while pending:
+        current = pending.pop()
+        found = shell.BRACE_EXPANSION.search(current)
+        if found is None:
+            done.append(current)
+            continue
+        inner = found.group()[1:-1]
+        if "," not in inner or len(pending) + len(done) >= MAX_BRACE_WORDS:
+            while shell.BRACE_EXPANSION.search(current):
+                current = shell.BRACE_EXPANSION.sub("*", current)
+            pending.append(current)
+            continue
+        head, tail = current[: found.start()], current[found.end() :]
+        pending += [head + choice + tail for choice in inner.split(",")]
+    return done
+
+
 def _credentials(command: Command, folders: list[str]) -> list[Finding]:
     texts = [word.text for word in command.words]
     index = shell.locate_program(texts)
@@ -1403,7 +1440,12 @@ def _credentials(command: Command, folders: list[str]) -> list[Finding]:
                 hits += [code] if code else []
                 continue
             path = next(
-                (p for f in (None, *folders) if (p := _credential_path(text, f, recursive))),
+                (
+                    p
+                    for each in _brace_words(text)
+                    for f in (None, *folders)
+                    if (p := _credential_path(each, f, recursive))
+                ),
                 None,
             )
             hits += [path] if path else []
