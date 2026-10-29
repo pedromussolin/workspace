@@ -164,6 +164,23 @@ GitKraken write tools, next to the Atlassian ones that exist.
 - Known limit: a pseudo-terminal (`script`) can fake the TTY; the gate still asks for every
   `ws card apply` the model runs, and phase 3 closes it.
 
+### Secrets outside the session environment
+
+Found by the spike: the Claude Code session inherits `GITHUB_PERSONAL_ACCESS_TOKEN` and
+`AZURE_OPENAI_API_KEY` from the user's `~/.bashrc`, so any command the model runs can read them and
+use the GitHub token past every gate. Decided with the user on 2026-10-28:
+
+- The GitHub token moves to `~/.config/workspace/credentials` (`ws config token github`, in a
+  terminal) and reaches the GitHub MCP server through a user-scope server `github` whose
+  `headersHelper` runs `ws mcp-headers github`. The token is rotated, since it was exposed.
+- `~/.claude/settings.json` blanks both variables in Claude Code sessions (`"env": {"NAME": ""}`);
+  terminals and VS Code keep theirs, so the devcontainers keep working.
+- `ws setup` reports any non-empty secret-looking variable in its environment and the missing
+  `github` server; the gate asks for any command that reads a credential file or runs
+  `ws mcp-headers` or `gh auth token`.
+- `CLAUDE_CODE_MESSAGING_TOKEN` is Claude Code's own and stays until phase 3 clears the
+  environment.
+
 ### Manual runbook
 
 `docs/manual.md`: daily, card, checkpoint, names and masking by hand, with the `ws` commands and
@@ -189,9 +206,24 @@ pane outside the box, the only channel the model cannot reach (elicitation loses
 this mode, since the harness and the model's commands share the box). Connectors that write
 (claude.ai Atlassian, GitHub) are turned off or read-only in this mode.
 
-The spike measures, before any build: Docker (its socket defeats the box, so Docker flows would run
-through `ws` outside), GitHub reads without the key inside, which programs break behind the proxy,
-and the time cost of the box against plain commands. Report: `docs/research/`.
+The spike ran on 2026-10-28 ([report](../research/2026-10-28-sandbox-spike.md)): go, with
+2–8 ms per box start. Its four conditions, accepted by the user the same day:
+
+1. **Deny by default.** `--ro-bind / /` leaked the Docker socket, D-Bus, gpg-agent, `~/.ssh`,
+   `~/.aws`, the harness login and WSL interop (`cmd.exe` ran on Windows). The box masks `~`,
+   `/run` and `/mnt` with `tmpfs`, clears the environment and binds back an explicit list.
+2. **No execution channel through the repos.** `~/repos` is read-write, but `.git/hooks`,
+   `.git/config` and `.githooks/` are read-only inside, and the outside `ws` runs git with
+   `-c core.hooksPath=<protected copy> -c core.fsmonitor=false`.
+3. **Git network and `gh` run outside.** The remotes are SSH and `gh` needs its login, so fetch,
+   pull and push of private repos and every `gh` read go through `ws` outside (reads from a
+   catalog, no approval; writes behind the approval pane). Docker likewise: `ws docker <verb>`
+   outside, never the socket inside.
+4. **A dedicated `CLAUDE_CONFIG_DIR`** for the boxed harness, with a generated read-only
+   `settings.json`, so the user's login and history stay out.
+
+Next before building: a second short spike with a real interactive session in the box (login
+hosts, terminal resize, MCP servers, `/dev/tty`).
 
 ## Phase 4
 
