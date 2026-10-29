@@ -5,8 +5,11 @@ Open items left by subproject 1 (foundation), found by the final review and its 
 
 ## Next
 
-The new-name check: catches a real name that is not in `names.toml` yet, which none of the items
-below covers. Design: [docs/specs/2026-10-26-new-name-check-design.md](specs/2026-10-26-new-name-check-design.md).
+The approval gates (started 2026-10-28; the release skill waits): phase 1 (the gate in Claude Code,
+card by hand, secrets out of the session environment) in implementation; then phase 2 (approval in
+`ws`), phase 3 (our sandbox, spike done) and phase 4 (other harnesses). Design:
+[docs/specs/2026-10-28-approval-gates-design.md](specs/2026-10-28-approval-gates-design.md). The
+new-name check that was here is on `main` since 2026-10-26.
 
 ## Confidentiality check
 
