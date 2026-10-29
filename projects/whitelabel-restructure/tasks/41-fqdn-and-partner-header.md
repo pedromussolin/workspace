@@ -105,6 +105,8 @@ O Pietro vai validar se dá para mudar o comportamento destas rotas da cessão, 
 - Nas rotas de parceiro (uploads, consulta de baixas, cadastro, cedente, exclusão de títulos, operação), sem
   cabeçalho o identificador vem do `Authorization`; em `/baixa/pagamento` e `/titulo/contratos` o parâmetro vence o
   cabeçalho.
+- A exclusão síncrona de pagamentos (`DELETE /liquidacao/pagamentos`, o BFF só usa a assíncrona) continua sem escopo e
+  ainda grava o `Authorization` como autor, o mesmo defeito que a tarefa corrige na assíncrona.
 - Antes de `aplicar` em `GET /titulo/contratos` e `POST /liquidacao/`: quem são os outros chamadores (um deles fecha
   lotes cerca de 88 vezes por dia sem identificação) e se a resposta deles pode mudar.
 
