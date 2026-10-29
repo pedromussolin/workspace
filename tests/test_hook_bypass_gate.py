@@ -243,3 +243,20 @@ def test_an_alias_given_with_dash_c_that_skips_the_hooks_is_blocked(command):
 )
 def test_an_ordinary_alias_given_with_dash_c_passes(command):
     assert run_command(command).returncode == 0
+
+
+@pytest.mark.parametrize("name", ["dataclasses", "time", "shlex", "re"])
+def test_a_module_planted_next_to_the_hook_does_not_shadow_the_standard_library(name, tmp_path):
+    copy = tmp_path / "hooks"
+    shutil.copytree(HOOK.parent, copy, ignore=shutil.ignore_patterns("__pycache__"))
+    for folder in (copy, copy / "gate"):
+        (folder / f"{name}.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-I", str(copy / HOOK.name)],
+        input=json.dumps({"tool_input": {"command": "git commit --no-verify -m x"}}),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2

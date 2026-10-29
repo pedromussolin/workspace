@@ -17,6 +17,7 @@ because Claude Code treats other non-zero codes as non-blocking and the gate wou
 does running out of time (`DEADLINE_SECONDS`), since a hook that times out lets the call run.
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -25,10 +26,24 @@ import signal
 import sys
 from pathlib import Path, PurePath
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+def _load_shell():
+    """`gate/shell.py` next to this file, loaded by path and never through `sys.path`.
+
+    A module planted next to the hooks (`re.py`, `dataclasses.py`) must not shadow the standard
+    library.
+    """
+    path = Path(__file__).resolve().parent / "gate" / "shell.py"
+    spec = importlib.util.spec_from_file_location("workspace_gate_shell", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"no parser at {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 try:
-    from gate import shell
+    shell = _load_shell()
 except Exception as error:
     print(f"Hook-bypass gate could not load its parser ({error}); blocking.", file=sys.stderr)
     sys.exit(2)

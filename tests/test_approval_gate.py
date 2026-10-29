@@ -326,3 +326,15 @@ def test_the_hook_arms_a_deadline_of_at_most_five_seconds(hooks_copy):
     left = float(decision_of(run(bash("x"), hooks_copy))["permissionDecisionReason"].split()[1])
 
     assert 0 < left <= 5
+
+
+@pytest.mark.parametrize("name", ["tomllib", "json", "subprocess", "dataclasses", "fnmatch"])
+def test_a_module_planted_next_to_the_hooks_does_not_shadow_the_standard_library(name, hooks_copy):
+    planted = "import sys\nsys.stdout.write('planted')\nsys.exit(0)\n"
+    (hooks_copy / f"{name}.py").write_text(planted, encoding="utf-8")
+    (hooks_copy / "gate" / f"{name}.py").write_text(planted, encoding="utf-8")
+    result = run(bash("git push"), hooks_copy)
+
+    assert "planted" not in result.stdout
+    reason = decision_of(result)["permissionDecisionReason"]
+    assert reason.splitlines()[0] == "Gravar fora — GitHub"

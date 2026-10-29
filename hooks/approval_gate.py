@@ -7,15 +7,21 @@ for `pass` (the normal permission flow goes on), `ask` (Claude Code shows the bo
 It never fails open: any error, a rules module that is missing included, answers `ask`, and the
 exit code is always 0, because Claude Code treats any other code but 2 as "go ahead". A hook that
 times out also lets the call run, so a hard deadline (`DEADLINE_SECONDS`) answers `ask` too.
+
+The `gate` package is loaded from this file's folder under the name `workspace_gate`, and the
+folder never goes on `sys.path`: a `json.py` or `tomllib.py` planted next to the hooks must not
+shadow the standard library, and another `gate` on the path must not stand in for ours.
 """
 
+import importlib
+import importlib.util
 import json
 import os
 import signal
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+PACKAGE = "workspace_gate"
 
 FAILURE_TITLE = "Não consegui ler esta chamada"
 FAILURE_ADVICE = "Confira o comando antes de aprovar."
@@ -23,9 +29,28 @@ LATE_TITLE = "Não consegui ler esta chamada a tempo"
 DEADLINE_SECONDS = 5.0
 
 
+def gate(module: str):
+    """A module of the `gate` package next to this file."""
+    if PACKAGE not in sys.modules:
+        folder = Path(__file__).resolve().parent / "gate"
+        spec = importlib.util.spec_from_file_location(
+            PACKAGE, folder / "__init__.py", submodule_search_locations=[str(folder)]
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no gate package in {folder}")
+        package = importlib.util.module_from_spec(spec)
+        sys.modules[PACKAGE] = package
+        try:
+            spec.loader.exec_module(package)
+        except BaseException:
+            del sys.modules[PACKAGE]
+            raise
+    return importlib.import_module(f"{PACKAGE}.{module}")
+
+
 def route(payload: dict) -> str | None:
     """The hook's stdout for this call; None means print nothing."""
-    from gate import decision
+    decision = gate("decision")
 
     name = payload.get("tool_name")
     tool_input = payload.get("tool_input")
@@ -38,23 +63,18 @@ def route(payload: dict) -> str | None:
             return None
         if not isinstance(command, str):
             raise TypeError("tool_input.command is not a string")
-        from gate import bash_rules
-
-        return decision.to_output(bash_rules.decide(command, cwd))
+        return decision.to_output(gate("bash_rules").decide(command, cwd))
     if isinstance(name, str) and name.startswith("mcp__"):
         if not isinstance(tool_input, dict):
             raise TypeError("tool_input is not an object")
-        from gate import mcp_rules
-
-        return decision.to_output(mcp_rules.decide(name, tool_input, cwd))
+        return decision.to_output(gate("mcp_rules").decide(name, tool_input, cwd))
     return None
 
 
 def failure(error: Exception) -> str:
     lines = [f"Erro: {type(error).__name__}: {error}", FAILURE_ADVICE]
     try:
-        from gate import decision
-
+        decision = gate("decision")
         output = decision.to_output(decision.ask(FAILURE_TITLE, lines))
         if output is not None:
             return output
