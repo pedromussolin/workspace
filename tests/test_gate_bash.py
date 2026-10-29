@@ -791,6 +791,23 @@ def test_gh_pr_create_defaults_to_the_folder_and_the_body_file(env):
     assert "Corpo: arquivo body.md" in text
 
 
+@pytest.mark.parametrize(
+    ("command", "first"),
+    [
+        (
+            "gh -R evil/repo pr create -t T",
+            "Criar PR em evil/repo: a branch atual → a branch padrão",
+        ),
+        ("gh pr -R evil/repo edit 3 -t x", "Editar PR 3 em evil/repo"),
+        ("gh --repo evil/repo pr merge 3", "Mesclar o PR 3 em evil/repo"),
+        ("gh --repo=evil/repo pr comment 3 -b x", "Comentar PR 3 em evil/repo"),
+        ("gh -R evil/repo pr close 3 -R other/repo", "Fechar PR 3 em other/repo"),
+    ],
+)
+def test_gh_box_names_the_repo_given_before_the_group(command, first, env):
+    assert box(command, env, cwd="/srv/repo").splitlines()[1] == first
+
+
 def test_gh_pr_merge_box_calls_out_admin_and_delete_branch(env):
     text = box("gh pr merge 12 --squash --admin --delete-branch -R a/b", env)
 

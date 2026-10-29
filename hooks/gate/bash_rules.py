@@ -806,8 +806,8 @@ def _git_verb(
     return []
 
 
-def _gh_repo(parsed: Parsed, cwd: str) -> str:
-    repo = parsed.value("-R", "--repo")
+def _gh_repo(parsed: Parsed, cwd: str, given: str | None = None) -> str:
+    repo = parsed.value("-R", "--repo") or given
     if repo:
         return repo
     return f"{_pretty(cwd)} (pasta atual)" if cwd else "o repositório atual"
@@ -869,11 +869,14 @@ def _graphql_is_read(fields: list[tuple[str, str]], cwd: str) -> bool:
     return not re.search(r"\bmutation\b", query, re.IGNORECASE)
 
 
-def _gh_change(group: str, action: str, tail: list[Word], cwd: str, texts: list[str]) -> Finding:
+def _gh_change(
+    group: str, action: str, tail: list[Word], cwd: str, texts: list[str], given: str | None
+) -> Finding:
+    """The box of a `gh` write; `given` is the `-R/--repo` typed before the action."""
     values = GH_MERGE_VALUES if (group, action) == ("pr", "merge") else GH_CHANGE_VALUES
     parsed = parse_flags(tail, values)
     target = parsed.positionals[0].text if parsed.positionals else None
-    repo = _gh_repo(parsed, cwd)
+    repo = _gh_repo(parsed, cwd, given)
     if (group, action) == ("pr", "create"):
         head = parsed.value("-H", "--head") or "a branch atual"
         base = parsed.value("-B", "--base") or "a branch padrão"
@@ -961,7 +964,9 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
         found = _gh_api(api_args, cwd)
         return [found] if found else []
     rest = args[top.positions[1] + 1 :] if action else []
-    return [_gh_change(group, action, rest, cwd, [word.text for word in args])]
+    before = args[: top.positions[1]] if action else args
+    given = parse_flags(before, GH_GLOBAL_VALUES).value("-R", "--repo")
+    return [_gh_change(group, action, rest, cwd, [word.text for word in args], given)]
 
 
 def _http(program: str, args: list[Word]) -> list[Finding]:
