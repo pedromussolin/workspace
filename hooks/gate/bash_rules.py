@@ -133,6 +133,10 @@ RISKY_GIT_KEYS = re.compile(
     r"|fsmonitor|askpass|gitproxy|hookspath)$|sequence\.editor$|diff\.external$|gpg\.program$"
     r"|.*\.command$|.*\.textconv$)"
 )
+BENIGN_PROGRAM_KEYS = re.compile(
+    r"^(?:core\.(?:pager|editor)|sequence\.editor|pager\..+|diff\.external)$"
+)
+BENIGN_PROGRAM_VALUES = {"", "cat", "less", "true", ":"}
 STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
 STORE_PROGRAMS = {"env", "sudo"}
 PUSH_URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[^/:]+@[^/:]+:|[^/:]{2,}:|/|\.\.?/|~)", re.I)
@@ -492,8 +496,22 @@ def _override_key(override: str) -> str:
     return setting.partition("=")[0].lower()
 
 
+def _benign_override(override: str) -> bool:
+    """A `-c` pager, editor or external diff set to a program that runs nothing else."""
+    if not override.startswith("-c "):
+        return False
+    key, equals, value = override[3:].partition("=")
+    key = key.lower()
+    benign = bool(equals) and value in BENIGN_PROGRAM_VALUES
+    return benign and BENIGN_PROGRAM_KEYS.match(key) is not None
+
+
 def _risky_overrides(overrides: list[str]) -> list[str]:
-    return [override for override in overrides if RISKY_GIT_KEYS.match(_override_key(override))]
+    return [
+        override
+        for override in overrides
+        if RISKY_GIT_KEYS.match(_override_key(override)) and not _benign_override(override)
+    ]
 
 
 def _redirects_push(override: str) -> bool:

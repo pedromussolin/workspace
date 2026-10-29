@@ -1743,10 +1743,31 @@ def test_a_push_override_also_defeats_the_no_box_exception(listed_repo, env):
         "git -c user.name=Test commit -m x",
         "git -c color.ui=never log",
         "git -c core.quotePath=off status",
+        "git -c core.pager=cat log -1",
+        "git -c core.pager=less log",
+        "git -c core.editor=true commit --amend --no-edit",
+        "git -c diff.external= diff",
+        "git -c pager.log=: log",
+        "git -c sequence.editor=true rebase -i main",
     ],
 )
 def test_harmless_git_config_overrides_pass(command, env):
     assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git -c core.pager='less;id' log",
+        "git -c core.pager=/tmp/cat log",
+        "git -c 'core.pager=cat $(id)' log",
+        "git -c core.editor=./true commit",
+        "git --config-env=core.pager=CAT log",
+        "git -c core.pager log",
+    ],
+)
+def test_other_pager_and_editor_overrides_still_ask(command, env):
+    assert box(command, env)
 
 
 @pytest.mark.parametrize(
