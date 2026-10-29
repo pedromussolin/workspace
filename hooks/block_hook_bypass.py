@@ -3,10 +3,11 @@
 Blocked: `--no-verify` on any git command, `git commit -n` (also inside a flag group such as
 `-nm`), a `core.hooksPath` override (`git -c core.hooksPath=...`, `GIT_CONFIG_*` variables) and a
 `core.hooksPath` change (`git config`, also removing or renaming the `core` section), except the
-exact `git config core.hooksPath .githooks` that `ws setup` runs. An alias given with `-c` that
-skips the hooks is blocked, and so is an alias or an include whose value the gate cannot read
-(`--config-env`, `GIT_CONFIG_KEY_*`, `-c include.path`). It applies in every repo: company repos
-have their own hooks, and the AI must not skip them either.
+exact `git config core.hooksPath .githooks` that `ws setup` runs. An alias that skips the hooks is
+blocked when given with `-c` or written with `git config`, and so is an alias or an include whose
+value the gate cannot read (`--config-env`, `GIT_CONFIG_KEY_*`, `-c include.path`,
+`git config include.path`). It applies in every repo: company repos have their own hooks, and the
+AI must not skip them either.
 
 The command is split into simple commands (on `;`, `&&`, `||`, `|`, `&`, parentheses and
 newlines) and each one is checked as a token sequence, so `grep -- --no-verify` or
@@ -159,7 +160,7 @@ def _split_config(args: list[str]) -> tuple[list[str], list[str]]:
 
 
 def _check_config(args: list[str]) -> str | None:
-    """Why a `git config` command disables the hooks, or None.
+    """Why a `git config` command disables the hooks or hides a way to do it, or None.
 
     A key with no value is a read (`git config core.hooksPath`), the only exception being the
     unset flags.
@@ -178,6 +179,13 @@ def _check_config(args: list[str]) -> str | None:
         [args[0].lower(), *args[1:]] != ALLOWED_CONFIG_ARGS
     ):
         return "a change of core.hooksPath"
+    if unsets:
+        return None
+    key, value = operands[0], operands[1]
+    if INCLUDE_KEY.match(key):
+        return "an include of another config file, written with git config"
+    if ALIAS_KEY.match(key) and (reason := _check_alias(value)):
+        return f"{reason}, inside an alias written with git config"
     return None
 
 

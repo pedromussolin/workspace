@@ -126,6 +126,9 @@ def test_bypass_is_blocked(command):
         "git config --global core.hooksPath",
         "git config --show-origin --get-all core.hooksPath",
         "git config --get-regexp 'hooks|alias'",
+        "git config alias.st status",
+        "git config --global alias.l 'log --oneline'",
+        "git config --global alias.sh '!git show'",
         "git config --unset user.name",
         "git config --remove-section alias",
     ],
@@ -367,6 +370,38 @@ def test_other_config_variables_and_keys_pass(command):
     result = run_command(command)
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git config alias.ci 'commit --no-verify'",
+        "git config --global alias.ci '!git commit -n'",
+        "git config --local alias.p 'push --no-ver'",
+        "git config --file /tmp/x.cfg alias.ci 'commit -anm x'",
+        "git config -f /tmp/x.cfg alias.ci 'commit -n'",
+        "git config --add alias.ci 'commit -n'",
+        "git config --replace-all alias.ci 'commit -n'",
+        "git config set alias.ci 'commit -n'",
+        "git config set --global alias.ci '!git commit --no-verify'",
+        "git -C repo config alias.ci 'commit -n'",
+        "git config ALIAS.ci 'commit -n'",
+        "git config alias.h 'config core.hooksPath /dev/null'",
+        "git config include.path /tmp/e.cfg",
+        "git config --global includeIf.gitdir:/x/.path /tmp/e.cfg",
+    ],
+)
+def test_writing_an_alias_or_an_include_that_skips_the_hooks_is_blocked(command):
+    result = run_command(command)
+
+    assert result.returncode == 2, command
+    assert result.stderr.startswith("Blocked:")
+
+
+def test_the_alias_written_with_git_config_is_named_in_the_message():
+    result = run_command("git config alias.ci 'commit --no-verify'")
+
+    assert "alias" in result.stderr
 
 
 @pytest.mark.parametrize(
