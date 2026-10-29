@@ -2012,3 +2012,43 @@ def test_a_word_over_four_kilobytes_asks_before_it_is_read(command, env):
 
 def test_a_word_of_four_kilobytes_is_read_as_usual(env):
     assert box("echo " + "a" * 4096, env) is None
+
+
+SETTINGS = "/root/.claude/settings.json"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"python3 -c \"import json; print(json.load(open('{SETTINGS}')))\"",
+        f"uv run python -c \"import json; json.load(open('{SETTINGS}', 'rb'))\"",
+        f"python3 - <<'EOF'\nimport json\nprint(json.load(open('{SETTINGS}'))['hooks'])\nEOF",
+        'python3 -c "from pathlib import Path; '
+        "print(Path('/root/.claude/hooks/x.py').read_text())\"",
+        "python3 -c \"print(open('.githooks/pre-push').read().replace('a', 'b'))\"",
+        f"python3 -c \"print(open('{SETTINGS}').read())\"",
+    ],
+)
+def test_python_that_only_reads_the_protection_passes(command, env):
+    assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"python3 -c \"from pathlib import Path; Path('{SETTINGS}').write_text('{{}}')\"",
+        f"python3 -c \"open('{SETTINGS}', mode='a').write('x')\"",
+        f"python3 -c \"with open('{SETTINGS}', 'r+') as f: f.write('x')\"",
+        f"python3 -c \"import os; os.replace('x', '{SETTINGS}')\"",
+        "python3 -c \"import os; os.remove('/root/.claude/hooks/x.py')\"",
+        "python3 -c \"import shutil; shutil.rmtree('/root/.claude/hooks')\"",
+        "python3 -c \"import pathlib; pathlib.Path('.githooks/pre-push').chmod(0)\"",
+        "python3 -c \"import pathlib; pathlib.Path('.githooks/pre-push').unlink()\"",
+        f"python3 - <<'EOF'\nfrom pathlib import Path\nPath('{SETTINGS}').write_bytes(b'')\nEOF",
+    ],
+)
+def test_python_that_writes_the_protection_asks_with_one_line(command, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Proteção do Claude Code"
+    assert len([line for line in lines if "Mexe na proteção" in line]) == 1

@@ -75,6 +75,13 @@ PROTECTED_PATH = re.compile(
     r"|\.githooks(?:/|$)|\.git/(?:config|hooks)(?:/|$))"
 )
 PROTECTED_IN_CODE = re.compile(r"\.claude/(?:hooks|settings)|\.githooks|\.git/(?:config|hooks)")
+CODE_WRITES = re.compile(
+    r"\bopen\([^\n]*?,\s*(?:mode\s*=\s*)?['\"][rbt]*[wax+]"
+    r"|\.open\(\s*(?:mode\s*=\s*)?['\"][rbt]*[wax+]"
+    r"|write_text|write_bytes|\bshutil\b|\bunlink\b|\bchmod\b|\bchown\b|\.rename\("
+    r"|\.symlink_to\(|\.touch\(|\bsubprocess\b|O_(?:WRONLY|RDWR|CREAT|APPEND|TRUNC)\b"
+    r"|\bos\.(?:replace|rename|remove|rmdir|symlink|link|truncate|system|popen|exec|spawn)"
+)
 PROTECTED_DIRECTORY = re.compile(r"(?:^|/)(?:\.claude(?:/hooks)?|\.githooks)/?$")
 
 CREDENTIAL_FILE = re.compile(r"(?:^|/)\.config/(?:workspace/credentials|gh/hosts\.yml)$")
@@ -1187,6 +1194,17 @@ def _invocation(
     return _http(name, args)
 
 
+def _python_code(command: Command) -> set[str]:
+    """The `-c` code of the Python the command runs: `_script_findings` judges it, not paths."""
+    found = set()
+    for name, words in shell.invocations(command):
+        if shell.PYTHON.fullmatch(name):
+            code = shell.shell_script([word.text for word in words])
+            if code is not None:
+                found.add(code)
+    return found
+
+
 def _protection(command: Command) -> list[Finding]:
     texts = [word.text for word in command.words]
     index = shell.locate_program(texts)
@@ -1197,7 +1215,10 @@ def _protection(command: Command) -> list[Finding]:
     elif program == "git" and next((t for t in args if not t.startswith("-")), "") in READ_ONLY_GIT:
         args = []
     hits = [path for path in command.writes if PROTECTED_PATH.search(path)]
+    code = _python_code(command)
     for text in args:
+        if text in code:
+            continue
         if " " not in text and PROTECTED_PATH.search(text):
             hits.append(text)
         elif INTERPRETERS.fullmatch(program) and PROTECTED_IN_CODE.search(text):
@@ -1474,11 +1495,14 @@ def _script_findings(scan: Scan) -> list[Finding]:
                     (f"Lê uma credencial: {reading}", "Código Python que cita o arquivo"),
                 )
             )
-        if PROTECTED_IN_CODE.search(code):
+        if PROTECTED_IN_CODE.search(code) and CODE_WRITES.search(code):
             found.append(
                 Finding(
                     TITLE_PROTECTION,
-                    ("Mexe na proteção do Claude Code: código Python que cita settings ou hooks",),
+                    (
+                        "Mexe na proteção do Claude Code: código Python que grava "
+                        "e cita settings ou hooks",
+                    ),
                 )
             )
     return found
