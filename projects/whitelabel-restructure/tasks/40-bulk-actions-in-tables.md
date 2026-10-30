@@ -2,7 +2,7 @@
 
 - **TS:** TS-5463 (épico TS-5357) · **Branch:** `feature/TS-5463-acoes-em-lote-nas-tabelas` (front), da `master`,
   worktree `~/repos/apl-credit-whitelabel-wt/5463`
-- **Status:** **publicada** (28/10): `refact` (barra compartilhada), `feat` (seleção e lote nas três abas) e `fix` (confirmação pede REMOVER); `validate.sh` ok, 5052 testes; validada pelo Pietro no portal local. Falta a PR.
+- **Status:** **publicada** (28/10): `refact` (barra compartilhada), `feat` (seleção e lote nas três abas) e `fix` (confirmação pede REMOVER); `validate.sh` ok, 5052 testes; validada pelo Pietro no portal local. Na `release/20261030` do front (30/10): sandbox PR #251, release PR #254, junto com as 42 e 43; `validate.sh` da release ok, 5114 testes. Sobe depois do BFF da 39.
 - **Decisão:** D137. **Depende de:** 39 em produção, para apagar role em lote passar na primeira tentativa.
 
 ## Desenho combinado
