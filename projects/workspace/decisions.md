@@ -19,6 +19,12 @@ Em "Quem", quem decide. A coluna "Motivo" traz a recomendação do Claude.
 | P5 | Escopo da 2a | usuário | 29/10 | Recomendado: registro genérico de pedidos, painel, servidor MCP, card migrado |
 | P6 | Escopo da 2b, em paralelo com a 2a | usuário | 29/10 | Recomendado: push de branch de tarefa e PR (criar, comentar) pelo `ws`, com o token do `credentials` |
 | P7 | GMUD (2c) | usuário | 29/10 | Recomendado: depois da 2a e da 2b |
+| P8 | Contexto = domínio ou sistema (cessão, portal, workspace pessoal, estudos), dono do conhecimento, dos repos e das releases (tarefa 03) | usuário | 30/10 | Recomendado: sim |
+| P9 | Todo item pertence a uma iniciativa; cada contexto tem uma `sustentacao/` permanente para bug e hotfix avulsos | usuário | 30/10 | Recomendado: sim (substitui o `standalone`) |
+| P10 | Itens planos por iniciativa, com épico, tipo e status como campos (não pastas por épico) | usuário | 30/10 | Recomendado: sim; nada se move, nenhum link quebra |
+| P11 | Pasta raiz `work/` no lugar de `projects/` | usuário | 30/10 | Recomendado: sim (o nome cobre contextos); alternativa: manter `projects/` e mudar só o interior |
+| P12 | Migração por script (`ws work migrate` com mapa aprovado): workspace primeiro; artemis e whitelabel com os chats parados | usuário | 30/10 | Recomendado: sim |
+| P13 | Ordem: a reorganização (tarefa 03) vem antes ou depois da fase 2 dos portões | usuário | 30/10 | Em aberto; o usuário disse que talvez mude o plano |
 
 ## Tomadas
 

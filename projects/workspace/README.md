@@ -69,6 +69,7 @@ Uma tarefa por arquivo em `tasks/`; esta tabela é o índice.
 |---|---|---|
 | 01 | [Fase 1: portão no Claude Code](tasks/01-phase1-gate.md) | concluída (29/10) |
 | 02 | [Fase 2: aprovação no `ws`](tasks/02-phase2-approvals.md) | decisões pendentes |
+| 03 | [Organizar projetos em contexto, iniciativa, épico e item](tasks/03-work-organization.md) | proposta, decisões pendentes |
 
 ## Situação
 

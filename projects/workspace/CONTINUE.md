@@ -36,7 +36,8 @@ mudou para outra máquina.
 ## Próximo passo
 
 1. Máquina nova? Siga "Máquina nova" no `README.md` deste projeto antes de tudo.
-2. Leve ao usuário as decisões P1 a P7 do `decisions.md` numa pergunta só, com a recomendação de
+2. Pergunte antes a ordem (P13): a reorganização dos projetos (tarefa 03, em proposta) vem antes
+   ou depois da fase 2. Depois leve as decisões P1 a P7 (ou P8 a P12) do `decisions.md` numa pergunta só, com a recomendação de
    cada uma (ele pediu para acelerar: uma rodada de decisões, não uma pergunta por vez).
 3. Com as respostas: escreva a spec curta da fase 2 em `docs/specs/`, o código do contrato comum
    (registro de pedidos e interface de executor) e faça o push antes de disparar os agentes.
