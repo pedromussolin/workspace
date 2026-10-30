@@ -1,6 +1,6 @@
 Status: em andamento
 Data: 30/10/2026
-Tags: segurança, aprovação, hooks, ws
+Tags: ws, skills, hooks, segurança
 
 # Decisões
 

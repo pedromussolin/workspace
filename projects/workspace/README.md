@@ -1,10 +1,17 @@
 Status: em andamento
 Data: 30/10/2026
-Tags: segurança, aprovação, hooks, ws
+Tags: ws, skills, hooks, segurança
 
-# approval-gates
+# workspace
 
 ## Visão geral
+
+O projeto do próprio workspace: o CLI `ws`, as skills e os hooks do Claude Code deste repo. O
+backlog geral está em [docs/backlog.md](../../docs/backlog.md); as specs e os planos, em
+`docs/specs/` e `docs/plans/`. A frente atual são os **portões de aprovação**, descritos abaixo; a
+próxima no backlog é a skill de release, que espera a fase 2b.
+
+### Portões de aprovação
 
 Nenhuma escrita fora da máquina (Jira, GitHub, portal de GMUD) acontece sem uma caixa de aprovação
 que diga em PT-BR o que muda, onde e com qual conteúdo. A estrutura funciona com qualquer harness
@@ -15,7 +22,7 @@ Prioridades do usuário, nesta ordem: **A** nada grava fora sem o sim de verdade
 instrução escondida num texto, a *prompt injection*); **C** sigilo (nomes reais e segredos no GitHub
 pessoal); **B** aprovação que se entende.
 
-Fases:
+Fases dos portões:
 
 1. **Portão no Claude Code** — concluída e instalada em 29/10 ([tarefa 01](tasks/01-phase1-gate.md)).
 2. **Aprovação no `ws`** — próxima: 2a (registro de pedidos, painel `ws approvals`, servidor MCP

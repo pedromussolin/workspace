@@ -7,7 +7,7 @@ Open items left by subproject 1 (foundation), found by the final review and its 
 
 The approval gates: phase 1 (the gate in Claude Code) is done and installed since 2026-10-29;
 phase 2 (approval in `ws`) waits for the user's answers to seven decisions. Where it stopped, the
-next step and a new-machine checklist: [projects/approval-gates/](../projects/approval-gates/CONTINUE.md).
+next step and a new-machine checklist: [projects/workspace/](../projects/workspace/CONTINUE.md).
 Design: [docs/specs/2026-10-28-approval-gates-design.md](specs/2026-10-28-approval-gates-design.md).
 The release skill waits for phase 2b.
 

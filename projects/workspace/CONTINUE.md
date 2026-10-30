@@ -1,6 +1,6 @@
 Status: em andamento
 Data: 30/10/2026
-Tags: segurança, aprovação, hooks, ws
+Tags: ws, skills, hooks, segurança
 
 # Continuar em outro chat
 
@@ -8,7 +8,7 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 ## Onde parei
 
-30/10/2026. Fase 1 concluída, instalada e conferida nesta máquina (detalhe na
+30/10/2026. Frente atual: portões de aprovação. Fase 1 concluída, instalada e conferida nesta máquina (detalhe na
 [tarefa 01](tasks/01-phase1-gate.md)):
 
 - portão único `hooks/approval_gate.py` (regras em `hooks/gate/`), rodando da cópia protegida
