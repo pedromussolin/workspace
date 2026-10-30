@@ -5,11 +5,11 @@ Open items left by subproject 1 (foundation), found by the final review and its 
 
 ## Next
 
-The approval gates (started 2026-10-28; the release skill waits): phase 1 (the gate in Claude Code,
-card by hand, secrets out of the session environment) in implementation; then phase 2 (approval in
-`ws`), phase 3 (our sandbox, spike done) and phase 4 (other harnesses). Design:
-[docs/specs/2026-10-28-approval-gates-design.md](specs/2026-10-28-approval-gates-design.md). The
-new-name check that was here is on `main` since 2026-10-26.
+The approval gates: phase 1 (the gate in Claude Code) is done and installed since 2026-10-29;
+phase 2 (approval in `ws`) waits for the user's answers to seven decisions. Where it stopped, the
+next step and a new-machine checklist: [projects/approval-gates/](../projects/approval-gates/CONTINUE.md).
+Design: [docs/specs/2026-10-28-approval-gates-design.md](specs/2026-10-28-approval-gates-design.md).
+The release skill waits for phase 2b.
 
 ## Confidentiality check
 
