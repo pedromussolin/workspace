@@ -441,6 +441,12 @@ def _unsure(texts: list[str], reason: str) -> Finding:
     )
 
 
+OWN_REPO_ENVIRONMENT = (
+    "ATENÇÃO: branch de ambiente num repo de push_without_asking; "
+    "o push não está sozinho no comando"
+)
+
+
 def _config_dir() -> Path:
     return Path(os.environ.get("WS_CONFIG_DIR") or Path.home() / ".config" / "workspace")
 
@@ -791,6 +797,10 @@ def _push(
         environment, denied = _push_environment(
             rules, parsed, specs, remote_word, folder if readable else None, state, deadline
         )
+    if denied and readable and _listed_for_push(folder):
+        # The user's own repo (push_without_asking) pushes to its main without asking when the
+        # push is alone on the line; in a longer line it asks instead of being denied.
+        environment, denied = [OWN_REPO_ENVIRONMENT], ""
     if denied:
         return Finding(TITLE_GITHUB, (), denial=denied)
     if redirecting:

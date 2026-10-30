@@ -2344,6 +2344,21 @@ def test_the_no_box_push_comes_before_the_environment_policy(listed_repo, env):
     assert box("git push origin main", env, cwd=str(listed_repo)) is None
 
 
+def test_a_listed_repo_asks_instead_of_denying_an_environment_push_in_a_longer_line(
+    listed_repo, env
+):
+    write_config(
+        env,
+        f'[gate]\npush_without_asking = ["~/repo"]\npush_remotes = ["{PUSH_URL}"]\n'
+        'environment_branches = ["main"]\n',
+    )
+    command = "git add x && git commit -q -m y && git push -q origin main"
+
+    text = box(command, env, cwd=str(listed_repo))
+
+    assert "ATENÇÃO: branch de ambiente num repo de push_without_asking" in text
+
+
 ENVIRONMENT_ANSWERS = """case "$*" in
   *"--abbrev-ref HEAD") echo main ;;
   *"--abbrev-ref @{u}") echo origin/main ;;
