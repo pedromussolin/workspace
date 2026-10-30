@@ -79,9 +79,11 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 36 | [Apagar grupo criado fora da tela](tasks/36-delete-group-created-outside.md) | na `release/20261027` (front e BFF) | `release/20261027` | **em produção** (27/10) (D133) | TS-5437 |
 | 37 | [Formalização numa página só e página que abre por outra](tasks/37-pages-and-titles.md) | na `release/20261027` (front e BFF) | `release/20261027` | **em produção** (27/10) (D134, D136) | TS-5439 |
 | 38 | [Telas sem uso removidas](tasks/38-unused-screens.md) | na `release/20261027` (front e BFF) | `release/20261027` | **em produção** (27/10) (D135) | TS-5440 |
-| 39 | [Apagar role na primeira tentativa](tasks/39-delete-role-first-try.md) | `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF) | `master` | **publicada** (28/10): 1 commit; 2438 testes | TS-5457 |
-| 40 | [Ações em lote nas tabelas do Controle de acesso](tasks/40-bulk-actions-in-tables.md) | `feature/TS-5463-acoes-em-lote-nas-tabelas` (front) | `master` | **publicada** (28/10): 3 commits, validada pelo Pietro no portal local | TS-5463 |
+| 39 | [Apagar role na primeira tentativa](tasks/39-delete-role-first-try.md) | `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF) | `master` | **na `release/20261030`** (30/10): sandbox #236, master #237; 2528 testes na release | TS-5457 |
+| 40 | [Ações em lote nas tabelas do Controle de acesso](tasks/40-bulk-actions-in-tables.md) | `feature/TS-5463-acoes-em-lote-nas-tabelas` (front) | `master` | **na `release/20261030`** (30/10): sandbox #251, master #254; depende da 39 | TS-5463 |
 | 41 | [Serviços internos pelo FQDN e filtro pelo cabeçalho](tasks/41-fqdn-and-partner-header.md) | `feature/TS-5464-escopo-do-parceiro` (cessão), `feature/TS-5465-cabecalho-do-parceiro` (BFF) | `master` | **em implementação** (28/10, D138) | TS-5464, TS-5465 |
+| 42 | [Tags sobre o rodapé e altura padrão dos modais](tasks/42-dialog-layers-and-height.md) | `fix/TS-5491-tags-e-altura-dos-modais` (front) | `master` | **na `release/20261030`** (30/10): sandbox #252, master #254 | TS-5491 |
+| 43 | [Barras da provisão do PDD com a mesma largura](tasks/43-pdd-provision-bars.md) | `fix/TS-5492-barras-da-provisao-com-mesma-largura` (front) | `master` | **na `release/20261030`** (30/10): sandbox #253, master #254 | TS-5492 |
 | 24 | [Deploy da reestruturação](tasks/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção**: 21/10 (`release/20261021`) e 27/10 (`release/20261027`); conferência de 27/10 feita em 28/10 | TS-5394 |
 
 ## Situação em 16/10

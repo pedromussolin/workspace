@@ -1,7 +1,7 @@
 # 39 — Apagar role na primeira tentativa
 
 - **TS:** TS-5457 (épico TS-5357) · **Branch:** `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF), da `master`
-- **Status:** **publicada** (28/10): 1 commit (`a65919e`); falta a PR e entrar numa release.
+- **Status:** **na `release/20261030`** (30/10): sandbox PR #236, release PR #237 (com a TS-5442); 2528 testes na release.
 
 ## O que aconteceu
 
