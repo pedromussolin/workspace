@@ -3,7 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from ws.envcheck import RepoProfile, scan_python, scan_shell
+from ws.envcheck import (
+    RepoProfile,
+    SetupError,
+    argocd_env_names,
+    deployed_sha,
+    files_at,
+    scan_python,
+    scan_shell,
+)
 
 
 def profile(**overrides) -> RepoProfile:
@@ -572,3 +580,157 @@ def test_shell_file_missing_at_the_ref_is_a_warning():
     result = scan_shell(sh(**{"entrypoint.sh": "echo ${A_B}"}), ["entrypoint.sh", "other.sh"])
     assert set(result.names) == {"A_B"}
     assert result.warnings == ["other.sh: shell file not found at that commit"]
+
+
+def commit_all(git, repo: Path, files: dict[str, str], message: str = "c") -> str:
+    for path, text in files.items():
+        target = repo / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(textwrap.dedent(text), encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", message)
+    return git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_files_at_ref_ignores_dirty_working_tree(repo, git):
+    sha = commit_all(git, repo, {"src/a.py": "A = 1\n", "docs/readme.md": "x\n"})
+    (repo / "src" / "a.py").write_text("A = 2  # dirty\n", encoding="utf-8")
+    (repo / "src" / "untracked.py").write_text("B = 1\n", encoding="utf-8")
+    (repo / "docs" / "readme.md").unlink()
+    git(repo, "checkout", "-q", "-b", "other")
+    commit_all(git, repo, {"src/a.py": "A = 3\n"}, "other branch")
+    git(repo, "checkout", "-q", "-")
+    assert files_at(repo, sha) == {"src/a.py": b"A = 1\n", "docs/readme.md": b"x\n"}
+    assert files_at(repo, sha, only=lambda p: p.endswith(".py")) == {"src/a.py": b"A = 1\n"}
+
+
+def test_files_at_reads_binary_and_empty_files_and_skips_symlinks(repo, git):
+    (repo / "blob.bin").write_bytes(b"\x00\xff\n\x00")
+    (repo / "empty.txt").write_bytes(b"")
+    (repo / "link").symlink_to("blob.bin")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "c")
+    assert files_at(repo, "HEAD") == {"blob.bin": b"\x00\xff\n\x00", "empty.txt": b""}
+
+
+def test_missing_commit_exits_2_without_fetch(repo, git, tmp_path):
+    commit_all(git, repo, {"a.py": "A = 1\n"})
+    with pytest.raises(SetupError) as error:
+        files_at(repo, "origin/not-fetched-yet")
+    assert "git fetch first" in str(error.value)
+    with pytest.raises(SetupError, match="git fetch first"):
+        files_at(repo, "0123456789abcdef0123456789abcdef01234567")
+    with pytest.raises(SetupError, match="not a directory"):
+        files_at(tmp_path / "nowhere", "HEAD")
+    assert not (repo / ".git" / "FETCH_HEAD").exists()
+
+
+VALUES = """\
+    standard-service-chart:
+      image:
+        # repository: "" # not this one
+        tag: sand-0123abc
+      env: {}
+"""
+
+
+def test_deployed_sha_from_image_tag(tmp_path):
+    (tmp_path / "apps" / "app").mkdir(parents=True)
+    (tmp_path / "apps" / "app" / "values.yaml").write_text(textwrap.dedent(VALUES))
+    assert deployed_sha(tmp_path, ["apps/app/values.yaml"]) == "0123abc"
+    quoted = textwrap.dedent(VALUES).replace("sand-0123abc", '"prod-' + "a" * 40 + '" # comment')
+    (tmp_path / "apps" / "app" / "values.yaml").write_text(quoted)
+    assert deployed_sha(tmp_path, ["apps/app/values.yaml"]) == "a" * 40
+
+
+def test_deployed_sha_errors_are_setup_errors(tmp_path):
+    (tmp_path / "v.yaml").write_text("standard-service-chart:\n  image:\n    tag: latest\n")
+    (tmp_path / "w.yaml").write_text("other:\n  image:\n    tag: sand-0123abc\n")
+    (tmp_path / "x.yaml").write_text(textwrap.dedent(VALUES).replace("0123abc", "9999999"))
+    (tmp_path / "ok.yaml").write_text(textwrap.dedent(VALUES))
+    with pytest.raises(SetupError, match=r"v\.yaml.*not <env>-<sha>"):
+        deployed_sha(tmp_path, ["v.yaml"])
+    with pytest.raises(SetupError, match=r"w\.yaml.*no image tag"):
+        deployed_sha(tmp_path, ["w.yaml"])
+    with pytest.raises(SetupError, match="gone.yaml"):
+        deployed_sha(tmp_path, ["gone.yaml"])
+    with pytest.raises(SetupError, match="differ"):
+        deployed_sha(tmp_path, ["ok.yaml", "x.yaml"])
+    with pytest.raises(SetupError, match="no values file"):
+        deployed_sha(tmp_path, [])
+
+
+def test_argocd_env_list_and_map_layouts():
+    listed = textwrap.dedent(
+        """\
+        standard-service-chart:
+          # env: [{name: IN_COMMENT}]
+          env:
+            - name: FOO
+              value: "x"
+            - name: "BAR" # trailing comment
+
+              valueFrom:
+                secretKeyRef:
+                  name: not-an-env-name
+                  key: k
+            - {name: FLOW, value: y}
+          extraEnv: []
+          worker:
+            env: {}
+        """
+    )
+    mapped = textwrap.dedent(
+        """\
+        standard-service-chart:
+          env:
+            FOO: x
+
+            BAR: "y"  # note
+            baz_qux:
+              nested: ignored
+          other: z
+          envFrom:
+            - name: NOT_AN_ENV_BLOCK
+        """
+    )
+    assert argocd_env_names("v.yaml", listed) == ({"FOO", "BAR", "FLOW"}, [])
+    assert argocd_env_names("v.yaml", mapped) == ({"FOO", "BAR", "BAZ_QUX"}, [])
+
+
+def test_argocd_list_at_the_key_indent():
+    text = "env:\n- name: FOO\n- name: BAR\nafter: 1\n"
+    assert argocd_env_names("v.yaml", text) == ({"FOO", "BAR"}, [])
+
+
+def test_argocd_extra_env_and_one_file_per_brand():
+    brand_a = "chart:\n  env:\n    - name: SHARED\n  extraEnv:\n    - name: ONLY_A\n"
+    brand_b = "chart:\n  extraEnv:\n    - name: SHARED\n    - name: ONLY_B\n"
+    names_a, _ = argocd_env_names("a.yaml", brand_a)
+    names_b, _ = argocd_env_names("b.yaml", brand_b)
+    assert names_a | names_b == {"SHARED", "ONLY_A", "ONLY_B"}
+
+
+def test_argocd_unreadable_block_is_a_warning_with_line():
+    text = textwrap.dedent(
+        """\
+        chart:
+          env: {FOO: x}
+          extraEnv:
+            - value: orphan
+            - name: GOOD
+          worker:
+            env: *shared
+          other:
+            env:
+              - just text
+        """
+    )
+    names, warnings = argocd_env_names("apps/v.yaml", text)
+    assert names == {"GOOD"}
+    assert [w.split(":")[0:2] for w in warnings] == [
+        ["apps/v.yaml", "2"],
+        ["apps/v.yaml", "4"],
+        ["apps/v.yaml", "7"],
+        ["apps/v.yaml", "10"],
+    ]

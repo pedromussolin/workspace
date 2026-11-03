@@ -6,6 +6,8 @@ Names only. A value from the store never gets here: the sources keep the text be
 
 import ast
 import re
+import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +16,7 @@ KIND_ORDER = {"settings": 0, "dynamic": 1, "helper": 2, "shell": 3, "migration":
 SETTINGS_BASE = "BaseSettings"
 SETTINGS_CONFIG_KEY = "env_prefix"
 ALIAS_KEYS = ("validation_alias", "alias")
+REGULAR_MODES = ("100644", "100755")
 
 
 class SetupError(Exception):
@@ -519,3 +522,193 @@ def scan_shell(files: dict[str, bytes], shell_files: list[str]) -> ScanResult:
                 if name not in assigned:
                     found.add(name.upper(), match.group(2) is None, "shell", f"{path}:{number}")
     return ScanResult(found.build(), {}, [], warnings)
+
+
+def _git(repo: Path, *args: str, stdin: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(["git", "-C", str(repo), *args], input=stdin, capture_output=True)
+
+
+def resolve_commit(repo: Path, ref: str) -> str:
+    """The full sha of `ref` in the local clone; never fetches."""
+    if not repo.is_dir():
+        raise SetupError(f"{repo} is not a directory")
+    result = _git(repo, "rev-parse", "--verify", "--quiet", "--end-of-options", f"{ref}^{{commit}}")
+    if result.returncode != 0:
+        raise SetupError(f"commit {ref} not found in {repo}: git fetch first (ws never fetches)")
+    return result.stdout.decode().strip()
+
+
+def files_at(repo: Path, ref: str, only: Callable[[str], bool] | None = None) -> dict[str, bytes]:
+    """The regular files of `repo` at `ref`, read from the git objects, never the working tree.
+
+    `only` limits which paths are read (a front repo has many files no scanner needs).
+    """
+    sha = resolve_commit(repo, ref)
+    listing = _git(repo, "ls-tree", "-r", "-z", sha)
+    if listing.returncode != 0:
+        raise SetupError(f"git ls-tree failed for {ref} in {repo}")
+    wanted: dict[str, str] = {}
+    for entry in listing.stdout.split(b"\0"):
+        if not entry:
+            continue
+        meta, _, raw_path = entry.partition(b"\t")
+        mode, kind, blob = meta.decode().split(" ")
+        path = raw_path.decode("utf-8", errors="replace")
+        if kind == "blob" and mode in REGULAR_MODES and (only is None or only(path)):
+            wanted[path] = blob
+    contents = _read_blobs(repo, sorted(set(wanted.values())))
+    return {path: contents[blob] for path, blob in wanted.items() if blob in contents}
+
+
+def _read_blobs(repo: Path, shas: list[str]) -> dict[str, bytes]:
+    if not shas:
+        return {}
+    result = _git(repo, "cat-file", "--batch", stdin=("\n".join(shas) + "\n").encode())
+    if result.returncode != 0:
+        raise SetupError(f"git cat-file failed in {repo}")
+    data, position, contents = result.stdout, 0, {}
+    while position < len(data):
+        end = data.index(b"\n", position)
+        header = data[position:end].split(b" ")
+        position = end + 1
+        if header[1] == b"missing":
+            continue
+        size = int(header[2])
+        contents[header[0].decode()] = data[position : position + size]
+        position += size + 1
+    return contents
+
+
+YamlLine = tuple[int, int, str]  # (line number, indent, content without comment)
+IMAGE_TAG = re.compile(r"^[A-Za-z][A-Za-z0-9]*-([0-9a-f]{7,40})$")
+CHART_KEY = "standard-service-chart"
+ENV_BLOCK = re.compile(r"^(env|extraEnv):\s*(.*)$")
+MAP_KEY = re.compile(r"""^(['"]?)([^:'"\s][^:'"]*?)\1\s*:(?:\s|$)""")
+FLOW_NAME = re.compile(r"""\bname\s*:\s*['"]?([^,'"}\s]+)""")
+
+
+def _yaml_lines(text: str) -> list[YamlLine]:
+    lines = []
+    for number, raw in enumerate(text.splitlines(), start=1):
+        content = re.sub(r"(^|\s)#.*$", "", raw).rstrip()
+        if content.strip():
+            lines.append((number, len(content) - len(content.lstrip()), content.strip()))
+    return lines
+
+
+def _unquote(value: str) -> str:
+    value = value.strip()
+    return value[1:-1] if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"" else value
+
+
+def deployed_sha(argocd: Path, values: list[str]) -> str:
+    """The commit of the image tag (`<env>-<sha>`) in the environment's argocd values."""
+    if not values:
+        raise SetupError("no values file configured for this environment")
+    shas: dict[str, str] = {}
+    for name in values:
+        path = argocd / name
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            raise SetupError(f"values file {name} not found in {argocd}") from None
+        tag = _image_tag(text)
+        if tag is None:
+            raise SetupError(f"{name}: no image tag under {CHART_KEY}.image")
+        match = IMAGE_TAG.match(tag)
+        if not match:
+            raise SetupError(f"{name}: image tag {tag} is not <env>-<sha>")
+        shas[name] = match.group(1)
+    if len(set(shas.values())) > 1:
+        raise SetupError("the image tags of the values files differ: " + ", ".join(sorted(shas)))
+    return next(iter(shas.values()))
+
+
+def _image_tag(text: str) -> str | None:
+    stack: list[tuple[int, str]] = []
+    for _, indent, content in _yaml_lines(text):
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        key, _, value = content.partition(":")
+        if not value.strip():
+            stack.append((indent, key.strip()))
+        elif key == "tag" and [k for _, k in stack][-2:] == [CHART_KEY, "image"]:
+            return _unquote(value)
+    return None
+
+
+def argocd_env_names(path: str, text: str) -> tuple[set[str], list[str]]:
+    """Names in the `env` and `extraEnv` blocks of one values file, and what could not be read."""
+    lines = _yaml_lines(text)
+    names: set[str] = set()
+    warnings: list[str] = []
+    index = 0
+    while index < len(lines):
+        number, indent, content = lines[index]
+        index += 1
+        match = ENV_BLOCK.match(content)
+        if not match:
+            continue
+        key, inline = match.groups()
+        if inline:
+            if inline not in ("[]", "{}", "null", "~"):
+                warnings.append(f"{path}:{number}: cannot read the inline {key} value; skipped")
+            continue
+        block = []
+        is_list = index < len(lines) and _is_item(lines[index])
+        while index < len(lines) and _in_block(lines[index], indent, is_list):
+            block.append(lines[index])
+            index += 1
+        if block:
+            reader = _list_names if _is_item(block[0]) else _map_names
+            reader(path, key, block, names, warnings)
+    return names, warnings
+
+
+def _is_item(line: YamlLine) -> bool:
+    return line[2] == "-" or line[2].startswith("- ")
+
+
+def _in_block(line: YamlLine, base: int, is_list: bool) -> bool:
+    return line[1] > base or (line[1] == base and is_list and _is_item(line))
+
+
+def _list_names(
+    path: str, key: str, block: list[YamlLine], names: set[str], warnings: list[str]
+) -> None:
+    item_indent = block[0][1]
+    item_line, key_column, name = 0, 0, None
+
+    def close() -> None:
+        if item_line and name is None:
+            warnings.append(f"{path}:{item_line}: {key} item without a readable name; skipped")
+        elif name is not None:
+            names.add(name.upper())
+
+    for number, indent, content in block:
+        if indent == item_indent and _is_item((number, indent, content)):
+            close()
+            rest = content[1:].lstrip()
+            item_line, key_column, name = number, indent + len(content) - len(rest), None
+        else:
+            rest = content if indent == key_column else ""
+        found = FLOW_NAME.search(rest) if rest.startswith("{") else None
+        if found:
+            name = found.group(1)
+        elif rest.startswith("name:"):
+            name = _unquote(rest[len("name:") :]) or None
+    close()
+
+
+def _map_names(
+    path: str, key: str, block: list[YamlLine], names: set[str], warnings: list[str]
+) -> None:
+    base = block[0][1]
+    for number, indent, content in block:
+        if indent != base:
+            continue
+        match = MAP_KEY.match(content)
+        if match:
+            names.add(match.group(2).upper())
+        else:
+            warnings.append(f"{path}:{number}: {key} entry is not a NAME: value pair; skipped")
