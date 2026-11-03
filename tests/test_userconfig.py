@@ -11,6 +11,8 @@ from ws.userconfig import (
     ConfigMissing,
     load_config,
     load_jira_token,
+    load_standup,
+    load_table,
     load_token,
     save_jira_token,
     save_token,
@@ -425,3 +427,58 @@ def test_save_token_that_is_not_encodable_leaves_the_file_untouched(config_dir):
 
     assert credentials.read_text(encoding="utf-8") == before
     assert _mode(credentials) == 0o600
+
+
+def test_load_table_returns_the_raw_table(config_dir):
+    text = CONFIG + '\n[env_check]\nsource = "aws"\n\n[env_check.repos.api]\npath = "~/x"\n'
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    table = load_table("env_check")
+
+    assert table == {"source": "aws", "repos": {"api": {"path": "~/x"}}}
+
+
+def test_load_table_absent_is_empty(config_dir):
+    (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
+
+    assert load_table("deploy_check") == {}
+
+
+def test_load_table_needs_no_jira_table(config_dir):
+    (config_dir / "config.toml").write_text("[handoff]\nmax_listed = 3\n", encoding="utf-8")
+
+    assert load_table("handoff") == {"max_listed": 3}
+
+
+def test_load_table_that_is_not_a_table_is_invalid(config_dir):
+    (config_dir / "config.toml").write_text('handoff = "x"\n', encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=r"\[handoff\] must be a table"):
+        load_table("handoff")
+
+
+def test_load_table_missing_file_raises_config_missing(config_dir):
+    with pytest.raises(ConfigMissing):
+        load_table("handoff")
+
+
+def test_load_standup_needs_no_jira_table(config_dir, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (config_dir / "config.toml").write_text(
+        '[standup]\nrepo_roots = ["~/projects"]\nstale_workdays = 5\n', encoding="utf-8"
+    )
+
+    standup = load_standup()
+
+    assert standup.repo_roots == (tmp_path / "projects",)
+    assert standup.stale_workdays == 5
+
+
+def test_load_standup_defaults_and_rejects_a_bad_value(config_dir, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (config_dir / "config.toml").write_text("", encoding="utf-8")
+    assert load_standup().repo_roots == (tmp_path / "repos",)
+
+    (config_dir / "config.toml").write_text("[standup]\nstale_workdays = 0\n", encoding="utf-8")
+    with pytest.raises(ConfigInvalid, match="stale_workdays"):
+        load_standup()

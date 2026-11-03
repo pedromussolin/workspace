@@ -13,9 +13,12 @@ from ws import (
     card,
     checkpoint,
     config,
+    deploycheck_cli,
     dictionary,
+    envcheck_cli,
     gatecatalog,
     gittools,
+    handoff_cli,
     jira,
     names,
     newwords,
@@ -991,6 +994,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_card(subparsers)
     _add_standup(subparsers)
     _add_checkpoint(subparsers)
+    handoff_cli.register(subparsers)
+    envcheck_cli.register(subparsers)
+    deploycheck_cli.register(subparsers)
     return parser
 
 

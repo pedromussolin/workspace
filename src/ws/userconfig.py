@@ -123,15 +123,43 @@ def _site(jira: dict, path: Path) -> str:
         raise ConfigInvalid(f"{path}: jira.site: {error}") from None
 
 
-def load_config() -> UserConfig:
-    path = config_dir() / "config.toml"
-    data = _read_toml(path)
-    jira = _table(data, "jira", path)
+def _standup_config(data: dict, path: Path) -> StandupConfig:
     standup = _table(data, "standup", path)
     stale = standup.get("stale_workdays", DEFAULT_STALE_WORKDAYS)
     if isinstance(stale, bool) or not isinstance(stale, int) or stale < 1:
         raise ConfigInvalid(f"{path}: standup.stale_workdays must be a positive integer")
     roots = _string_list(standup, "repo_roots", path, "standup")
+    return StandupConfig(
+        repo_roots=(
+            (Path.home() / "repos",)
+            if roots is None
+            else tuple(Path(item).expanduser() for item in roots)
+        ),
+        stale_workdays=stale,
+    )
+
+
+def load_standup() -> StandupConfig:
+    """The `[standup]` settings alone, so a command that needs only them works without `[jira]`."""
+    path = config_dir() / "config.toml"
+    return _standup_config(_read_toml(path), path)
+
+
+def load_table(name: str) -> dict:
+    """The raw `[name]` table of config.toml, `{}` when the file has no such table.
+
+    Each command validates its own keys. A missing file raises `ConfigMissing`; malformed TOML or
+    a `name` that is not a table raises `ConfigInvalid`.
+    """
+    path = config_dir() / "config.toml"
+    return _table(_read_toml(path), name, path)
+
+
+def load_config() -> UserConfig:
+    path = config_dir() / "config.toml"
+    data = _read_toml(path)
+    jira = _table(data, "jira", path)
+    standup = _standup_config(data, path)
     return UserConfig(
         jira=JiraConfig(
             site=_site(jira, path),
@@ -143,14 +171,7 @@ def load_config() -> UserConfig:
             start_date_field=_optional_string(jira, "start_date_field", path, "jira"),
             sprint_field=_optional_string(jira, "sprint_field", path, "jira"),
         ),
-        standup=StandupConfig(
-            repo_roots=(
-                (Path.home() / "repos",)
-                if roots is None
-                else tuple(Path(item).expanduser() for item in roots)
-            ),
-            stale_workdays=stale,
-        ),
+        standup=standup,
     )
 
 
