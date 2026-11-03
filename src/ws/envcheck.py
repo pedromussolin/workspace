@@ -475,3 +475,47 @@ def _add_settings(sinks: _Sinks, hierarchy: _Hierarchy, info: _Class, profile: R
         for prefix in prefixes:
             name = (field.alias or prefix + field.name).upper()
             target.add(name, field.required, kind, f"{path}:{field.line}")
+
+
+SHELL_EXPANSION = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(:?[-=+])?")
+SHELL_ASSIGNMENT = re.compile(
+    r"^\s*(?:(?:export|local|readonly)\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$"
+)
+SHELL_LOOP_VARIABLE = re.compile(r"^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b")
+SHELL_READ = re.compile(r"\bread\s+((?:-\w+\s+)*)([A-Za-z_][A-Za-z0-9_ ]*)")
+
+
+def _shell_assigned(lines: list[str]) -> set[str]:
+    """Names the script sets itself, unless the value is read from the same name's environment."""
+    assigned: set[str] = set()
+    for line in lines:
+        match = SHELL_ASSIGNMENT.match(line)
+        if match and not re.search(rf"\$\{{?{match.group(1)}\b", match.group(2)):
+            assigned.add(match.group(1))
+        loop = SHELL_LOOP_VARIABLE.match(line)
+        if loop:
+            assigned.add(loop.group(1))
+        read = SHELL_READ.search(line)
+        if read:
+            assigned.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", read.group(2).split(";")[0]))
+    return assigned
+
+
+def scan_shell(files: dict[str, bytes], shell_files: list[str]) -> ScanResult:
+    """`${NAME}`, `${NAME-...}`, `${NAME:-...}` in the shell files, minus what the script sets."""
+    found = _Names()
+    warnings = []
+    for path in shell_files:
+        if path not in files:
+            warnings.append(f"{path}: shell file not found at that commit")
+            continue
+        lines = files[path].decode("utf-8", errors="replace").splitlines()
+        assigned = _shell_assigned(lines)
+        for number, line in enumerate(lines, start=1):
+            if line.lstrip().startswith("#"):
+                continue
+            for match in SHELL_EXPANSION.finditer(line):
+                name = match.group(1)
+                if name not in assigned:
+                    found.add(name.upper(), match.group(2) is None, "shell", f"{path}:{number}")
+    return ScanResult(found.build(), {}, [], warnings)

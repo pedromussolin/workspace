@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ws.envcheck import RepoProfile, scan_python
+from ws.envcheck import RepoProfile, scan_python, scan_shell
 
 
 def profile(**overrides) -> RepoProfile:
@@ -509,3 +509,66 @@ def test_a_name_read_in_two_places_keeps_every_place_and_the_strictest_rule():
     assert item.required is True
     assert item.where == ("src/a.py:4", "src/b.py:4")
     assert item.count == 2
+
+
+def sh(**files: str) -> dict[str, bytes]:
+    return {path: textwrap.dedent(text).encode() for path, text in files.items()}
+
+
+def test_shell_expansions_three_forms():
+    files = sh(
+        **{
+            "entrypoint.sh": """\
+                #!/bin/sh
+                cat > /usr/share/config.js <<EOT
+                window.__CONFIG__ = {
+                  api: "${APP_API_URL}",
+                  mode: "${APP_MODE-prod}",
+                  auth: "${APP_AUTH:-none}",
+                  nested: "${APP_OUTER:-${APP_INNER}}"
+                }
+                EOT
+                echo "${1} ${#APP_LEN} $HOME"
+                # "${APP_IN_A_COMMENT}"
+            """,
+            "src/app.js": 'const x = "${NOT_A_SHELL_FILE}";',
+        }
+    )
+    result = scan_shell(files, ["entrypoint.sh"])
+    assert {n: i.required for n, i in result.names.items()} == {
+        "APP_API_URL": True,
+        "APP_MODE": False,
+        "APP_AUTH": False,
+        "APP_OUTER": False,
+        "APP_INNER": True,
+    }
+    assert result.names["APP_API_URL"].kind == "shell"
+    assert result.names["APP_API_URL"].where == ("entrypoint.sh:4",)
+    assert result.warnings == []
+
+
+def test_shell_names_assigned_in_script_skipped():
+    files = sh(
+        **{
+            "entrypoint.sh": """\
+                #!/bin/sh
+                DEST=/usr/share/nginx
+                export CONF=${DEST}/conf.d
+                for ITEM in a b; do echo "${ITEM}"; done
+                while read LINE; do echo "${LINE}"; done
+                BASE_URL="${BASE_URL:-http://local}"
+                echo "${DEST} ${CONF} ${APP_REAL}"
+            """
+        }
+    )
+    result = scan_shell(files, ["entrypoint.sh"])
+    assert {n: i.required for n, i in result.names.items()} == {
+        "APP_REAL": True,
+        "BASE_URL": False,
+    }
+
+
+def test_shell_file_missing_at_the_ref_is_a_warning():
+    result = scan_shell(sh(**{"entrypoint.sh": "echo ${A_B}"}), ["entrypoint.sh", "other.sh"])
+    assert set(result.names) == {"A_B"}
+    assert result.warnings == ["other.sh: shell file not found at that commit"]
