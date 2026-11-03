@@ -399,7 +399,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 
 ## B24 — Redis de produção cheio descarta chaves (fase 0)
 
-- **Onde:** ElastiCache `asgard-redis-production-01` (nós 001 e 002). **[H]** É o Redis da
+- **Onde:** Redis gerenciado da AWS `asgard-redis-production-01` (nós 001 e 002). **[H]** É o Redis da
   platform-cessao em produção (ambiente asgard); confirmar a variável no Parameter Store.
 - **Efeito:** **[C, Datadog, `aws.elasticache.database_memory_usage_percentage` e
   `aws.elasticache.evictions`, 04/10 a 03/11/2026]** a memória chegou a 92–95% em 06 a 08/10 e
