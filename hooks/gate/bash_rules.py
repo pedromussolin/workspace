@@ -27,6 +27,10 @@ that start other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude 
 Credential reads from code are found by the path written in it, or by the home plus a credential
 name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
 (`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
+A git `-c` or `--config-env` whose key runs a program or redirects git (`RISKY_GIT_KEYS`) asks,
+except a pager or editor set to a harmless value (`BENIGN_PROGRAM_VALUES`) and the gh credential
+helper pair, `-c credential.helper=` and `-c credential.helper='!gh auth git-credential'` (exact
+values, no expansion), that agents use to fetch over HTTPS with the gh login; a push keeps its box.
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
 With `environment_branches` set, a push to one of them is denied, or asks with a warning in a
 `direct_push_repos` repository (`branches`); the repository name comes from one more local query.
@@ -175,6 +179,7 @@ BENIGN_PROGRAM_KEYS = re.compile(
     r"^(?:core\.(?:pager|editor)|sequence\.editor|pager\..+|diff\.external)$"
 )
 BENIGN_PROGRAM_VALUES = {"", "cat", "less", "true", ":"}
+GH_CREDENTIAL_HELPERS = {"", "!gh auth git-credential"}
 STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
 STORE_PROGRAMS = {"env", "sudo"}
 PUSH_URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[^/:]+@[^/:]+:|[^/:]{2,}:|/|\.\.?/|~)", re.I)
@@ -548,7 +553,8 @@ def _split_git(args: list[Word]) -> tuple[list[Word], int | None]:
 
 
 def _git_overrides(args: list[Word]) -> list[str]:
-    """The `-c` and `--config-env` settings among git's global options, as typed."""
+    """The `-c` and `--config-env` settings among git's global options, as typed, but for the
+    gh credential helper pair (`_gh_credential_helper`)."""
     found: list[str] = []
     index = 0
     while index < len(args) and args[index].text.startswith("-"):
@@ -557,10 +563,23 @@ def _git_overrides(args: list[Word]) -> list[str]:
         if option.startswith("--config-env="):
             found.append(option)
         elif option in GIT_VALUE_OPTIONS and index < len(args):
-            if option in ("-c", "--config-env"):
+            gh_helper = option == "-c" and _gh_credential_helper(args[index])
+            if option in ("-c", "--config-env") and not gh_helper:
                 found.append(f"{option} {args[index].text}")
             index += 1
     return found
+
+
+def _gh_credential_helper(setting: Word) -> bool:
+    """A `-c credential.helper=` that clears the helpers or names gh's own, as agents do to fetch
+    a repository over HTTPS with the gh login (decided with the user on 2026-11-03).
+
+    The key is compared as git reads it (case-insensitive) and the value must be exactly one of
+    `GH_CREDENTIAL_HELPERS`; another value, another key or an expansion stays risky.
+    """
+    key, equals, value = setting.text.partition("=")
+    exact = bool(equals) and value in GH_CREDENTIAL_HELPERS
+    return exact and not setting.expands and key.lower() == "credential.helper"
 
 
 def _override_key(override: str) -> str:
