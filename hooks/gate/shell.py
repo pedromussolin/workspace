@@ -8,6 +8,14 @@ expansion, where each redirect points, and what feeds a command. It is heredoc-a
 a quoted heredoc (`<<'EOF'`, `<<"EOF"`, `<<\\EOF`) is data, unless the command that owns it is a
 shell, `eval`, `source` or `.`, and then the body is scanned as commands; the body of an
 unquoted heredoc is expanded by the shell, so its `$(...)` and backticks are scanned.
+
+Both read `$'...'` (ANSI-C quoting) as bash does: outside double quotes it is a quoted span where
+a backslash escapes any character (`$'\\''` is one quote), and its escapes are decoded
+(`$'\\x63url'` is `curl`); `shlex` does not know it, so `simple_commands` first rewrites each one
+as the equivalent single-quoted word. Inside double quotes it is plain text, and inside a
+double-quoted `${...}` bash reads it in a way of its own, so there it is unreadable. `$"..."`
+(locale translation) is read as a double-quoted string that expands, since a message catalog
+could change its text, and a heredoc delimiter written with it is not looked for.
 """
 
 import re
@@ -29,6 +37,98 @@ WALK_SECONDS = 2.0
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PYTHON = re.compile(r"python[0-9.]*")
+ANSI_ESCAPES = {
+    "a": "\a",
+    "b": "\b",
+    "e": "\x1b",
+    "E": "\x1b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "\\": "\\",
+    "'": "'",
+    '"': '"',
+    "?": "?",
+}
+ANSI_HEX_DIGITS = {"x": 2, "u": 4, "U": 8}
+OCTAL = re.compile(r"[0-7]{1,3}")
+HEX = re.compile(r"[0-9A-Fa-f]+")
+
+
+def ansi_c_end(text: str, start: int) -> int:
+    """Index just past the `$'...'` whose `$` is at `start`; a backslash escapes any character."""
+    index = start + 2
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+        elif text[index] == "'":
+            return index + 1
+        else:
+            index += 1
+    raise ValueError("unterminated quote")
+
+
+def ansi_c(body: str) -> str:
+    """The text bash makes of the inside of `$'...'`: its escapes decoded, cut at a NUL."""
+    out: list[str] = []
+    index = 0
+    while index < len(body):
+        char = body[index]
+        following = body[index + 1 : index + 2]
+        if char != "\\" or not following:
+            out.append(char)
+            index += 1
+            continue
+        index += 2
+        if following in ANSI_ESCAPES:
+            out.append(ANSI_ESCAPES[following])
+        elif following in "01234567":
+            digits = OCTAL.match(body, index - 1).group()
+            out.append(chr(int(digits, 8) & 0xFF))
+            index += len(digits) - 1
+        elif following in ANSI_HEX_DIGITS:
+            found = HEX.match(body[index : index + ANSI_HEX_DIGITS[following]])
+            if found is None:
+                out.append("\\" + following)
+            else:
+                out.append(chr(min(int(found.group(), 16), 0x10FFFF)))
+                index += found.end()
+        elif following == "c" and index < len(body):
+            out.append(chr(ord(body[index]) & 0x1F))
+            index += 1
+        else:
+            out.append("\\" + following)
+    return "".join(out).partition("\0")[0]
+
+
+def _single_quoted_ansi(text: str) -> str:
+    """`text` with each `$'...'` the shell decodes written as the same word in single quotes."""
+    out: list[str] = []
+    single = double = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if single:
+            single = char != "'"
+        elif char == "\\":
+            out.append(text[index : index + 2])
+            index += 2
+            continue
+        elif char == '"':
+            double = not double
+        elif char == "'" and not double:
+            single = True
+        elif not double and text.startswith("$'", index):
+            end = ansi_c_end(text, index)
+            decoded = ansi_c(text[index + 2 : end - 1])
+            out.append("'" + decoded.replace("'", "'\"'\"'") + "'")
+            index = end
+            continue
+        out.append(char)
+        index += 1
+    return "".join(out)
 
 
 @dataclass(frozen=True)
@@ -101,6 +201,9 @@ def strip_heredocs(text: str) -> str:
 
 
 def simple_commands(text: str) -> list[list[str]]:
+    """The words of each simple command; raises ValueError on bad quoting."""
+    if "$'" in text:
+        text = _single_quoted_ansi(text)
     lexer = shlex.shlex(text.replace("\\\n", " "), posix=True, punctuation_chars=OPERATOR_CHARS)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -137,6 +240,12 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
             single = char != "'"
         elif char == "\\":
             index += 1
+        elif quoting and not double and text.startswith("$'", index):
+            try:
+                index = ansi_c_end(text, index)
+            except ValueError:
+                index = len(text)
+            continue
         elif char == '"' and quoting:
             double = not double
         elif char == "'" and not double and quoting:
@@ -331,8 +440,10 @@ class Scan:
     deadline: float = 0.0
 
 
-HEREDOC_TAG = re.compile(r"""(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)""")
-TAG_QUOTING = re.compile(r"""'([^']*)'|"([^"]*)"|\\(.)""")
+HEREDOC_TAG = re.compile(
+    r"""(-?)[ \t]*((?:\$'(?:[^'\\\n]|\\.)*'|'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)"""
+)
+TAG_QUOTING = re.compile(r"""\$'((?:[^'\\]|\\.)*)'|'([^']*)'|"([^"]*)"|\\(.)""")
 BRACE_EXPANSION = re.compile(r"\{[^{}]*?(?:,|\.\.)[^{}]*?\}")
 OPERATORS = sorted(
     ["&>>", "<<<", "<<-", "&&", "||", ";;", "|&", "&>", "<<", ">>", ">|", ">&", "<&", "<>"]
@@ -350,9 +461,32 @@ def program_name(word: str) -> str:
 
 
 def _owner(prefix: str) -> str | None:
-    words = prefix.split()
+    """The program of the command a heredoc feeds, its words read with quote removal
+    (`\\bash`, `b"ash"` and `$'bash'` are `bash`); a prefix that cannot be read counts as a
+    shell, so the body is read as commands."""
+    try:
+        commands = parse_commands(prefix)
+    except ValueError:
+        return "sh"
+    words = [word.text for word in commands[-1].words] if commands else []
     index = locate_program(words)
-    return None if index is None else program_name(words[index].strip("'\""))
+    return None if index is None else program_name(words[index])
+
+
+def heredoc_tag(raw: str) -> str | None:
+    """The delimiter a heredoc word stands for, after quote removal as bash does it.
+
+    None for a word with `$"..."`, which a message catalog could translate.
+    """
+    if '$"' in raw:
+        return None
+
+    def unquote(match: re.Match[str]) -> str:
+        if match.group(1) is not None:
+            return ansi_c(match.group(1))
+        return match.group(2) or match.group(3) or match.group(4) or ""
+
+    return TAG_QUOTING.sub(unquote, raw)
 
 
 def _heredoc_body(text: str, start: int, tag: str) -> tuple[str, int] | None:
@@ -374,7 +508,8 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
 
     A quote state machine keeps `<<` inside quotes literal, yet live inside a `$(...)` that sits
     in double quotes (the usual `git commit -m "$(cat <<'EOF' ...)"`). A heredoc with no
-    delimiter line is left in place, so its lines are read as commands.
+    delimiter line, or whose delimiter cannot be known, is left in place, so its lines are read
+    as commands.
     """
     kept: list[str] = []
     found: list[Heredoc] = []
@@ -385,6 +520,13 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
     while index < size:
         char, context = text[index], stack[-1]
         if context == "sq":
+            if char == "'":
+                stack.pop()
+        elif context == "ansi":
+            if char == "\\":
+                kept.append(text[index : index + 2])
+                index += 2
+                continue
             if char == "'":
                 stack.pop()
         elif char == "\\":
@@ -402,6 +544,11 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
                 continue
             elif char == "`":
                 stack.append("bt")
+        elif text.startswith("$'", index):
+            stack.append("ansi")
+            kept.append("$'")
+            index += 2
+            continue
         elif char == "'":
             stack.append("sq")
         elif char == '"':
@@ -447,8 +594,9 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
             match = HEREDOC_TAG.match(text, index + 2) if text[index - 1 : index] != "<" else None
             if match:
                 raw = match.group(2)
-                tag = TAG_QUOTING.sub(lambda m: m.group(1) or m.group(2) or m.group(3) or "", raw)
-                pending.append((tag, tag != raw, _owner(text[segment:index])))
+                tag = heredoc_tag(raw)
+                if tag is not None:
+                    pending.append((tag, tag != raw, _owner(text[segment:index])))
                 kept.append(text[index : match.end()])
                 index = match.end()
                 continue
@@ -457,14 +605,22 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
     return "".join(kept), found
 
 
-def _skip_group(text: str, start: int, opener: str, closer: str) -> int:
-    """Index just past the group whose opener is at `start`; quotes inside do not count."""
+def _skip_group(text: str, start: int, opener: str, closer: str, quoted: bool = False) -> int:
+    """Index just past the group whose opener is at `start`; quotes inside do not count.
+
+    `quoted`: a `${...}` inside double quotes, where bash reads `$'...'` in a way of its own.
+    """
     depth = 0
     index = start
     while index < len(text):
         char = text[index]
         if char == "\\":
             index += 2
+            continue
+        if text.startswith("$'", index):
+            if quoted:
+                raise ValueError("ANSI-C quote inside a double-quoted expansion")
+            index = ansi_c_end(text, index)
             continue
         if char == "'":
             end = text.find("'", index + 1)
@@ -511,7 +667,7 @@ def _skip_double(text: str, start: int) -> int:
         elif text.startswith("$(", index):
             index = _skip_group(text, index + 1, "(", ")")
         elif text.startswith("${", index):
-            index = _skip_group(text, index + 1, "{", "}")
+            index = _skip_group(text, index + 1, "{", "}", quoted=True)
         elif char == "`":
             index = _skip_backtick(text, index)
         else:
@@ -538,7 +694,8 @@ def _read_double(text: str, start: int) -> tuple[str, bool, int]:
             index += 2
         elif text.startswith("$(", index) or text.startswith("${", index):
             opener = text[index + 1]
-            stop = _skip_group(text, index + 1, opener, ")" if opener == "(" else "}")
+            closer = ")" if opener == "(" else "}"
+            stop = _skip_group(text, index + 1, opener, closer, quoted=opener == "{")
             value.append(text[index:stop])
             expands = True
             index = stop
@@ -583,6 +740,11 @@ def _read_word(text: str, start: int) -> tuple[Word, int]:
             value.append(text[index:end])
             bare.append("$")
             bare_expansion = expands = True
+            index = end
+        elif text.startswith("$'", index):
+            end = ansi_c_end(text, index)
+            value.append(ansi_c(text[index + 2 : end - 1]))
+            bare.append("\0")
             index = end
         elif char == "$":
             bare_expansion = expands = True

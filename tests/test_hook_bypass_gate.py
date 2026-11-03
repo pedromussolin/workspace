@@ -82,6 +82,16 @@ def run_command(command: object) -> subprocess.CompletedProcess[str]:
         "if git commit --no-verify; then echo done; fi",
         'git commit --no-verify -m "unclosed',
         "echo 'unclosed; git config core.hooksPath /dev/null",
+        "git commit $'--no-verify' -m x",
+        "git commit $'--no-veri\\x66y' -m x",
+        "git $'\\x63ommit' --no-verify -m x",
+        "git $'\\x63ommit' -n -m x",
+        "git commit $'-n' -m x",
+        "git -c $'core.hooks\\x50ath=/dev/null' commit -m x",
+        "echo $'\\'' ; git commit --no-verify -m x ; echo $'\\''",
+        "echo $'\\'' ; git commit -n -m x ; echo $'\\''",
+        "$'bash' <<'EOF'\ngit commit -n -m x\nEOF",
+        "echo \"$(echo $'\\'' ; git commit -n -m x)\"",
     ],
 )
 def test_bypass_is_blocked(command):
@@ -131,6 +141,9 @@ def test_bypass_is_blocked(command):
         "git config --global alias.sh '!git show'",
         "git config --unset user.name",
         "git config --remove-section alias",
+        "git commit -m $'it\\'s fine\\n\\nbody'",
+        "echo $'--no-verify'",
+        'echo "$\'" ; git commit -m x',
     ],
 )
 def test_ordinary_commands_pass(command):

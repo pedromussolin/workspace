@@ -309,3 +309,16 @@ def test_a_large_command_resolves_fast():
 
     assert time.monotonic() - started < 1
     assert found[0].count("git -C /srv/x status") == 300
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "A=git; $A $'push'",
+        "A=git; $'\\x24A' push",
+        "A=x; echo $'\\'' ; $A push #'",
+        'A=git; echo "$A" <<$"EOF"\nEOF\n$A push',
+    ],
+)
+def test_ansi_c_or_locale_quoting_resolves_nothing(command):
+    assert variables.worlds(command) == [command]

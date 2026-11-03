@@ -226,7 +226,8 @@ in phase 3, when the keys leave the model's reach:
 
 - a script file the command runs, `xargs`, `find -exec`, `ssh`, a double fork reparented to init
   (it escapes the card's agent-ancestor walk), and code that builds a name at run time (Python string
-  concatenation of a credential path, `$'...'` ANSI-C quoting, a git config key held in a variable);
+  concatenation of a credential path, a git config key held in a variable); `$'...'` ANSI-C quoting
+  is decoded as bash does since 2026-11-03;
 - in the hook-bypass gate: commands piped into a shell (`cat <<EOF | bash`) and `GIT_CONFIG_GLOBAL`
   pointing at another file;
 - a quoted word over 4 KB with spaces in it is parsed normally (the 4 KB guard splits on spaces);
