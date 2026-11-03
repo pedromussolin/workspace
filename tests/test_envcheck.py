@@ -1,16 +1,26 @@
+import json
+import os
+import sys
 import textwrap
+import traceback
 from pathlib import Path
 
 import pytest
 
+from ws import envcheck
 from ws.envcheck import (
+    EnvCheckSettings,
     RepoProfile,
     SetupError,
+    StoreUnreachable,
     argocd_env_names,
     deployed_sha,
     files_at,
+    is_valid_name,
+    normalize_store_name,
     scan_python,
     scan_shell,
+    store_names,
 )
 
 
@@ -734,3 +744,217 @@ def test_argocd_unreadable_block_is_a_warning_with_line():
         ["apps/v.yaml", "7"],
         ["apps/v.yaml", "10"],
     ]
+
+
+CANARY = "leak-canary-7f3a"
+
+FAKE_AWS = """\
+#!{python}
+import json, os, sys
+
+with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+mode = os.environ.get("FAKE_AWS_MODE", "ok")
+errors = {{
+    "missing": "The config profile (some-profile) could not be found",
+    "expired": "The SSO session associated with this profile (some-profile) has expired",
+    "denied": "An error occurred (AccessDeniedException) when calling DescribeParameters",
+    "network": "Could not connect to the endpoint URL",
+}}
+if mode in errors:
+    print(errors[mode] + " {canary}", file=sys.stderr)
+    sys.exit(255)
+if mode == "garbage":
+    print("not json {canary}")
+    sys.exit(0)
+print(json.dumps(json.loads(os.environ["FAKE_AWS_NAMES"])))
+"""
+
+FAKE_SCRIPT = """\
+#!{python}
+import json, os, sys
+
+with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+print("\\x1b[32m[SecureString]\\x1b[0m /realm/env/app/CFG_ONE={canary}")
+print("[String] /realm/env/app/CFG/TWO/PART=a=b value with = signs {canary}")
+print("[StringList] /realm/env/app-bff/CFG_LONGER=other app {canary}")
+print("[String] /realm/env/app/cfg-three=x")
+print("Total: 4 parameters")
+print("stderr noise {canary}", file=sys.stderr)
+sys.exit(int(os.environ.get("FAKE_SCRIPT_EXIT", "0")))
+"""
+
+
+@pytest.fixture
+def fake_bin(tmp_path, monkeypatch):
+    """Installs a fake program first on PATH; its calls are logged as JSON lines in FAKE_LOG."""
+    folder = tmp_path / "fake-bin"
+    folder.mkdir()
+    log = tmp_path / "fake.log"
+    monkeypatch.setenv("FAKE_LOG", str(log))
+    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
+
+    def install(name: str, template: str) -> Path:
+        path = folder / name
+        path.write_text(template.format(python=sys.executable, canary=CANARY), encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    install.calls = lambda: (
+        [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    )
+    return install
+
+
+def aws_settings() -> EnvCheckSettings:
+    return EnvCheckSettings(source="aws", script=None, role_vars=(), repos={})
+
+
+def script_settings(script: Path) -> EnvCheckSettings:
+    return EnvCheckSettings(source="script", script=script, role_vars=(), repos={})
+
+
+def test_aws_describe_parameters_names_paginated(fake_bin, monkeypatch):
+    fake_bin("aws", FAKE_AWS)
+    many = [f"/realm/env/app/CFG_N{i}" for i in range(120)]
+    monkeypatch.setenv("FAKE_AWS_NAMES", json.dumps(many))
+    found = store_names(aws_settings(), profile(), "prod")
+    assert found == {f"CFG_N{i}" for i in range(120)}
+    (call,) = fake_bin.calls()
+    assert call[:2] == ["ssm", "describe-parameters"]
+    assert call[call.index("--profile") + 1] == "some-profile"
+    assert (
+        call[call.index("--parameter-filters") + 1]
+        == "Key=Path,Option=Recursive,Values=/realm/env/app"
+    )
+    assert call[call.index("--query") + 1] == "Parameters[].Name"
+    assert "--no-paginate" not in call and "--max-items" not in call
+    assert "--with-decryption" not in call
+
+
+def test_aws_profile_error_exits_2_access_error_exits_3(fake_bin, monkeypatch):
+    fake_bin("aws", FAKE_AWS)
+    monkeypatch.setenv("FAKE_AWS_NAMES", "[]")
+    for mode in ("missing", "expired"):
+        monkeypatch.setenv("FAKE_AWS_MODE", mode)
+        with pytest.raises(SetupError, match="some-profile") as error:
+            store_names(aws_settings(), profile(), "prod")
+        assert CANARY not in str(error.value)
+    for mode in ("denied", "network", "garbage"):
+        monkeypatch.setenv("FAKE_AWS_MODE", mode)
+        with pytest.raises(StoreUnreachable) as error:
+            store_names(aws_settings(), profile(), "prod")
+        assert CANARY not in str(error.value)
+
+
+def test_aws_setup_problems_are_setup_errors(fake_bin, monkeypatch, tmp_path):
+    monkeypatch.setenv("PATH", str(tmp_path / "no-bin"))
+    with pytest.raises(SetupError, match="aws CLI not found"):
+        store_names(aws_settings(), profile(), "prod")
+    with pytest.raises(SetupError, match=r"profile\.prod"):
+        store_names(aws_settings(), profile(profile={}), "prod")
+    with pytest.raises(SetupError, match=r"prefix\.staging"):
+        store_names(aws_settings(), profile(), "staging")
+
+
+def test_prefix_filter_excludes_longer_app_name(fake_bin, monkeypatch):
+    fake_bin("aws", FAKE_AWS)
+    listed = [
+        "/realm/env/app/CFG_A",
+        "/realm/env/app-bff/CFG_B",
+        "/realm/env/app2/CFG_C",
+        "/realm/env/app",
+        "/other/CFG_D",
+    ]
+    monkeypatch.setenv("FAKE_AWS_NAMES", json.dumps(listed))
+    assert store_names(aws_settings(), profile(), "prod") == {"CFG_A"}
+
+
+def test_normalize_strips_prefix_slashes_dashes_uppercases():
+    prefix = "/realm/env/app"
+    assert normalize_store_name("/realm/env/app/CFG/FASTAPI/TITLE", prefix) == "CFG_FASTAPI_TITLE"
+    assert normalize_store_name("/realm/env/app/CFG_FASTAPI_TITLE", prefix) == "CFG_FASTAPI_TITLE"
+    assert normalize_store_name("/realm/env/app/cfg-log/level", prefix) == "CFG_LOG_LEVEL"
+    assert normalize_store_name("realm/env/app/CFG_X", "/realm/env/app/") == "CFG_X"
+    assert normalize_store_name("/realm/env/app-bff/CFG_X", prefix) is None
+    assert normalize_store_name("/realm/env/app", prefix) is None
+    assert normalize_store_name("/realm/env/app/", prefix) is None
+
+
+def test_invalid_normalized_name_reported(fake_bin, monkeypatch):
+    fake_bin("aws", FAKE_AWS)
+    listed = ["/realm/env/app/CFG_OK", "/realm/env/app/CFG.DOTTED", "/realm/env/app/1ST"]
+    monkeypatch.setenv("FAKE_AWS_NAMES", json.dumps(listed))
+    found = store_names(aws_settings(), profile(), "prod")
+    assert found == {"CFG_OK", "CFG.DOTTED", "1ST"}
+    assert {name for name in found if not is_valid_name(name)} == {"CFG.DOTTED", "1ST"}
+
+
+def export_aws_variables(monkeypatch) -> None:
+    for variable in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.setenv(variable, "fake")
+
+
+def test_script_names_parsed_and_values_dropped(fake_bin, monkeypatch, capsys):
+    script = fake_bin("list-store", FAKE_SCRIPT)
+    export_aws_variables(monkeypatch)
+    found = store_names(script_settings(script), profile(), "prod")
+    assert found == {"CFG_ONE", "CFG_TWO_PART", "CFG_THREE"}
+    assert fake_bin.calls() == [["/realm/env/app"]]
+    captured = capsys.readouterr()
+    assert CANARY not in captured.out + captured.err + repr(found)
+
+
+def test_script_without_aws_variables_exits_2(fake_bin, monkeypatch):
+    script = fake_bin("list-store", FAKE_SCRIPT)
+    for variable in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake")
+    with pytest.raises(SetupError, match="AWS_ACCESS_KEY_ID.*terminal"):
+        store_names(script_settings(script), profile(), "prod")
+    assert fake_bin.calls() == []
+
+
+def test_script_missing_or_unconfigured_is_a_setup_error(monkeypatch, tmp_path):
+    export_aws_variables(monkeypatch)
+    with pytest.raises(SetupError, match="not found"):
+        store_names(script_settings(tmp_path / "gone"), profile(), "prod")
+    with pytest.raises(SetupError, match="script"):
+        store_names(script_settings(None), profile(), "prod")
+
+
+def all_text(error: BaseException) -> str:
+    """The message, the repr and the whole traceback of an exception and its chain."""
+    parts = []
+    seen = error
+    while seen is not None:
+        parts.append(f"{seen!r} {seen} " + "".join(traceback.format_exception(seen)))
+        seen = seen.__cause__ or seen.__context__
+    return " ".join(parts)
+
+
+def test_no_value_reaches_any_output(fake_bin, monkeypatch, capsys):
+    script = fake_bin("list-store", FAKE_SCRIPT)
+    export_aws_variables(monkeypatch)
+    found = store_names(script_settings(script), profile(), "prod")
+    monkeypatch.setenv("FAKE_SCRIPT_EXIT", "1")
+    with pytest.raises(StoreUnreachable) as error:
+        store_names(script_settings(script), profile(), "prod")
+    captured = capsys.readouterr()
+    assert CANARY not in captured.out + captured.err + all_text(error.value) + repr(found)
+    assert "1" in str(error.value)
+
+
+def test_script_timeout_keeps_no_output_in_the_exception(monkeypatch, tmp_path):
+    export_aws_variables(monkeypatch)
+    script = tmp_path / "slow"
+    script.write_text(
+        f"#!{sys.executable}\nimport time\nprint('{CANARY}', flush=True)\ntime.sleep(5)\n"
+    )
+    script.chmod(0o755)
+    monkeypatch.setattr(envcheck, "STORE_TIMEOUT_SECONDS", 0.5)
+    with pytest.raises(StoreUnreachable) as error:
+        store_names(script_settings(script), profile(), "prod")
+    assert CANARY not in all_text(error.value)
+    assert error.value.__context__ is None

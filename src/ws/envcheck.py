@@ -5,6 +5,8 @@ Names only. A value from the store never gets here: the sources keep the text be
 """
 
 import ast
+import json
+import os
 import re
 import subprocess
 from collections.abc import Callable
@@ -712,3 +714,147 @@ def _map_names(
             names.add(match.group(2).upper())
         else:
             warnings.append(f"{path}:{number}: {key} entry is not a NAME: value pair; skipped")
+
+
+STORE_TIMEOUT_SECONDS = 120
+IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+AWS_VARIABLES = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+SCRIPT_LINE = re.compile(r"^\[[^\]]*\] ([^=]+)=")
+AWS_SETUP_HINTS = (
+    "could not be found",
+    "unable to locate credentials",
+    "expiredtoken",
+    "has expired",
+    "error loading sso token",
+    "sso session",
+)
+SCRIPT_FAILED_HINT = (
+    "o script do Parameter Store falhou (código {code}); a saída dele não é exibida por conter "
+    "valores: rode-o no terminal para ver o erro"
+)
+
+
+class StoreUnreachable(Exception):
+    """The Parameter Store could not be listed: exit 3."""
+
+
+@dataclass(frozen=True)
+class EnvCheckSettings:
+    source: str  # aws | script
+    script: Path | None
+    role_vars: tuple[str, ...]
+    repos: dict[str, RepoProfile]
+
+
+def is_valid_name(name: str) -> bool:
+    return bool(IDENTIFIER.match(name))
+
+
+def normalize_store_name(name: str, prefix: str) -> str | None:
+    """`<prefix>/CFG/A/B` or `<prefix>/CFG_A_B` as `CFG_A_B`; `None` when outside the prefix.
+
+    The prefix is matched with a trailing `/`, so an app whose name starts with another's
+    (`app` and `app-bff`) is not taken for it.
+    """
+    root = prefix.strip("/") + "/"
+    stripped = name.lstrip("/")
+    if not stripped.startswith(root) or not stripped[len(root) :].strip("/"):
+        return None
+    return stripped[len(root) :].strip("/").replace("/", "_").replace("-", "_").upper()
+
+
+def store_names(
+    settings: EnvCheckSettings, profile: RepoProfile, env: str, run: Callable = subprocess.run
+) -> set[str]:
+    """The names under the environment's prefix, normalized. Never a value."""
+    if env not in profile.prefix:
+        raise SetupError(f"[env_check.repos.{profile.name}] has no prefix.{env}")
+    if settings.source == "script":
+        return _script_names(settings, profile.prefix[env], run)
+    return _aws_names(profile, env, run)
+
+
+def _normalized(listed: list[str], prefix: str) -> set[str]:
+    found = (normalize_store_name(name, prefix) for name in listed)
+    return {name for name in found if name is not None}
+
+
+def _aws_names(profile: RepoProfile, env: str, run: Callable) -> set[str]:
+    account = profile.profile.get(env)
+    if not account:
+        raise SetupError(f"[env_check.repos.{profile.name}] has no profile.{env} (source = aws)")
+    prefix = "/" + profile.prefix[env].strip("/")
+    command = [
+        "aws", "ssm", "describe-parameters", "--profile", account,
+        "--parameter-filters", f"Key=Path,Option=Recursive,Values={prefix}",
+        "--query", "Parameters[].Name", "--output", "json",
+    ]  # fmt: skip
+    failure = None
+    try:
+        result = run(command, capture_output=True, text=True, timeout=STORE_TIMEOUT_SECONDS)
+    except FileNotFoundError:
+        failure = SetupError("aws CLI not found on PATH")
+    except subprocess.TimeoutExpired:
+        failure = StoreUnreachable("aws ssm describe-parameters timed out")
+    if failure is not None:
+        raise failure
+    if result.returncode != 0:
+        lowered = (result.stderr or "").lower()
+        del result
+        if any(hint in lowered for hint in AWS_SETUP_HINTS):
+            raise SetupError(f"AWS profile {account} is missing or expired: log in again")
+        raise StoreUnreachable("aws ssm describe-parameters failed (access or network error)")
+    try:
+        listed = json.loads(result.stdout)
+        valid = isinstance(listed, list) and all(isinstance(n, str) for n in listed)
+    except ValueError:
+        valid = False
+    if not valid:
+        raise StoreUnreachable("aws ssm describe-parameters returned an unexpected answer")
+    return _normalized(listed, prefix)
+
+
+def _script_names(settings: EnvCheckSettings, prefix: str, run: Callable) -> set[str]:
+    if settings.script is None:
+        raise SetupError("[env_check] source = script needs the script key")
+    if not settings.script.is_file():
+        raise SetupError(f"store script {settings.script} not found")
+    missing = [v for v in AWS_VARIABLES if not os.environ.get(v)]
+    if missing:
+        raise SetupError(
+            f"{', '.join(missing)} not exported: export the three AWS variables "
+            "(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) in the terminal that "
+            "runs the command"
+        )
+    failure = None
+    try:
+        result = run(
+            [str(settings.script), "/" + prefix.strip("/")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=STORE_TIMEOUT_SECONDS,
+        )
+    except OSError:
+        failure = SetupError(f"store script {settings.script} could not be run")
+    except subprocess.TimeoutExpired:
+        failure = StoreUnreachable(SCRIPT_FAILED_HINT.format(code="timeout"))
+    if failure is not None:
+        raise failure
+    code = result.returncode
+    listed = _names_from_script_output(result.stdout) if code == 0 else []
+    del result
+    if code != 0:
+        raise StoreUnreachable(SCRIPT_FAILED_HINT.format(code=code))
+    return _normalized(listed, prefix)
+
+
+def _names_from_script_output(output: str) -> list[str]:
+    """The text between `] ` and the first `=` of each line; the rest of the line is dropped."""
+    names = []
+    for line in output.splitlines():
+        match = SCRIPT_LINE.match(ANSI.sub("", line))
+        if match:
+            names.append(match.group(1))
+    return names
