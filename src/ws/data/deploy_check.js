@@ -28,20 +28,23 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
-function judgeRate(before, after, minRequests) {
+function judgeRate(before, after, minRequests, minExtra) {
   if (before.total < minRequests || after.total < minRequests) return "sem_dados";
   if (before.bad === 0) {
     if (after.bad === 0) return "ok";
     return after.bad >= WORSE_COUNT ? "piorou" : "atencao";
   }
-  const change = rise(before.bad / before.total, after.bad / after.total);
-  return change > REL_LIMIT + EPSILON ? "piorou" : "ok";
+  const beforeRate = before.bad / before.total;
+  if (rise(beforeRate, after.bad / after.total) <= REL_LIMIT + EPSILON) return "ok";
+  const extra = after.bad - beforeRate * after.total;
+  return extra >= minExtra - EPSILON ? "piorou" : "atencao";
 }
 
-function judgeLogs(before, after) {
-  const change = rise(rate(before.count, before.minutes), rate(after.count, after.minutes));
-  if (change <= REL_LIMIT + EPSILON) return "ok";
-  return after.count >= WORSE_COUNT ? "piorou" : "atencao";
+function judgeLogs(before, after, minExtra) {
+  const beforeRate = rate(before.count, before.minutes);
+  if (rise(beforeRate, rate(after.count, after.minutes)) <= REL_LIMIT + EPSILON) return "ok";
+  const extra = after.count - beforeRate * after.minutes;
+  return extra >= minExtra - EPSILON ? "piorou" : "atencao";
 }
 
 function judgeLatency(before, after, minRequests, requests) {
@@ -107,7 +110,7 @@ function summarize(raw, failed) {
       const before = { bad: raw[name + ".b"], total: raw["traffic.b"] };
       const after = { bad: raw[name + ".a"], total: raw["traffic.a"] };
       checks[name] = {
-        status: judgeRate(before, after, P.min_requests),
+        status: judgeRate(before, after, P.min_requests, P.min_extra_errors),
         before: round((100 * before.bad) / Math.max(before.total, 1)),
         after: round((100 * after.bad) / Math.max(after.total, 1)),
         unit: "%",
@@ -129,6 +132,7 @@ function summarize(raw, failed) {
         status: judgeLogs(
           { count: raw["error_logs.b"], minutes: minutes.before },
           { count: raw["error_logs.a"], minutes: minutes.after },
+          P.min_extra_errors,
         ),
         before: round(rate(raw["error_logs.b"], minutes.before)),
         after: round(rate(raw["error_logs.a"], minutes.after)),
@@ -160,10 +164,11 @@ function summarize(raw, failed) {
       let status = "sem_dados";
       let note;
       if (!P.expected_version) note = "versão esperada desconhecida";
+      else if (seen.total < P.min_requests) note = "poucas requisições na janela";
       else if (seen.share !== null) status = seen.share >= 0.95 ? "ok" : "atencao";
       checks[name] = {
         status,
-        after: round(seen.share === null ? null : 100 * seen.share, 1),
+        after: status === "sem_dados" ? null : round(100 * seen.share, 1),
         unit: "% expected",
         note,
       };
@@ -271,7 +276,13 @@ function queries(api) {
           groupBy: [{ facet: P.version_facet, limit: SIGNATURE_LIMIT, sort: byCount }],
         });
         const out = {};
-        for (const bucket of buckets(response)) out[String(bucketBy(bucket)[P.version_facet])] = bucketValue(bucket) || 0;
+        for (const bucket of buckets(response)) {
+          const version = bucketBy(bucket)[P.version_facet];
+          if (version === undefined || version === null) {
+            throw new Error("faceta " + P.version_facet + " ausente nos resultados");
+          }
+          out[String(version)] = bucketValue(bucket) || 0;
+        }
         return out;
       });
     }

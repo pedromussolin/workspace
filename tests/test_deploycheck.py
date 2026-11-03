@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -393,7 +394,7 @@ def test_verdict_thresholds(tmp_path, settings):
     # error rate 2% -> 3.1% is up more than 50%; 3.0% is exactly 50% and passes
     assert status("errors", **{"errors.a": 31}) == "piorou"
     assert status("errors", **{"errors.a": 30}) == "ok"
-    assert status("http_5xx", **{"http_5xx.a": 16}) == "piorou"
+    assert status("http_5xx", **{"http_5xx.a": 21}) == "piorou"
     assert status("http_5xx", **{"http_5xx.a": 15}) == "ok"
     # p95 needs both more than 30% and more than 50 ms
     assert status("p95", **{"p95.a": 261.0}) == "piorou"
@@ -576,3 +577,100 @@ values = {{ sandbox = "envs/svc-x.yaml" }}
     worker = deploycheck.classic_queries(loaded, "worker", "sandbox", at=None, now=NOW)
     assert {q["tool"] for q in worker} == {"analyze_datadog_logs"}
     assert {q["check"] for q in worker} == set(deploycheck.CHECKS["logs"])
+
+
+def test_entry_section_references_only_the_known_sdk_surface(settings):
+    entry = script_for(settings).split("// ws:entry")[1]
+    used = set(re.findall(r"\bsdk\.[\w.]+", entry))
+    assert used == {
+        "sdk.client.createConfiguration",
+        "sdk.v2.SpansApi",
+        "sdk.v2.LogsApi",
+        "sdk.v2.RUMApi",
+    }
+    assert set(re.findall(r"\b(?:spansApi|logsApi|rumApi)\.\w+", entry)) == {
+        "spansApi.aggregateSpans",
+        "logsApi.aggregateLogs",
+        "rumApi.aggregateRUMEvents",
+    }
+
+
+def test_settings_min_extra_errors_default_and_override(tmp_path, argocd, monkeypatch):
+    write_config(tmp_path, monkeypatch, config_text(argocd))
+    assert deploycheck.load_settings().min_extra_errors == 10
+    text = config_text(argocd).replace(
+        "min_requests = 50", "min_requests = 50\nmin_extra_errors = 25"
+    )
+    write_config(tmp_path, monkeypatch, text)
+    loaded = deploycheck.load_settings()
+    assert loaded.min_extra_errors == 25
+    assert params_of(script_for(loaded))["min_extra_errors"] == 25
+
+
+def test_plan_warns_without_dd_version_and_about_an_informational_tag(settings, argocd):
+    values = argocd / "envs" / "svc-x.yaml"
+    now = T + timedelta(hours=1)
+    values.write_text("image:\n  tag: only1\n")
+    warnings = deploycheck.plan(settings, "sandbox", at=None, only=["bff"], now=now)["warnings"]
+    assert len(warnings) == 1 and "DD_VERSION" in warnings[0] and "bff" in warnings[0]
+
+    values.write_text("sidecar:\n  tag: side1\nimage:\n  repository: r\n  tag: main1\n")
+    found = deploycheck.deploy_of(argocd, "envs/svc-x.yaml")
+    assert found["tag"] == "main1" and found["tag_from_image"] is True
+
+    values.write_text("other:\n  tag: z9\nDD_VERSION: v1\n")
+    warnings = deploycheck.plan(settings, "sandbox", at=None, only=["bff"], now=now)["warnings"]
+    assert len(warnings) == 1 and "informational" in warnings[0]
+
+    values.write_text("replicas: 2\n")
+    warnings = deploycheck.plan(settings, "sandbox", at=None, only=["bff"], now=now)["warnings"]
+    assert any("DD_VERSION" in w for w in warnings) and any("no image tag" in w for w in warnings)
+
+    (argocd / "envs" / "svc-x.yaml").unlink()
+    warnings = deploycheck.plan(settings, "sandbox", at=None, only=["bff"], now=now)["warnings"]
+    assert any("DD_VERSION" in w for w in warnings)
+
+
+@needs_node
+def test_relative_rise_needs_the_extra_errors_for_piorou(tmp_path, settings):
+    def status(name, **raw):
+        return summarize(tmp_path, settings, raw)["checks"][name]["status"]
+
+    # 1% -> 1.6% is up 60% but only 6 extra errors: atencao; 11 extra: piorou
+    assert status("http_5xx", **{"http_5xx.a": 16}) == "atencao"
+    assert status("http_5xx", **{"http_5xx.a": 20}) == "piorou"
+    assert status("http_5xx", **{"http_5xx.a": 15}) == "ok"
+    assert status("errors", **{"errors.a": 31}) == "piorou"
+    assert status("errors", **{"errors.b": 2, "errors.a": 4}) == "atencao"
+    assert status("error_logs", **{"error_logs.b": 10, "error_logs.a": 16}) == "atencao"
+    assert status("error_logs", **{"error_logs.b": 10, "error_logs.a": 20}) == "piorou"
+
+
+@needs_node
+def test_min_extra_errors_is_configurable(tmp_path, argocd, monkeypatch):
+    text = config_text(argocd).replace(
+        "min_requests = 50", "min_requests = 50\nmin_extra_errors = 3"
+    )
+    write_config(tmp_path, monkeypatch, text)
+    loaded = deploycheck.load_settings()
+    got = summarize(tmp_path, loaded, {"http_5xx.a": 16})
+    assert got["checks"]["http_5xx"]["status"] == "piorou"
+
+
+@needs_node
+def test_version_check_is_gated_by_min_requests(tmp_path, settings):
+    got = summarize(tmp_path, settings, {"version.a": {"abc1234": 10, "old": 30}})
+    assert got["checks"]["version"]["status"] == "sem_dados"
+    assert got["version_share_pct"] is None
+
+
+@needs_node
+def test_version_without_the_facet_is_sem_dados_naming_it(tmp_path, settings):
+    rules = spans_rules(settings)
+    unusable = {"data": [{"attributes": {"by": {}, "computes": {"c0": 100}}}]}
+    rules[3] = {"tool": "spans", "grouped": True, "response": unusable}
+    got = node_run(tmp_path, script_for(settings), {"op": "run", "rules": rules})
+    version = got["checks"]["version"]
+    assert version["status"] == "sem_dados"
+    assert "version" in version["note"]
+    assert got["checks"]["traffic"]["status"] == "ok"

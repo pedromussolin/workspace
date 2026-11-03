@@ -29,9 +29,11 @@ DEFAULT_WINDOW_MINUTES = 30
 DEFAULT_SETTLE_MINUTES = 5
 DEFAULT_BASELINE_HOURS = 24
 DEFAULT_MIN_REQUESTS = 50
+DEFAULT_MIN_EXTRA_ERRORS = 10
 DEFAULT_VERSION_FACET = "version"
 SIGNATURE_LIMIT = 50
 TAG_LINE = re.compile(r"^\s*tag:\s*[\"']?([^\"'\s#]+)", re.MULTILINE)
+IMAGE_BLOCK = re.compile(r"^image:[ \t]*\n((?:[ \t]+.*\n|[ \t]*\n)*)", re.MULTILINE)
 DD_VERSION_LIST = re.compile(
     r"name:\s*[\"']?DD_VERSION[\"']?\s*\n\s*value:\s*[\"']?([^\"'\s#]+)", re.MULTILINE
 )
@@ -62,6 +64,7 @@ class DeployCheckSettings:
     settle_minutes: int = DEFAULT_SETTLE_MINUTES
     baseline_hours: int = DEFAULT_BASELINE_HOURS
     min_requests: int = DEFAULT_MIN_REQUESTS
+    min_extra_errors: int = DEFAULT_MIN_EXTRA_ERRORS
 
 
 def _text(value: object, where: str) -> str:
@@ -132,6 +135,7 @@ def load_settings() -> DeployCheckSettings:
             settle_minutes=_positive(table, "settle_minutes", DEFAULT_SETTLE_MINUTES),
             baseline_hours=_positive(table, "baseline_hours", DEFAULT_BASELINE_HOURS),
             min_requests=_positive(table, "min_requests", DEFAULT_MIN_REQUESTS),
+            min_extra_errors=_positive(table, "min_extra_errors", DEFAULT_MIN_EXTRA_ERRORS),
         )
     except ConfigInvalid as error:
         raise ConfigInvalid(f"{path}: {error}") from None
@@ -160,10 +164,17 @@ def _read_values(repo: Path, values: str) -> dict:
     try:
         text = (repo / values).read_text(encoding="utf-8")
     except OSError:
-        return {"tag": None, "dd_version": None}
-    tag = TAG_LINE.search(text)
+        return {"tag": None, "tag_from_image": False, "dd_version": None}
+    block = IMAGE_BLOCK.search(text)
+    tag = TAG_LINE.search(block.group(1)) if block else None
+    from_image = tag is not None
+    tag = tag or TAG_LINE.search(text)
     dd = DD_VERSION_LIST.search(text) or DD_VERSION_MAP.search(text)
-    return {"tag": tag.group(1) if tag else None, "dd_version": dd.group(1) if dd else None}
+    return {
+        "tag": tag.group(1) if tag else None,
+        "tag_from_image": from_image,
+        "dd_version": dd.group(1) if dd else None,
+    }
 
 
 def deploy_of(argocd: Path, values: str) -> dict:
@@ -239,6 +250,18 @@ def _entry(
     else:
         moment = _utc(at)
         deploy = {"time": _iso(moment), "source": "at", **_read_values(service.argocd, values)}
+    if deploy["dd_version"] is None:
+        warnings.append(
+            f"{key}: no DD_VERSION found in {values} (file missing or without it);"
+            " the version check will be sem_dados"
+        )
+    if deploy["tag"] is None:
+        warnings.append(f"{key}: no image tag found in {values}")
+    elif not deploy["tag_from_image"]:
+        warnings.append(
+            f"{key}: no image: block with a tag: in {values}; the tag is the first tag: line"
+            " of the file and is informational"
+        )
     found = windows(moment, settings, _utc(now))
     return {
         "key": key,
@@ -289,6 +312,7 @@ def _params(
         "version_facet": service.version_facet,
         "expected_version": entry["deploy"]["dd_version"],
         "min_requests": settings.min_requests,
+        "min_extra_errors": settings.min_extra_errors,
         "checks": entry["checks"],
         "after_complete": found["complete"],
         "windows": {name: found[name] for name in ("before", "after", "baseline")},
