@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,16 @@ def test_plan_prints_json_in_order(configured, capsys):
 
 
 def test_plan_with_at_and_only(configured, capsys):
-    argv = ["deploy-check", "plan", "--env", "prod", "--at", "2026-11-03T14:00:00", "--only", "bff"]
+    argv = [
+        "deploy-check",
+        "plan",
+        "--env",
+        "prod",
+        "--at",
+        "2026-11-03T14:00:00Z",
+        "--only",
+        "bff",
+    ]
     assert main(argv) == 0
     plan = json.loads(capsys.readouterr().out)
     assert [item["key"] for item in plan["services"]] == ["bff"]
@@ -77,3 +87,35 @@ def test_unknown_env_service_or_bad_at(configured, capsys):
     with pytest.raises(SystemExit) as exc:
         main(["deploy-check", "plan", "--env", "sandbox", "--at", "yesterday"])
     assert exc.value.code == 2
+
+
+@pytest.fixture
+def local_tz(monkeypatch):
+    def use(name: str) -> None:
+        monkeypatch.setenv("TZ", name)
+        time.tzset()
+
+    yield use
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_naive_at_is_local_time_converted_to_utc(configured, capsys, local_tz):
+    local_tz("BRT3")  # UTC-3, no tz database needed
+    assert main(["deploy-check", "plan", "--env", "prod", "--at", "2026-11-03T09:00:00"]) == 0
+    deploy = json.loads(capsys.readouterr().out)["services"][0]["deploy"]
+    assert deploy["time"] == "2026-11-03T12:00:00Z"
+
+
+def test_at_with_an_offset_or_z_ignores_the_local_zone(configured, capsys, local_tz):
+    local_tz("BRT3")
+    for text in ("2026-11-03T12:00:00Z", "2026-11-03T14:00:00+02:00"):
+        assert main(["deploy-check", "plan", "--env", "prod", "--at", text]) == 0
+        deploy = json.loads(capsys.readouterr().out)["services"][0]["deploy"]
+        assert deploy["time"] == "2026-11-03T12:00:00Z"
+
+
+def test_help_says_naive_at_is_local_time(capsys):
+    with pytest.raises(SystemExit):
+        main(["deploy-check", "plan", "--help"])
+    assert "local time" in " ".join(capsys.readouterr().out.split())

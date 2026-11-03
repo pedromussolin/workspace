@@ -52,7 +52,7 @@ def _moment(text: str) -> datetime:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"{text!r} is not an ISO 8601 date and time") from None
-    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+    return parsed.astimezone(UTC)
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
@@ -61,7 +61,10 @@ def _common(parser: argparse.ArgumentParser) -> None:
         "--at",
         type=_moment,
         metavar="ISO",
-        help="Deploy moment (ISO 8601, UTC when it has no zone); default: the argocd commit.",
+        help=(
+            "Deploy moment, ISO 8601; without an offset it is local time of this machine "
+            "(converted to UTC); default: the argocd commit."
+        ),
     )
 
 
