@@ -871,7 +871,7 @@ def test_gh_pr_create_defaults_to_the_folder_and_the_body_file(env):
             "Cria PR em evil/repo",
         ),
         ("gh pr -R evil/repo edit 3 -t x", "Edita a PR 3 em evil/repo"),
-        ("gh --repo evil/repo pr merge 3", "Mescla o PR 3 em evil/repo"),
+        ("gh --repo evil/repo pr merge 3", "Mescla a PR 3 em evil/repo"),
         ("gh --repo=evil/repo pr comment 3 -b x", "Comenta a PR 3 em evil/repo"),
         ("gh -R evil/repo pr close 3 -R other/repo", "Fecha a PR 3 em other/repo"),
     ],
@@ -883,7 +883,7 @@ def test_gh_box_names_the_repo_given_before_the_group(command, first, env):
 def test_gh_pr_merge_box_calls_out_admin_and_delete_branch(env):
     text = box("gh pr merge 12 --squash --admin --delete-branch -R a/b", env)
 
-    assert "Mescla o PR 12 em a/b" in text
+    assert "Mescla a PR 12 em a/b" in text
     assert "Método: squash" in text
     assert "ATENÇÃO: --admin" in text
     assert "ATENÇÃO: --delete-branch" in text
@@ -1305,7 +1305,7 @@ def test_the_fsmonitor_loop_passes(env):
 @pytest.mark.parametrize(
     ("command", "title"),
     [
-        ("gh pr merge $N --squash", "Mescla o PR $N em /work (pasta atual)"),
+        ("gh pr merge $N --squash", "Mescla a PR $N em /work (pasta atual)"),
         ("gh pr create -t $TITLE", "Cria PR em /work (pasta atual)"),
         (
             "gh api repos/$o/$r/issues -f title=$T",
@@ -1457,7 +1457,7 @@ def test_two_findings_of_different_kinds_share_one_box(env):
     assert text.splitlines() == [
         "2 pedidos neste comando",
         "ATENÇÃO: Mexe num arquivo de proteção — `~/.claude/settings.json`",
-        "Mescla o PR 3 em /work (pasta atual)",
+        "Mescla a PR 3 em /work (pasta atual)",
     ]
 
 
@@ -2542,7 +2542,7 @@ def test_a_pr_merge_into_another_branch_asks_with_its_base(env, tmp_path):
     gh_env, _ = fake_gh(tmp_path, env, BASE_ANSWERS)
     lines = box("gh pr merge 8 -R o/app", gh_env).splitlines()
 
-    assert lines[:2] == ["Mescla o PR 8 em o/app", "Base: feature/base"]
+    assert lines[:2] == ["Mescla a PR 8 em o/app", "Base: feature/base"]
 
 
 @pytest.mark.parametrize(
@@ -2557,7 +2557,7 @@ def test_a_pr_merge_whose_base_is_unknown_asks_with_a_warning(command, body, env
     write_config(env, ENVIRONMENT_POLICY)
     gh_env, _ = fake_gh(tmp_path, env, body)
 
-    assert box(command, gh_env).splitlines()[1] == "ATENÇÃO: não consegui ver a base do PR"
+    assert box(command, gh_env).splitlines()[1] == "ATENÇÃO: não consegui ver a base da PR"
 
 
 def test_a_slow_pr_lookup_gives_up_within_the_hook_deadline(env, tmp_path):
@@ -2567,7 +2567,7 @@ def test_a_slow_pr_lookup_gives_up_within_the_hook_deadline(env, tmp_path):
     text = box("gh pr merge 7 -R o/app", gh_env)
 
     assert time.monotonic() - started < 4.5
-    assert "ATENÇÃO: não consegui ver a base do PR" in text
+    assert "ATENÇÃO: não consegui ver a base da PR" in text
 
 
 def test_a_pr_merge_through_gh_api_is_judged_by_its_base(env, tmp_path):

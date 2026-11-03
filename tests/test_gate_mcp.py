@@ -131,7 +131,7 @@ def test_github_merge_pull_request():
     decision = run(
         GH + "merge_pull_request", owner="o", repo="r", pullNumber=7, merge_method="squash"
     )
-    assert "Mesclar o PR o/r#7" in lines(decision)
+    assert "Mesclar a PR o/r#7" in lines(decision)
     assert "Método: squash" in lines(decision)
 
 
@@ -205,14 +205,14 @@ def test_github_issue_and_comment_writes():
         commentId=5,
         body="ok",
     )
-    assert "Responder ao comentário 5 do PR o/r#2" in lines(reply)
+    assert "Responder ao comentário 5 da PR o/r#2" in lines(reply)
 
 
 def test_github_pull_request_edits():
     update = run(
         GH + "update_pull_request", owner="o", repo="r", pullNumber=2, title="T", state="closed"
     )
-    assert "Alterar o PR o/r#2" in lines(update)
+    assert "Alterar a PR o/r#2" in lines(update)
     assert "Campos: title, state" in lines(update)
     review = run(
         GH + "pull_request_review_write",
@@ -223,10 +223,10 @@ def test_github_pull_request_edits():
         event="APPROVE",
         body="b",
     )
-    assert "Revisão (create) no PR o/r#2" in lines(review)
+    assert "Revisão (create) na PR o/r#2" in lines(review)
     assert "Evento: APPROVE" in lines(review)
     branch = run(GH + "update_pull_request_branch", owner="o", repo="r", pullNumber=2)
-    assert "Atualizar a branch do PR o/r#2 com a base" in lines(branch)
+    assert "Atualizar a branch da PR o/r#2 com a base" in lines(branch)
     scan = run(GH + "run_secret_scanning", owner="o", repo="r", files=["a", "b"])
     assert "Trechos: 2" in lines(scan)
 
@@ -321,7 +321,7 @@ def test_gitkraken_writes():
         approve=True,
         provider="github",
     )
-    assert "Revisão no PR 4 de o/r (aprovando)" in lines(review)
+    assert "Revisão na PR 4 de o/r (aprovando)" in lines(review)
     issue = run(KRAKEN + "issues_create", provider="jira", title="T", repository_name="TS")
     assert "Criar issue (jira) em /TS" in lines(issue)
     comment = run(KRAKEN + "issues_add_comment", provider="github", issue_id="3", comment="c")
@@ -891,7 +891,7 @@ def test_a_pr_merge_into_another_branch_asks_with_its_base(isolated_env, monkeyp
     fake_gh(isolated_env, monkeypatch, "echo feature/base")
 
     assert lines(merge(pullNumber="8"))[:2] == [
-        "Mesclar o PR o/deploy-argocd#8",
+        "Mesclar a PR o/deploy-argocd#8",
         "Base: feature/base",
     ]
 
@@ -912,7 +912,7 @@ def test_a_pr_merge_whose_base_is_unknown_asks_with_a_warning(
     log = fake_gh(isolated_env, monkeypatch, body)
     decision = merge(**changes)
 
-    assert lines(decision)[1] == "ATENÇÃO: não consegui ver a base do PR"
+    assert lines(decision)[1] == "ATENÇÃO: não consegui ver a base da PR"
     if changes:
         assert not log.exists()
 

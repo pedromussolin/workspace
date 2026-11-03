@@ -184,7 +184,7 @@ def _github_create_pull_request(inputs: dict) -> list[str]:
 def _github_merge_pull_request(inputs: dict) -> list[str]:
     method = _text(inputs, "merge_method") or "merge (padrão)"
     return (
-        [f"Mesclar o PR {_issue_ref(inputs, 'pullNumber')}", f"Método: {method}"]
+        [f"Mesclar a PR {_issue_ref(inputs, 'pullNumber')}", f"Método: {method}"]
         + _line("Título do commit", inputs.get("commit_title"))
         + _body("Mensagem do commit", inputs.get("commit_message"))
     )
@@ -267,14 +267,14 @@ def _github_update_issue_comment(inputs: dict) -> list[str]:
 
 def _github_add_reply(inputs: dict) -> list[str]:
     comment, pull = _text(inputs, "commentId"), _issue_ref(inputs, "pullNumber")
-    where = f"Responder ao comentário {comment} do PR {pull}"
+    where = f"Responder ao comentário {comment} da PR {pull}"
     return [where] + _body("Texto", inputs.get("body")) + _line("Reação", inputs.get("reaction"))
 
 
 def _github_update_pull_request(inputs: dict) -> list[str]:
     changed = [key for key in inputs if key not in PLAIN_KEYS | {"pullNumber"}]
     return (
-        [f"Alterar o PR {_issue_ref(inputs, 'pullNumber')}"]
+        [f"Alterar a PR {_issue_ref(inputs, 'pullNumber')}"]
         + _line("Campos", ", ".join(changed))
         + _line("Título", inputs.get("title"))
         + _body("Corpo", inputs.get("body"))
@@ -284,12 +284,12 @@ def _github_update_pull_request(inputs: dict) -> list[str]:
 
 
 def _github_review_write(inputs: dict) -> list[str]:
-    head = f"Revisão ({_text(inputs, 'method')}) no PR {_issue_ref(inputs, 'pullNumber')}"
+    head = f"Revisão ({_text(inputs, 'method')}) na PR {_issue_ref(inputs, 'pullNumber')}"
     return [head] + _line("Evento", inputs.get("event")) + _body("Texto", inputs.get("body"))
 
 
 def _github_update_pr_branch(inputs: dict) -> list[str]:
-    return [f"Atualizar a branch do PR {_issue_ref(inputs, 'pullNumber')} com a base"]
+    return [f"Atualizar a branch da PR {_issue_ref(inputs, 'pullNumber')} com a base"]
 
 
 def _github_secret_scanning(inputs: dict) -> list[str]:
@@ -437,7 +437,7 @@ def _kraken_pull_request(inputs: dict) -> list[str]:
 
 
 def _kraken_review(inputs: dict) -> list[str]:
-    head = f"Revisão no PR {_text(inputs, 'pull_request_id')} de {_kraken_repo(inputs)}"
+    head = f"Revisão na PR {_text(inputs, 'pull_request_id')} de {_kraken_repo(inputs)}"
     lines = [head + (" (aprovando)" if inputs.get("approve") else "")]
     return lines + _body("Texto", inputs.get("review"))
 

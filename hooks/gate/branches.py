@@ -29,7 +29,7 @@ DEFAULT_BRANCH_EN = "the default branch"
 DEFAULT_BRANCH_PT = "a branch padrão"
 UNKNOWN_REPO_EN = "a repository the gate could not name"
 UNKNOWN_TARGET = "ATENÇÃO: não consegui ver a branch de destino"
-UNKNOWN_BASE = "ATENÇÃO: não consegui ver a base do PR"
+UNKNOWN_BASE = "ATENÇÃO: não consegui ver a base da PR"
 # The hook has 5 s; the lookup runs alongside the MCP confidentiality check, not after it.
 LOOKUP_TIMEOUT = 3.0
 BRANCH_NAME = re.compile(r"[A-Za-z0-9._/+-]{1,255}")

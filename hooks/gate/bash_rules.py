@@ -1211,7 +1211,7 @@ def _gh_change(
             lines.append(f"Título: {text}")
     elif (group, action) == ("pr", "merge"):
         method = next((GH_MERGE_METHODS[n] for n, _ in parsed.flags if n in GH_MERGE_METHODS), None)
-        title = f"Mescla o PR {target or 'da branch atual'} em {repo}"
+        title = f"Mescla a PR {target or 'da branch atual'} em {repo}"
         lines = []
         if rules := branches.policy():
             line, denied = _merge_base(rules, parsed, given, cwd)
