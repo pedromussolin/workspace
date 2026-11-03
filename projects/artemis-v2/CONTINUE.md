@@ -97,14 +97,16 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-Todas as branches de 03/11 estão commitadas (árvore igual à aprovada, testes em cada commit) e no
-remoto.
+**Releases para a sandbox (03/11, à noite), todas publicadas e testadas localmente:**
+- cessão: `release/20261103` (produção, depois dos testes) e `release/20261103-sdbx`, PR #2739;
+- BFF e front: `feature/TS-5536-adapta-release-20261030` (a TS-5536 com a fase 2 e a TS-5435,
+  adaptada à `release/20261030`) entrou só na `release/20261030-sdbx`: PRs #261 (BFF) e #283
+  (front). A `release/20261030` de produção não tem nada da Artemis.
 
-1. Montar `release/20261103` nos três repos (TS-5435 com a fase 2, as branches da TS-5536, a
-   TS-5537 e a `master`); resolver no BFF o conflito em `test_viewer_delete.py`; PR da release
-   para a sandbox (ou `-sdbx` se conflitar) e passar os links ao Pietro.
+1. Pietro mergeia na sandbox na ordem cessão #2739 → BFF #261 → front #283 (sem a cessão, a tela
+   de lotes fake da sandbox quebra).
 2. 04/11: tradução para PT-BR do `refact.py` e afins (decidir o escopo antes).
 3. Semana: testes de tela na sandbox (S1–S14 de `tasks/02-03-sandbox-tests.md` mais listagem com
    aptos, exclusão, acompanhamento e expandir a linha).
-4. Antes da `master`: o time confirma a liberação dos 10 contratos do B18; argocd do worker só
-   com a imagem nova; B24 com a infra.
+4. Produção: nova release do BFF e do front a partir da `master` pós-20261030 com a branch de
+   adaptação; cessão pela `release/20261103`. B18 com o time; argocd do worker só com a imagem nova.
