@@ -1,9 +1,11 @@
 """The approval gate's rules for Bash: which commands write outside the machine, and the box text.
 
 `decide(command, cwd)` splits the command with `shell.scan` (so `bash -c`, `eval`, `$(...)` and
-heredocs are looked at) and returns one decision. Families, each with its own PT-BR box: `git
-push` (and what redirects it), `gh`, `curl`/`wget`, `ws card apply`, the protection of the Claude
-Code settings and hooks, and commands the gate cannot read with certainty. Everything else passes.
+heredocs are looked at) and returns one decision. A variable the command assigns a literal value
+(`A="git -C x"; $A log`) is resolved first by `variables.worlds`, and every resolved text is
+judged; the strictest decision wins. Families, each with its own PT-BR box: `git push` (and what
+redirects it), `gh`, `curl`/`wget`, `ws card apply`, the protection of the Claude Code settings
+and hooks, and commands the gate cannot read with certainty. Everything else passes.
 
 "Unquoted" for the obfuscation rule: an expansion that the shell does not keep as one literal
 argument, that is a `$`, a backtick or a brace expansion (`{a,b}`, `{1..3}`) outside every quote.
@@ -53,7 +55,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from . import branches, shell
+from . import branches, shell, variables
 from .decision import PASS, Decision, ask, body_summary, cut, deny, trigger
 from .shell import Command, Scan, Word, program_name
 
@@ -1846,7 +1848,7 @@ def _combine(findings: list[Finding]) -> Decision:
     return ask(title, lines)
 
 
-def decide(command: str, cwd: str) -> Decision:
+def _decide_text(command: str, cwd: str) -> Decision:
     # Checked before any parser or regex runs: a huge word could make them slow past the deadline.
     if any(len(part) > MAX_WORD for part in command.split()):
         return ask(TITLE_UNSURE, ["Uma palavra do comando passa de 4 KB; não a leio"])
@@ -1876,3 +1878,22 @@ def decide(command: str, cwd: str) -> Decision:
             )
         )
     return _combine(findings)
+
+
+def decide(command: str, cwd: str) -> Decision:
+    """The decision for a command, judged on each text `variables.worlds` resolves it to.
+
+    The strictest wins (deny, then ask, then pass); an ask keeps the box of the first text that
+    asks, which is the one with every value when that one asks.
+    """
+    # Checked before any parser or regex runs: a huge word could make them slow past the deadline.
+    if any(len(part) > MAX_WORD for part in command.split()):
+        return _decide_text(command, cwd)
+    chosen = PASS
+    for text in variables.worlds(command):
+        decision = _decide_text(text, cwd)
+        if decision.kind == "deny":
+            return decision
+        if decision.kind == "ask" and chosen.kind == "pass":
+            chosen = decision
+    return chosen
