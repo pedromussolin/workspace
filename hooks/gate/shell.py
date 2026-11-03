@@ -272,12 +272,14 @@ class Word:
     """One argument with its quotes removed.
 
     `bare`: it holds a `$`, a backtick or a brace expansion outside every quote. `expands`: the
-    same, but a `$` or backtick inside double quotes counts too (single quotes never do).
+    same, but a `$` or backtick inside double quotes counts too (single quotes never do). `tilde`:
+    it starts with an unquoted `~`, which the shell expands (`"~/x"` is a folder named `~`).
     """
 
     text: str
     bare: bool = False
     expands: bool = False
+    tilde: bool = False
 
 
 def script_word(args: list[Word]) -> Word | None:
@@ -294,12 +296,16 @@ def _is_c_flag(arg: str) -> bool:
 
 @dataclass
 class Command:
+    """One simple command. `piped`: a pipe feeds it. `separator`: the operator that ends it
+    (`&&`, `;`, `|`...), `"\\n"` for a newline and `""` at the end of the text."""
+
     words: list[Word] = field(default_factory=list)
     writes: list[str] = field(default_factory=list)
     piped: bool = False
     reads: list[str] = field(default_factory=list)
     here_string: str | None = None
     inner: list[str] = field(default_factory=list)
+    separator: str = ""
 
     @property
     def reads_file(self) -> bool:
@@ -592,7 +598,8 @@ def _read_word(text: str, start: int) -> tuple[Word, int]:
             bare.append(char)
             index += 1
     brace = bool(BRACE_EXPANSION.search("".join(bare)))
-    return Word("".join(value), bare_expansion or brace, expands or brace), index
+    tilde = bare[:1] == ["~"]
+    return Word("".join(value), bare_expansion or brace, expands or brace, tilde), index
 
 
 def parse_commands(text: str) -> list[Command]:
@@ -602,9 +609,10 @@ def parse_commands(text: str) -> list[Command]:
     redirect: str | None = None
     index, size = 0, len(text)
 
-    def finish(next_piped: bool = False) -> None:
+    def finish(next_piped: bool = False, separator: str = "") -> None:
         nonlocal current, redirect
         if current.words or current.writes or current.here_string is not None:
+            current.separator = separator
             commands.append(current)
         current = Command(piped=next_piped)
         redirect = None
@@ -616,7 +624,7 @@ def parse_commands(text: str) -> list[Command]:
         elif text.startswith("\\\n", index):
             index += 2
         elif char == "\n":
-            finish()
+            finish(separator="\n")
             index += 1
         elif char == "#":
             end = text.find("\n", index)
@@ -630,7 +638,7 @@ def parse_commands(text: str) -> list[Command]:
             operator = next(op for op in OPERATORS if text.startswith(op, index))
             index += len(operator)
             if operator in SEPARATORS:
-                finish(operator in ("|", "|&"))
+                finish(operator in ("|", "|&"), operator)
             else:
                 redirect = operator
         else:

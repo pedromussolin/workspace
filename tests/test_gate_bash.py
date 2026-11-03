@@ -618,7 +618,6 @@ def test_push_without_asking_follows_symlinks_to_the_listed_folder(listed_repo, 
         "git -C /elsewhere push",
         "cd /elsewhere && git push",
         "pushd /elsewhere; git push",
-        "git push; cd /elsewhere",
         "(cd /elsewhere && git push)",
         "bash -c 'cd /elsewhere && git push'",
         "git -C /elsewhere status && git push",
@@ -629,8 +628,6 @@ def test_push_without_asking_follows_symlinks_to_the_listed_folder(listed_repo, 
         "/usr/bin/git push",
         "git push $REMOTE",
         "git remote set-url origin https://example.com/x.git && git push",
-        "git push; echo ok",
-        "echo ok && git push",
         "export X=1; git push",
         "read X; git push",
         "true | git push",
@@ -642,6 +639,166 @@ def test_push_without_asking_follows_symlinks_to_the_listed_folder(listed_repo, 
 )
 def test_push_exception_refuses_anything_beyond_the_plain_push(command, listed_repo, env):
     assert box(command, env, cwd=str(listed_repo))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push; echo ok",
+        "echo ok && git push",
+        "git push; cd /elsewhere",
+        "git push -q 2>&1 | tail -3",
+        "git push -q |& tail -3",
+        "git add a.txt && git commit -q -m 'docs: x' && git push -q 2>&1 | tail -3",
+        "git pull --rebase -q; git push --quiet",
+        "git pull -q --ff-only && git pull --no-rebase && git push",
+        "git status -sb && git log --oneline -3 && git diff --stat HEAD && git push",
+        "git --no-pager log -1 && git rev-parse --short HEAD && git show --stat && git push",
+        "git ls-files | wc -l; git blame a.txt | head -1; git push",
+        "cat a.txt | grep -c x; ls; pwd; stat a.txt; jq . f.json; git push",
+        "git add a.txt\ngit commit -q -m x\ngit push -q\ngit status -sb | head -1",
+        "git commit -q -F - <<'EOF'\nfeat: x\n\nbody\nEOF\ngit push -q",
+        "git commit -q -F - <<'EOF' && git push -q\nfeat: x\nEOF",
+        "git commit -q -m x &&\n  git push -q # done",
+        "echo \"$HOME\" && printf '%s\\n' ok && git push",
+    ],
+)
+def test_a_push_in_a_line_that_only_adds_commits_pulls_and_reads_shows_no_box(
+    command, listed_repo, env
+):
+    assert box(command, env, cwd=str(listed_repo)) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd ~/repo && git push",
+        "cd ~/repo && git add a.txt && git commit -q -m 'x' && git push -q 2>&1 | tail -3",
+        "cd {repo} && git pull -q --ff-only && git add -A && git commit -m x && git push",
+        "cd ~/repo &&\ngit add a.txt &&\ngit commit -q -m x &&\ngit push -q",
+        "cd ~ && cd ./repo && git push",
+        "cd ~/repo/.git && cd .. && git push",
+        "cd /elsewhere; cd ~/repo && git push",
+        'R=~/repo; cd "$R" && git push',
+        "D=~/repo; cd $D && git push",
+        "cd ~/repo && git push && echo pushed | wc -l",
+    ],
+)
+def test_a_push_after_cd_to_a_listed_folder_shows_no_box(command, listed_repo, env, tmp_path):
+    assert box(command.format(repo=listed_repo), env, cwd=str(tmp_path)) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd ~/repo || true; git push",
+        "cd ~/repo && git push &",
+        "cd ~/repo & git push",
+        "(cd ~/repo && git push)",
+        "cd ~/repo && (git push)",
+        "cd ~/repo && { git push; }",
+        "cd ~/repo; git push",
+        "cd ~/repo\ngit add a.txt\ngit push",
+        "cd ~/repo && git push origin main",
+        "cd ~/repo && git push origin",
+        "cd ~/repo && git push -u",
+        "cd ~/repo && git push --force",
+        "cd ~/repo && git push --tags",
+        "cd ~/repo && git push --no-verify",
+        "cd ~/repo && git push -q -q",
+        "cd ~/repo && git -C . push",
+        "cd ~/repo && git -c core.sshCommand=x push",
+        "cd ~/repo && git --no-pager push",
+        "cd ~/repo && git -C ~/repo status && git push",
+        "cd ~/repo && git -c x.y=z status && git push",
+        "cd ~/repo && git --git-dir=.git status && git push",
+        "cd ~/repo && git config user.name x && git push",
+        "cd ~/repo && git remote -v && git push",
+        "cd ~/repo && git checkout -q main && git push",
+        "cd ~/repo && git switch main && git push",
+        "cd ~/repo && git branch -u origin/x && git push",
+        "cd ~/repo && git rebase main && git push",
+        "cd ~/repo && git reset -q && git push",
+        "cd ~/repo && git merge -q x && git push",
+        "cd ~/repo && git worktree list && git push",
+        "cd ~/repo && git fetch -q && git push",
+        "cd ~/repo && git grep -Ocat x && git push",
+        "cd ~/repo && git log --output=.git/config && git push",
+        "cd ~/repo && git log --outp=.git/config && git push",
+        "cd ~/repo && git pull origin main && git push",
+        "cd ~/repo && git pull --set-upstream && git push",
+        "cd ~/repo && git pull --rebase=interactive && git push",
+        "cd ~/repo && git push > /tmp/out",
+        "cd ~/repo && git push 2>/dev/null",
+        "cd ~/repo && git push < /dev/null",
+        "cd ~/repo && git push | tee out",
+        "cd ~/repo && git push | sh",
+        "cd ~/repo && echo x | git push",
+        "cd ~/repo && uv run pytest -q && git push",
+        "cd ~/repo && rg --pre sh x && git push",
+        "cd ~/repo && less a.txt && git push",
+        "cd ~/repo && printf -v PATH %s /tmp && git push",
+        "cd ~/repo && sed -n 1p a.txt && git push",
+        "cd ~/repo && echo $(git remote -v) && git push",
+        "cd ~/repo && echo `true` && git push",
+        'cd ~/repo && git commit -m "$(echo x)" && git push',
+        "cd ~/repo && cat <(true) && git push",
+        "cd ~/repo && bash -c 'true' && git push",
+        "cd ~/repo && bash <<'EOF'\ntrue\nEOF\ngit push",
+        "cd ~/repo && cat <<EOF\n$(true)\nEOF\ngit push",
+        "cd ~/repo && git push <<< x",
+        "cd ~/repo && for x in 1; do git push; done",
+        "cd ~/repo && if true; then git push; fi",
+        "f() { cd ~/repo; }; f && git push",
+        "cd ~/repo && env git push",
+        "cd ~/repo && command git push",
+        "cd ~/repo && /usr/bin/git push",
+        "cd ~/repo && X=1 git push",
+        "cd ~/repo && export X=1 && git push",
+        "PATH=/tmp:/usr/bin; cd ~/repo && git push",
+        "GIT_DIR=/elsewhere/.git; cd ~/repo && git push",
+        "HOME=/elsewhere; cd ~/repo && git push",
+        'cd "~/repo" && git push',
+        "cd '~'/repo && git push",
+        "cd \\~/repo && git push",
+        "cd ~nobody/repo && git push",
+        "cd ~+/repo && git push",
+        "cd home/repo && git push",
+        "cd $D && git push",
+        "cd ~/re* && git push",
+        "cd - && git push",
+        "cd -P ~/repo && git push",
+        "cd && git push",
+        "cd ~/repo | cat && git push",
+        "cd /elsewhere && git push",
+        "pushd ~/repo && git push",
+        "cd ~/repo && git push && git push origin feature",
+    ],
+)
+def test_a_longer_push_line_outside_the_no_box_shape_asks(command, listed_repo, env, tmp_path):
+    assert box(command, env, cwd=str(tmp_path))
+
+
+def test_a_push_after_cd_needs_a_cwd_only_for_a_relative_folder(listed_repo, env):
+    assert box(f"cd {listed_repo} && git push", env, cwd="") is None
+    assert box(f"cd {listed_repo.parent} && cd ./repo && git push", env, cwd="") is None
+    assert box("cd ./repo && git push", env, cwd="")
+
+
+def test_a_push_after_cd_is_checked_in_the_folder_it_enters(listed_repo, env, tmp_path):
+    _git(["config", "--local", "core.sshCommand", "ssh -i hidden-value"], listed_repo, tmp_path)
+    text = box("cd ~/repo && git add a.txt && git push -q 2>&1 | tail -3", env, cwd=str(tmp_path))
+
+    assert "ATENÇÃO: a configuração local do repositório define core.sshcommand" in text
+    assert ", pasta ~/repo" in text
+    assert "hidden-value" not in text
+
+
+def test_a_push_after_cd_reads_the_branch_of_the_folder_it_enters(repo_ahead, env, tmp_path):
+    command = f"cd {repo_ahead} && git status -sb && git push -q 2>&1 | tail -3"
+    lines = box(command, env, cwd=str(tmp_path)).splitlines()
+
+    assert lines[1].startswith("feature/x → o remoto padrão, 2 commits à frente, pasta /")
 
 
 def test_the_no_box_push_reads_the_worktree_config_too(listed_repo, env, tmp_path):
@@ -1446,9 +1603,12 @@ def test_a_shell_with_a_literal_script_is_read_not_questioned(command, env):
 
 
 def test_push_box_warns_when_the_command_changes_folder(env):
-    text = box("cd /srv/other && git push", env, cwd="/srv/repo")
+    text = box("cd /srv/other && git push origin x", env, cwd="/srv/repo")
 
     assert "muda de pasta" in text
+    followed = box("cd /srv/other && git push", env, cwd="/srv/repo")
+    assert "o remoto padrão, pasta /srv/other" in followed
+    assert "muda de pasta" not in followed
 
 
 def test_two_findings_of_different_kinds_share_one_box(env):
@@ -2371,6 +2531,18 @@ def test_the_no_box_push_comes_before_the_environment_policy(listed_repo, env):
     )
 
     assert box("git push origin main", env, cwd=str(listed_repo)) is None
+    assert box("cd ~/repo && git add x && git push -q", env, cwd="/work") is None
+
+
+def test_an_environment_push_after_cd_is_denied_by_the_branch_of_that_folder(make_repo, env):
+    repo = make_repo("app")
+    write_config(env, ENVIRONMENT_POLICY)
+    command = f"cd {repo} && git add b.txt && git commit -q -m x && git push -q 2>&1 | tail -3"
+
+    assert denial(command, env, cwd="/work") == (
+        "Blocked: main is an environment branch of app; "
+        "push a task branch and open a PR for the user to merge."
+    )
 
 
 def test_a_listed_repo_asks_instead_of_denying_an_environment_push_in_a_longer_line(
