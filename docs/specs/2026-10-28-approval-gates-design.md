@@ -97,17 +97,21 @@ never exits non-zero: Claude Code treats other codes as non-blocking and the gat
 Built by `decision.ask_text(title, lines)`:
 
 ```
-Gravar fora — GitHub
-Criar PR em pedromussolin/workspace: feature/x → main
+Cria PR em pedromussolin/workspace
+feature/x → main
 Título: docs: release com as decisões
 Corpo: 3 linhas (primeira: "Resumo da mudança…")
-"Yes" aprova só esta chamada.
 ```
 
-At most 10 lines, each cut at 160 characters with "…"; long bodies show the first line and a line
-count. Values are shown as data, quoted where they come from the call. Whether the box renders
-several lines is not documented: the user checks it in the review, and the helper is the single
-place to change if it does not.
+The first line says what is at stake (at most 60 characters), then at most 3 lines, each one a
+reason and the shortest piece of the command that triggered it (`reason — \`piece\``), so the user
+finds the trigger in the command Claude Code already shows above the box. Equal reasons merge with
+a count ("3 vezes"); several different findings give "N pedidos neste comando". There is no footer
+and the box never repeats the command. Lines are cut at 100 characters, except `ATENÇÃO:` lines
+(real danger: push to an environment branch or a URL typed in the command, credential read, change
+to the Claude Code protection), which are never cut nor folded. Long bodies show the line count and
+the first line. Whether the box renders several lines is not documented: the user checks it in the
+review, and the helper is the single place to change if it does not.
 
 ### Bash rules
 

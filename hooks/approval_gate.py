@@ -24,7 +24,6 @@ from pathlib import Path
 PACKAGE = "workspace_gate"
 
 FAILURE_TITLE = "Não consegui ler esta chamada"
-FAILURE_ADVICE = "Confira o comando antes de aprovar."
 LATE_TITLE = "Não consegui ler esta chamada a tempo"
 DEADLINE_SECONDS = 5.0
 
@@ -72,7 +71,7 @@ def route(payload: dict) -> str | None:
 
 
 def failure(error: Exception) -> str:
-    lines = [f"Erro: {type(error).__name__}: {error}", FAILURE_ADVICE]
+    lines = [f"Erro: {type(error).__name__}: {error}"]
     try:
         decision = gate("decision")
         output = decision.to_output(decision.ask(FAILURE_TITLE, lines))
@@ -98,7 +97,7 @@ def _ask_json(reason: str) -> str:
 
 def _late(signum, frame) -> None:
     """Out of time: answer `ask` and leave at once, whatever the rules were doing."""
-    reason = "\n".join([LATE_TITLE, FAILURE_ADVICE, '"Yes" aprova só esta chamada.'])
+    reason = LATE_TITLE
     os.write(1, _ask_json(reason).encode("utf-8") + b"\n")
     os._exit(0)
 

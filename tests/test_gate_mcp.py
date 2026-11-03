@@ -66,7 +66,7 @@ def test_unlisted_tool_and_unknown_server_ask():
     assert run(GH + "brand_new_tool").kind == "ask"
     unknown = run("mcp__some_new_server__do_it", a=1)
     assert unknown.kind == "ask"
-    assert lines(unknown)[0] == "Gravar fora — some_new_server"
+    assert lines(unknown)[0] == "Grava fora: do_it"
 
 
 def test_auth_only_servers_ask():
@@ -99,15 +99,14 @@ def test_the_user_scope_github_server_has_the_same_pass_list_as_the_plugin():
         files=[{"path": "a.md", "content": "1"}],
     )
     assert push.kind == "ask"
-    assert lines(push)[0] == "Gravar fora — GitHub"
-    assert "Enviar 1 arquivo(s) para o/r (branch b)" in lines(push)
+    assert lines(push)[0] == "Enviar 1 arquivo(s) para o/r (branch b)"
 
 
 @pytest.mark.parametrize("name", ["", "mcp__", "mcp__server", "mcp____tool", "other__a__b"])
 def test_malformed_names_ask_generically(name):
     decision = mcp_rules.decide(name, {"k": "v"}, "/tmp")
     assert decision.kind == "ask"
-    assert lines(decision)[0] == "Gravar fora — ferramenta MCP"
+    assert lines(decision)[0] == "Ferramenta MCP com nome não reconhecido"
 
 
 def test_github_create_pull_request():
@@ -120,9 +119,9 @@ def test_github_create_pull_request():
         title="docs: algo",
         body="Resumo\nlinha 2",
     )
-    assert lines(decision)[:4] == [
-        "Gravar fora — GitHub",
-        "Criar PR em octo/repo: feature/x → main",
+    assert lines(decision) == [
+        "Cria PR em octo/repo",
+        "feature/x → main",
         "Título: docs: algo",
         'Corpo: 2 linhas (primeira: "Resumo")',
     ]
@@ -132,7 +131,7 @@ def test_github_merge_pull_request():
     decision = run(
         GH + "merge_pull_request", owner="o", repo="r", pullNumber=7, merge_method="squash"
     )
-    assert "Mesclar o PR o/r#7" in lines(decision)
+    assert "Mesclar a PR o/r#7" in lines(decision)
     assert "Método: squash" in lines(decision)
 
 
@@ -146,7 +145,7 @@ def test_github_file_writes():
         message="msg",
         content="x\ny",
     )
-    assert lines(put)[1:5] == [
+    assert lines(put) == [
         "Gravar arquivo em o/r (branch b)",
         "Caminho: a/b.md",
         "Mensagem: msg",
@@ -173,7 +172,7 @@ def test_github_repository_level_writes():
     created = run(GH + "create_repository", name="novo", private=True)
     assert "Criar o repositório novo (privado)" in lines(created)
     public = run(GH + "create_repository", name="novo")
-    assert "PÚBLICO" in lines(public)[1]
+    assert "PÚBLICO" in lines(public)[0]
     assert "APAGAR o repositório o/r (destrutivo, sem volta)" in lines(
         run(GH + "delete_repository", owner="o", repo="r")
     )
@@ -184,7 +183,7 @@ def test_github_repository_level_writes():
 
 def test_github_issue_and_comment_writes():
     issue = run(GH + "issue_write", method="create", owner="o", repo="r", title="T", body="B")
-    assert lines(issue)[1:4] == [
+    assert lines(issue) == [
         "Criar issue em o/r",
         "Título: T",
         'Corpo: 1 linha (primeira: "B")',
@@ -206,14 +205,14 @@ def test_github_issue_and_comment_writes():
         commentId=5,
         body="ok",
     )
-    assert "Responder ao comentário 5 do PR o/r#2" in lines(reply)
+    assert "Responder ao comentário 5 da PR o/r#2" in lines(reply)
 
 
 def test_github_pull_request_edits():
     update = run(
         GH + "update_pull_request", owner="o", repo="r", pullNumber=2, title="T", state="closed"
     )
-    assert "Alterar o PR o/r#2" in lines(update)
+    assert "Alterar a PR o/r#2" in lines(update)
     assert "Campos: title, state" in lines(update)
     review = run(
         GH + "pull_request_review_write",
@@ -224,10 +223,10 @@ def test_github_pull_request_edits():
         event="APPROVE",
         body="b",
     )
-    assert "Revisão (create) no PR o/r#2" in lines(review)
+    assert "Revisão (create) na PR o/r#2" in lines(review)
     assert "Evento: APPROVE" in lines(review)
     branch = run(GH + "update_pull_request_branch", owner="o", repo="r", pullNumber=2)
-    assert "Atualizar a branch do PR o/r#2 com a base" in lines(branch)
+    assert "Atualizar a branch da PR o/r#2 com a base" in lines(branch)
     scan = run(GH + "run_secret_scanning", owner="o", repo="r", files=["a", "b"])
     assert "Trechos: 2" in lines(scan)
 
@@ -241,8 +240,7 @@ def test_jira_writes_on_both_servers():
         summary="Resumo",
         description="Desc",
     )
-    assert lines(create)[:3] == [
-        "Gravar fora — Jira",
+    assert lines(create)[:2] == [
         "Criar issue no projeto TS (tipo Task)",
         "Resumo: Resumo",
     ]
@@ -282,11 +280,7 @@ def test_confluence_writes():
     create = run(
         JIRA + "createConfluencePage", cloudId="c", spaceId="12", title="Página", body="a\nb"
     )
-    assert lines(create)[:3] == [
-        "Gravar fora — Confluence",
-        "Criar página no espaço 12",
-        "Título: Página",
-    ]
+    assert lines(create)[:2] == ["Criar página no espaço 12", "Título: Página"]
     update = run(
         CLOUD + "updateConfluenceContent",
         cloudId="c",
@@ -307,11 +301,7 @@ def test_confluence_writes():
 
 def test_gitkraken_writes():
     push = run(KRAKEN + "git_push", directory="/work/repo")
-    assert lines(push)[:3] == [
-        "Gravar fora — GitKraken",
-        "Enviar commits (git push)",
-        "Pasta: /work/repo",
-    ]
+    assert lines(push) == ["Enviar commits (git push)", "Pasta: /work/repo"]
     pr = run(
         KRAKEN + "pull_request_create",
         repository_organization="o",
@@ -321,7 +311,7 @@ def test_gitkraken_writes():
         title="T",
         provider="github",
     )
-    assert "Criar PR em o/r: a → b" in lines(pr)
+    assert "Cria PR em o/r" in lines(pr)
     review = run(
         KRAKEN + "pull_request_create_review",
         repository_organization="o",
@@ -331,7 +321,7 @@ def test_gitkraken_writes():
         approve=True,
         provider="github",
     )
-    assert "Revisão no PR 4 de o/r (aprovando)" in lines(review)
+    assert "Revisão na PR 4 de o/r (aprovando)" in lines(review)
     issue = run(KRAKEN + "issues_create", provider="jira", title="T", repository_name="TS")
     assert "Criar issue (jira) em /TS" in lines(issue)
     comment = run(KRAKEN + "issues_add_comment", provider="github", issue_id="3", comment="c")
@@ -343,12 +333,9 @@ def test_generic_fallback_caps_lines_and_compacts_json():
     inputs["k0"] = {"a": [1, 2]}
     decision = mcp_rules.decide("mcp__plugin_datadog_mcp__upsert_datadog_dashboard", inputs, "/tmp")
     shown = lines(decision)
-    assert shown[0] == "Gravar fora — Datadog"
-    assert shown[1] == "Ferramenta: upsert_datadog_dashboard"
-    assert shown[2] == 'k0: {"a":[1,2]}'
-    assert shown[-3] == "k5: 5"
-    assert shown[-2] == "(+3 campos)"
-    assert len(shown) == 10
+    assert shown[0] == "Grava fora: upsert_datadog_dashboard"
+    assert shown[1] == 'k0: {"a":[1,2]}'
+    assert shown[2:] == ["k1: 1", "(+7 campos)"]
 
 
 def test_summary_survives_unexpected_shapes():
@@ -357,12 +344,12 @@ def test_summary_survives_unexpected_shapes():
     assert mcp_rules.decide(GH + "push_files", None, "/tmp").kind == "ask"
 
 
-def test_no_owners_configured_asks_with_off_line():
+def test_no_owners_configured_asks_without_checking():
     decision = run(
         GH + "create_pull_request", owner="octo", repo="r", head="a", base="b", title="T"
     )
     assert decision.kind == "ask"
-    assert lines(decision)[-2] == mcp_rules.SIGILO_OFF
+    assert "Sigilo" not in decision.reason
 
 
 def test_non_personal_owner_has_no_sigilo_line(isolated_env):
@@ -371,14 +358,14 @@ def test_non_personal_owner_has_no_sigilo_line(isolated_env):
     assert "Sigilo" not in decision.reason
 
 
-def test_clean_content_asks_with_checked_line(isolated_env):
+def test_clean_content_asks_after_the_check(isolated_env):
     set_owners("Me")
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
     decision = run(
         GH + "add_issue_comment", owner="me", repo="r", issue_number=1, body="tudo certo"
     )
     assert decision.kind == "ask"
-    assert lines(decision)[-2] == mcp_rules.SIGILO_CHECKED
+    assert "Sigilo" not in decision.reason
     assert "tudo certo" in (isolated_env / "seen.txt").read_text(encoding="utf-8")
 
 
@@ -524,7 +511,8 @@ def test_gitkraken_without_an_owner_is_checked_unless_the_provider_is_another(is
     set_owners("me")
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
     unknown = run(KRAKEN + "issues_add_comment", issue_id="3", comment="oi", provider="github")
-    assert lines(unknown)[-2] == mcp_rules.SIGILO_CHECKED
+    assert unknown.kind == "ask"
+    assert "oi" in (isolated_env / "seen.txt").read_text(encoding="utf-8")
     jira = run(KRAKEN + "issues_create", provider="jira", title="T", repository_name="TS")
     assert "Sigilo" not in jira.reason
 
@@ -538,10 +526,12 @@ def test_fork_is_checked_by_its_target_not_its_source(isolated_env):
     set_owners("me")
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
     to_me = run(GH + "fork_repository", owner="company", repo="app", organization="me")
-    assert lines(to_me)[-2] == mcp_rules.SIGILO_CHECKED
+    assert to_me.kind == "ask"
     assert "company/app" in (isolated_env / "seen.txt").read_text(encoding="utf-8")
+    (isolated_env / "seen.txt").unlink()
     to_account = run(GH + "fork_repository", owner="company", repo="app")
-    assert lines(to_account)[-2] == mcp_rules.SIGILO_CHECKED
+    assert to_account.kind == "ask"
+    assert (isolated_env / "seen.txt").exists()
     to_company = run(GH + "fork_repository", owner="me", repo="app", organization="company")
     assert "Sigilo" not in to_company.reason
 
@@ -560,7 +550,8 @@ def test_a_github_write_without_an_owner_is_checked(isolated_env, owner):
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 0)
     call = {"repo": "r", "issue_number": 1, "body": "oi"}
     decision = run(GH + "add_issue_comment", **call, **({} if owner is None else {"owner": owner}))
-    assert lines(decision)[-2] == mcp_rules.SIGILO_CHECKED
+    assert decision.kind == "ask"
+    assert (isolated_env / "seen.txt").exists()
     os.environ["WS_GATE_WS_BIN"] = fake_ws(isolated_env, 1, "finding")
     blocked = run(GH + "add_issue_comment", **call)
     assert blocked.kind == "deny"
@@ -569,7 +560,8 @@ def test_a_github_write_without_an_owner_is_checked(isolated_env, owner):
 
 def test_a_github_write_without_an_owner_and_no_owners_configured_is_off():
     decision = run(GH + "add_issue_comment", repo="r", issue_number=1, body="oi")
-    assert lines(decision)[-2] == mcp_rules.SIGILO_OFF
+    assert decision.kind == "ask"
+    assert "Sigilo" not in decision.reason
 
 
 def unclassified_file() -> Path:
@@ -648,7 +640,7 @@ def test_a_failure_to_record_never_changes_the_decision(tmp_path, monkeypatch):
     decision = run(GH + "brand_new_tool")
 
     assert decision.kind == "ask"
-    assert lines(decision)[0] == "Gravar fora — GitHub"
+    assert lines(decision)[0] == "Grava fora: brand_new_tool"
 
 
 def test_names_that_are_not_plain_are_not_recorded():
@@ -842,10 +834,9 @@ def test_a_github_write_in_an_argo_repo_asks_with_the_warning_on_top():
     )
 
     assert decision.kind == "ask"
-    assert lines(decision)[:3] == [
-        "Gravar fora — GitHub",
-        "ATENÇÃO: branch de ambiente master no repo deploy-argocd",
+    assert lines(decision)[:2] == [
         "Gravar arquivo em o/deploy-argocd (branch master)",
+        "ATENÇÃO: branch de ambiente master no repo deploy-argocd",
     ]
 
 
@@ -899,8 +890,8 @@ def test_a_pr_merge_into_another_branch_asks_with_its_base(isolated_env, monkeyp
     set_policy()
     fake_gh(isolated_env, monkeypatch, "echo feature/base")
 
-    assert lines(merge(pullNumber="8"))[1:3] == [
-        "Mesclar o PR o/deploy-argocd#8",
+    assert lines(merge(pullNumber="8"))[:2] == [
+        "Mesclar a PR o/deploy-argocd#8",
         "Base: feature/base",
     ]
 
@@ -921,7 +912,7 @@ def test_a_pr_merge_whose_base_is_unknown_asks_with_a_warning(
     log = fake_gh(isolated_env, monkeypatch, body)
     decision = merge(**changes)
 
-    assert lines(decision)[1] == "ATENÇÃO: não consegui ver a base do PR"
+    assert lines(decision)[1] == "ATENÇÃO: não consegui ver a base da PR"
     if changes:
         assert not log.exists()
 
@@ -938,7 +929,7 @@ def test_the_pr_lookup_runs_alongside_the_confidentiality_check(isolated_env, mo
 
     assert time.monotonic() - started < 2.8
     assert "Base: feature/base" in lines(decision)
-    assert mcp_rules.SIGILO_CHECKED in lines(decision)
+    assert decision.kind == "ask"
 
 
 def test_without_the_policy_a_pr_merge_runs_no_lookup(isolated_env, monkeypatch):
