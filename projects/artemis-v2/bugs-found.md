@@ -397,6 +397,25 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   pagamentos sem lote da linha (do dia mostrado, na linha `origem:`), pula liquidação em
   processamento ou com pagamento em lote e não roda junto com o fechamento da mesma linha.
 
+## B24 — Redis de produção cheio descarta chaves (fase 0)
+
+- **Onde:** ElastiCache `asgard-redis-production-01` (nós 001 e 002). **[H]** É o Redis da
+  platform-cessao em produção (ambiente asgard); confirmar a variável no Parameter Store.
+- **Efeito:** **[C, Datadog, `aws.elasticache.database_memory_usage_percentage` e
+  `aws.elasticache.evictions`, 04/10 a 03/11/2026]** a memória chegou a 92–95% em 06 a 08/10 e
+  em 14/10, e o Redis descartou ~19,7 milhões de chaves nesses dias (16,1 mi no 001 e 3,7 mi no
+  002). Não houve descarte de 16/10 a 03/11, mas a memória chegou a 89% em 30/10. Chave com prazo
+  de validade (trava, status e resultado do fechamento e da exclusão, caches do lote fake) pode
+  sumir antes da hora.
+- **Hoje:** os 284 fechamentos de 20/10 a 03/11 terminaram na primeira tentativa, sem trava
+  perdida.
+- **Mitigação no código (TS-5536):** a exclusão nova não depende do Redis para terminar (segue
+  pelas guardas do banco e regrava o status); a tela trata o status que some. O fechamento ainda
+  para ao perder a trava (fase 1).
+- **Falta (infra):** ver a `maxmemory-policy` do grupo de parâmetros e o que enche o Redis nos
+  picos (chaves por prefixo, tamanho), e decidir entre limpar, aumentar ou separar um Redis para
+  travas.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
