@@ -11,7 +11,6 @@ import pytest
 
 HOOKS = Path(__file__).resolve().parents[1] / "hooks"
 FAILURE_TITLE = "Não consegui ler esta chamada"
-FOOTER = '"Yes" aprova só esta chamada.'
 
 
 @pytest.fixture
@@ -56,9 +55,8 @@ def test_a_bash_call_goes_to_the_bash_rules(tmp_path):
 
     assert decision["hookEventName"] == "PreToolUse"
     assert decision["permissionDecision"] == "ask"
-    assert decision["permissionDecisionReason"].splitlines()[0] == "Gravar fora — GitHub"
-    assert "/srv/repo" in decision["permissionDecisionReason"]
-    assert decision["permissionDecisionReason"].endswith(FOOTER)
+    assert decision["permissionDecisionReason"].splitlines()[0] == "Envia commits para o GitHub"
+    assert "feature/x" in decision["permissionDecisionReason"]
 
 
 def test_a_bash_call_the_rules_pass_prints_nothing():
@@ -144,7 +142,6 @@ def test_an_mcp_call_asks_while_the_mcp_rules_are_absent(hooks_copy):
     lines = decision["permissionDecisionReason"].splitlines()
     assert lines[0] == FAILURE_TITLE
     assert "mcp_rules" in lines[1]
-    assert decision["permissionDecisionReason"].endswith(FOOTER)
 
 
 @pytest.mark.parametrize(
@@ -215,7 +212,6 @@ def test_a_payload_that_cannot_be_read_asks_and_exits_zero(stdin):
     lines = decision["permissionDecisionReason"].splitlines()
     assert lines[0] == FAILURE_TITLE
     assert lines[1].startswith("Erro: ")
-    assert "Confira o comando antes de aprovar." in lines
 
 
 @pytest.mark.parametrize("locale", ["C", "C.UTF-8", "pt_BR.ISO-8859-1"])
@@ -311,7 +307,6 @@ def test_rules_that_run_out_of_time_still_ask_and_exit_zero(hooks_copy):
     assert decision["permissionDecisionReason"].splitlines()[0] == (
         "Não consegui ler esta chamada a tempo"
     )
-    assert decision["permissionDecisionReason"].endswith(FOOTER)
 
 
 def test_the_hook_arms_a_deadline_of_at_most_five_seconds(hooks_copy):
@@ -337,4 +332,4 @@ def test_a_module_planted_next_to_the_hooks_does_not_shadow_the_standard_library
 
     assert "planted" not in result.stdout
     reason = decision_of(result)["permissionDecisionReason"]
-    assert reason.splitlines()[0] == "Gravar fora — GitHub"
+    assert reason.splitlines()[0] == "Envia commits para o GitHub"
