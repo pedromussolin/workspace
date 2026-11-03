@@ -718,12 +718,12 @@ def _walk(text: str, result: Scan, depth: int) -> None:
                 _walk(inner, result, depth + 1)
 
 
-def scan(text: str) -> Scan:
+def scan(text: str, seconds: float = WALK_SECONDS) -> Scan:
     """Every simple command in `text`, at any depth: `bash -c`, `eval`, `$(...)`, heredocs.
 
-    The work is bounded (`MAX_WALKS` texts, `WALK_SECONDS`): past it the scan stops with
-    `overrun`, because a hook that runs out of time lets the call through.
+    The work is bounded (`MAX_WALKS` texts, `seconds`): past it the scan stops with `overrun`,
+    because a hook that runs out of time lets the call through.
     """
-    result = Scan(deadline=time.monotonic() + WALK_SECONDS)
+    result = Scan(deadline=time.monotonic() + seconds)
     _walk(text, result, 0)
     return result
