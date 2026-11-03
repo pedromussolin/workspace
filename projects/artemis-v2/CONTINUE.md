@@ -87,9 +87,9 @@ Worktrees em `~/repos/.artemis_v2/worktrees/`. Cópia do trabalho de 03/11 antes
 | cessão | `fix/TS-5537-callbacks-nulos-na-liberacao` | `ts5537` | 1 commit, no remoto |
 | cessão | `chore/TS-5536-worker-fechamento` | `ts5536-worker` | 2 commits, no remoto |
 | argocd | `chore/TS-5536-worker-fechamento` | `argocd-ts5536` | 1 commit, no remoto |
-| cessão | `feature/TS-5536-listagem-fluxo-novo` | `ts5536-listagem` | 8 commits sendo montados (base `8873832dd`) |
-| BFF | `feature/TS-5536-listagem-fluxo-novo` | `bff-ts5536` | 7 commits sendo montados (base `3bf3e82`) |
-| front | `feature/TS-5536-listagem-fluxo-novo` | `front-ts5536` | 4 commits sendo montados (base `bf378f60`) |
+| cessão | `feature/TS-5536-listagem-fluxo-novo` | `ts5536-listagem` | 8 commits, no remoto (base `8873832dd`) |
+| BFF | `feature/TS-5536-listagem-fluxo-novo` | `bff-ts5536` | 7 commits, no remoto (base `3bf3e82`) |
+| front | `feature/TS-5536-listagem-fluxo-novo` | `front-ts5536` | 4 commits, no remoto (base `bf378f60`) |
 
 As três `feature/TS-5536-…` partem da `feature/TS-5435-fechamento-por-proc-id` (que contém a fase 2).
 
@@ -97,14 +97,14 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. Conferir as três `feature/TS-5536-…`: `git -C <worktree> status` vazio e
-   `git -C <worktree> rev-parse HEAD^{tree}` igual ao `arvores.txt`. Se o commit parou no meio,
-   montar o que falta a partir do patch do backup; nunca mudar código.
-2. Push das três branches e montar `release/20261103` nos três repos (TS-5435 com a fase 2,
-   TS-5536, TS-5537 e a `master`); resolver no BFF o conflito em `test_viewer_delete.py`; PR da
-   release para a sandbox (ou `-sdbx` se conflitar) e passar os links ao Pietro.
-3. 04/11: tradução para PT-BR do `refact.py` e afins (decidir o escopo antes).
-4. Semana: testes de tela na sandbox (S1–S14 de `tasks/02-03-sandbox-tests.md` mais listagem com
+Todas as branches de 03/11 estão commitadas (árvore igual à aprovada, testes em cada commit) e no
+remoto.
+
+1. Montar `release/20261103` nos três repos (TS-5435 com a fase 2, as branches da TS-5536, a
+   TS-5537 e a `master`); resolver no BFF o conflito em `test_viewer_delete.py`; PR da release
+   para a sandbox (ou `-sdbx` se conflitar) e passar os links ao Pietro.
+2. 04/11: tradução para PT-BR do `refact.py` e afins (decidir o escopo antes).
+3. Semana: testes de tela na sandbox (S1–S14 de `tasks/02-03-sandbox-tests.md` mais listagem com
    aptos, exclusão, acompanhamento e expandir a linha).
-5. Antes da `master`: o time confirma a liberação dos 10 contratos do B18; argocd do worker só
+4. Antes da `master`: o time confirma a liberação dos 10 contratos do B18; argocd do worker só
    com a imagem nova; B24 com a infra.
