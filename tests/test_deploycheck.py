@@ -1,3 +1,5 @@
+import json
+import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -235,3 +237,269 @@ def test_incomplete_after_window_has_ready_at(settings):
     assert found["after"]["minutes"] == 15
     early = deploycheck.windows(T, settings, now=T + timedelta(minutes=2))
     assert early["after"]["minutes"] == 0 and early["complete"] is False
+
+
+NOW = T + timedelta(hours=2)
+
+
+def script_for(settings, key="bff", env="sandbox", now=NOW):
+    return deploycheck.build_script(settings, key, env, at=None, now=now)
+
+
+def params_line(script: str) -> str:
+    lines = [line for line in script.splitlines() if line.startswith("const P = ")]
+    assert len(lines) == 1
+    return lines[0]
+
+
+def params_of(script: str) -> dict:
+    return json.loads(params_line(script).removeprefix("const P = ").removesuffix(";"))
+
+
+def write_config(tmp_path: Path, monkeypatch, text: str) -> None:
+    cfg = tmp_path / "cfg"
+    cfg.mkdir(exist_ok=True)
+    monkeypatch.setenv("WS_CONFIG_DIR", str(cfg))
+    (cfg / "config.toml").write_text(text)
+
+
+def test_script_embeds_one_json_literal_and_nothing_else(settings):
+    script = script_for(settings)
+    template = (Path(deploycheck.__file__).parent / "data" / "deploy_check.js").read_text()
+    literal = params_line(script).removeprefix("const P = ").removesuffix(";")
+    assert script.replace(literal, "/*ws:params*/null") == template
+    params = json.loads(literal)
+    assert params["service"] == "svc-bff"
+    assert params["env_tag"] == "env-sbx"
+    assert params["expected_version"] == "abc1234"
+    assert params["min_requests"] == 50
+    assert params["windows"]["after"]["from"] == "2026-11-03T12:05:00Z"
+    assert params["span_filter"] == "operation_name:web.request"
+    assert params["after_complete"] is True
+
+
+def test_script_escapes_config_values(tmp_path, argocd, monkeypatch):
+    text = config_text(argocd).replace(
+        "operation_name:web.request", 'a\\"b\\\\c\\u2028é</script>*/'
+    )
+    write_config(tmp_path, monkeypatch, text)
+    script = script_for(deploycheck.load_settings())
+    line = params_line(script)
+    assert line.isascii()
+    assert params_of(script)["span_filter"] == 'a"b\\c é</script>*/'
+    assert script.count("\n") == (
+        (Path(deploycheck.__file__).parent / "data" / "deploy_check.js").read_text().count("\n")
+    )
+
+
+def test_script_kind_rum_and_logs_choose_their_checks(tmp_path, argocd, monkeypatch):
+    extra = f"""
+[deploy_check.services.front]
+service = "svc-front"
+kind = "rum"
+argocd = "{argocd}"
+values = {{ sandbox = "envs/svc-x.yaml" }}
+
+[deploy_check.services.worker]
+service = "svc-worker"
+kind = "logs"
+argocd = "{argocd}"
+values = {{ sandbox = "envs/svc-x.yaml" }}
+"""
+    order = '["shared", "bff", "front", "worker"]'
+    write_config(tmp_path, monkeypatch, config_text(argocd, order=order, extra_service=extra))
+    loaded = deploycheck.load_settings()
+    checks = {k: params_of(script_for(loaded, k))["checks"] for k in ("bff", "front", "worker")}
+    assert checks["bff"] == [
+        "traffic", "errors", "http_5xx", "p95", "error_logs", "new_errors", "version",
+    ]  # fmt: skip
+    assert checks["front"] == ["traffic", "errors", "new_errors", "version"]
+    assert checks["worker"] == ["error_logs", "new_errors"]
+
+
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+
+HARNESS = """\
+const fs = require("fs");
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+const script = fs.readFileSync(process.argv[2], "utf8").split("// ws:entry")[0];
+const lib = new Function(script + "\\nreturn { summarize, run };")();
+
+function answer(tool, attrs) {
+  const query = attrs.filter.query;
+  const agg = attrs.compute[0].aggregation;
+  for (const r of input.rules || []) {
+    if (r.tool !== tool) continue;
+    if (r.contains && !query.includes(r.contains)) continue;
+    if (r.agg ? r.agg !== agg : agg === "pc95") continue;
+    if (r.from_ms && String(r.from_ms) !== attrs.filter.from) continue;
+    if (r.grouped !== undefined && Boolean(attrs.groupBy) !== r.grouped) continue;
+    if (r.throw) throw new Error(r.throw);
+    return r.response;
+  }
+  return { data: [] };
+}
+const api = {
+  spans: async (a) => answer("spans", a),
+  logs: async (a) => answer("logs", a),
+  rum: async (a) => answer("rum", a),
+};
+(async () => {
+  const failed = input.failed || {};
+  const out = input.op === "run" ? await lib.run(api) : lib.summarize(input.raw, failed);
+  process.stdout.write(JSON.stringify(out));
+})();
+"""
+
+
+def node_run(tmp_path: Path, script: str, payload: dict) -> dict:
+    (tmp_path / "harness.js").write_text(HARNESS)
+    (tmp_path / "program.js").write_text(script)
+    result = subprocess.run(
+        ["node", str(tmp_path / "harness.js"), str(tmp_path / "program.js")],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+BASE_RAW = {
+    "traffic.b": 1000, "traffic.a": 1000,
+    "errors.b": 20, "errors.a": 20,
+    "http_5xx.b": 10, "http_5xx.a": 10,
+    "p95.b": 200.0, "p95.a": 200.0,
+    "error_logs.b": 30, "error_logs.a": 30,
+    "new_errors_logs.a": [], "new_errors_logs.base": [],
+    "new_errors_spans.a": [], "new_errors_spans.base": [],
+    "version.a": {"abc1234": 100},
+}  # fmt: skip
+
+
+def summarize(tmp_path, settings, raw=None, failed=None):
+    payload = {"op": "summarize", "raw": {**BASE_RAW, **(raw or {})}, "failed": failed or {}}
+    return node_run(tmp_path, script_for(settings), payload)
+
+
+@needs_node
+def test_verdict_thresholds(tmp_path, settings):
+    assert summarize(tmp_path, settings)["verdict"] == "ok"
+
+    def status(name, **raw):
+        return summarize(tmp_path, settings, raw)["checks"][name]["status"]
+
+    # error rate 2% -> 3.1% is up more than 50%; 3.0% is exactly 50% and passes
+    assert status("errors", **{"errors.a": 31}) == "piorou"
+    assert status("errors", **{"errors.a": 30}) == "ok"
+    assert status("http_5xx", **{"http_5xx.a": 16}) == "piorou"
+    assert status("http_5xx", **{"http_5xx.a": 15}) == "ok"
+    # p95 needs both more than 30% and more than 50 ms
+    assert status("p95", **{"p95.a": 261.0}) == "piorou"
+    assert status("p95", **{"p95.a": 259.0}) == "ok"
+    assert status("p95", **{"p95.b": 100.0, "p95.a": 140.0}) == "ok"
+    assert status("error_logs", **{"error_logs.a": 46}) == "piorou"
+    assert status("error_logs", **{"error_logs.a": 45}) == "ok"
+    # version: 95% passes
+    assert status("version", **{"version.a": {"abc1234": 95, "old": 5}}) == "ok"
+    assert status("version", **{"version.a": {"abc1234": 90, "old": 10}}) == "atencao"
+
+
+@needs_node
+def test_new_error_signatures(tmp_path, settings):
+    new = {"signature": "Timeout | /pay", "count": 3}
+    got = summarize(tmp_path, settings, {"new_errors_spans.a": [new]})
+    assert got["checks"]["new_errors"]["status"] == "atencao"
+    assert got["verdict"] == "atencao"
+    assert got["new_errors"] == [{**new, "source": "spans"}]
+    big = {**new, "count": 10}
+    got = summarize(tmp_path, settings, {"new_errors_logs.a": [big]})
+    assert got["checks"]["new_errors"]["status"] == "piorou"
+    known = summarize(
+        tmp_path, settings, {"new_errors_spans.a": [new], "new_errors_spans.base": [new]}
+    )
+    assert known["checks"]["new_errors"]["status"] == "ok"
+
+
+@needs_node
+def test_verdict_from_a_zero_base_and_worst_check_wins(tmp_path, settings):
+    got = summarize(tmp_path, settings, {"errors.b": 0, "errors.a": 3})
+    assert got["checks"]["errors"]["status"] == "atencao"
+    got = summarize(tmp_path, settings, {"errors.b": 0, "errors.a": 12, "p95.a": 900.0})
+    assert got["checks"]["errors"]["status"] == "piorou"
+    assert got["verdict"] == "piorou"
+
+
+@needs_node
+def test_verdict_sem_dados_under_min_requests(tmp_path, settings):
+    got = summarize(tmp_path, settings, {"traffic.a": 49, "errors.a": 40, "p95.a": 900.0})
+    for name in ("traffic", "errors", "http_5xx", "p95"):
+        assert got["checks"][name]["status"] == "sem_dados"
+    assert got["verdict"] == "ok"  # the log and version checks still speak
+    none = summarize(tmp_path, settings, {"traffic.a": 0, "traffic.b": 0})
+    assert none["checks"]["traffic"]["status"] == "sem_dados"
+
+
+def spans_total(value):
+    return {"data": [{"attributes": {"computes": {"c0": value}}}]}
+
+
+def logs_total(value):
+    return {"data": {"buckets": [{"computes": {"c0": value}}]}}
+
+
+def spans_rules(settings):
+    found = deploycheck.windows(T, settings, NOW)
+    before, after = found["before"]["from_ms"], found["after"]["from_ms"]
+    versions = [
+        {"attributes": {"by": {"version": "abc1234"}, "computes": {"c0": 99}}},
+        {"attributes": {"by": {"version": "old"}, "computes": {"c0": 1}}},
+    ]
+    return [
+        {"tool": "spans", "agg": "pc95", "from_ms": before, "response": spans_total(200e6)},
+        {"tool": "spans", "agg": "pc95", "from_ms": after, "response": spans_total(210e6)},
+        {"tool": "spans", "contains": "status:error", "grouped": True, "response": {"data": []}},
+        {"tool": "spans", "grouped": True, "response": {"data": versions}},
+        {"tool": "spans", "grouped": False, "response": spans_total(1000)},
+        {"tool": "logs", "grouped": True, "response": {"data": {"buckets": []}}},
+        {"tool": "logs", "grouped": False, "response": logs_total(30)},
+    ]  # fmt: skip
+
+
+@needs_node
+def test_partial_results_keep_the_others(tmp_path, settings):
+    failing = {"tool": "spans", "contains": "@http.status_code", "throw": "invalid_request: x"}
+    rules = [failing, *spans_rules(settings)]
+    got = node_run(tmp_path, script_for(settings), {"op": "run", "rules": rules})
+    assert got["checks"]["http_5xx"]["status"] == "sem_dados"
+    assert "invalid_request" in got["checks"]["http_5xx"]["note"]
+    assert got["checks"]["traffic"]["status"] == "ok"
+    assert got["checks"]["errors"]["status"] == "ok"
+    assert got["checks"]["p95"]["status"] == "ok"
+    assert got["checks"]["version"]["status"] == "ok"
+    assert got["version_share_pct"] == 99.0
+    assert got["verdict"] == "ok"
+    assert len(json.dumps(got)) < 2048
+
+
+@needs_node
+def test_run_queries_only_what_the_kind_needs(tmp_path, argocd, monkeypatch):
+    extra = f"""
+[deploy_check.services.worker]
+service = "svc-worker"
+kind = "logs"
+argocd = "{argocd}"
+values = {{ sandbox = "envs/svc-x.yaml" }}
+"""
+    order = '["shared", "worker"]'
+    write_config(tmp_path, monkeypatch, config_text(argocd, order=order, extra_service=extra))
+    loaded = deploycheck.load_settings()
+    rules = [
+        {"tool": "spans", "throw": "spans must not be called for a logs service"},
+        {"tool": "logs", "grouped": True, "response": {"data": {"buckets": []}}},
+        {"tool": "logs", "grouped": False, "response": logs_total(30)},
+    ]
+    got = node_run(tmp_path, script_for(loaded, "worker"), {"op": "run", "rules": rules})
+    assert sorted(got["checks"]) == ["error_logs", "new_errors"]
+    assert got["verdict"] == "ok"
