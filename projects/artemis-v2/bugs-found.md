@@ -277,6 +277,21 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Validar:** stack trace (passa por `liberacao_processos` ou por
   `esteira_aditamento`?) e contagem de contratos `liberando` por produto.
 - **Correção:** `callbacks` com lista vazia por padrão.
+- **Revisão de 03/11/2026 (TS-5537):**
+  - **[C, Datadog, 29 e 30/10]** O caminho é a `liberacao_processos`. O contrato fica em
+    `liberando` enquanto o cadastro do cedente (`cedente_processo`) não chega a `concluido`
+    (`EstadoLastreado.ja_liberado`). Quando chega, a liberação manda o contrato para
+    `cadastrado`, o `_existe_callback` percorre `callbacks = None` e quebra; o tratamento de erro
+    quebra de novo, o `ManagerCessao.iniciar` faz rollback e o laço para nos contratos seguintes.
+  - **Origem [C, git]:** o `_finaliza_esteira` com o `_existe_callback` entrou na TS-187 (commit
+    `2c8d2a1d7`, Lukas Freyta, PR #1798, 17/06/2025). A liberação é de 2020/2022 e nunca mandou
+    `callbacks`. A escrituração e a liquidação já tratam `None` (`or []`); só a cessão não.
+  - **[C, réplica, 03/11]** Contratos em `liberando` criados depois da TS-187: 10 do produto 15
+    (Mercato Libero), de um cedente `concluido` desde 21/04/2025, presos por este bug; 89 do 15
+    (7 cedentes) e 26 do 1670 (26 cedentes) esperam o cedente, parado em `conciliado`, e não são
+    deste bug. 41 erros nos 30 dias que o Datadog guarda.
+  - **Correção:** `or []` no `_existe_callback` da cessão. Antes da implantação, o time confirma
+    que os 10 contratos podem ir para `cadastrado` na próxima baixa do 15.
 
 ## B19 — Remessa por proc_id não fecha quando o último a terminar é rejeitado
 
@@ -333,6 +348,11 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   exclusão e de criação.
 - **Correção:** depende da causa; a B16 (C3 do plano) cobre a primeira.
 
+- **Revisão de 03/11/2026:** **[C, réplica]** de 21/10 a 03/11, 5 dos 93 lotes reais do 1505 e
+  do 1637 não têm pagamento (1505: 23/10, 26/10 e 30/10; 1637: 28/10 e 29/10), e nenhum aparece em
+  `liquidacao_processo_delete_log`. Não vem da exclusão (B16 nem B23): os lotes nascem vazios no
+  fechamento automático por remessa, que é do legado. Fica para a migração do automático.
+
 ## B22 — Linha `proc:` que a tela não fecha (TS-5435)
 
 - **Onde:** a regra de "fecha por remessa" é diferente nos dois lados (cessão `8873832dd`).
@@ -356,6 +376,26 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
     `master`.
   - (b) A tela desabilita o Fechar quando a chave não bate com a modalidade.
   - (c) Só registrar, porque a combinação não existe e a D24 a resolve quando o legado migrar.
+
+- **Revisão de 03/11/2026:** a correção vai pela listagem nova no `refact.py` (TS-5536), que
+  calcula a chave pela modalidade, a mesma regra do fechamento. A listagem antiga não muda.
+
+## B23 — Excluir uma linha pela tela apaga as remessas inteiras
+
+- **Onde:** **[C, código, `feature/TS-5435-fechamento-por-proc-id`]** a tela manda os `proc_ids`
+  da linha; o BFF chama `DELETE /liquidacao/pagamentos/async` uma vez por `proc_id`. A cessão
+  busca os pagamentos só por `proc_id` e produto (`api/liquidacao/repository.py:194-252`), sem
+  `liquidacao_lote_id IS NULL`, e o agrupamento por lote põe tudo no grupo 0
+  (`tasks/liquidacao.py`, `agrupa_processos_por_lote`), que apaga sem validar.
+- **Efeito:** excluir uma linha `origem:` apaga todos os pagamentos das remessas dela, de
+  qualquer origem, fundo ou originador, inclusive os que já estão em lote real e foram à ADM.
+  A liquidação é apagada de vez (cascata) e as parcelas são reabertas. Não há como desfazer.
+- **Uso [C, réplica, 60 dias até 03/11]:** a tela apagou 5 pagamentos (19/10), nenhum em lote.
+  Fora da tela (Atlas, recusa da conciliação, rota síncrona), 229.954 pagamentos em 10.334 lotes
+  foram apagados com lote, o que pode ser o comportamento esperado desses fluxos (não avaliado).
+- **Correção:** exclusão nova no `refact.py` (TS-5536): recebe a chave da linha, apaga só os
+  pagamentos sem lote da linha (do dia mostrado, na linha `origem:`), pula liquidação em
+  processamento ou com pagamento em lote e não roda junto com o fechamento da mesma linha.
 
 ## Menores
 
