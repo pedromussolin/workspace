@@ -270,6 +270,7 @@ Prose under `projects/` is in PT-BR; folder and file names are in English.
 |---|---|
 | [artemis-v2](projects/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches |
 | [whitelabel-restructure](projects/whitelabel-restructure/README.md) | Epic that restructures the partner portal front end: brand themes, dark mode, own components, new architecture |
+| [valids](projects/valids/README.md) | The VALIDs feature: the controllership's allowance dashboard (PDD) on the partner portal, fed by the data lake |
 | [ai-studies](projects/ai-studies/README.md) | Study guide of the AI concepts used in this workspace |
 | [standalone](projects/standalone/README.md) | Tasks that belong to no project |
 
