@@ -31,7 +31,7 @@ MAX_CHECK_BYTES = 2 * 1024 * 1024
 # The hook has 5 s: the git init and the check together stay under it.
 CHECK_TIMEOUT_SECONDS = 3
 GIT_INIT_TIMEOUT_SECONDS = 1
-GENERIC_LINES = 6
+GENERIC_LINES = 2
 PLAIN_KEYS = frozenset({"owner", "repo"})
 DESTINATION_KEYS = PLAIN_KEYS | {"repository_organization", "repository_name"}
 BRANCH_WRITES = frozenset({"create_or_update_file", "push_files", "delete_file", "create_branch"})
@@ -44,9 +44,6 @@ SAFE_NAME = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9._-]*")
 UNCLASSIFIED_LIMIT = 500
 RECORD_NAME = "unclassified.json"
 RECORDABLE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,128}")
-
-SIGILO_CHECKED = "Sigilo: conferido (check-secrets)"
-SIGILO_OFF = "Sigilo: conferência desligada (sem personal_github_owners)"
 
 
 def _load_catalog() -> dict[str, dict[str, set[str]]]:
@@ -156,7 +153,7 @@ def _compact(value: object) -> str:
 
 
 def _generic(tool: str, inputs: dict) -> list[str]:
-    lines = [f"Ferramenta: {tool}"]
+    lines = [f"Grava fora: {tool}"]
     items = list(inputs.items())
     for key, value in items[:GENERIC_LINES]:
         lines.append(f"{key}: {cut(_compact(value))}")
@@ -176,10 +173,12 @@ def _issue_ref(inputs: dict, *keys: str) -> str:
 
 def _github_create_pull_request(inputs: dict) -> list[str]:
     head, base = _text(inputs, "head"), _text(inputs, "base")
-    lines = [f"Criar PR em {_where(inputs)}: {head} → {base}"]
-    if inputs.get("draft"):
-        lines.append("Rascunho (draft)")
-    return lines + _line("Título", inputs.get("title")) + _body("Corpo", inputs.get("body"))
+    draft = " (rascunho)" if inputs.get("draft") else ""
+    return (
+        [f"Cria PR em {_where(inputs)}", f"{head} → {base}{draft}"]
+        + _line("Título", inputs.get("title"))
+        + _body("Corpo", inputs.get("body"))
+    )
 
 
 def _github_merge_pull_request(inputs: dict) -> list[str]:
@@ -433,8 +432,8 @@ def _kraken_push(inputs: dict) -> list[str]:
 
 def _kraken_pull_request(inputs: dict) -> list[str]:
     source, target = _text(inputs, "source_branch"), _text(inputs, "target_branch")
-    head = f"Criar PR em {_kraken_repo(inputs)}: {source} → {target}"
-    return [head] + _line("Título", inputs.get("title")) + _body("Corpo", inputs.get("body"))
+    head = [f"Cria PR em {_kraken_repo(inputs)}", f"{source} → {target}"]
+    return head + _line("Título", inputs.get("title")) + _body("Corpo", inputs.get("body"))
 
 
 def _kraken_review(inputs: dict) -> list[str]:
@@ -469,18 +468,6 @@ def _family(server: str) -> str:
         if name in lowered:
             return name
     return "claude_docs" if "claude_docs" in lowered else ""
-
-
-def _service(server: str, tool: str) -> str:
-    family = _family(server)
-    if family == "atlassian":
-        return "Confluence" if "confluence" in tool.lower() else "Jira"
-    return {
-        "github": "GitHub",
-        "gitkraken": "GitKraken",
-        "datadog": "Datadog",
-        "claude_docs": "Claude Docs",
-    }.get(family, server)
 
 
 def _summary(server: str, tool: str, inputs: dict) -> list[str]:
@@ -643,34 +630,31 @@ def _destination(family: str, tool: str, inputs: dict) -> str:
     return _text(inputs, key).strip().lower()
 
 
-def _confidentiality(family: str, tool: str, inputs: dict) -> tuple[Decision | None, str]:
-    """A `deny`, or None with the box line that says how the content was checked."""
+def _confidentiality(family: str, tool: str, inputs: dict) -> Decision | None:
+    """A `deny` when the content for a personal owner was not cleared, else None."""
     try:
         owners = personal_owners()
     except ValueError as error:
-        return deny(f"Blocked: cannot tell whether the GitHub owner is personal: {error}."), ""
+        return deny(f"Blocked: cannot tell whether the GitHub owner is personal: {error}.")
     if owners is None:
-        return None, SIGILO_OFF
+        return None
     owner = _destination(family, tool, inputs)
     provider = _text(inputs, "provider").strip().lower()
     if family == "gitkraken" and not owner and provider not in ("", "github"):
-        return None, ""
+        return None
     if owner and owner not in owners:
-        return None, ""
+        return None
     text = sent_text(inputs)
     if tool == "fork_repository":
         text += f"\n{_where(inputs)}"
     problem = check_secrets(text)
     if problem is not None:
         shown = owner or "unknown owner or authenticated account"
-        return (
-            deny(
-                f"Blocked: content for the personal GitHub ({shown}) was not cleared by "
-                f"check-secrets: {problem}; mask it with ws mask and retry."
-            ),
-            "",
+        return deny(
+            f"Blocked: content for the personal GitHub ({shown}) was not cleared by "
+            f"check-secrets: {problem}; mask it with ws mask and retry."
         )
-    return None, SIGILO_CHECKED
+    return None
 
 
 def _environment(family: str, tool: str, inputs: dict) -> tuple[list[str], Decision | None]:
@@ -712,11 +696,8 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     parts = str(tool_name).split("__", 2)
     if len(parts) != 3 or parts[0] != "mcp" or not parts[1] or not parts[2]:
         return ask(
-            "Gravar fora — ferramenta MCP",
-            [
-                f"Nome de ferramenta não reconhecido: {cut(tool_name)}",
-                *_generic(str(tool_name), inputs)[1:],
-            ],
+            "Ferramenta MCP com nome não reconhecido",
+            [cut(tool_name, 90), *_generic(str(tool_name), inputs)[1:]],
         )
     _, server, tool = parts
     entry = _load_catalog().get(server, {})
@@ -725,7 +706,6 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     if tool not in entry.get("ask", ()):
         _record_unclassified(server, tool)
     lines = _summary(server, tool, inputs)
-    sigilo = ""
     family = _family(server)
     warnings, blocked = _environment(family, tool, inputs)
     if blocked is not None:
@@ -733,7 +713,7 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
     merge = _start_merge_lookup(family, tool, inputs)
     if family == "github" or (family == "gitkraken" and tool in KRAKEN_CHECKED):
         try:
-            blocked, sigilo = _confidentiality(family, tool, inputs)
+            blocked = _confidentiality(family, tool, inputs)
         except BaseException:
             if merge is not None:
                 merge[1].stop()
@@ -749,7 +729,4 @@ def decide(tool_name: str, tool_input: dict, cwd: str) -> Decision:
         if denied:
             return deny(denied)
         lines = [*lines[:1], line, *lines[1:]]
-    if sigilo:
-        lines = [*lines[:7], sigilo]
-    lines = [*warnings, *lines]
-    return ask(f"Gravar fora — {_service(server, tool)}", lines)
+    return ask(lines[0], [*warnings, *lines[1:]])
