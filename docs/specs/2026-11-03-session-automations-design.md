@@ -1,8 +1,8 @@
 # Session automations: design
 
 Four automations chosen by the user on 2026-11-03: **A** handoff and the session hooks, **B** daily
-by period, **C** `ws env check`, **D** the `deploy-check` skill. Status: design, 2026-11-03, for the
-user's review. Each part is independent and can be built by its own agent in a separate worktree
+by period, **C** `ws env check`, **D** the `deploy-check` skill. Status: approved by the user on
+2026-11-03 (see "Decisions"); plan in `docs/plans/2026-11-03-session-automations.md`. Each part is independent and can be built by its own agent in a separate worktree
 (see "Parallel build"); only Step 0 comes first.
 
 ## Goal
@@ -561,24 +561,27 @@ account (`get-parameters-by-path --path / --recursive --with-decryption`) and fi
 prints `[Type] NAME=VALUE` lines with color codes and a total. So every run decrypts every secret of
 the account and prints the matching values.
 
-Two sources, chosen by `[env_check] source`:
+Two sources, chosen by `[env_check] source` (decision 1). Script first: whichever the source,
+`ws env check` itself calls it, parses its answer and compares, the same way every time; the model
+only runs the command and reads its output, never calls `aws` or the script by hand.
 
-- `script` (the user's decision; the default until open question 1 is answered): `ws` runs the
-  script with the app's prefix as the filter, reads its stdout in memory, strips the color codes,
-  keeps the text between `] ` and the first `=` (a parameter name cannot contain `=`) and drops the
-  rest of the line at once. The raw output is never printed, logged, written or put in an exception
-  message; a failure prints only the exit code and a fixed PT-BR hint. Without the three variables
-  in the environment → exit 2, saying to export them in the terminal that runs the command.
-- `aws`: `aws ssm describe-parameters --profile <profile> --parameter-filters
-  "Key=Path,Option=Recursive,Values=<prefix>" --query "Parameters[].Name" --output json`, paginated.
-  `DescribeParameters` never returns values, needs no decryption, and works with the profiles in
-  `~/.aws` (per environment in the config).
+- `aws` (the default): `aws ssm describe-parameters --profile <profile> --parameter-filters
+  "Key=Path,Option=Recursive,Values=<prefix>" --query "Parameters[].Name" --output json`, following
+  `NextToken`. `DescribeParameters` never returns values, needs no decryption, and works with the
+  profiles in `~/.aws` (per environment in the config). An expired or missing profile → exit 2 with
+  the profile name; an access error → exit 3.
+- `script` (the user's script, kept as an option): `ws` runs the script with the app's prefix as the
+  filter, reads its stdout in memory, strips the color codes, keeps the text between `] ` and the
+  first `=` (a parameter name cannot contain `=`) and drops the rest of the line at once. The raw
+  output is never printed, logged, written or put in an exception message; a failure prints only the
+  exit code and a fixed PT-BR hint. Without the three variables in the environment → exit 2, saying
+  to export them in the terminal that runs the command.
 
 ### Config
 
 ```toml
 [env_check]
-source = "script"                        # or "aws"
+source = "aws"                           # or "script"
 script = "~/bashes/list-parameter-store"
 role_vars = ["<VAR>", "<PREFIX>_*"]      # the pod's role: allowed in argocd, never "missing"
 
@@ -764,21 +767,22 @@ Each agent runs `uv run pytest -q`, `uv run ruff check` and `uv run ruff format 
 orchestrator reviews each diff, merges, updates the README and the manual, and the user runs
 `ws setup` in a terminal for the hooks (diff and `[s/N]`) and applies the printed settings block.
 
-## Open questions (each with a recommendation)
+## Decisions (user, 2026-11-03)
 
-1. **Parameter Store source.** The script decrypts every secret of the account on every run, prints
-   the matching values, filters by substring and needs the three AWS variables exported (Claude
-   sessions have none today). Recommendation: default `aws` (`describe-parameters` with the profile:
-   names only, never a value), keep `script` as an option.
-2. **The front's names in argocd.** Until D104 is merged, `ws env check` on the front reports its 6
-   names under `in_argocd` and exits 1. Recommendation: keep it so (it is the rule, and the output
-   says where each name is set), no special case.
-3. **Context warning.** Recommendation: first warning at 300k, then every 100k, and the one-line
-   notice to the user besides the note to the model.
-4. **Deploy-check windows.** Recommendation: 30 min before against 30 min after (from 5 min after the
-   deploy) and a 24 h baseline for new errors. The production window is in the evening, with less
-   traffic than the half hour before; if the user prefers, the baseline for rates can be the same
-   window one week earlier instead.
+The spec was approved with these answers to its open questions:
+
+1. **Parameter Store source:** the default is `aws` (`describe-parameters` with the environment's
+   profile: names only, never a value, no decryption); the user's script stays as the `script`
+   option. Script first, in the user's words: every source is called by `ws env check`
+   deterministically, and the model only runs the command (the script decrypts every secret of the
+   account on each run, filters by substring and needs the three AWS variables exported, which
+   Claude sessions do not have).
+2. **The front's names in argocd:** reported as they are, under `in_argocd`, with exit 1 until D104
+   is merged; no special case.
+3. **Context warning:** at 300k, then every 100k, with the one-line notice to the user besides the
+   note to the model.
+4. **Deploy-check windows:** 30 min before against 30 min after, the after window starting 5 min
+   after the deploy; new errors against a 24 h baseline.
 
 ## Out of scope
 
