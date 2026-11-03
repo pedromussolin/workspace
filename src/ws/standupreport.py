@@ -78,6 +78,8 @@ def build_report(
     stale_workdays: int,
     top: int | None = None,
 ) -> dict:
+    if activity["window"].get("kind") == "period":
+        raise ValueError("this activity is a period: use ws standup summary")
     cards = {task.key: task for task in tasks or []}
     yesterday = _yesterday(activity, cards)
     evaluated = (

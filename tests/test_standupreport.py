@@ -418,3 +418,9 @@ def test_blockers_list_blocked_first_then_stuck_each_in_card_order():
         ("TS-103", "stuck"),
     ]
     assert report["today"] == []
+
+
+def test_report_refuses_a_period_activity():
+    window = {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}
+    with pytest.raises(ValueError, match="ws standup summary"):
+        build_report(make_activity(window=window), None, TODAY, 3)
