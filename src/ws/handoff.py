@@ -460,7 +460,7 @@ def collect(
         "prs": _open_prs(gh, warnings) if prs else [],
         "handoffs": find_handoffs(
             config.data_dir(),
-            _extra_globs(),
+            configured_globs(),
             limit=5,
             max_age_days=None,
             now=now,
@@ -470,7 +470,7 @@ def collect(
     }
 
 
-def _extra_globs() -> list[str]:
+def configured_globs() -> list[str]:
     """`[handoff] extra_globs` of config.toml; a missing or invalid table means none."""
     from ws import userconfig
 
