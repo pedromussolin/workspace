@@ -503,3 +503,76 @@ values = {{ sandbox = "envs/svc-x.yaml" }}
     got = node_run(tmp_path, script_for(loaded, "worker"), {"op": "run", "rules": rules})
     assert sorted(got["checks"]) == ["error_logs", "new_errors"]
     assert got["verdict"] == "ok"
+
+
+def by_key(queries: list[dict]) -> dict:
+    return {(q["check"], q["window"], q["tool"]): q for q in queries}
+
+
+def test_classic_queries_cover_every_check_with_exact_arguments(settings):
+    queries = deploycheck.classic_queries(settings, "bff", "sandbox", at=None, now=NOW)
+    found = by_key(queries)
+    assert {q["check"] for q in queries} == set(deploycheck.CHECKS["apm"])
+    assert len(queries) == 15
+    assert all(set(q) == {"check", "window", "tool", "arguments"} for q in queries)
+    assert all("intent" in q["arguments"]["telemetry"] for q in queries)
+
+    base = "service:svc-bff env:env-sbx operation_name:web.request"
+    window = {"from": "2026-11-03T11:30:00Z", "to": "2026-11-03T12:00:00Z"}
+    count = [{"aggregation": "COUNT", "field": "*", "output": "count"}]
+    traffic = found[("traffic", "before", "aggregate_spans")]["arguments"]
+    assert {k: v for k, v in traffic.items() if k != "telemetry"} == {
+        "query": base,
+        "computes": count,
+        **window,
+    }
+    after = {"from": "2026-11-03T12:05:00Z", "to": "2026-11-03T12:35:00Z"}
+    errors = found[("errors", "after", "aggregate_spans")]["arguments"]
+    assert (errors["query"], errors["computes"]) == (base + " status:error", count)
+    assert {"from": errors["from"], "to": errors["to"]} == after
+    five = found[("http_5xx", "after", "aggregate_spans")]["arguments"]
+    assert five["query"] == base + " @http.status_code:[500 TO 599]"
+    p95 = found[("p95", "before", "aggregate_spans")]["arguments"]
+    assert p95["computes"] == [
+        {"aggregation": "P95", "field": "@duration", "output": "p95_duration_ns"}
+    ]
+    logs = found[("error_logs", "after", "analyze_datadog_logs")]["arguments"]
+    assert logs["sql_query"] == "SELECT count(*) FROM logs"
+    assert logs["filter"] == "service:svc-bff env:env-sbx status:error"
+    assert {"from": logs["from"], "to": logs["to"]} == after
+    baseline = found[("new_errors", "baseline", "analyze_datadog_logs")]["arguments"]
+    assert baseline["from"] == "2026-11-02T12:00:00Z" and baseline["to"] == "2026-11-03T12:00:00Z"
+    assert baseline["extra_columns"] == [{"name": "@error.kind", "type": "varchar"}]
+    assert "GROUP BY" in baseline["sql_query"] and "LIMIT 50" in baseline["sql_query"]
+    spans = found[("new_errors", "after", "aggregate_spans")]["arguments"]
+    assert spans["group_by"] == {"fields": ["resource_name", "@error.type"], "limit": 50}
+    assert spans["query"] == base + " status:error"
+    version = found[("version", "after", "aggregate_spans")]["arguments"]
+    assert version["group_by"] == {"fields": ["version"], "limit": 50}
+
+
+def test_classic_queries_rum_and_logs_kinds(tmp_path, argocd, monkeypatch):
+    extra = f"""
+[deploy_check.services.front]
+service = "svc-front"
+kind = "rum"
+argocd = "{argocd}"
+values = {{ sandbox = "envs/svc-x.yaml" }}
+
+[deploy_check.services.worker]
+service = "svc-worker"
+kind = "logs"
+argocd = "{argocd}"
+values = {{ sandbox = "envs/svc-x.yaml" }}
+"""
+    order = '["shared", "front", "worker"]'
+    write_config(tmp_path, monkeypatch, config_text(argocd, order=order, extra_service=extra))
+    loaded = deploycheck.load_settings()
+    front = deploycheck.classic_queries(loaded, "front", "sandbox", at=None, now=NOW)
+    assert {q["tool"] for q in front} == {"aggregate_rum_events"}
+    assert {q["check"] for q in front} == set(deploycheck.CHECKS["rum"])
+    views = by_key(front)[("traffic", "before", "aggregate_rum_events")]["arguments"]
+    assert views["query"] == "service:svc-front env:env-sbx @type:view"
+    worker = deploycheck.classic_queries(loaded, "worker", "sandbox", at=None, now=NOW)
+    assert {q["tool"] for q in worker} == {"analyze_datadog_logs"}
+    assert {q["check"] for q in worker} == set(deploycheck.CHECKS["logs"])

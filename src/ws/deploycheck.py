@@ -304,3 +304,90 @@ def build_script(
         raise DeployCheckError("deploy_check.js must hold exactly one parameters marker")
     literal = json.dumps(_params(settings, key, env, at=at, now=now), ensure_ascii=True)
     return template.replace(PARAMS_MARKER, literal)
+
+
+def classic_queries(
+    settings: DeployCheckSettings, key: str, env: str, *, at: datetime | None, now: datetime
+) -> list[dict]:
+    """The program's checks as calls to the classic Datadog tools, for when `execute_code` fails.
+
+    Each item is `{"check", "window", "tool", "arguments"}`; the arguments are the tool's own.
+    """
+    entry = _entry(settings, key, env, at=at, now=now)
+    service = settings.services[key]
+    found = entry["windows"]
+    kind = service.kind
+    base = f"service:{service.service} env:{entry['env_tag']}"
+    spans_base = " ".join(part for part in (base, service.span_filter) if part)
+    entry_base = base if kind == "rum" else spans_base
+    entry_tool = "aggregate_rum_events" if kind == "rum" else "aggregate_spans"
+    count = [{"aggregation": "COUNT", "field": "*", "output": "count"}]
+    out: list[dict] = []
+
+    def add(check: str, window: str, tool: str, **arguments: object) -> None:
+        span = found[window]
+        intent = f"deploy-check {check}, {window} window, fallback to the classic tools"
+        out.append(
+            {
+                "check": check,
+                "window": window,
+                "tool": tool,
+                "arguments": {
+                    **arguments,
+                    "from": span["from"],
+                    "to": span["to"],
+                    "telemetry": {"intent": intent},
+                },
+            }
+        )
+
+    def counted(check: str, tool: str, query: str, names: tuple[str, ...]) -> None:
+        for window in names:
+            add(check, window, tool, query=query, computes=count)
+
+    def grouped(check: str, tool: str, query: str, fields: list[str], window: str) -> None:
+        group = {"fields": fields, "limit": SIGNATURE_LIMIT}
+        add(check, window, tool, query=query, computes=count, group_by=group)
+
+    def log_errors(check: str, sql: str, window: str, columns: list[str] | None = None) -> None:
+        arguments: dict[str, object] = {"sql_query": sql, "filter": f"{base} status:error"}
+        if columns:
+            arguments["extra_columns"] = [{"name": name, "type": "varchar"} for name in columns]
+        add(check, window, "analyze_datadog_logs", **arguments)
+
+    both = ("before", "after")
+    checks = entry["checks"]
+    if kind != "logs":
+        views = " @type:view" if kind == "rum" else ""
+        counted("traffic", entry_tool, entry_base + views, both)
+        if "errors" in checks:
+            bad = " @type:error" if kind == "rum" else " status:error"
+            counted("errors", entry_tool, entry_base + bad, both)
+        if "http_5xx" in checks:
+            counted("http_5xx", entry_tool, spans_base + " @http.status_code:[500 TO 599]", both)
+        if "p95" in checks:
+            p95 = [{"aggregation": "P95", "field": "@duration", "output": "p95_duration_ns"}]
+            for window in both:
+                add("p95", window, "aggregate_spans", query=spans_base, computes=p95)
+        if "version" in checks:
+            grouped("version", entry_tool, entry_base + views, [service.version_facet], "after")
+    if kind != "rum" and "error_logs" in checks:
+        for window in both:
+            log_errors("error_logs", "SELECT count(*) FROM logs", window)
+    if "new_errors" in checks:
+        sql = (
+            'SELECT "@error.kind", count(*) FROM logs GROUP BY "@error.kind" '
+            f"ORDER BY count(*) DESC LIMIT {SIGNATURE_LIMIT}"
+        )
+        for window in ("after", "baseline"):
+            if kind != "rum":
+                log_errors("new_errors", sql, window, ["@error.kind"])
+            if kind == "apm":
+                fields = ["resource_name", "@error.type"]
+                query = spans_base + " status:error"
+                grouped("new_errors", "aggregate_spans", query, fields, window)
+            if kind == "rum":
+                fields = ["@error.type", "@view.url_path_group"]
+                query = base + " @type:error"
+                grouped("new_errors", "aggregate_rum_events", query, fields, window)
+    return out
