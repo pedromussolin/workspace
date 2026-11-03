@@ -64,7 +64,8 @@ def _outcome(
             return "done_without_pr", f"status done since {changed}"
     if commits:
         days = len({commit["date"] for commit in commits})
-        return "in_progress", f"{len(commits)} commits on {days} days"
+        count = f"{len(commits)} commit" + ("" if len(commits) == 1 else "s")
+        return "in_progress", f"{count} on {days} day" + ("" if days == 1 else "s")
     return None, None
 
 
