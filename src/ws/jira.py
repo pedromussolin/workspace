@@ -11,7 +11,15 @@ from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
 
-FIELDS = ["summary", "status", "parent", "reporter", "updated"]
+FIELDS = [
+    "summary",
+    "status",
+    "parent",
+    "reporter",
+    "updated",
+    "statuscategorychangedate",
+    "resolutiondate",
+]
 
 PAGE_SIZE = 100
 META_PAGE_SIZE = 200
@@ -77,6 +85,11 @@ def _required(source: dict, name: str, where: str):
     return value
 
 
+def _optional_time(fields: dict, name: str) -> str | None:
+    value = fields.get(name)
+    return None if not value else datetime.fromisoformat(value).isoformat()
+
+
 def card_from_issue(issue: dict, my_account_id: str) -> dict:
     key = _required(issue, "key", "issue")
     fields = _required(issue, "fields", f"issue {key}")
@@ -97,6 +110,8 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
         "epic_title": (parent.get("fields") or {}).get("summary"),
         "reporter_is_me": reporter.get("accountId") == my_account_id,
         "updated": updated.isoformat(),
+        "status_changed": _optional_time(fields, "statuscategorychangedate"),
+        "resolved": _optional_time(fields, "resolutiondate"),
     }
 
 
@@ -124,6 +139,9 @@ def task_from_card(card: dict, site: str, overrides: dict[str, str]) -> Task:
         epic_title=card["epic_title"],
         requested_by_other=not card["reporter_is_me"],
         updated=datetime.fromisoformat(card["updated"]),
+        status_changed=(
+            datetime.fromisoformat(card["status_changed"]) if card.get("status_changed") else None
+        ),
     )
 
 

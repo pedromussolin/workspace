@@ -27,6 +27,7 @@ class Task:
     epic_title: str | None
     requested_by_other: bool
     updated: datetime
+    status_changed: datetime | None = None
 
 
 def task_to_json(task: Task) -> dict:
