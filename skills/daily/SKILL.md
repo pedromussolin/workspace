@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and Jira, without writing anywhere. The text is short by default; the detailed one comes on request ("daily detalhado"). Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
+description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and Jira, without writing anywhere. The text is short by default; the detailed one comes on request ("daily detalhado"). It also summarises a period by theme (a week, a month, a date range) and writes a text for a manager or 1:1. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"), for a period ("daily da semana passada", "resumo de outubro", "o que fiz de 20/10 a 31/10") or for a manager text ("texto para o gestor", "para a 1:1"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
@@ -38,7 +38,8 @@ one: card titles must not land in whatever folder the session is in. Never read
      end of this step.
    - Call `atlassianUserInfo` for the account id (used only to set `reporter_is_me`).
    - Call `searchJiraIssuesUsingJql` with `cloudId`, `maxResults: 100`,
-     `fields: ["summary", "status", "parent", "reporter", "updated"]` and this `jql`:
+     `fields: ["summary", "status", "parent", "reporter", "updated", "statuscategorychangedate", "resolutiondate"]`
+     and this `jql`:
 
      ```text
      assignee = currentUser() AND (statusCategory != Done OR updated >= "<since>") ORDER BY updated DESC
@@ -51,7 +52,9 @@ one: card titles must not land in whatever folder the session is in. Never read
      (`fields.status.statusCategory.key`: `new`, `indeterminate` or `done`); `epic_key` and
      `epic_title` (`fields.parent.key` and `fields.parent.fields.summary`, `null` without a
      parent); `reporter_is_me` (`fields.reporter.accountId` equals the account id);
-     `updated` (`fields.updated`, as it came).
+     `updated` (`fields.updated`, as it came); `status_changed`
+     (`fields.statuscategorychangedate`) and `resolved` (`fields.resolutiondate`), as they came,
+     `null` when absent.
    - Create `~/.local/share/workspace/standup/cards.json` with the Write tool (not an inline shell
      string, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`. When
      the Write tool is denied, write the same JSON with a quoted heredoc
@@ -70,6 +73,16 @@ one: card titles must not land in whatever folder the session is in. Never read
    to the final warnings line. If the run without `--cards` fails, say so with its stderr and
    stop: the text comes only from the report.
 5. **Write the text** in the mode chosen, from the report only.
+
+## Period
+
+When the user asks for a period instead of a day ("daily da semana passada", "resumo de outubro",
+"o que fiz de 20/10 a 31/10") or for a text for a manager or a 1:1 ("texto para o gestor", "para a
+1:1"), the single-day steps above do not run: follow `references/period.md`. It runs
+`ws standup period`, `ws standup collect --since --until`, the cards as above and
+`ws standup summary`, and writes the per-task summary (short by default, "detalhado" on request)
+and, when asked, the manager text. The same rules apply: describe the task, never the person; write
+only from the summary; nothing is written anywhere.
 
 ## Modes
 
