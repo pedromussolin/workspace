@@ -5,15 +5,18 @@ files the session hook points at. Everything here is read-only except `new_hando
 which write only the private handoff file.
 """
 
+import difflib
 import glob
 import json
 import os
 import re
+import stat
 import subprocess
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from ws import config
+from ws.project import SLUG_PATTERN
 from ws.userconfig import StandupConfig
 
 GIT_TIMEOUT = 15
@@ -478,3 +481,301 @@ def _extra_globs() -> list[str]:
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return value
     return []
+
+
+STATE_BEGIN = "<!-- ws:state:begin: gerado por ws handoff; para atualizar, ws handoff refresh -->"
+STATE_END = "<!-- ws:state:end -->"
+STATE_BLOCK = re.compile(
+    r"^<!-- ws:state:begin[^\n]*-->\n(?:.*?\n)?<!-- ws:state:end -->", re.MULTILINE | re.DOTALL
+)
+TOPIC = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+MAX_TOPIC = 40
+FILE_NAME = re.compile(r"HANDOFF-\d{8}-[a-z0-9]+(-[a-z0-9]+)*\.md")
+TITLE = re.compile(r"# Handoff \d{2}/\d{2}/\d{4}: \S")
+FRONT = re.compile(r"^## (\d+)\. (.+)$", re.MULTILINE)
+NEXT_STEPS = "**Próximos passos:**"
+RESUME_HEADING = "## Ordem sugerida ao retomar"
+RESUME_DEFAULT = "1. Ler este arquivo inteiro."
+TMP_PATH = re.compile(r"(?<![\w./~-])/tmp/")
+LONG_FILE_LINES = 300
+PLACEHOLDERS = (
+    "tema em poucas palavras",
+    "Por que o chat parou",
+    "Frente",
+    "o que está pronto",
+    "decisões desta sessão",
+    "o que ficou de fora",
+    "ação concreta",
+    "worktree, branch, último commit",
+    "o que só ele pode fazer",
+)
+
+
+def _cell(value: object) -> str:
+    text = "" if value is None else str(value)
+    return " ".join(text.split()).replace("|", "\\|").replace("<!--", "&lt;!--")
+
+
+def _table(header: list[str], rows: list[list[object]]) -> list[str]:
+    lines = [f"| {' | '.join(header)} |", f"|{'|'.join(' --- ' for _ in header)}|"]
+    lines += [f"| {' | '.join(_cell(value) for value in row)} |" for row in rows]
+    return lines
+
+
+def _paths_cell(uncommitted: dict | None) -> str:
+    if not uncommitted or not uncommitted["count"]:
+        return "0"
+    shown = ", ".join(uncommitted["paths"])
+    more = f", +{uncommitted['more']}" if uncommitted["more"] else ""
+    return f"{uncommitted['count']}: {shown}{more}"
+
+
+def _plural(count: int, one: str, many: str) -> str:
+    return f"{count} {one if count == 1 else many}"
+
+
+def render_state(collected: dict) -> str:
+    """The marked state block of the handoff file, in Markdown tables."""
+    lines = [STATE_BEGIN, f"Gerado em {collected['generated_at']}.", ""]
+    repos = collected["repos"]
+    if repos:
+        rows = []
+        for repo in repos:
+            branch = repo["branch"] or f"(detached {repo['detached']})"
+            upstream = repo["upstream"] or ""
+            if repo["gone"]:
+                upstream = f"{upstream} (removido no remoto)"
+            rows.append(
+                [
+                    repo["name"],
+                    branch,
+                    upstream,
+                    repo["ahead"],
+                    repo["behind"],
+                    _paths_cell(repo["uncommitted"]),
+                    repo["stashes"],
+                ]
+            )
+        header = [
+            "Repositório",
+            "Branch",
+            "Upstream",
+            "À frente",
+            "Atrás",
+            "Não commitados",
+            "Stash",
+        ]
+        lines += ["### Repositórios", "", *_table(header, rows), ""]
+    else:
+        lines += ["Nenhum repositório com pendências.", ""]
+    worktrees = [
+        [
+            repo["name"],
+            tree["path"],
+            tree["branch"] or "(detached)",
+            tree["head"],
+            "?" if tree["uncommitted"] is None else tree["uncommitted"],
+            tree["ahead"],
+            tree["behind"],
+            ", ".join(
+                label
+                for flag, label in ((tree["locked"], "travada"), (tree["prunable"], "removível"))
+                if flag
+            ),
+        ]
+        for repo in repos
+        for tree in repo["worktrees"]
+    ]
+    if worktrees:
+        header = [
+            "Repositório",
+            "Caminho",
+            "Branch",
+            "Head",
+            "Não commitados",
+            "À frente",
+            "Atrás",
+            "Obs",
+        ]
+        lines += ["### Worktrees", "", *_table(header, worktrees), ""]
+    branches = [
+        [repo["name"], item["name"], item["ahead"], item["upstream"], item["last_commit"]]
+        for repo in repos
+        for item in repo["local_branches"]
+    ]
+    if branches:
+        header = ["Repositório", "Branch só local", "À frente", "Upstream", "Último commit"]
+        lines += ["### Branches só locais (14 dias)", "", *_table(header, branches), ""]
+    if collected["prs"]:
+        rows = [
+            [
+                pr["repo"],
+                f"[#{pr['number']}]({pr['url']})",
+                pr["title"],
+                f"{pr['head']} → {pr['base']}",
+                "rascunho" if pr["draft"] else (pr["review"] or "sem revisão"),
+            ]
+            for pr in collected["prs"]
+        ]
+        header = ["Repositório", "PR", "Título", "Branch", "Revisão"]
+        lines += ["### PRs abertos", "", *_table(header, rows), ""]
+    if collected["warnings"]:
+        lines += ["### Avisos da coleta", "", *(f"- {_cell(w)}" for w in collected["warnings"]), ""]
+    footer = "Contagem à frente/atrás pelo último fetch"
+    clean = collected["clean_repos"]
+    if clean:
+        footer += f"; {_plural(clean, 'repositório limpo omitido', 'repositórios limpos omitidos')}"
+    lines += [f"{footer}.", STATE_END]
+    return "\n".join(lines)
+
+
+def _replace_state(text: str, block: str) -> str:
+    if not STATE_BLOCK.search(text):
+        raise HandoffError("the state block markers were not found in the file")
+    return STATE_BLOCK.sub(lambda _: block, text, count=1)
+
+
+def new_handoff(
+    slug: str, topic: str, day: date, collected: dict, *, root: Path, data_dir: Path
+) -> Path:
+    """Creates `HANDOFF-YYYYMMDD-<topic>.md` (mode 600) in the project's private folder (700)."""
+    if not SLUG_PATTERN.fullmatch(slug):
+        raise HandoffError(f"invalid slug {slug!r}: lowercase letters, digits and hyphens")
+    if not (root / "projects" / slug).is_dir():
+        raise HandoffError(f"unknown project {slug!r}: there is no projects/{slug} folder")
+    if len(topic) > MAX_TOPIC or not TOPIC.fullmatch(topic):
+        raise HandoffError(
+            f"invalid topic {topic!r}: lowercase words joined by single hyphens, "
+            f"at most {MAX_TOPIC} characters"
+        )
+    folder = data_dir / "projects" / slug
+    target = folder / f"HANDOFF-{day.strftime('%Y%m%d')}-{topic}.md"
+    if target.exists():
+        raise HandoffError(f"already exists: {target.name}; write another topic or edit it")
+    try:
+        template = (root / "templates" / "handoff.md").read_text(encoding="utf-8")
+    except OSError as error:
+        raise HandoffError(f"cannot read the template: {error}") from None
+    filled = template.replace("{{data}}", day.strftime("%d/%m/%Y"))
+    text = _replace_state(filled, render_state(collected))
+    if not folder.exists():
+        folder.mkdir(parents=True)
+        folder.chmod(0o700)
+    descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    target.chmod(0o600)
+    return target
+
+
+def _without_stamp(block: str) -> list[str]:
+    return [line for line in block.splitlines() if not line.startswith("Gerado em ")]
+
+
+def refresh(path: Path, collected: dict, *, diff_only: bool) -> str:
+    """Re-renders the marked block only and returns its diff, the stamp line aside."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise HandoffError(f"cannot read {path}: {error}") from None
+    match = STATE_BLOCK.search(text)
+    if not match:
+        raise HandoffError(f"the state block markers were not found in {path.name}")
+    block = render_state(collected)
+    diff = difflib.unified_diff(
+        _without_stamp(match.group(0)), _without_stamp(block), lineterm="", n=0
+    )
+    if not diff_only:
+        path.write_text(_replace_state(text, block), encoding="utf-8")
+    return "\n".join(line for line in list(diff)[2:] if not line.startswith("@@"))
+
+
+def _section(text: str, heading: str) -> str | None:
+    match = re.search(rf"^{re.escape(heading)}[ \t]*$", text, re.MULTILINE)
+    if not match:
+        return None
+    rest = text[match.end() :]
+    following = re.search(r"^## ", rest, re.MULTILINE)
+    return rest[: following.start()] if following else rest
+
+
+def _front_problems(text: str) -> list[str]:
+    fronts = list(FRONT.finditer(text))
+    if not fronts:
+        return ["no front section (## N. <frente>)"]
+    problems = []
+    for front in fronts:
+        body = text[front.end() :]
+        following = re.search(r"^## ", body, re.MULTILINE)
+        if following:
+            body = body[: following.start()]
+        if not _next_steps_filled(body):
+            problems.append(f"front '{front.group(2)}' has no filled {NEXT_STEPS}")
+    return problems
+
+
+def _next_steps_filled(body: str) -> bool:
+    if NEXT_STEPS not in body:
+        return False
+    content = []
+    for line in body.split(NEXT_STEPS, 1)[1].splitlines():
+        if re.match(r"\*\*[^*]+:\*\*", line):
+            break
+        content.append(line)
+    text = "\n".join(content)
+    if any(f"<{known}" in text for known in PLACEHOLDERS):
+        return False
+    return bool(re.sub(r"[\s\d.\-*]", "", text))
+
+
+def _allowed_place(path: Path, data_dir: Path, extra_globs: list[str]) -> bool:
+    resolved = path.resolve()
+    if resolved.parent.parent == (data_dir / "projects").resolve():
+        return True
+    for pattern in extra_globs:
+        if any(Path(name).resolve() == resolved for name in glob.glob(os.path.expanduser(pattern))):
+            return True
+    return False
+
+
+def check(path: Path, *, data_dir: Path, extra_globs: list[str]) -> dict:
+    """The verdict on a handoff file: `ok`, `problems` (block) and `warnings` (do not)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError as error:
+        raise HandoffError(f"cannot read {path}: {error}") from None
+    problems: list[str] = []
+    warnings: list[str] = []
+    if not _allowed_place(path, data_dir, extra_globs):
+        problems.append(
+            "the file is outside the private project folders and the extra_globs folders"
+        )
+    if not FILE_NAME.fullmatch(path.name):
+        problems.append(f"the name {path.name!r} does not match HANDOFF-YYYYMMDD-<topic>.md")
+    if mode != 0o600:
+        problems.append(f"the mode is {mode:o}, expected 600")
+    if not TITLE.match(text.split("\n", 1)[0]):
+        problems.append("the first line is not a title '# Handoff DD/MM/AAAA: <tema>'")
+    problems += _front_problems(text)
+    if not STATE_BLOCK.search(text):
+        problems.append("the state block (ws:state markers) is missing; run ws handoff refresh")
+    resume = _section(text, RESUME_HEADING)
+    filled = [
+        line
+        for line in (resume or "").splitlines()
+        if line.strip() and line.strip() != RESUME_DEFAULT
+    ]
+    if resume is None:
+        problems.append(f"the section '{RESUME_HEADING}' is missing")
+    elif not filled:
+        problems.append(f"the section '{RESUME_HEADING}' is empty")
+    outside_block = STATE_BLOCK.sub("", text)
+    if any(f"<{known}" in outside_block for known in PLACEHOLDERS):
+        problems.append("a template placeholder is still in the file (text between < and >)")
+    lines = len(text.splitlines())
+    if lines > LONG_FILE_LINES:
+        warnings.append(f"the file has {lines} lines, over {LONG_FILE_LINES}: cut what is history")
+    if TMP_PATH.search(outside_block):
+        warnings.append("a path under /tmp/ is cited; it is gone after a shutdown of the WSL")
+    return {"ok": not problems, "path": _tilde(path), "problems": problems, "warnings": warnings}

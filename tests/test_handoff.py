@@ -1,7 +1,10 @@
 import json
 import os
+import re
+import stat
 import subprocess
-from datetime import UTC, datetime, timedelta
+import textwrap
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -396,3 +399,370 @@ def test_find_handoffs_skips_closed(tmp_path):
 
     assert [Path(item["path"]).name for item in found] == ["HANDOFF-20261103-b.md"]
     assert {item["closed"] for item in everything} == {True, False}
+
+
+COLLECTED = {
+    "generated_at": "2026-11-03T17:40:00-03:00",
+    "fetched": False,
+    "repos": [
+        {
+            "name": "alpha",
+            "path": "~/repos/alpha",
+            "branch": "feature/TS-1-x",
+            "detached": None,
+            "default_branch": "master",
+            "upstream": "origin/feature/TS-1-x",
+            "ahead": 2,
+            "behind": 0,
+            "gone": False,
+            "uncommitted": {"count": 3, "paths": ["src/a.py", "b|c.py"], "more": 1},
+            "stashes": 1,
+            "worktrees": [
+                {
+                    "path": "~/repos/alpha-wt/25",
+                    "branch": "feature/TS-9-w",
+                    "head": "abc1234",
+                    "uncommitted": 0,
+                    "ahead": 1,
+                    "behind": 0,
+                    "locked": False,
+                    "prunable": False,
+                }
+            ],
+            "local_branches": [
+                {"name": "fix/TS-8-q", "ahead": 3, "upstream": None, "last_commit": "2026-11-02"}
+            ],
+        }
+    ],
+    "clean_repos": 31,
+    "prs": [
+        {
+            "repo": "alpha",
+            "number": 12,
+            "title": "Fix x",
+            "url": "https://example.test/pull/12",
+            "base": "master",
+            "head": "release/1",
+            "draft": False,
+            "review": "APPROVED",
+            "updated": "2026-11-03T10:00:00Z",
+        }
+    ],
+    "handoffs": [],
+    "warnings": [],
+}
+
+
+def test_render_state_tables_and_footer():
+    block = handoff.render_state(COLLECTED)
+
+    lines = block.splitlines()
+    assert lines[0].startswith("<!-- ws:state:begin")
+    assert lines[-1] == "<!-- ws:state:end -->"
+    assert "| alpha | feature/TS-1-x |" in block
+    assert "src/a.py" in block and "b\\|c.py" in block and "+1" in block
+    assert "abc1234" in block and "fix/TS-8-q" in block
+    assert "[#12](https://example.test/pull/12)" in block or "#12" in block
+    assert "Contagem à frente/atrás pelo último fetch; 31 repositórios limpos omitidos." in block
+    assert "2026-11-03T17:40:00-03:00" in block
+
+
+def test_render_state_with_nothing_to_say():
+    empty = {**COLLECTED, "repos": [], "prs": [], "clean_repos": 4}
+
+    block = handoff.render_state(empty)
+
+    assert "Nenhum repositório com pendências." in block
+    assert "| " not in block
+
+
+@pytest.fixture
+def repo_root(tmp_path):
+    root = tmp_path / "root"
+    (root / "projects" / "demo").mkdir(parents=True)
+    (root / "projects" / "standalone").mkdir(parents=True)
+    (root / "templates").mkdir()
+    template = Path(handoff.__file__).resolve().parents[2] / "templates" / "handoff.md"
+    (root / "templates" / "handoff.md").write_text(
+        template.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    return root
+
+
+def _mode(path: Path) -> int:
+    return stat.S_IMODE(path.stat().st_mode)
+
+
+def test_new_handoff_creates_private_folder_and_file_modes(repo_root, tmp_path):
+    data = tmp_path / "data"
+
+    path = handoff.new_handoff(
+        "demo", "portao-tokens", date(2026, 11, 3), COLLECTED, root=repo_root, data_dir=data
+    )
+
+    assert path == data / "projects" / "demo" / "HANDOFF-20261103-portao-tokens.md"
+    assert _mode(path.parent) == 0o700
+    assert _mode(path) == 0o600
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("# Handoff 03/11/2026: ")
+    assert "{{data}}" not in text
+    assert "| alpha | feature/TS-1-x |" in text
+    assert text.count("ws:state:begin") == 1 and text.count("ws:state:end") == 1
+
+
+def test_new_works_for_standalone(repo_root, tmp_path):
+    path = handoff.new_handoff(
+        "standalone", "x", date(2026, 11, 3), COLLECTED, root=repo_root, data_dir=tmp_path / "d"
+    )
+
+    assert path.parent.name == "standalone"
+
+
+def test_new_refuses_unknown_slug_bad_topic_existing_file(repo_root, tmp_path):
+    data = tmp_path / "data"
+    args = (date(2026, 11, 3), COLLECTED)
+    with pytest.raises(handoff.HandoffError, match="unknown project"):
+        handoff.new_handoff("nope", "x", *args, root=repo_root, data_dir=data)
+    for topic in ("Bad Topic", "-x", "x-", "a" * 41, "", "a--b", "x/y"):
+        with pytest.raises(handoff.HandoffError, match="topic"):
+            handoff.new_handoff("demo", topic, *args, root=repo_root, data_dir=data)
+    first = handoff.new_handoff("demo", "x", *args, root=repo_root, data_dir=data)
+    first.write_text("mine", encoding="utf-8")
+    with pytest.raises(handoff.HandoffError, match="HANDOFF-20261103-x.md"):
+        handoff.new_handoff("demo", "x", *args, root=repo_root, data_dir=data)
+    assert first.read_text(encoding="utf-8") == "mine"
+    assert not (data / "projects" / "nope").exists()
+
+
+def test_new_refuses_a_slug_that_walks_out_of_projects(repo_root, tmp_path):
+    with pytest.raises(handoff.HandoffError, match="slug"):
+        handoff.new_handoff(
+            "../demo", "x", date(2026, 11, 3), COLLECTED, root=repo_root, data_dir=tmp_path / "d"
+        )
+
+
+def _new(repo_root, tmp_path) -> Path:
+    return handoff.new_handoff(
+        "demo", "x", date(2026, 11, 3), COLLECTED, root=repo_root, data_dir=tmp_path / "data"
+    )
+
+
+def test_refresh_touches_only_the_marked_block(repo_root, tmp_path):
+    path = _new(repo_root, tmp_path)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("<Frente>", "Minha frente"), encoding="utf-8")
+    changed = {**COLLECTED, "repos": [{**COLLECTED["repos"][0], "ahead": 5}]}
+    before = path.read_text(encoding="utf-8")
+
+    diff = handoff.refresh(path, changed, diff_only=False)
+
+    after = path.read_text(encoding="utf-8")
+    assert "Minha frente" in after
+    start, end = "<!-- ws:state:begin", "<!-- ws:state:end -->"
+    assert before[: before.index(start)] == after[: after.index(start)]
+    assert before[before.index(end) :] == after[after.index(end) :]
+    assert "| 5 |" in after
+    assert "-| alpha" in diff and "+| alpha" in diff
+    assert _mode(path) == 0o600
+
+
+def test_refresh_diff_writes_nothing(repo_root, tmp_path):
+    path = _new(repo_root, tmp_path)
+    before = path.read_bytes()
+    changed = {**COLLECTED, "repos": [], "clean_repos": 32}
+
+    diff = handoff.refresh(path, changed, diff_only=True)
+
+    assert path.read_bytes() == before
+    assert "alpha" in diff
+
+
+def test_refresh_diff_ignores_the_timestamp_alone(repo_root, tmp_path):
+    path = _new(repo_root, tmp_path)
+    later = {**COLLECTED, "generated_at": "2026-11-04T09:00:00-03:00"}
+
+    assert handoff.refresh(path, later, diff_only=True) == ""
+
+
+def test_refresh_without_markers_is_an_error(tmp_path):
+    path = tmp_path / "HANDOFF-20261103-x.md"
+    path.write_text("# Handoff 03/11/2026: x\n", encoding="utf-8")
+
+    with pytest.raises(handoff.HandoffError, match="markers"):
+        handoff.refresh(path, COLLECTED, diff_only=False)
+
+
+GOOD = textwrap.dedent(
+    """\
+    # Handoff 03/11/2026: portão e tokens
+
+    O chat parou para o shutdown. Leia inteiro.
+
+    ## 1. Portão
+
+    **Estado:** pronto na main.
+
+    **Próximos passos:**
+    1. Revisar a branch B.
+
+    ## Para o usuário fazer
+
+    Rodar `ws setup`.
+
+    ## Estado dos repositórios
+
+    <!-- ws:state:begin: gerado por ws handoff; para atualizar, ws handoff refresh -->
+    <!-- ws:state:end -->
+
+    ## Ordem sugerida ao retomar
+
+    1. Ler este arquivo inteiro.
+    2. Revisar a branch B.
+    """
+)
+
+
+@pytest.fixture
+def good(tmp_path):
+    data = tmp_path / "data"
+    folder = data / "projects" / "demo"
+    folder.mkdir(parents=True)
+    folder.chmod(0o700)
+    path = folder / "HANDOFF-20261103-x.md"
+    path.write_text(GOOD, encoding="utf-8")
+    path.chmod(0o600)
+
+    class Good:
+        pass
+
+    good = Good()
+    good.path, good.data = path, data
+
+    def check(text: str | None = None, **kwargs) -> dict:
+        if text is not None:
+            path.write_text(text, encoding="utf-8")
+        return handoff.check(path, data_dir=data, extra_globs=kwargs.get("extra_globs", []))
+
+    good.check = check
+    return good
+
+
+def test_check_ok(good):
+    verdict = good.check()
+
+    assert verdict["ok"] is True
+    assert verdict["problems"] == [] and verdict["warnings"] == []
+
+
+def test_check_outside_the_private_folders(good, tmp_path):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    moved = elsewhere / good.path.name
+    moved.write_text(GOOD, encoding="utf-8")
+    moved.chmod(0o600)
+
+    verdict = handoff.check(moved, data_dir=good.data, extra_globs=[])
+    allowed = handoff.check(
+        moved, data_dir=good.data, extra_globs=[str(elsewhere / "HANDOFF-*.md")]
+    )
+
+    assert any("outside" in problem for problem in verdict["problems"])
+    assert allowed["ok"] is True
+
+
+def test_check_name(good):
+    renamed = good.path.with_name("handoff-notes.md")
+    good.path.rename(renamed)
+
+    verdict = handoff.check(renamed, data_dir=good.data, extra_globs=[])
+
+    assert any("name" in problem for problem in verdict["problems"])
+
+
+def test_check_mode(good):
+    good.path.chmod(0o644)
+
+    assert any("600" in problem for problem in good.check()["problems"])
+
+
+def test_check_title(good):
+    verdict = good.check(GOOD.replace("# Handoff 03/11/2026: portão e tokens", "# Notes"))
+
+    assert any("title" in problem for problem in verdict["problems"])
+
+
+def test_check_without_a_front(good):
+    verdict = good.check(GOOD.replace("## 1. Portão", "## Portão"))
+
+    assert any("front" in problem for problem in verdict["problems"])
+
+
+def test_check_front_without_next_steps(good):
+    text = GOOD.replace("1. Revisar a branch B.\n", "")
+
+    verdict = good.check(text)
+
+    assert any(
+        "Próximos passos" in problem and "Portão" in problem for problem in verdict["problems"]
+    )
+
+
+def test_check_front_with_a_placeholder_for_next_steps(good):
+    verdict = good.check(GOOD.replace("1. Revisar a branch B.", "1. <ação concreta>"))
+
+    assert any("Próximos passos" in problem for problem in verdict["problems"])
+
+
+def test_check_state_block_missing(good):
+    text = GOOD.replace(
+        "<!-- ws:state:begin: gerado por ws handoff; para atualizar, ws handoff refresh -->\n", ""
+    )
+
+    assert any("state block" in problem for problem in good.check(text)["problems"])
+
+
+def test_check_resume_order_missing_or_empty(good):
+    missing = good.check(GOOD.replace("## Ordem sugerida ao retomar", "## Outra"))
+    empty = good.check(
+        GOOD.split("## Ordem sugerida ao retomar")[0] + "## Ordem sugerida ao retomar\n\n"
+    )
+    untouched = good.check(GOOD.split("2. Revisar")[0])
+
+    assert any("Ordem sugerida" in problem for problem in missing["problems"])
+    assert any("Ordem sugerida" in problem for problem in empty["problems"])
+    assert any("Ordem sugerida" in problem for problem in untouched["problems"])
+
+
+def test_check_template_placeholder_left(good):
+    verdict = good.check(
+        GOOD.replace(
+            "O chat parou para o shutdown.",
+            "<Por que o chat parou e como ler este arquivo, em 1 a 3 linhas.>",
+        )
+    )
+
+    assert any("placeholder" in problem for problem in verdict["problems"])
+
+
+def test_every_template_placeholder_is_known_to_check():
+    template = Path(handoff.__file__).resolve().parents[2] / "templates" / "handoff.md"
+    text = template.read_text(encoding="utf-8")
+    inside = re.findall(r"<([^<>!\n][^<>\n]*)>", text)
+    assert inside
+    for item in inside:
+        assert any(item.startswith(known) for known in handoff.PLACEHOLDERS), item
+
+
+def test_check_warns_over_300_lines_and_tmp_paths(good):
+    text = GOOD + "\n" * 300 + "rascunho em /tmp/work/x.md\n"
+
+    verdict = good.check(text)
+
+    assert verdict["ok"] is True
+    assert any("300" in warning for warning in verdict["warnings"])
+    assert any("/tmp/" in warning for warning in verdict["warnings"])
+
+
+def test_check_missing_file_is_an_error(tmp_path):
+    with pytest.raises(handoff.HandoffError, match="cannot read"):
+        handoff.check(tmp_path / "nope.md", data_dir=tmp_path, extra_globs=[])
