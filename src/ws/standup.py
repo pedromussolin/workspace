@@ -16,6 +16,12 @@ PR_QUERY = (
     "query($q:String!){search(query:$q,type:ISSUE,first:100){issueCount nodes{"
     "... on PullRequest{number title state mergedAt updatedAt headRefName url repository{name}}}}}"
 )
+PERIOD_PR_QUERY = (
+    "query($q:String!,$after:String){search(query:$q,type:ISSUE,first:100,after:$after){"
+    "issueCount pageInfo{hasNextPage endCursor} nodes{... on PullRequest{number title state "
+    "mergedAt createdAt closedAt updatedAt baseRefName headRefName url repository{name}}}}}"
+)
+PERIOD_PR_PAGES = 3
 FIELD_SEPARATOR = "\x1f"
 
 
@@ -65,14 +71,17 @@ def _author_email(repo: Path) -> str | None:
     return email or None
 
 
-def _own_commits(repo: Path, email: str, since: date) -> list[dict]:
+def _own_commits(repo: Path, email: str, since: date, until: date | None = None) -> list[dict]:
     # The stash commits carry the user's author and the branch name, but are not work done.
+    bounds = [f"--since={since.isoformat()} 00:00:00"]
+    if until is not None:
+        bounds.append(f"--until={until.isoformat()} 23:59:59")
     out = _git(
         repo,
         "log",
         "--exclude=refs/stash",
         "--all",
-        f"--since={since.isoformat()} 00:00:00",
+        *bounds,
         f"--author=<{email}>",
         "--fixed-strings",
         "--date=short",
@@ -109,7 +118,9 @@ def _created_on(common_dir: Path, name: str) -> date | None:
         return None
 
 
-def _branches(repo: Path, stale_since: date, listed: set[tuple[str, str]]) -> list[dict]:
+def _branches(
+    repo: Path, stale_since: date, listed: set[tuple[str, str]], until: date | None = None
+) -> list[dict]:
     common_dir = _git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
     out = _git(
         repo,
@@ -124,7 +135,15 @@ def _branches(repo: Path, stale_since: date, listed: set[tuple[str, str]]) -> li
         if not keys or (common_dir, name) in listed:
             continue
         created = _created_on(Path(common_dir), name)
-        if tip < stale_since.isoformat() and (created is None or created < stale_since):
+        if until is None:
+            recent = tip >= stale_since.isoformat() or (
+                created is not None and created >= stale_since
+            )
+        else:
+            tip_in = stale_since.isoformat() <= tip <= until.isoformat()
+            created_in = created is not None and stale_since <= created <= until
+            recent = tip_in or created_in
+        if not recent:
             continue
         listed.add((common_dir, name))
         branches.append({"repo": repo.name, "name": name, "keys": keys})
@@ -174,6 +193,74 @@ def _pull_requests(gh: str, stale_since: date, warnings: list[str]) -> list[dict
     return []
 
 
+def _gh_graphql(gh: str, query: str, search: str, after: str | None) -> str:
+    command = [gh, "api", "graphql", "-f", f"query={query}", "-f", f"q={search}"]
+    if after:
+        command += ["-f", f"after={after}"]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        lines = result.stderr.strip().splitlines()
+        raise RuntimeError(lines[0] if lines else f"exit {result.returncode}")
+    return result.stdout
+
+
+def _local_day(stamp: str | None) -> date | None:
+    return None if stamp is None else datetime.fromisoformat(stamp).astimezone().date()
+
+
+def _pr_in_period(pr: dict, since: date, until: date) -> bool:
+    if pr["state"] == "open":
+        return True
+    days = (_local_day(pr[name]) for name in ("created_at", "merged_at", "closed_at"))
+    return any(day is not None and since <= day <= until for day in days)
+
+
+def _period_pr(node: dict) -> dict:
+    return {
+        "repo": node["repository"]["name"],
+        "number": node["number"],
+        "title": node["title"],
+        "state": node["state"].lower(),
+        "base": node["baseRefName"],
+        "created_at": node["createdAt"],
+        "closed_at": node["closedAt"],
+        "merged_at": node["mergedAt"],
+        "updated_at": node["updatedAt"],
+        "url": node["url"],
+        "keys": keys_in(f"{node['title']} {node['headRefName']}"),
+    }
+
+
+def _period_pull_requests(gh: str, since: date, until: date, warnings: list[str]) -> list[dict]:
+    search = f"is:pr author:@me updated:>={since.isoformat()}"
+    prs: list[dict] = []
+    after = None
+    try:
+        for _ in range(PERIOD_PR_PAGES):
+            found = json.loads(_gh_graphql(gh, PERIOD_PR_QUERY, search, after))["data"]["search"]
+            prs.extend(_period_pr(node) for node in found["nodes"] if node)
+            if not found["pageInfo"]["hasNextPage"]:
+                break
+            after = found["pageInfo"]["endCursor"]
+        else:
+            warnings.append(
+                f"gh: {found['issueCount']} PRs found, only the first "
+                f"{PERIOD_PR_PAGES * 100} were read"
+            )
+    except (OSError, RuntimeError) as error:
+        warnings.append(f"gh: PRs left out ({error})")
+    except (ValueError, LookupError, TypeError, AttributeError) as error:
+        warnings.append(f"gh: PRs left out (unexpected answer: {type(error).__name__} {error})")
+    return [pr for pr in prs if _pr_in_period(pr, since, until)]
+
+
 def _section(text: str, heading: str) -> str | None:
     lines = text.splitlines()
     if heading not in lines:
@@ -197,9 +284,24 @@ def _next_steps(workspace: Path, warnings: list[str]) -> list[dict]:
     return steps
 
 
-def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") -> dict:
-    since = previous_workday(today)
-    stale_since = workdays_before(today, cfg.stale_workdays)
+def collect(
+    cfg: StandupConfig,
+    today: date,
+    workspace: Path,
+    gh: str = "gh",
+    *,
+    since: date | None = None,
+    until: date | None = None,
+) -> dict:
+    period = since is not None
+    if until is not None and since is None:
+        raise ValueError("until needs since")
+    if since is not None:
+        until = until or today
+        stale_since = since
+    else:
+        since = previous_workday(today)
+        stale_since = workdays_before(today, cfg.stale_workdays)
     warnings: list[str] = []
     commits: list[dict] = []
     branches: list[dict] = []
@@ -208,9 +310,15 @@ def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") ->
     listed_branches: set[tuple[str, str]] = set()
     for repo in _find_repos(cfg, workspace, warnings):
         try:
-            branches.extend(_branches(repo, stale_since, listed_branches))
+            branches.extend(
+                _branches(repo, stale_since, listed_branches, until if period else None)
+            )
             email = _author_email(repo)
-            found = [] if email is None else _own_commits(repo, email, min(since, stale_since))
+            found = (
+                []
+                if email is None
+                else _own_commits(repo, email, min(since, stale_since), until if period else None)
+            )
         except RuntimeError as error:
             warnings.append(f"repo {repo.name}: left out ({error})")
             continue
@@ -220,16 +328,24 @@ def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") ->
             if item["sha"] in seen:
                 continue
             seen.add(item["sha"])
+            if period and item["date"] > until.isoformat():
+                continue
             if item["date"] >= since.isoformat():
                 commits.append(item)
             if item["date"] >= stale_since.isoformat():
                 for key in item["keys"]:
                     last_activity[key] = max(item["date"], last_activity.get(key, ""))
+    if period:
+        window = {"since": since.isoformat(), "until": until.isoformat(), "kind": "period"}
+        prs = _period_pull_requests(gh, since, until, warnings)
+    else:
+        window = {"since": since.isoformat(), "until": today.isoformat(), "kind": "daily"}
+        prs = _pull_requests(gh, stale_since, warnings)
     return {
-        "window": {"since": since.isoformat(), "until": today.isoformat()},
+        "window": window,
         "commits": commits,
         "branches": branches,
-        "prs": _pull_requests(gh, stale_since, warnings),
+        "prs": prs,
         "last_activity": last_activity,
         "next_steps": _next_steps(workspace, warnings),
         "warnings": warnings,
