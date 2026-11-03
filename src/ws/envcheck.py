@@ -13,6 +13,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from ws import userconfig
+from ws.config import config_dir
+from ws.userconfig import ConfigInvalid
+
 MAX_WHERE = 3
 KIND_ORDER = {"settings": 0, "dynamic": 1, "helper": 2, "shell": 3, "migration": 4}
 SETTINGS_BASE = "BaseSettings"
@@ -858,3 +862,267 @@ def _names_from_script_output(output: str) -> list[str]:
         if match:
             names.append(match.group(1))
     return names
+
+
+SETTINGS_KEYS = {"source", "script", "role_vars", "repos"}
+REPO_KEYS = {
+    "path",
+    "argocd",
+    "kind",
+    "prefix",
+    "values",
+    "profile",
+    "helpers",
+    "migration_globs",
+    "always_required",
+    "shell_files",
+    "dynamic",
+}
+
+
+def _invalid(where: str, problem: str) -> ConfigInvalid:
+    return ConfigInvalid(f"{config_dir() / 'config.toml'}: {where} {problem}")
+
+
+def _table_at(parent: dict, key: str, where: str) -> dict:
+    value = parent.get(key, {})
+    if not isinstance(value, dict):
+        raise _invalid(f"{where}.{key}", "must be a table")
+    return value
+
+
+def _strings(value: object, where: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
+        raise _invalid(where, "must be a list of non-empty strings")
+    return tuple(value)
+
+
+def _path_key(table: dict, key: str, where: str) -> Path:
+    value = table.get(key)
+    if not isinstance(value, str) or not value:
+        raise _invalid(f"{where}.{key}", "must be a non-empty string")
+    return Path(value).expanduser()
+
+
+def _by_env(table: dict, key: str, where: str, as_list: bool) -> dict:
+    """A `{env = value}` table of strings, or of lists of strings."""
+    found = {}
+    for env, value in _table_at(table, key, where).items():
+        if as_list:
+            found[env] = list(_strings(value, f"{where}.{key}.{env}"))
+        elif isinstance(value, str) and value:
+            found[env] = value
+        else:
+            raise _invalid(f"{where}.{key}.{env}", "must be a non-empty string")
+    return found
+
+
+def _repo_profile(name: str, table: dict) -> RepoProfile:
+    where = f"env_check.repos.{name}"
+    for key in table:
+        if key not in REPO_KEYS:
+            raise _invalid(f"{where}.{key}", "is not a known key")
+    kind = table.get("kind", "python")
+    if kind not in ("python", "shell"):
+        raise _invalid(f"{where}.kind", 'must be "python" or "shell"')
+    shell_files = _strings(table.get("shell_files", []), f"{where}.shell_files")
+    if kind == "shell" and not shell_files:
+        raise _invalid(f"{where}.shell_files", 'is required when kind = "shell"')
+    path, argocd = _path_key(table, "path", where), _path_key(table, "argocd", where)
+    prefix = _by_env(table, "prefix", where, as_list=False)
+    if not prefix:
+        raise _invalid(f"{where}.prefix", "must be a non-empty table")
+    dynamic = {
+        cls: _strings(prefixes, f"{where}.dynamic.{cls}")
+        for cls, prefixes in _table_at(table, "dynamic", where).items()
+    }
+    return RepoProfile(
+        name=name,
+        path=path,
+        argocd=argocd,
+        kind=kind,
+        prefix=prefix,
+        values=_by_env(table, "values", where, as_list=True),
+        profile=_by_env(table, "profile", where, as_list=False),
+        helpers=_strings(table.get("helpers", []), f"{where}.helpers"),
+        migration_globs=_strings(table.get("migration_globs", []), f"{where}.migration_globs"),
+        always_required=_strings(table.get("always_required", []), f"{where}.always_required"),
+        shell_files=shell_files,
+        dynamic=dynamic,
+    )
+
+
+def load_settings() -> EnvCheckSettings:
+    """The `[env_check]` table of config.toml, validated; `ConfigInvalid` names the bad key."""
+    table = userconfig.load_table("env_check")
+    for key in table:
+        if key not in SETTINGS_KEYS:
+            raise _invalid(f"env_check.{key}", "is not a known key")
+    source = table.get("source", "aws")
+    if source not in ("aws", "script"):
+        raise _invalid("env_check.source", 'must be "aws" or "script"')
+    script = table.get("script")
+    if script is not None and (not isinstance(script, str) or not script):
+        raise _invalid("env_check.script", "must be a non-empty string")
+    repos = _table_at(table, "repos", "env_check")
+    for name, repo in repos.items():
+        if not isinstance(repo, dict):
+            raise _invalid(f"env_check.repos.{name}", "must be a table")
+    return EnvCheckSettings(
+        source=source,
+        script=Path(script).expanduser() if script else None,
+        role_vars=_strings(table.get("role_vars", []), "env_check.role_vars"),
+        repos={name: _repo_profile(name, repo) for name, repo in repos.items()},
+    )
+
+
+def _entry(item: CodeName, **extra: object) -> dict:
+    return {
+        "name": item.name,
+        "required": item.required,
+        "kind": item.kind,
+        "where": list(item.where),
+        "count": item.count,
+        **extra,
+    }
+
+
+def _role_matcher(patterns: list[str]) -> Callable[[str], bool]:
+    compiled = [
+        re.compile(".*".join(map(re.escape, p.upper().split("*"))) + r"\Z") for p in patterns
+    ]
+    return lambda name: any(c.match(name.upper()) for c in compiled)
+
+
+def compare(
+    scan: ScanResult,
+    store: set[str],
+    argocd: set[str],
+    role_vars: list[str],
+    always_required: list[str],
+) -> dict:
+    """The buckets of the check: what the code reads against the store and the argocd values."""
+    forced = {name.upper() for name in always_required}
+    valid_store = {name for name in store if is_valid_name(name)}
+    is_role = _role_matcher(role_vars)
+    code = scan.names
+    missing = [code[name] for name in sorted(code) if name not in valid_store]
+    required = [i for i in missing if i.required or i.name in forced]
+    with_default = [i for i in missing if i not in required]
+    in_argocd = [
+        {"name": n, "in_store": n in valid_store, "read_by_code": n in code}
+        for n in sorted(argocd)
+        if not is_role(n)
+    ]
+    known = set(code) | set(scan.migration_only)
+    buckets = {
+        "missing_required": [_entry(i) for i in required],
+        "missing_with_default": [_entry(i) for i in with_default],
+        "in_argocd": in_argocd,
+        "only_in_store": sorted(valid_store - known),
+        "invalid_in_store": sorted(store - valid_store),
+        "migration_only": [
+            _entry(i, in_store=i.name in valid_store) for i in scan.migration_only.values()
+        ],
+        "unresolved": [{"where": u.where, "call": u.call} for u in scan.unresolved],
+    }
+    counts = {
+        "code": len(code),
+        "store": len(store),
+        "argocd": len(argocd),
+        **{name: len(items) for name, items in buckets.items()},
+    }
+    return {
+        "ok": not buckets["missing_required"] and not buckets["in_argocd"],
+        "counts": counts,
+        **buckets,
+    }
+
+
+def _where(entry: dict) -> str:
+    places = "; ".join(entry["where"])
+    extra = entry["count"] - len(entry["where"])
+    return f"{places} (+{extra})" if extra > 0 else places
+
+
+def render_text(result: dict) -> str:
+    """The check as a short PT-BR text for the chat; empty buckets are left out."""
+    commit = result["commit"]
+    short = commit["sha"][:10]
+    if commit["deployed"]:
+        checked = f"imagem implantada ({short})"
+    elif commit["sha"].startswith(commit["ref"]):
+        checked = short
+    else:
+        checked = f"{commit['ref']} ({short})"
+    counts = result["counts"]
+    lines = [
+        f"ws env check {result['repo']} · ambiente {result['env']}",
+        f"Código verificado: {checked}",
+        f"Parameter Store: fonte {result['source']}, {counts['store']} nomes; "
+        f"código: {counts['code']} nomes; argocd: {counts['argocd']} nomes.",
+    ]
+
+    def block(title: str, key: str, render: Callable) -> None:
+        if result[key]:
+            lines.extend(["", f"{title} ({len(result[key])}):", *(render(i) for i in result[key])])
+
+    def with_where(item: dict) -> str:
+        return f"  {item['name']}: {_where(item)}"
+
+    def joined(items: list[str]) -> str:
+        return "  " + ", ".join(items)
+
+    block("Obrigatórias ausentes do Parameter Store", "missing_required", with_where)
+    block(
+        "Com valor padrão no código, ausentes do Parameter Store",
+        "missing_with_default",
+        with_where,
+    )
+    block(
+        "No argocd, para mover ao Parameter Store",
+        "in_argocd",
+        lambda i: f"  {i['name']}" + (" (já está no Parameter Store)" if i["in_store"] else ""),
+    )
+    if result["only_in_store"]:
+        lines.extend(
+            ["", f"Só no Parameter Store, que o código não lê ({counts['only_in_store']}):"]
+        )
+        lines.append(joined(result["only_in_store"]))
+    if result["invalid_in_store"]:
+        lines.extend(
+            [
+                "",
+                f"Inválidos no Parameter Store, descartados no boot "
+                f"({counts['invalid_in_store']}):",
+            ]
+        )
+        lines.append(joined(result["invalid_in_store"]))
+    block(
+        "Lidas só nas migrações",
+        "migration_only",
+        lambda i: (
+            f"  {i['name']}: {_where(i)}"
+            + ("" if i["in_store"] else " [ausente do Parameter Store]")
+        ),
+    )
+    block(
+        "Leituras que o scanner não resolve",
+        "unresolved",
+        lambda i: f"  {i['where']} ({i['call']})",
+    )
+    if result["warnings"]:
+        lines.extend(
+            ["", f"Avisos ({len(result['warnings'])}):", *(f"  {w}" for w in result["warnings"])]
+        )
+    verdict = "APROVADO" if result["ok"] else "REPROVADO"
+    reasons = [
+        f"{counts[key]} {label_}"
+        for key, label_ in (
+            ("missing_required", "obrigatórias ausentes"),
+            ("in_argocd", "no argocd"),
+        )
+        if counts[key]
+    ]
+    lines.extend(["", f"Resultado: {verdict}" + (f" ({', '.join(reasons)})" if reasons else "")])
+    return "\n".join(lines)

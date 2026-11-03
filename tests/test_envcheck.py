@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 
 from ws import envcheck
+from ws.cli import main
 from ws.envcheck import (
     EnvCheckSettings,
     RepoProfile,
     SetupError,
     StoreUnreachable,
     argocd_env_names,
+    compare,
     deployed_sha,
     files_at,
     is_valid_name,
@@ -22,6 +24,7 @@ from ws.envcheck import (
     scan_shell,
     store_names,
 )
+from ws.userconfig import ConfigInvalid, ConfigMissing
 
 
 def profile(**overrides) -> RepoProfile:
@@ -958,3 +961,468 @@ def test_script_timeout_keeps_no_output_in_the_exception(monkeypatch, tmp_path):
         store_names(script_settings(script), profile(), "prod")
     assert CANARY not in all_text(error.value)
     assert error.value.__context__ is None
+
+
+CONFIG = """\
+[env_check]
+source = "aws"
+role_vars = ["AWS_*", "POD_ROLE"]
+
+[env_check.repos.api]
+path = "{repo}"
+argocd = "{argocd}"
+prefix = {{ prod = "/realm/env/app", sandbox = "/realm/sbx/app" }}
+values = {{ prod = ["apps/app/prod.yaml"], sandbox = ["apps/app/sbx.yaml"] }}
+profile = {{ prod = "some-profile", sandbox = "sbx-profile" }}
+helpers = ["env"]
+migration_globs = ["migrations/**"]
+always_required = ["CFG_ENVIRONMENT"]
+"""
+
+CODE = {
+    "src/config.py": """
+        import os
+        from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+        class LogSettings(BaseSettings):
+            model_config = SettingsConfigDict(env_prefix="CFG_LOG_")
+
+            level: str = "INFO"
+            sink: str
+
+
+        class DbSettings(BaseSettings):
+            model_config = SettingsConfigDict(env_prefix="CFG_DB_")
+
+            url: str
+
+
+        ENVIRONMENT = os.getenv("CFG_ENVIRONMENT", "local")
+    """,
+    "src/jobs.py": """
+        def run(partner):
+            a = env(f"CFG_{partner}_URL")
+            b = env("CFG_JOB_FLAG")
+            c = env("CFG_BUSY")
+            c = env("CFG_BUSY")
+            c = env("CFG_BUSY")
+            c = env("CFG_BUSY")
+            c = env("CFG_BUSY")
+    """,
+    "migrations/versions/0001_seed.py": """
+        value = env("CFG_MIG_ONLY")
+    """,
+}
+
+DEFAULT_STORE = [
+    "/realm/env/app/CFG_DB_URL",
+    "/realm/env/app/CFG/ENVIRONMENT",
+    "/realm/env/app/CFG_OLD_THING",
+    "/realm/env/app/cfg.bad",
+    "/realm/env/app-bff/CFG_LOG_SINK",
+    "/realm/env/app/CFG_BUSY",
+    "/realm/env/app/CFG_JOB_FLAG",
+]
+CLEAN_STORE = [
+    f"/realm/env/app/{name}"
+    for name in (
+        "CFG_LOG_SINK",
+        "CFG_LOG_LEVEL",
+        "CFG_DB_URL",
+        "CFG_ENVIRONMENT",
+        "CFG_BUSY",
+        "CFG_JOB_FLAG",
+    )
+]
+
+ARGOCD_VALUES = """\
+    standard-service-chart:
+      image:
+        tag: prod-{sha}
+      env:
+        - name: AWS_REGION
+          value: x
+        - name: FOO_FLAG
+          value: "1"
+      extraEnv:
+        - name: CFG_DB_URL
+          value: y
+"""
+ARGOCD_CLEAN = """\
+    standard-service-chart:
+      image:
+        tag: prod-{sha}
+      env:
+        - name: POD_ROLE
+          value: x
+"""
+
+
+class Scenario:
+    def __init__(self, tmp_path, monkeypatch, git, fake_bin):
+        self.repo = tmp_path / "api"
+        self.argocd = tmp_path / "api-argocd"
+        self.config = tmp_path / "cfg"
+        self.monkeypatch = monkeypatch
+        self.repo.mkdir()
+        git(self.repo, "init", "-q")
+        self.sha = commit_all(git, self.repo, CODE)
+        self.write_values(ARGOCD_VALUES)
+        self.config.mkdir()
+        (self.config / "config.toml").write_text(
+            CONFIG.format(repo=self.repo, argocd=self.argocd), encoding="utf-8"
+        )
+        monkeypatch.setenv("WS_CONFIG_DIR", str(self.config))
+        fake_bin("aws", FAKE_AWS)
+        self.set_store(DEFAULT_STORE)
+
+    def set_store(self, names: list[str]) -> None:
+        self.monkeypatch.setenv("FAKE_AWS_NAMES", json.dumps(names))
+
+    def write_values(self, text: str, name: str = "prod.yaml") -> None:
+        target = self.argocd / "apps" / "app" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(textwrap.dedent(text).replace("{sha}", self.sha[:7]), encoding="utf-8")
+
+    def check(self, capsys, *args: str, env: str = "prod", ref: str | None = None):
+        """Runs `ws env check api`; returns (exit code, stdout, stderr)."""
+        flags = ["--ref", ref or self.sha] if "--deployed" not in args else []
+        code = main(["env", "check", "api", "--env", env, *flags, *args])
+        captured = capsys.readouterr()
+        return code, captured.out, captured.err
+
+    def check_json(self, capsys, *args: str, **kwargs):
+        code, out, err = self.check(capsys, "--json", *args, **kwargs)
+        return code, json.loads(out), err
+
+
+@pytest.fixture
+def scenario(tmp_path, monkeypatch, git, fake_bin):
+    return Scenario(tmp_path, monkeypatch, git, fake_bin)
+
+
+def names_of(entries) -> list[str]:
+    return [e["name"] if isinstance(e, dict) else e for e in entries]
+
+
+def test_bucket_missing_required(scenario, capsys):
+    code, result, _ = scenario.check_json(capsys)
+    assert code == 1
+    assert names_of(result["missing_required"]) == ["CFG_LOG_SINK"]
+    entry = result["missing_required"][0]
+    assert entry["where"] == ["src/config.py:10"]
+    assert entry["count"] == 1
+    assert entry["kind"] == "settings"
+
+
+def test_bucket_missing_with_default(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert names_of(result["missing_with_default"]) == ["CFG_LOG_LEVEL"]
+
+
+def test_bucket_in_argocd(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["in_argocd"] == [
+        {"name": "CFG_DB_URL", "in_store": True, "read_by_code": True},
+        {"name": "FOO_FLAG", "in_store": False, "read_by_code": False},
+    ]
+
+
+def test_bucket_only_in_store(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["only_in_store"] == ["CFG_OLD_THING"]
+
+
+def test_bucket_invalid_in_store(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["invalid_in_store"] == ["CFG.BAD"]
+    assert "CFG.BAD" not in result["only_in_store"]
+
+
+def test_bucket_migration_only(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["migration_only"] == [
+        {
+            "name": "CFG_MIG_ONLY",
+            "required": True,
+            "kind": "migration",
+            "where": ["migrations/versions/0001_seed.py:2"],
+            "count": 1,
+            "in_store": False,
+        }
+    ]
+    assert "CFG_MIG_ONLY" not in names_of(result["missing_required"])
+
+
+def test_bucket_unresolved(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["unresolved"] == [{"where": "src/jobs.py:3", "call": "env"}]
+
+
+def test_role_vars_patterns(scenario, capsys):
+    scenario.write_values(
+        """\
+        standard-service-chart:
+          env:
+            - name: AWS_REGION
+            - name: AWS_ANYTHING_ELSE
+            - name: pod_role
+            - name: POD_ROLE_NOT
+            - name: MY_AWS_X
+        """
+    )
+    _, result, _ = scenario.check_json(capsys)
+    assert names_of(result["in_argocd"]) == ["MY_AWS_X", "POD_ROLE_NOT"]
+
+
+def test_where_keeps_three_and_counts(scenario, capsys):
+    scenario.set_store([])
+    _, result, _ = scenario.check_json(capsys)
+    busy = next(e for e in result["missing_required"] if e["name"] == "CFG_BUSY")
+    assert busy["where"] == ["src/jobs.py:5", "src/jobs.py:6", "src/jobs.py:7"]
+    assert busy["count"] == 5
+    assert "src/jobs.py:5; src/jobs.py:6; src/jobs.py:7 (+2)" in scenario.check(capsys)[1]
+
+
+def test_always_required_makes_a_defaulted_name_required(scenario, capsys):
+    scenario.set_store([])
+    _, result, _ = scenario.check_json(capsys)
+    assert "CFG_ENVIRONMENT" in names_of(result["missing_required"])
+    assert "CFG_ENVIRONMENT" not in names_of(result["missing_with_default"])
+
+
+def test_json_header_and_counts(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys)
+    assert result["repo"] == "api"
+    assert result["env"] == "prod"
+    assert result["source"] == "aws"
+    assert result["commit"] == {"ref": scenario.sha, "sha": scenario.sha, "deployed": False}
+    assert result["ok"] is False
+    assert result["counts"]["store"] == 6
+    assert result["counts"]["argocd"] == 3
+    assert result["counts"]["missing_required"] == 1
+    assert result["warnings"] == []
+
+
+def test_text_is_ptbr_and_omits_empty_buckets(scenario, capsys):
+    code, out, _ = scenario.check(capsys)
+    assert code == 1
+    assert "Código verificado" in out
+    assert "Obrigatórias ausentes do Parameter Store (1)" in out
+    assert "CFG_LOG_SINK" in out
+    assert "REPROVADO" in out
+    scenario.set_store(CLEAN_STORE)
+    scenario.write_values(ARGOCD_CLEAN)
+    code, out, _ = scenario.check(capsys)
+    assert code == 0
+    assert "APROVADO" in out
+    for omitted in ("Obrigatórias ausentes", "No argocd", "Só no Parameter Store", "Inválidos"):
+        assert omitted not in out
+    assert "Lidas só nas migrações (1)" in out
+    assert "Leituras que o scanner não resolve (1)" in out
+
+
+def test_deployed_takes_the_sha_of_the_image_tag(scenario, git, capsys):
+    git(scenario.repo, "commit", "-q", "--allow-empty", "-m", "later")
+    code, out, _ = scenario.check_json(capsys, "--deployed")
+    assert code == 1
+    assert out["commit"] == {"ref": None, "sha": scenario.sha, "deployed": True}
+    assert names_of(out["missing_required"]) == ["CFG_LOG_SINK"]
+
+
+def test_ref_or_deployed_required(scenario, capsys):
+    with pytest.raises(SystemExit) as error:
+        main(["env", "check", "api", "--env", "prod"])
+    assert error.value.code == 2
+    with pytest.raises(SystemExit) as error:
+        main(["env", "check", "api", "--env", "prod", "--ref", "HEAD", "--deployed"])
+    assert error.value.code == 2
+    assert "not allowed with" in capsys.readouterr().err
+
+
+def test_exit_codes(scenario, capsys, monkeypatch, tmp_path):
+    scenario.set_store(CLEAN_STORE)
+    scenario.write_values(ARGOCD_CLEAN)
+    assert scenario.check(capsys)[0] == 0
+    scenario.write_values(ARGOCD_VALUES)
+    assert scenario.check(capsys)[0] == 1
+    scenario.set_store(DEFAULT_STORE)
+    assert scenario.check(capsys)[0] == 1
+
+    assert scenario.check(capsys, ref="no-such-ref")[0] == 2
+    assert scenario.check(capsys, env="staging")[0] == 2
+    code = main(["env", "check", "other-repo", "--env", "prod", "--ref", "HEAD"])
+    assert code == 2
+    assert "other-repo" in capsys.readouterr().err
+
+    monkeypatch.setenv("FAKE_AWS_MODE", "expired")
+    assert scenario.check(capsys)[0] == 2
+    monkeypatch.setenv("FAKE_AWS_MODE", "denied")
+    code, out, err = scenario.check(capsys)
+    assert code == 3
+    assert CANARY not in out + err
+
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "empty-config"))
+    code = main(["env", "check", "api", "--env", "prod", "--ref", "HEAD"])
+    assert code == 2
+    assert "config.toml" in capsys.readouterr().err
+
+
+def test_missing_commit_says_to_fetch_first(scenario, capsys):
+    code, out, err = scenario.check(capsys, ref="origin/not-fetched")
+    assert (code, out) == (2, "")
+    assert "git fetch first" in err
+
+
+def test_scan_warnings_are_reported(scenario, git, capsys):
+    commit_all(git, scenario.repo, {"src/broken.py": "def broken(:\n"})
+    scenario.write_values("chart:\n  env: {A: 1}\n")
+    code, result, _ = scenario.check_json(capsys, ref="HEAD")
+    assert result["warnings"] == [
+        "src/broken.py:1: syntax error, file skipped",
+        "apps/app/prod.yaml:2: cannot read the inline env value; skipped",
+    ]
+    assert code == 1
+
+
+def test_no_values_file_for_the_env_is_a_warning(scenario, capsys):
+    _, result, _ = scenario.check_json(capsys, env="sandbox")
+    assert result["warnings"] == ["apps/app/sbx.yaml: values file not found; argocd not checked"]
+    assert result["in_argocd"] == []
+
+
+def test_no_value_reaches_the_cli_output(scenario, fake_bin, tmp_path, monkeypatch, capsys):
+    script = fake_bin("list-store", FAKE_SCRIPT)
+    config = (scenario.config / "config.toml").read_text(encoding="utf-8")
+    config = config.replace('source = "aws"', f'source = "script"\nscript = "{script}"')
+    (scenario.config / "config.toml").write_text(config, encoding="utf-8")
+    export_aws_variables(monkeypatch)
+    seen = []
+    for mode in ("0", "1"):
+        monkeypatch.setenv("FAKE_SCRIPT_EXIT", mode)
+        for extra in ((), ("--json",)):
+            code, out, err = scenario.check(capsys, *extra)
+            seen.append(out + err)
+            assert code == (1 if mode == "0" else 3)
+    assert CANARY not in " ".join(seen)
+    assert "código 1" in seen[-1]
+
+
+def settings_file(tmp_path, monkeypatch, body: str) -> Path:
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "config.toml").write_text(textwrap.dedent(body), encoding="utf-8")
+    return tmp_path / "config.toml"
+
+
+def test_load_settings_reads_the_table(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", "/fake-home")
+    settings_file(
+        tmp_path,
+        monkeypatch,
+        """\
+        [env_check]
+        source = "script"
+        script = "~/bashes/list"
+        role_vars = ["A_*"]
+
+        [env_check.repos.api]
+        path = "~/repos/api"
+        argocd = "~/repos/api-argocd"
+        prefix = { prod = "/p" }
+        values = { prod = ["v.yaml"] }
+        dynamic = { Cls = ["CFG_X_"] }
+
+        [env_check.repos.front]
+        path = "/abs/front"
+        argocd = "/abs/front-argocd"
+        kind = "shell"
+        shell_files = ["entrypoint.sh"]
+        prefix = { prod = "/q" }
+        """,
+    )
+    settings = envcheck.load_settings()
+    assert settings.source == "script"
+    assert settings.script == Path("/fake-home/bashes/list")
+    assert settings.role_vars == ("A_*",)
+    api = settings.repos["api"]
+    assert (api.name, api.kind, api.path) == ("api", "python", Path("/fake-home/repos/api"))
+    assert api.prefix == {"prod": "/p"} and api.values == {"prod": ["v.yaml"]}
+    assert api.dynamic == {"Cls": ("CFG_X_",)}
+    assert settings.repos["front"].shell_files == ("entrypoint.sh",)
+
+
+def test_load_settings_defaults_to_aws(tmp_path, monkeypatch):
+    settings_file(tmp_path, monkeypatch, "[env_check]\n")
+    settings = envcheck.load_settings()
+    assert (settings.source, settings.script, settings.repos) == ("aws", None, {})
+
+
+@pytest.mark.parametrize(
+    ("body", "key"),
+    [
+        ('source = "both"', "env_check.source"),
+        ("role_vars = 3", "env_check.role_vars"),
+        ("colour = 1", "env_check.colour"),
+        ("repos = 1", "env_check.repos"),
+        ("[env_check.repos.api]\nargocd = 'a'\nprefix = {p = 'x'}", "env_check.repos.api.path"),
+        ("[env_check.repos.api]\npath = 'a'\nprefix = {p = 'x'}", "env_check.repos.api.argocd"),
+        ("[env_check.repos.api]\npath = 'a'\nargocd = 'a'", "env_check.repos.api.prefix"),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p=1}",
+            "env_check.repos.api.prefix.p",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nkind='go'",
+            "env_check.repos.api.kind",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nkind='shell'",
+            "env_check.repos.api.shell_files",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nhelpers=[1]",
+            "env_check.repos.api.helpers",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nvalues={p='v'}",
+            "env_check.repos.api.values.p",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\ncolour=1",
+            "env_check.repos.api.colour",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\ndynamic={C='x'}",
+            "env_check.repos.api.dynamic.C",
+        ),
+    ],
+)
+def test_load_settings_names_the_bad_key(tmp_path, monkeypatch, body, key):
+    settings_file(tmp_path, monkeypatch, "[env_check]\n" + body + "\n")
+    with pytest.raises(ConfigInvalid, match=key.replace(".", r"\.")):
+        envcheck.load_settings()
+
+
+def test_load_settings_without_the_file_is_config_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "nowhere"))
+    with pytest.raises(ConfigMissing):
+        envcheck.load_settings()
+
+
+def test_compare_is_a_pure_function_of_its_inputs():
+    scan = scan_python(
+        src(**{"src/a.py": "import os\nA = os.environ['CFG_A']\nB = os.getenv('CFG_B', 'x')\n"}),
+        profile(),
+    )
+    result = compare(scan, {"CFG_B", "CFG_Z"}, {"CFG_Z", "POD_ROLE"}, ["POD_*"], [])
+    assert names_of(result["missing_required"]) == ["CFG_A"]
+    assert result["missing_with_default"] == []
+    assert [e["name"] for e in result["in_argocd"]] == ["CFG_Z"]
+    assert result["only_in_store"] == ["CFG_Z"]
+    assert result["ok"] is False
+    clean = compare(scan, {"CFG_A", "CFG_B"}, {"POD_ROLE"}, ["POD_*"], [])
+    assert clean["ok"] is True
+    forced = compare(scan, {"CFG_A"}, set(), [], ["CFG_B"])
+    assert names_of(forced["missing_required"]) == ["CFG_B"]
+    assert forced["missing_with_default"] == []
