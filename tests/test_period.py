@@ -1,7 +1,9 @@
+import json
 from datetime import date
 
 import pytest
 
+from ws.cli import main
 from ws.period import PeriodError, parse_period
 
 MONDAY = date(2026, 11, 2)
@@ -135,3 +137,21 @@ def test_label_is_ptbr():
     assert parse_period("20/10 a 31/10", TUESDAY).label == "20/10 a 31/10"
     assert parse_period("ontem", TUESDAY).label == "ontem (02/11)"
     assert parse_period("novembro", TUESDAY).label.endswith(", até hoje")
+
+
+def test_cli_period_prints_json(capsys):
+    assert main(["standup", "period", "semana passada", "--today", "2026-11-03"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "since": "2026-10-26",
+        "until": "2026-11-01",
+        "label": "semana passada (26/10 a 01/11)",
+        "workdays": 5,
+        "warnings": [],
+    }
+
+
+def test_cli_period_unknown_exits_2(capsys):
+    assert main(["standup", "period", "quando der", "--today", "2026-11-03"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "accepted forms" in captured.err

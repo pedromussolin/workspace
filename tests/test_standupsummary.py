@@ -1,7 +1,9 @@
+import json
 from datetime import date, datetime
 
 import pytest
 
+from ws.cli import main
 from ws.standupsummary import build_summary
 from ws.taskmodel import Status, Task
 
@@ -298,3 +300,35 @@ def test_without_cards():
 def test_a_daily_activity_is_refused():
     with pytest.raises(ValueError, match="ws standup report"):
         summarize(make_activity(window={"since": "2026-10-26", "until": "2026-10-27"}))
+
+
+def test_cli_summary_compact_json(ws_config, tmp_path, capsys):
+    commits = [make_commit("TS-1", "2026-10-27"), make_commit("TS-2", "2026-10-27")]
+    activity_file = tmp_path / "activity.json"
+    activity_file.write_text(json.dumps(make_activity(commits=commits)))
+    args = ["standup", "summary", "--activity", str(activity_file), "--today", "2026-11-03"]
+    assert main([*args, "--top", "1"]) == 0
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload["jira"] is False
+    assert payload["themes"][0]["more"] == 1
+    assert out.count("\n") == 1
+    assert '"themes":[{' in out
+
+
+def test_cli_summary_with_cards_needs_config(ws_config, tmp_path, capsys):
+    activity_file = tmp_path / "activity.json"
+    activity_file.write_text(json.dumps(make_activity()))
+    cards_file = tmp_path / "cards.json"
+    cards_file.write_text(json.dumps({"platform": "jira", "cards": []}))
+    args = ["standup", "summary", "--activity", str(activity_file), "--cards", str(cards_file)]
+    assert main(args) == 2
+    assert "config.toml" in capsys.readouterr().err
+
+
+def test_cli_summary_refuses_a_daily_activity(ws_config, tmp_path, capsys):
+    activity_file = tmp_path / "activity.json"
+    daily = make_activity(window={"since": "2026-10-26", "until": "2026-10-27"})
+    activity_file.write_text(json.dumps(daily))
+    assert main(["standup", "summary", "--activity", str(activity_file)]) == 2
+    assert "ws standup report" in capsys.readouterr().err

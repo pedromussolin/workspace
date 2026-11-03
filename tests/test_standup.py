@@ -704,3 +704,23 @@ def test_daily_window_kind_unchanged(roots, workspace, fake_gh, home, make_repo,
     assert "createdAt" not in "\n".join(fake_gh.args())
     assert "base" not in result["prs"][0]
     assert [c["subject"] for c in result["commits"]] == ["feat(TS-1): friday"]
+
+
+def test_cli_collect_since_and_today_are_exclusive(workspace, home, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "no-config"))
+    monkeypatch.setenv("WS_REPO_ROOT", str(workspace))
+    for args in (
+        ["--since", "2026-10-19", "--today", "2026-10-26"],
+        ["--until", "2026-10-25"],
+        ["--since", "2026-10-26", "--until", "2026-10-19"],
+    ):
+        assert main(["standup", "collect", *args]) == 2
+        assert capsys.readouterr().out == ""
+
+
+def test_cli_collect_a_period(workspace, fake_gh, home, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "no-config"))
+    monkeypatch.setenv("WS_REPO_ROOT", str(workspace))
+    assert main(["standup", "collect", "--since", "2026-10-19", "--until", "2026-10-25"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["window"] == {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}
