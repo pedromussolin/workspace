@@ -337,3 +337,175 @@ def test_non_literal_prefix_is_a_warning(bad):
     )
     result = scan_python(files, profile())
     assert any("env_prefix" in w and "src/config.py:6" in w for w in result.warnings)
+
+
+def test_getenv_and_environ_reads():
+    files = src(
+        **{
+            "src/app.py": """
+                import os
+                from os import getenv
+
+                A = os.getenv("CFG_ENVIRONMENT")
+                B = os.getenv("CFG_B", "x")
+                C = os.environ.get("CFG_C")
+                D = os.environ["CFG_D"]
+                E = getenv("CFG_E", default="x")
+                os.environ["CFG_WRITTEN"] = "not a read"
+                os.environ.setdefault("CFG_SET", "not a read")
+                F = os.environ.get("CFG_F", "x")
+            """
+        }
+    )
+    result = scan_python(files, profile())
+    assert names(result) == {
+        "CFG_ENVIRONMENT": False,
+        "CFG_B": False,
+        "CFG_C": False,
+        "CFG_D": True,
+        "CFG_E": False,
+        "CFG_F": False,
+    }
+    assert result.names["CFG_D"].kind == "helper"
+    assert result.names["CFG_D"].where == ("src/app.py:8",)
+
+
+def test_configured_helper_with_literal():
+    files = src(
+        **{
+            "src/job.py": """
+                from src.util import env, env_list
+
+
+                def load():
+                    a = env("CFG_JOB_A")
+                    b = env("CFG_JOB_B", "x")
+                    c = env_list("CFG_JOB_C", default=[])
+                    d = settings.env("CFG_JOB_D")
+                    e = other("CFG_NOT_A_HELPER")
+            """,
+            "src/util.py": """
+                import os
+
+
+                def env(name, default=None):
+                    return os.environ.get(name, default)
+            """,
+        }
+    )
+    result = scan_python(files, profile(helpers=("env", "env_list")))
+    assert names(result) == {
+        "CFG_JOB_A": True,
+        "CFG_JOB_B": False,
+        "CFG_JOB_C": False,
+        "CFG_JOB_D": True,
+    }
+    assert result.unresolved == []
+
+
+def test_fstring_helper_is_unresolved_with_line():
+    files = src(
+        **{
+            "src/job.py": """
+                import os
+
+
+                def load(partner, key):
+                    a = env(f"CFG_{partner}_URL")
+                    b = os.getenv(key)
+                    c = env("CFG_JOB_C")
+            """
+        }
+    )
+    result = scan_python(files, profile(helpers=("env",)))
+    assert names(result) == {"CFG_JOB_C": True}
+    assert [(u.where, u.call) for u in result.unresolved] == [
+        ("src/job.py:6", "env"),
+        ("src/job.py:7", "os.getenv"),
+    ]
+
+
+def test_migration_glob_goes_to_migration_only():
+    files = src(
+        **{
+            "src/app.py": """
+                import os
+
+                A = os.getenv("CFG_SHARED")
+            """,
+            "migrations/versions/0001_seed.py": """
+                import os
+
+                A = os.getenv("CFG_SHARED")
+                B = env("CFG_MIGRATION_ONLY")
+                C = env(f"CFG_{x}_URL")
+            """,
+        }
+    )
+    result = scan_python(files, profile(helpers=("env",), migration_globs=("migrations/**",)))
+    assert names(result) == {"CFG_SHARED": False}
+    assert {n: i.required for n, i in result.migration_only.items()} == {"CFG_MIGRATION_ONLY": True}
+    assert result.migration_only["CFG_MIGRATION_ONLY"].kind == "migration"
+    assert [u.where for u in result.unresolved] == ["migrations/versions/0001_seed.py:6"]
+
+
+def test_dynamic_class_expanded_with_configured_prefixes():
+    files = src(
+        **{
+            "src/storage.py": """
+                from pydantic_settings import BaseSettings
+
+
+                class StorageSettings(BaseSettings):
+                    bucket: str
+                    region: str = "x"
+            """
+        }
+    )
+    result = scan_python(
+        files,
+        profile(dynamic={"StorageSettings": ("CFG_ONE_", "CFG_TWO_")}),
+    )
+    assert names(result) == {
+        "CFG_ONE_BUCKET": True,
+        "CFG_ONE_REGION": False,
+        "CFG_TWO_BUCKET": True,
+        "CFG_TWO_REGION": False,
+    }
+    assert {i.kind for i in result.names.values()} == {"dynamic"}
+
+
+def test_always_required_overrides_default():
+    files = src(
+        **{
+            "src/app.py": """
+                import os
+
+                A = os.getenv("CFG_ENVIRONMENT", "local")
+                B = os.getenv("CFG_OTHER", "x")
+            """
+        }
+    )
+    result = scan_python(files, profile(always_required=("CFG_ENVIRONMENT", "CFG_NOT_READ")))
+    assert names(result) == {"CFG_ENVIRONMENT": True, "CFG_OTHER": False}
+
+
+def test_a_name_read_in_two_places_keeps_every_place_and_the_strictest_rule():
+    files = src(
+        **{
+            "src/a.py": """
+                import os
+
+                A = os.getenv("CFG_X", "d")
+            """,
+            "src/b.py": """
+                import os
+
+                B = os.environ["CFG_X"]
+            """,
+        }
+    )
+    item = scan_python(files, profile()).names["CFG_X"]
+    assert item.required is True
+    assert item.where == ("src/a.py:4", "src/b.py:4")
+    assert item.count == 2

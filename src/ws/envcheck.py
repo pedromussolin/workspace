@@ -76,6 +76,9 @@ class _Names:
         if where not in item["where"] and len(item["where"]) < MAX_WHERE:
             item["where"].append(where)
 
+    def names(self) -> set[str]:
+        return set(self._items)
+
     def force_required(self, names: tuple[str, ...]) -> None:
         for name in names:
             if name.upper() in self._items:
@@ -336,6 +339,102 @@ class _Hierarchy:
         return list(merged.values())
 
 
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    """`*` stays inside a folder, `**` crosses folders, `**/` also matches no folder at all."""
+    out = []
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
+class _Sinks:
+    """Where the reads of a file go: the regular names, or the migration-only ones."""
+
+    def __init__(self, profile: RepoProfile) -> None:
+        self.regular = _Names()
+        self.migration = _Names()
+        self.unresolved: list[Unresolved] = []
+        self._migration = [_glob_regex(g) for g in profile.migration_globs]
+
+    def for_path(self, path: str) -> tuple[_Names, str]:
+        if any(m.match(path) for m in self._migration):
+            return self.migration, "migration"
+        return self.regular, ""
+
+
+class _ReadVisitor(ast.NodeVisitor):
+    """The direct reads of one file: `os.getenv`, `os.environ` and the configured helpers."""
+
+    def __init__(self, path: str, helpers: tuple[str, ...], sinks: _Sinks) -> None:
+        self._path = path
+        self._helpers = helpers
+        self._names, self._migration_kind = sinks.for_path(path)
+        self._unresolved = sinks.unresolved
+        self._functions: list[str] = []
+
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self._functions.append(node.name)
+        self.generic_visit(node)
+        self._functions.pop()
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_Call(self, node: ast.Call) -> None:
+        kind = self._call_kind(node.func)
+        if kind is not None:
+            label, is_helper = kind
+            key = node.args[0] if node.args else _keyword(node, "name") or _keyword(node, "key")
+            if key is not None:
+                required = is_helper and len(node.args) == 1 and _keyword(node, "default") is None
+                self._read(key, label, required, node.lineno)
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript) -> None:
+        if isinstance(node.ctx, ast.Load) and _is_environ(node.value):
+            self._read(node.slice, "os.environ", True, node.lineno)
+        self.generic_visit(node)
+
+    def _call_kind(self, func: ast.expr) -> tuple[str, bool] | None:
+        name = _base_name(func)
+        if name in self._helpers:
+            return name, True
+        if isinstance(func, ast.Name) and func.id == "getenv":
+            return "getenv", False
+        if isinstance(func, ast.Attribute):
+            if func.attr == "getenv" and _base_name(func.value) == "os":
+                return "os.getenv", False
+            if func.attr == "get" and _is_environ(func.value):
+                return "os.environ.get", False
+        return None
+
+    def _read(self, key: ast.expr, label: str, required: bool, line: int) -> None:
+        where = f"{self._path}:{line}"
+        literal = _string(key)
+        if literal is not None:
+            self._names.add(literal.upper(), required, self._migration_kind or "helper", where)
+        elif not any(f in self._helpers for f in self._functions):
+            self._unresolved.append(Unresolved(where, label))
+
+
+def _is_environ(node: ast.expr) -> bool:
+    return _base_name(node) == "environ"
+
+
 def scan_python(files: dict[str, bytes], profile: RepoProfile) -> ScanResult:
     warnings: list[str] = []
     trees = {}
@@ -343,27 +442,36 @@ def scan_python(files: dict[str, bytes], profile: RepoProfile) -> ScanResult:
         tree = _parse(path, files[path], warnings)
         if tree is not None:
             trees[path] = tree
+    sinks = _Sinks(profile)
     hierarchy = _Hierarchy(_collect_classes(trees, warnings))
-    found = _Names()
     for infos in hierarchy.classes.values():
         for info in infos:
             if hierarchy.is_settings(info):
-                _add_settings(found, hierarchy, info, profile)
-    found.force_required(profile.always_required)
-    return ScanResult(found.build(), {}, [], warnings)
+                _add_settings(sinks, hierarchy, info, profile)
+    for path, tree in trees.items():
+        _ReadVisitor(path, profile.helpers, sinks).visit(tree)
+    sinks.regular.force_required(profile.always_required)
+    migration = {n: i for n, i in sinks.migration.build().items() if n not in sinks.regular.names()}
+    sinks.unresolved.sort(key=lambda u: (_path_of(u.where), _line_of(u.where)))
+    return ScanResult(sinks.regular.build(), migration, sinks.unresolved, warnings)
 
 
-def _add_settings(found: _Names, hierarchy: _Hierarchy, info: _Class, profile: RepoProfile) -> None:
+def _path_of(where: str) -> str:
+    return where.rsplit(":", 1)[0]
+
+
+def _line_of(where: str) -> int:
+    return int(where.rsplit(":", 1)[1])
+
+
+def _add_settings(sinks: _Sinks, hierarchy: _Hierarchy, info: _Class, profile: RepoProfile) -> None:
     dynamic = profile.dynamic.get(info.name)
     prefixes = dynamic if dynamic is not None else (hierarchy.prefix(info),)
     for field, path in hierarchy.fields(info):
         if any(hierarchy.is_settings_name(n) for n in field.annotation_names):
             continue
+        target, migration_kind = sinks.for_path(path)
+        kind = migration_kind or ("settings" if dynamic is None else "dynamic")
         for prefix in prefixes:
             name = (field.alias or prefix + field.name).upper()
-            found.add(
-                name,
-                field.required,
-                "settings" if dynamic is None else "dynamic",
-                f"{path}:{field.line}",
-            )
+            target.add(name, field.required, kind, f"{path}:{field.line}")
