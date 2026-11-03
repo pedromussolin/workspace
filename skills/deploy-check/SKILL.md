@@ -25,12 +25,15 @@ pastes raw logs. The tag commits and any rollback are the user's.
 2. **Plan.** Run `ws deploy-check plan --env <env>` (add `--only <key>...` for one service). Say
    where the deploy is in the order and, for an after window that is not `complete`, when it will
    be (`ready_at`): the check then compares the elapsed part and says so. A warning about a local
-   argocd repo behind its upstream goes to the user as is: `ws` never pulls, so ask the user to.
+   argocd repo behind its upstream goes to the user as is: `ws` never pulls, so ask the user to. A warning that no `DD_VERSION` was found
+   means the version check will be `sem_dados`: say so. `--at` without an offset is local time.
 3. **Per service**, in the plan's order: `ws deploy-check script <key> --env <env>`, then
    `execute_code` of the Datadog MCP with that JavaScript verbatim (timeout 120). Do not load a
-   Datadog skill and do not search the SDK: the program was verified at build time. On
-   `invalid_request` or a failed run, follow `references/fallback.md` (the classic tools) and tell
-   the user the program needs a fix.
+   Datadog skill and do not search the SDK: the program is verified against stubs, and the first
+   real run confirms the SDK calls. **First live use:** run one `execute_code` on one sandbox
+   service and check that it returns a verdict (not an `invalid_request` or a failed import) before
+   trusting results for the other services or for prod. On `invalid_request` or a failed run:
+   follow `references/fallback.md` (the classic tools) and tell the user the program needs a fix.
 4. **Verdict in PT-BR.** Per service a table (check, antes, depois, situação) from `checks`, the
    `new_errors` with counts and a one-line description of what the signature means (never a log line
    or anything with customer data), and the version share (`version_share_pct`, expected
