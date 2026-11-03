@@ -54,7 +54,9 @@ Measured on 2026-11-03 over 30 days of the user's Claude Code transcripts:
 So the four agents touch disjoint files:
 
 - `src/ws/userconfig.py`: a public `load_table(name) -> dict` (missing file: `ConfigMissing`; table
-  absent: `{}`; not a table: `ConfigInvalid`). Each module validates its own keys.
+  absent: `{}`; not a table: `ConfigInvalid`). Each module validates its own keys. Also
+  `load_standup() -> StandupConfig`, because `load_config` requires `[jira] site` and `email`, and
+  `ws handoff collect` needs only `[standup]`.
 - `src/ws/cli.py`: registers three new command groups by calling `register(subparsers)` from
   `ws.handoff_cli`, `ws.envcheck_cli` and `ws.deploycheck_cli`, created as stubs that exit 2 with
   "not implemented yet". Part B edits the existing `standup` and `task` parsers in `cli.py`; no other
