@@ -128,3 +128,8 @@ def test_the_first_parser_reads_ansi_c_quotes_too(text, split):
 def test_the_first_parser_refuses_an_unterminated_ansi_c_quote():
     with pytest.raises(ValueError):
         shell.simple_commands("git commit $'--no-verify")
+
+
+def test_an_escaped_backtick_nests_a_substitution_inside_another():
+    assert shell.substitutions("echo `true \\`curl x\\``") == ["true `curl x`"]
+    assert shell.substitutions("echo `a \\\\ \\$b`") == ["a \\ $b"]

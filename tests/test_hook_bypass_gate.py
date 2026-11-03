@@ -441,3 +441,7 @@ def test_removing_or_renaming_the_core_section_is_blocked(command):
 
     assert result.returncode == 2, command
     assert result.stderr.startswith("Blocked:")
+
+
+def test_a_bypass_in_nested_backticks_is_blocked():
+    assert run_command("echo `true \\`git commit -n -m x\\``").returncode == 2

@@ -55,6 +55,7 @@ ANSI_ESCAPES = {
 ANSI_HEX_DIGITS = {"x": 2, "u": 4, "U": 8}
 OCTAL = re.compile(r"[0-7]{1,3}")
 HEX = re.compile(r"[0-9A-Fa-f]+")
+BACKTICK_ESCAPE = re.compile(r"\\([$`\\])")
 
 
 def ansi_c_end(text: str, start: int) -> int:
@@ -229,7 +230,9 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
     caller's recursion exponential in the nesting depth. Single-quoted text is literal, so a
     commit message in single quotes that cites a command in backticks is not a substitution. With
     `quoting` off, quotes mean nothing (the body of an unquoted heredoc is expanded whatever quotes
-    it holds) outside the substitution; inside it, the shell parses quotes as usual.
+    it holds) outside the substitution; inside it, the shell parses quotes as usual. A backtick
+    ends at the first one not escaped, and inside it a backslash before `$`, a backtick or a
+    backslash is dropped, as bash does, so a nested `` \\`...\\` `` is scanned in its turn.
     """
     found = []
     single = double = False
@@ -260,10 +263,14 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
             index = end
             continue
         elif char == "`":
-            end = text.find("`", index + 1)
-            found.append(text[index + 1 : end if end != -1 else len(text)])
-            if end != -1:
-                index = end
+            try:
+                end = _skip_backtick(text, index)
+                inner = text[index + 1 : end - 1]
+            except ValueError:
+                end, inner = len(text), text[index + 1 :]
+            found.append(BACKTICK_ESCAPE.sub(r"\1", inner))
+            index = end
+            continue
         index += 1
     return found
 
