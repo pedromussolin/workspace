@@ -19,6 +19,7 @@ from pathlib import PurePath
 OPERATOR_CHARS = ";()<>|&\n"
 REDIRECT_CHARS = "<>"
 SHELL_KEYWORDS = {"if", "then", "else", "elif", "while", "until", "do", "!", "{"}
+DATA_HEADERS = {"for", "select", "case"}
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 RUNS_ITS_INPUT = SHELLS | {"eval", "source", "."}
 MAX_DEPTH = 8
@@ -205,14 +206,23 @@ def _unwrap(words: list[str]) -> tuple[int | None, list[tuple[int, int, bool]]]:
     """
     scripts: list[tuple[int, int, bool]] = []
     index = 0
+    wrapped = False
     while index < len(words):
         word = words[index]
         if ASSIGNMENT.match(word) or word in SHELL_KEYWORDS:
             index += 1
             continue
+        if word in DATA_HEADERS and not wrapped:
+            # `for NAME in WORDS` and `case WORD in` are data, with no program; `for NAME do CMD`
+            # runs CMD. Behind a wrapper the word is a program name like any other.
+            if word != "case" and words[index + 2 : index + 3] == ["do"]:
+                index += 2
+                continue
+            return None, scripts
         wrapper = WRAPPERS.get(PurePath(word).name)
         if wrapper is None:
             return index, scripts
+        wrapped = True
         index = _wrapper_flags(words, index + 1, wrapper, scripts)
         index = min(index + wrapper.operands, len(words))
         if index < len(words) and words[index].partition("=")[0] in wrapper.scripts:
