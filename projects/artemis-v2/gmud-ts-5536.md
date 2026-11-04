@@ -1,8 +1,8 @@
 # GMUD — TS-5536: lotes fake no fluxo novo (listagem, exclusão, worker), com TS-5377 e TS-5435
 
-> **Status (04/11/2026, 13h30):** rascunho para a janela de hoje, **20h às 22h (Brasília)**, ou
-> 23:00 a 01:00 UTC. Não criada no portal. Faltam os itens **[a preencher]** e "a confirmar".
-> A reestruturação do whitelabel (18h às 20h) tem GMUD própria e vem antes desta.
+> **Status (04/11/2026, 22h):** executada em 04/11, das ~19h10 às ~19h25 (Brasília), adiantada da
+> janela das 20h, logo depois do whitelabel (GMUD própria). No portal: GDM-352. Falta o passo 6
+> (teste em produção), com a operação em 05/11. Execução em "Evidências", item "Produção, execução".
 
 Tipo: Mudança programada
 
@@ -164,8 +164,8 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - PRs #264 e #287: conferir que mostram só a adaptação sobre a `master` nova;
    - nenhum fechamento ou exclusão em andamento: no Datadog, "solicitado" = "concluído" por
      `job_id`; fila `fake_batch_closing_celery` vazia.
-1. **Cessão: merge da PR #2743 na `master`.** Conferir a imagem `prod-<sha do merge>` **[a
-   preencher]** e uma cabeça de migration só (`c3f81d7a5e24`).
+1. **Cessão: merge da PR #2743 na `master`.** Conferir a imagem `prod-<sha do merge>` e uma
+   cabeça de migration só (`c3f81d7a5e24`).
 2. **Cessão: tag no argocd, nos dois ambientes de produção** (`asgard-production` e
    `viva-production`, `prod-fd5fb6c` → imagem nova; commit "Update image tag in values.yaml").
    - **Sync seletivo:** com o auto-sync do app desligado no ArgoCD, sincronizar primeiro só o Job
@@ -184,9 +184,9 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - log de partida de cada pod: escutando só `fake_batch_closing_celery`,
      `CONCORRENCIA_POR_FILA=fake_batch_closing_celery=4` e `concurrency: 4 (prefork)`;
    - worker geral e de liquidação seguem com `concurrency: 16`.
-4. **BFF: merge da PR #264 e tag `prod-<sha>`** **[a preencher]**.
+4. **BFF: merge da PR #264 e tag `prod-<sha>` do merge.**
    - Datadog: versão nova; `GET /operations/liquidation/fake-batches` com 200.
-5. **Portal: merge da PR #287 e tag `prod-<sha>`** **[a preencher]**, logo depois do BFF, em
+5. **Portal: merge da PR #287 e tag `prod-<sha>` do merge**, logo depois do BFF, em
    todas as marcas.
    - Tela abre com "N de M registros aptos".
 6. **Teste em produção:** listagem com aptos; fechar uma linha ("Fechamento de lote fake
@@ -198,7 +198,7 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
 ## Plano de Rollback
 
 1. **Parcial, se o problema for na tela (preferido):** Portal e depois BFF voltam às tags do
-   whitelabel de hoje **[a preencher: tag do whitelabel de 04/11]**.
+   whitelabel desta noite: BFF `prod-9444f05` e Portal `prod-3c973a5` (04/11, 18h57).
    - A cessão fica: rotas novas sem uso, rotas antigas iguais. Ficam o fechamento da fase 2 e da
      TS-5435 (na rota de antes) e a modalidade.
    - O BFF antigo aceita o status novo (`status` é texto e campos extras são ignorados) [C no
@@ -241,7 +241,9 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - os 8 testes de integração com Postgres e Redis reais ficam fora da suíte (entre os pulados);
     rodada no commit da release: a confirmar (sem registro no projeto);
   - migration: cabeça única (`7ddf133f1f84` na `master`, `c3f81d7a5e24` na release, conferido
-    em 04/11). Upgrade, downgrade e upgrade no estresse local de 27/10
+    em 04/11). No banco de produção (réplica, 04/11): `alembic_version` = `7ddf133f1f84`, o
+    `down_revision` da `c3f81d7a5e24`, e a coluna nova ainda não existe; é a única migration nova da
+    release. Upgrade, downgrade e upgrade no estresse local de 27/10
     (`evidence/closing-stress-2026-10-27.md`), na versão anterior ao `75fac8ce3` (17:56), que só
     trocou nomes, inclusive o do tipo no banco. Downgrade na versão final: a confirmar. O SQL do
     preenchimento é conferido na suíte (`test/database/test_batch_closing_modality.py`);
@@ -318,3 +320,20 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   21/10 a 04/11. Na sandbox, sem a variável no Parameter Store, o mesmo worker sobe com 2 (04/11
   00:49), o que isola a causa no Parameter Store de produção (`CELERY_WORKER_CONCURRENCY=16`,
   conferido em 04/11).
+- **Produção, execução (04/11, horário de Brasília):**
+  - 19h12, argocd `c3a29b0`: cessão `prod-579ad13` (contém o `79f799624`) em `asgard-production`
+    e `viva-production`. O auto-sync do app estava ligado e o usuário não tinha acesso para
+    desligar: sem sync seletivo, valeu o plano B (tag única e acompanhamento);
+  - migration, pela réplica a cada ~25 s: `alembic_version` = `7ddf133f1f84` até 19:20:28 e
+    `c3f81d7a5e24` às 19:20:53. Depois, `closing-modality-validate.sql`: 156 produtos, 0
+    divergentes;
+  - 19h21, argocd `4e99643` (merge da `chore/TS-5536-worker-fechamento`): `fake-batch-closing` com
+    2 réplicas e as sondas; log de partida dos dois pods com `concurrency: 4 (prefork)`;
+  - 19h22: BFF `prod-f0511cb` (contém o `cbb482f`) e Portal `prod-2ff9802` (contém o `25867603`),
+    nas três marcas. Antes, às 18h57, o whitelabel: BFF `prod-9444f05` e Portal `prod-3c973a5`;
+  - ArgoCD: `ComparisonError` passageiro no app da cessão (variável de ambiente repetida no values
+    dos workers); sumiu sozinho. A limpeza está em `after-v2.md`;
+  - erros na partida dos pods da cessão: os conhecidos (uWSGI, Celery como root, "UP CONSUMER");
+  - pendente: passo 6 (listagem com aptos e fechar uma linha), com a operação em 05/11; no
+    `viva-production`, validar a modalidade no banco dele (sem acesso) e o worker que não existe
+    lá (`after-v2.md`).

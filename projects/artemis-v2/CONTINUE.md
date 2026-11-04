@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 03/11/2026
+Data: 04/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,26 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 04/11/2026
+
+**Produção feita (~19h10 às ~19h25, adiantada da janela das 20h, depois do whitelabel).** Detalhe
+na `gmud-ts-5536.md` (portal: GDM-352), em "Evidências", item "Produção, execução".
+- **Cessão** `prod-579ad13` (`release/20261104`, PR #2743, sem a TS-5537) em `asgard-production` e
+  `viva-production`. A migration `c3f81d7a5e24` rodou às 19:20 e foi validada: 156 produtos, 0
+  divergentes.
+- **Argocd** (merge da `chore/TS-5536-worker-fechamento`): `fake-batch-closing` com 2 réplicas,
+  sondas e 4 tarefas por pod, pela `CONCORRENCIA_POR_FILA` do Parameter Store.
+- **BFF** `prod-f0511cb` e **Portal** `prod-2ff9802` (`release/20261104-artemis`, PRs #264 e #287),
+  nas três marcas.
+- **Sandbox antes:** S1, exclusão, S2, S8 e S9 ok. Achado e corrigido: diálogo de confirmação
+  largo demais; o `DialogService` ganhou teto de 560 px (PR #287; sandbox pela #288).
+- **Do dia:** concorrência por fila no lugar da `CELERY_WORKER_CONCURRENCY` do values (o
+  Parameter Store vencia); TS-5537 fora, a pedido do time; scripts da modalidade em
+  `attachments/sql/closing-modality-{preview,validate,apply}.sql`; pendências do `viva-production`,
+  renomear a coluna da modalidade e variáveis repetidas nos workers em `after-v2.md`.
+- **Para o negócio:** resumo em linguagem simples mandado no grupo; a operação acompanha o primeiro
+  uso em 05/11.
 
 ### 03/11/2026
 
@@ -97,49 +117,11 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-**Releases para a sandbox (03/11, à noite), todas publicadas e testadas localmente:**
-- cessão: `release/20261103` (produção, depois dos testes) e `release/20261103-sdbx`, PR #2739;
-- BFF e front: `feature/TS-5536-adapta-release-20261030` (a TS-5536 com a fase 2 e a TS-5435,
-  adaptada à `release/20261030`) entrou só na `release/20261030-sdbx`: PRs #261 (BFF) e #283
-  (front). A `release/20261030` de produção não tem nada da Artemis.
-
-1. ~~Merge na sandbox~~ (03/11, ~21h): cessão #2739, BFF #261 e front #283 estão mergeados e no argocd.
-   - Cessão: `sand-6f411b3` e as sondas por arquivo do `fake-batch-closing`, só no values da
-     sandbox. As réplicas ficaram em 1: o usuário não quis 2 na sandbox.
-   - O `30f4814` da branch `chore/TS-5536-worker-fechamento` do argocd continua sem merge. A parte
-     de produção vai com a imagem nova.
-   - BFF `sand-99f87d3`; front `sand-29325b0`.
-   - Produção: em janela separada da reestruturação do whitelabel (decisão do usuário).
-2. Depois da produção: tradução para PT-BR do `refact.py` e afins (decidido em 04/11).
-3. Semana: S1–S14 de `tasks/02-03-sandbox-tests.md`, já em produção. Antes das 20h de 04/11 só os
-   críticos na sandbox: S1 (fechar e acompanhar), exclusão, S2 e S8. Os de 03/11 que não deixaram
-   registro no Datadog (exclusão, S2) rodam de novo.
-4. **Produção em 04/11, 20h às 22h**, depois do whitelabel (18h às 20h). GMUD: `gmud-ts-5536.md`.
-   - **Cessão:** `release/20261104`, PR #2743 (renomeada da `release/20261103` para ter a data do
-     deploy), commit `79f799624`: a árvore testada, sem a TS-5537, mais a concorrência por fila
-     (5.223 testes ok). A TS-5537 (B18) saiu em 04/11, a pedido do time (revisão de um dev da cessão),
-     e vai numa release seguinte, com calma.
-   - **Concorrência por fila (decidida em 04/11):** o `guardian` aplica o Parameter Store (o mesmo
-     para todos os pods) por cima do values, e a `CELERY_WORKER_CONCURRENCY=16` de lá vencia o `2`
-     do values. O `entrypoint.sh` lê `CONCORRENCIA_POR_FILA="fila=N,..."` e cada worker dedicado
-     pega o `N` da sua fila. Produção: `fake_batch_closing_celery=4`, 2 réplicas, até 8. Na sandbox
-     pela #2744 (`fix/TS-5536-concorrencia-do-fechamento-sdbx`, que mantém a fila
-     `cobransaas_celery` da sandbox); falta o merge e conferir o log de partida.
-   - **BFF e front:** `release/20261104-artemis`, PRs #264 e #287, sobre a release do whitelabel.
-   - **Argocd:** branch `chore/TS-5536-worker-fechamento` com 3 commits, só produção (2 réplicas,
-     sondas e sem a concorrência do values), commitada local, sem push; o push e o merge são do
-     usuário, na janela. A sandbox fica com 1 réplica.
-   - **Migration:** sync seletivo no ArgoCD (o Job primeiro). `viva-production` também sobe hoje.
-   - **Regra do usuário:** nada de merge ou push em branch de ambiente nem no argocd, menos o argocd
-     da sandbox.
-   - O roteiro do dia está no handoff de 04/11, fora deste repo.
-6. **Pendências da produção de 04/11 no `viva-production`:**
-   - validar a modalidade no banco dele com `attachments/sql/closing-modality-validate.sql` (a migration rodou
-     com a imagem nova; não tenho acesso a esse banco);
-   - ele não tem o worker `fake-batch-closing`, e nenhum pod de lá consome a fila; sem efeito enquanto o portal
-     chamar só a cessão do `asgard` (registrado em `after-v2.md`).
-5. **Próximas tarefas (pedido do usuário em 04/11):** renomear a coluna
-   `produto_config.modalidade_fechamento_lote` para deixar explícito que é do lote de liquidação
-   (ex.: `modalidade_fechamento_lote_liquidacao`), com o enum e os nomes no código. Migration nova
-   (a `c3f81d7a5e24` já rodou e não muda) e os scripts `attachments/sql/closing-modality-*.sql`
-   junto. Registrado em `after-v2.md`.
+1. **05/11, operação:** acompanhar no Datadog o primeiro uso em produção (passo 6 da GMUD: listagem
+   com aptos, fechar uma linha, excluir). Registrar na `gmud-ts-5536.md` e montar o texto para colar
+   na GDM-352 (a API não comenta na GMUD).
+2. **`viva-production`:** pedir a validação da modalidade com `closing-modality-validate.sql` e
+   decidir o worker de fechamento (`after-v2.md`).
+3. **Semana:** S1 a S14 de `tasks/02-03-sandbox-tests.md`, já em produção.
+4. **Depois:** tradução do `refact.py` para PT-BR; TS-5537 (B18) numa release seguinte; renomear
+   `modalidade_fechamento_lote`; limpar as variáveis repetidas nos workers da cessão.
