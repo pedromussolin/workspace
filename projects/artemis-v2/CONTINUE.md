@@ -115,3 +115,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    aptos, exclusão, acompanhamento e expandir a linha).
 4. Produção: nova release do BFF e do front a partir da `master` pós-20261030 com a branch de
    adaptação; cessão pela `release/20261103`. B18 com o time; argocd do worker só com a imagem nova.
+   - **Data: 04/11** (decidido pelo usuário na madrugada de 04/11), numa janela depois da do
+     whitelabel. A release do BFF e do front sai da `master` depois do merge da 20261030.
+   - **Falta:**
+     - abrir a PR da cessão `release/20261103` → `master`;
+     - confirmar as réplicas do `fake-batch-closing` em produção (o `30f4814` pede 2; a sandbox
+       ficou com 1);
+     - GMUD própria pela skill `change-request`, com migration e rollback.
+   - **A decidir com o usuário:** quais testes de tela (item 3) rodam antes da produção, e se a
+     tradução do item 2 fica para depois.
+   - O roteiro do dia está no handoff de 04/11, fora deste repo (seção 0, item 5).
