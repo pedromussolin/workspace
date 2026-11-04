@@ -21,6 +21,7 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 04/11/2026 | Liquidação do Mercato Libero: o fluxo completo que o Rafael Frankl roda na EC2 de automações (arquivos, transformação, envio, fechamento) passa para a Artemis V2; as telas e rotinas de operações da mesma máquina vão para o projeto `operations-screens-migration` ([13](tasks/13-mercato-libero-settlement.md)) | Pietro: saída do Rafael; a liquidação já é o domínio da V2 |
 | 04/11/2026 | Dayvale: geração e envio da liquidação ficam com o TS-5489; o Artemis (TS-5278) garante o consumo do retorno e a conciliação ([10](tasks/10-dayvale-administrator.md)) | Pietro: o dono do TS-5489 cuida do envio inteiro |
 | 03/11/2026 | Exclusão nova (TS-5536): continua sozinha em tarefas de ~400 s (cursor e totais na mensagem, teto de 50 continuações) e não depende do Redis para terminar (perdeu a trava, segue pelas guardas do banco e regrava o status). O resultado vai para a tela pela consulta de status, num registro do Redis de 10 min, sem tabela nova. O fechamento continua parando ao perder a trava | Pietro: não quer exclusão parando no meio por tempo nem por causa do Redis ([B24](bugs-found.md)) |
 | 03/11/2026 | Busca de pagamentos da linha (expandir) também no `refact.py`, com a chave pela modalidade; o detalhe do lote real segue na rota antiga | Pietro; sem ela, o expandir viria vazio em produto com flag e modalidade em desacordo |

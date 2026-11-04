@@ -10,6 +10,9 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
   platform-cessao, ou seja, todo o fechamento e a conciliação dos lotes.
 - Ponto principal: **performance**. A DBA revisa as queries; a parte de
   aplicação fica com a gente.
+- Desde 04/11/2026: absorver a liquidação do Mercato Libero, que o Rafael
+  Frankl rodava sozinho fora dos repositórios e que passa para nós com a
+  saída dele ([tarefa 13](tasks/13-mercato-libero-settlement.md)).
 
 ## Como ler esta pasta
 
@@ -23,6 +26,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 | [evidence/baseline-datadog-2026-10-05.md](evidence/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
 | [evidence/real-batches-datadog-2026-10-14.md](evidence/real-batches-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
 | [evidence/sweep-datadog-2026-10-14.md](evidence/sweep-datadog-2026-10-14.md) | Varredura com 4 chaves e 1 rodada: fim das chamadas longas, saldo ainda inconclusivo |
+| [evidence/mercato-libero-ec2-calls-2026-11-04.md](evidence/mercato-libero-ec2-calls-2026-11-04.md) | O que a EC2 de automações chama na cessão (14 dias até 04/11): ponto de partida da tarefa 13 |
 | [bugs-found.md](bugs-found.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
 | [after-v2.md](after-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
 | `tasks/` | Uma tarefa por arquivo (lista abaixo) |
@@ -54,6 +58,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | cessão | configs do produto | aguardando dados | a definir |
 | 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
+| 13 | [Absorver a liquidação do Mercato Libero](tasks/13-mercato-libero-settlement.md) | a definir (hoje na EC2 de automações) | inventário da EC2 | a mapear (desde 04/11) | a definir |
 
 ## Fases propostas
 
@@ -75,6 +80,9 @@ A ordem prioriza o que tira carga do banco e o que causa erro em produção.
    - 05 Tipo de baixa, 06 nome do CNAB, 07 filtro por contrato.
 4. **Integrações com as ADMs**
    - 08 Reenvio da Genius, 09 Voltis, 10 Dayvale.
+5. **Absorver a liquidação do Mercato Libero (desde 04/11)**
+   - 13: o fluxo sai da EC2 do Rafael Frankl. Lugar na ordem a definir depois
+     do mapeamento; o prazo é a saída dele.
 
 ## Glossário
 

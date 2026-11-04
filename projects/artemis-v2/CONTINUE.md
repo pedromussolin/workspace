@@ -30,6 +30,13 @@ na `gmud-ts-5536.md` (portal: GDM-352), em "Evidências", item "Produção, exec
 - **Para o negócio:** resumo em linguagem simples mandado no grupo; a operação acompanha o primeiro
   uso em 05/11.
 
+**Nova frente (noite):** o Rafael Frankl sai da empresa e a liquidação do Mercato Libero que ele
+rodava na EC2 de automações vem para a V2. Criada a [tarefa 13](tasks/13-mercato-libero-settlement.md),
+só com o contexto, e a [evidência de 04/11](evidence/mercato-libero-ec2-calls-2026-11-04.md): a
+máquina segue chamando a cessão todo dia, com pico às 16h–17h de Brasília. As telas de operações
+dele foram para o projeto novo `projects/operations-screens-migration/`, que guarda o inventário
+da máquina (tarefa 01 de lá).
+
 ### 03/11/2026
 
 **Decisões do dia** (detalhe em `decisions.md`):
@@ -120,8 +127,11 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 1. **05/11, operação:** acompanhar no Datadog o primeiro uso em produção (passo 6 da GMUD: listagem
    com aptos, fechar uma linha, excluir). Registrar na `gmud-ts-5536.md` e montar o texto para colar
    na GDM-352 (a API não comenta na GMUD).
-2. **`viva-production`:** pedir a validação da modalidade com `closing-modality-validate.sql` e
+2. **05/11, Mercato Libero:** começar o mapeamento da tarefa 13 junto com o inventário da EC2
+   (`projects/operations-screens-migration/tasks/01-ec2-inventory.md`): primeiro a data de saída
+   do Rafael e a sessão de passagem com ele.
+3. **`viva-production`:** pedir a validação da modalidade com `closing-modality-validate.sql` e
    decidir o worker de fechamento (`after-v2.md`).
-3. **Semana:** S1 a S14 de `tasks/02-03-sandbox-tests.md`, já em produção.
-4. **Depois:** tradução do `refact.py` para PT-BR; TS-5537 (B18) numa release seguinte; renomear
+4. **Semana:** S1 a S14 de `tasks/02-03-sandbox-tests.md`, já em produção.
+5. **Depois:** tradução do `refact.py` para PT-BR; TS-5537 (B18) numa release seguinte; renomear
    `modalidade_fechamento_lote`; limpar as variáveis repetidas nos workers da cessão.
