@@ -158,12 +158,11 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
 0. **Antes das 20h:**
    - whitelabel em produção e conferido (BFF #263 e Portal #285 na `master`);
    - B18: time de acordo com a liberação dos 10 contratos (decisão de 03/11 com o Pietro);
-   - testes de tela críticos na sandbox, com registro no Datadog: S1 (fechar linha por origem,
-     com acompanhamento), S8 (fechar por remessa), exclusão e S2 **[a preencher]** (ver
-     Evidências);
-   - concorrência por fila na sandbox (PR #2744): log de partida do `fake-batch-closing` com a
-     `CONCORRENCIA_POR_FILA` e `concurrency:` igual ao valor dela; worker geral com 16 **[a
-     preencher]**;
+   - testes de tela críticos na sandbox, com registro no Datadog: S1 e exclusão ok; S2 parcial
+     (falta o 409 por outra aba); S8 sem massa (ver Evidências);
+   - teto de largura do diálogo central na `release/20261104-artemis`, validado
+     **[a preencher]**;
+   - concorrência por fila na sandbox (PR #2744): conferida em 04/11, 13h56 (ver Evidências);
    - Parameter Store de produção: `CONCORRENCIA_POR_FILA=fake_batch_closing_celery=4` (conferido
      em 04/11, 13h);
    - PRs #264 e #287: conferir que mostram só a adaptação sobre a `master` nova;
@@ -257,7 +256,9 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - concorrência por fila (`54be206d0`, na release pelo `8515b71b7`): `bash -n` e 11 casos com o
     `entrypoint.sh` simulado (um e dois pares, fila fora da lista, worker geral, valor inválido e
     zero, nome parecido, espaços, worker com consumer), todos com a concorrência esperada. Na
-    sandbox, pela #2744: **[a preencher: log de partida]**.
+    sandbox, pela #2744 (`sand-15d185b`, 04/11 16:56 UTC): o `fake-batch-closing` subiu com
+    `CELERY_WORKER_CONCURRENCY=2` e `CONCORRENCIA_POR_FILA=fake_batch_closing_celery=4` e saiu com
+    `concurrency: 4 (prefork)`; o worker geral e o de liquidação, com a mesma lista, seguem com 16.
 - **Sandbox (Datadog, `env:sandbox`, UTC), desde o merge de 03/11 23:45:**
   - versões: cessão `sand-6f411b3` (merge da #2739; contém o `e5b886429`); BFF `sand-99f87d3` e,
     desde 04/11 ~04:00, `sand-5f42ec6`; Portal `sand-29325b0` e depois `sand-6b2a1a7`. Todas
@@ -278,11 +279,29 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
     (`sand-6f411b3`): com o `exec`, o Celery recebe o sinal;
   - migration na sandbox: nenhum log com `modalidade_fechamento_lote` de 27/10 23:30 a 28/10
     06:00, na subida dela.
-- **Testes de tela (checklist de 03/11, ~23h em Brasília):** listagem com aptos, expandir,
-  exclusão pela tela e S2 (clique repetido) marcados ok. A listagem e o expandir aparecem no
-  Datadog (acima). A exclusão e o S2 não deixaram registro na sandbox: onde rodaram, a confirmar.
-  S1 e S8 pendentes, críticos até as 20h **[a preencher]**. S1–S14 de
-  `tasks/02-03-sandbox-tests.md` rodam nesta semana, já em produção.
+- **Testes de tela na sandbox (04/11, horário de Brasília; imagens cessão `sand-15d185b`, BFF
+  `sand-5f42ec6`, Portal `sand-62312c5`).** A massa saiu de uma consulta somente leitura no banco
+  da sandbox com a regra da listagem (`listar_lotes_fake`): 30 linhas com aptos em 60 dias, todas
+  de produtos `manual`; nenhum produto da sandbox em `automatico_por_remessa`.
+  - **S1, ok (14h20):** fundo 27, dia 14/09, linha `origem:PagPmt-2026-09-14T20:47:40…` (produto
+    55). "Fechamento de lote fake solicitado" e "concluído" em 4 s, `payments_count` 2; no banco,
+    os 2 pagamentos no lote 50020; a tela acompanhou pelo status (10 × 200).
+  - **Exclusão, ok (14h21):** fundo 27, dia 17/09, linha `origem:PagPmt-2026-09-17T20:34:05…`.
+    "Exclusão de lote fake solicitada" e "concluída" em 286 ms; no banco, só essa linha saiu (26 →
+    25 pendentes e 20 → 19 linhas no dia); as outras ficaram. É a correção do B23.
+  - **S2, parcial:** um lote só; o segundo clique foi barrado na tela (botão desligado durante o
+    fechamento). O 409 do servidor não foi exercido (pede outra aba em até 30 s)
+    **[a preencher]**.
+  - **S8 e S9, sem massa na sandbox:** pedem um produto em `automatico_por_remessa` (S9: remessa
+    com 2 originadores, que não existe); ficam para produção ou para uma massa criada
+    **[a preencher]**.
+  - **Achado:** o modal de confirmação abre quase da largura da tela com o texto longo novo. A
+    causa é o `DialogService`, que deixa o diálogo central sem `width` com largura automática até o
+    limite da tela (já assim na `master`). A correção, com teto de 560 px para o diálogo central sem
+    `width`, entra na `release/20261104-artemis` **[a preencher: commit e validação]**.
+  - Os de 03/11 (checklist, ~23h): listagem com aptos e expandir aparecem no Datadog; a exclusão
+    e o S2 daquela noite não deixaram registro na sandbox e foram refeitos hoje (acima). S1–S14 de
+    `tasks/02-03-sandbox-tests.md` rodam nesta semana, já em produção.
 - **Produção, antes do deploy (Datadog, 04/11):** cessão em `prod-fd5fb6c` (API e workers);
   worker de fechamento com concorrência 16 (partida de 29/10 22:21); 409 pedidos de fechamento de
   21/10 a 04/11. Na sandbox, sem a variável no Parameter Store, o mesmo worker sobe com 2 (04/11
