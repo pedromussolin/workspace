@@ -54,7 +54,7 @@ Da migração e da máquina do Heitor, levantadas em 03 e 04/11/2026. Nenhuma bl
 | 1 | Apagar as cópias antigas, fora do repo: `~/projects/pdd-workspace` e `~/projects/.pdd_workspace` | Heitor | o sim dele; o conteúdo já está aqui, em `~/.config/workspace/private/valids.md` e em `~/.local/share/workspace/projects/valids/` |
 | 2 | O `~/.config/workspace/names.toml` da máquina do Heitor nasceu em 03/11 só com os nomes deste projeto; em 04/11 ganhou os dos outros projetos (41 nomes distintos) | Heitor | confirmar que é a tabela completa do Pietro; tirar as 5 entradas repetidas (iguais entre si) e o comentário do topo que ainda diz "Partial on purpose" |
 | 3 | O hook não barra CNPJ (o `CLAUDE.md` antigo da pasta fazia um grep de 14 dígitos) | Heitor | decidir se os CNPJs do arquivo privado entram no `names.toml`, com a letra do fundo como análogo |
-| 4 | O `ws setup` não rodou inteiro na máquina do Heitor: hooks do git ligados à mão e dicionários baixados em 03/11; faltam o `uv`, os links das skills e o portão do Claude Code | Heitor | seguir "Máquina nova" em `projects/workspace/README.md` |
+| 4 | O `ws setup` não rodou inteiro na máquina do Heitor: hooks do git ligados à mão e dicionários baixados em 03/11; em 04/11 entraram o `uv` 0.13.5 (SHA-256 conferido) e o `ws` (`uv tool install --editable .`); faltam o `config.toml`, os tokens, os links das skills e o portão do Claude Code | Heitor | no terminal dele: copiar o `config.toml` preparado, `ws config token jira` e `github`, `ws setup`; depois o Claude aplica o bloco do `settings.json` |
 | 5 | O `pre-push` só acusa o e-mail da empresa no commit depois de os commits existirem | Pietro (dono do `ws`) | proposta no `docs/backlog.md`, "Confidentiality check" |
 
 ## Próximo passo
