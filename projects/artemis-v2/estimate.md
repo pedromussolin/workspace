@@ -18,7 +18,7 @@ homologação com a operação e uma folga para imprevistos.
 | 07 | [Filtro por contrato](tasks/07-contract-identifier-filter.md) | Filtro nas listagens (cessão, BFF, front) e na coluna do lote real | 12 | 4 | 16 | D5; `EXPLAIN` em dados reais para garantir uso do índice |
 | 08 | [Genius: reenvio e logs](tasks/08-genius-resend-and-logs.md) | Logs como evento, checar arquivo existente, separar erro de permissão de erro de conexão, Lambda ignorando `.RET` antigo | 24 | 12 | 36 | Release da lib westworld e bump de versão; deploy da Lambda (infra); SFTP de homologação. Só produção reproduz o arquivo não apagado |
 | 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | Investigar e corrigir o bug | 16 | 8 | 24 | Configs do produto e explicação do bug; provável dependência da 11. Baixa confiança |
-| 10 | [Dayvale](tasks/10-dayvale-administrator.md) | Retorno da ADM, conciliação por saldo e extrato, logs; geradores já na branch TS-5207 | 40 | 8 | 48 | Acessos e APIs da Dayvale (Edu e Gus); merge da TS-5207; retorno formal do parceiro. Baixa confiança; pode chegar a ~72 h |
+| 10 | [Dayvale](tasks/10-dayvale-administrator.md) | Consumo do retorno da ADM, cliente de conta (saldo e extrato), D0, logs; geração e envio no TS-5489 | 40 | 8 | 48 | Acessos e APIs da Dayvale (Edu e Gus); estado do lote depois do envio (TS-5489); retorno formal do parceiro. Baixa confiança; pode chegar a ~72 h |
 | 11 | [Fechamento por horário de corte](tasks/11-closing-by-cutoff-time.md) | Modo e horário por produto, rotina periódica, bypass no fechamento e na conciliação; BFF e front | 32 | 12 | 44 | D8; fuso e dia não útil; validar o corte exige esperar um ciclo real de operação |
 | B | [Bugs B1–B5](bugs-found.md) | Status múltiplo, paginação sem ordem, cancelamento gravado como liquidação, lote fake que não fecha, permissão no BFF | 15 | 5 | 20 | B3 pode exigir correção de dados antigos |
 
@@ -55,6 +55,8 @@ da etapa 2, ela sai do prazo e vira uma entrega à parte.
 
 ## O que mudou desde a primeira versão
 
+- 04/11: tarefa 10 sem o envio (fica no TS-5489); o Artemis cuida do consumo
+  do retorno e da conciliação. As 48 h ficam até a descoberta das APIs.
 - 15/10: o escopo da tarefa 08 cresceu (A3 com a I7 decidida na D17; I1–I6;
   propostas 7 a 9). As 36 h da linha 08 ainda não foram revistas.
 - 14/10: entra a tarefa 12 (24 h), na frente das outras; a parte de lotes
