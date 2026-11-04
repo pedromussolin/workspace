@@ -56,9 +56,9 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 07 | [Filtro por identificador de contrato](tasks/07-contract-identifier-filter.md) | cessão, BFF, front | — | mapeado | a definir |
 | 08 | [Genius: reenvio e logs de erro](tasks/08-genius-resend-and-logs.md) | cessão, westworld, listener | D12–D16 | mapeado (revisado 13/10) | a definir |
 | 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | cessão | configs do produto | aguardando dados | a definir |
-| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
+| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia; núcleo da 13 desde 04/11 | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
-| 13 | [Absorver a liquidação do Mercato Libero](tasks/13-mercato-libero-settlement.md) | a definir (hoje na EC2 de automações) | inventário da EC2 | a mapear (desde 04/11) | a definir |
+| 13 | [Absorver a liquidação do Mercato Libero](tasks/13-mercato-libero-settlement.md) | cessão (do sistema em diante; a chegada dos dados fica com o time) | 11, D25 | recorte definido (04/11); a mapear | a definir |
 
 ## Fases propostas
 
@@ -81,8 +81,9 @@ A ordem prioriza o que tira carga do banco e o que causa erro em produção.
 4. **Integrações com as ADMs**
    - 08 Reenvio da Genius, 09 Voltis, 10 Dayvale.
 5. **Absorver a liquidação do Mercato Libero (desde 04/11)**
-   - 13: o fluxo sai da EC2 do Rafael Frankl. Lugar na ordem a definir depois
-     do mapeamento; o prazo é a saída dele.
+   - 13 com a 11: o fechamento automático por horário de corte substitui a
+     varredura do Rafael Frankl; a chegada dos dados fica com o time. O prazo
+     é a saída dele.
 
 ## Glossário
 

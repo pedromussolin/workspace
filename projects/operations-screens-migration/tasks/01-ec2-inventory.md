@@ -9,7 +9,8 @@ base para quebrar os dois projetos em tarefas:
 
 - telas, rotinas e ferramentas do time de operações → este projeto;
 - liquidação do Mercato Libero → Artemis V2, tarefa 13
-  (`projects/artemis-v2/tasks/13-mercato-libero-settlement.md`);
+  (`projects/artemis-v2/tasks/13-mercato-libero-settlement.md`), do sistema em diante; a chegada
+  dos dados (arquivos, transformação, carga) fica para o Pietro decidir com o time;
 - o resto → registrado aqui como "fora do escopo por enquanto", para não se perder.
 
 O inventário é um só, porque as duas frentes estão na mesma máquina. Cópias de scripts, crontab

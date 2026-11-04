@@ -127,9 +127,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 1. **05/11, operação:** acompanhar no Datadog o primeiro uso em produção (passo 6 da GMUD: listagem
    com aptos, fechar uma linha, excluir). Registrar na `gmud-ts-5536.md` e montar o texto para colar
    na GDM-352 (a API não comenta na GMUD).
-2. **05/11, Mercato Libero:** começar o mapeamento da tarefa 13 junto com o inventário da EC2
-   (`projects/operations-screens-migration/tasks/01-ec2-inventory.md`): primeiro a data de saída
-   do Rafael e a sessão de passagem com ele.
+2. **05/11, Mercato Libero:** recorte da tarefa 13 definido (fechamento automático pela tarefa 11;
+   a chegada dos dados fica com o time). Seguir os "Próximos passos" dela: com o Rafael, a data de
+   saída, o que o script grava no banco e a hora em que os dados ficam completos; depois conferir
+   a contingência (D25).
 3. **`viva-production`:** pedir a validação da modalidade com `closing-modality-validate.sql` e
    decidir o worker de fechamento (`after-v2.md`).
 4. **Semana:** S1 a S14 de `tasks/02-03-sandbox-tests.md`, já em produção.

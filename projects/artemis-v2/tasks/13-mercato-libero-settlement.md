@@ -1,23 +1,32 @@
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 
-Status: a mapear (desde 04/11/2026). Por enquanto só o contexto; a implementação não está definida.
+- **Status:** recorte definido em 04/11/2026; a mapear. O desenho passa pela aprovação do Pietro
+  antes de qualquer código.
+- **Repos:** platform-cessao (principal); BFF e front só no bypass da tarefa 11.
+- **Decisões:** [D8](../decisions.md) (onde guardar modo e horário), [D25](../decisions.md)
+  (contingência).
+- **Relacionadas:** [11](11-closing-by-cutoff-time.md) (núcleo desta tarefa),
+  [02](02-close-batch-by-proc-id.md), [03](03-async-closing-and-429.md); inventário da máquina em
+  `projects/operations-screens-migration/tasks/01-ec2-inventory.md`.
 
 ## Contexto
 
 O Rafael Frankl está saindo da empresa. Ele roda sozinho, na EC2 de automações (servidor virtual
 da AWS dedicado a ele, fora dos repositórios), o fluxo completo da liquidação do Mercato Libero,
 o maior cliente: recebe os arquivos do Mercato Libero, transforma para o formato que a cessão
-aceita, envia e fecha os lotes, entre outras etapas. O fluxo passa para o Pietro Nett,
-possivelmente com apoio de outros devs, e é absorvido pela Artemis V2.
+aceita, sobe os dados e fecha os lotes. O fluxo passa para o Pietro Nett, possivelmente com apoio
+de outros devs.
 
-As telas e rotinas que ele fez para o time de operações, na mesma máquina, ficam em outro
-projeto: `projects/operations-screens-migration/`. O inventário da máquina é um só e vive lá
-(tarefa 01); esta tarefa usa a parte da liquidação.
+## Recorte
 
-## Objetivo
-
-O fluxo da liquidação do Mercato Libero passa a ser mantido pelo time, num lugar versionado e
-monitorado, sem depender da máquina nem dos acessos do Rafael, e sem parar a liquidação na troca.
+- **Na V2: do sistema em diante.** Quando as liquidações já estão na cessão, a V2 garante o
+  fechamento dos lotes sem a varredura do Rafael. O núcleo é a
+  [tarefa 11](11-closing-by-cutoff-time.md) (fechamento automático por horário de corte); esta
+  tarefa leva o caso do Mercato Libero para ela e cuida da troca.
+- **Fora, com o time: até chegar no sistema.** Receber os arquivos, transformar, trocar a
+  configuração do produto e subir os dados. O Pietro decide com o time como fica.
+- **O contrato entre as duas partes:** os dados do dia estão no sistema até o horário de corte do
+  produto. O horário se define com o time e a operação.
 
 ## Por que é urgente
 
@@ -29,37 +38,76 @@ monitorado, sem depender da máquina nem dos acessos do Rafael, e sem parar a li
 - **Precedente [C]:** em 14/10, quando a lista da varredura mudou, os produtos 15 e 581 ficaram
   sem fechamento e acumularam 67 mil pagamentos parados num dia
   ([alerta de 15/10](../evidence/sweep-datadog-2026-10-14.md#alerta-1510-produtos-15-e-581-sem-fechamento-desde-a-mudança)).
-- **A máquina segue ativa [C]:** chamou a cessão todos os dias de 22/10 a 04/11
-  ([evidência de 04/11](../evidence/mercato-libero-ec2-calls-2026-11-04.md)).
+- **A máquina segue ativa [C]:** chamou a cessão todos os dias de 22/10 a 04/11; o fechamento roda
+  às 16h–17h de Brasília ([evidência de 04/11](../evidence/mercato-libero-ec2-calls-2026-11-04.md)).
 
-## O que já se sabe
+## O que a tarefa 11 precisa cobrir para o Mercato Libero
 
-Fontes: [respostas do Rafael em 13/10](03-closing-analysis.md#respostas-do-rafael-1310),
-[evidência de 14/10](../evidence/sweep-datadog-2026-10-14.md) e
-[evidência de 04/11](../evidence/mercato-libero-ec2-calls-2026-11-04.md).
+- **Os dois tipos de produto.** Os produtos 4, 80, 81 e 1406 acumulam: o pagamento entra no lote
+  vigente (lote aberto da chave produto, originador, fundo e origem) até alguém fechá-lo. Os
+  produtos 15 e 581 não acumulam e dependem da busca de grupos aptos. A tarefa 11 já prevê fechar
+  "pelo modo do produto"; os dois casos entram nos testes.
+- **Horário por produto, guardado no banco** (D8), não fixo no código. A referência de hoje é a
+  rodada da varredura, às 16h–17h de Brasília.
+- **Sem lista de combinações.** A varredura manda uma chamada por combinação; o fechamento
+  automático fecha tudo o que está apto no produto, então combinação nova não fica para trás (o
+  erro de 14/10).
+- **Caminho novo:** a rotina usa o `refact.py`, como decidido em 03/11 para os outros escopos do
+  fechamento; o legado não ganha correção.
+
+## O que conferir antes de assumir que o fechamento resolve tudo
+
+1. **Gravações diretas no banco [H].** O usuário de banco próprio do Rafael lê e grava no Postgres
+   da cessão, em tabelas ainda desconhecidas (pendência 7d de 13/10). Se o script marca algum
+   estado de que o fechamento depende, por exemplo a cessão do contrato em `cadastrado` (a regra
+   D9 exige), esse passo continua necessário e precisa de dono. Validar: perguntar ao Rafael e,
+   se o Database Monitoring do Datadog estiver ligado na cessão, ver o que esse usuário executa.
+2. **"Entrada bem diferente dos outros produtos" (13/10) [H].** Entender se a diferença é só na
+   carga (fica com o time) ou se muda o que chega pronto para fechar.
+3. **Transição em paralelo [H].** O fechamento novo só pega pagamento sem lote
+   (`WHERE liquidacao_lote_id IS NULL`), então rodar com a varredura não põe o mesmo pagamento em
+   dois lotes. Conferir se a rota antiga, que a varredura chama, tem a mesma guarda; se não tiver,
+   avaliar a corrida antes de rodar os dois juntos.
+
+## Contingência: o agendamento que já existe (D25)
+
+- **O que existe [C, leitura de outubro]:** `fechar_lote_liquidacao_por_agendamento`, beat fixo às
+  19:00 UTC (16:00 de Brasília), ligado pela opção `baixa_por_agendamento` do produto. Fecha os
+  lotes vigentes, roda a busca de grupos aptos e manda para a esteira de baixa
+  ([tarefa 11](11-closing-by-cutoff-time.md#o-que-já-existe-de-por-horário)). É o que a varredura
+  faz, no mesmo horário. Em 15/10 os seis produtos estavam com a opção nula.
+- **[H] Ponte, não solução:** ligar a opção nos seis produtos seguraria o fechamento se o Rafael
+  sair antes da tarefa 11. Antes, conferir: o código na master atual; o custo da busca antiga, a
+  mais pesada no banco; o efeito nos produtos 15 e 581. Horário fixo no beat vai contra "o horário
+  mora no banco", por isso é só ponte.
+
+## Fora do recorte: até chegar no sistema
+
+Fica com o time; aqui só a referência do que o Rafael faz hoje.
 
 | Etapa | O que se sabe | Status |
 |---|---|---|
-| Receber os arquivos do Mercato Libero | origem, formato e horário desconhecidos; não passa pela API da cessão | a mapear |
-| Transformar para o formato da cessão | script na EC2; a entrada do Mercato Libero é "bem diferente dos outros produtos" (13/10) | a mapear |
-| Trocar a configuração do produto | `PATCH /produto/<id>/` grava `padrao_liquidacao = json_padrao` para subir os dados e depois volta (processo legado, 13/10); 466 chamadas em 14 dias | **[C]** existe; detalhe a mapear |
-| Enviar as liquidações | **[H]** `POST /operacao/liquidacao/upload` (15 em 14 dias) e/ou gravação direta no banco | a mapear |
-| Gravar e ler direto no banco | usuário de banco próprio lê e grava no Postgres da cessão; tabelas em aberto desde 13/10 | a mapear |
-| Fechar os lotes | `POST /liquidacao/` com produto, originador, fundo e origem, uma rodada por dia útil às 16h–17h de Brasília; produtos 4, 80, 81, 1406, 581 e 15 | **[C]**; lista de combinações a conferir |
-| `PATCH /liquidacao/` | 67 em 14 dias; em 13/10 ele disse ser outro processo (Omnis) | confirmar se entra |
-| Exceção: `DELETE /liquidacao/pagamentos` | quando a cessão engasga ou o contrato fica preso; nenhuma em 14 dias | a mapear o procedimento |
+| Receber os arquivos do Mercato Libero | origem, formato e horário desconhecidos; não passa pela API da cessão | com o time |
+| Transformar para o formato da cessão | script na EC2; a entrada é "bem diferente dos outros produtos" (13/10) | com o time |
+| Trocar a configuração do produto | `PATCH /produto/<id>/` grava `padrao_liquidacao = json_padrao` para subir os dados e depois volta (processo legado, 13/10); 466 chamadas em 14 dias | com o time |
+| Subir as liquidações | **[H]** `POST /operacao/liquidacao/upload` (15 em 14 dias) e/ou gravação direta no banco | com o time |
+| `PATCH /liquidacao/` | 67 em 14 dias; em 13/10 ele disse ser outro processo (Omnis) | confirmar se é dele |
+| Exceção: `DELETE /liquidacao/pagamentos` | quando a cessão engasga ou o contrato fica preso; nenhuma em 14 dias | mapear o procedimento |
 
-## O que levantar no mapeamento
+## O que levantar com o Rafael
 
-- [ ] Data de saída do Rafael e até quando valem a máquina e os acessos dele.
+- [ ] Data de saída e até quando valem a máquina e os acessos dele.
 - [ ] Sessão de passagem: ele roda o fluxo de um dia mostrando cada etapa.
-- [ ] Agendamento (crontab) e horários reais de cada etapa, inclusive se há etapa à noite.
-- [ ] Código: onde está, se está em algum git, linguagem e dependências.
-- [ ] Origem dos arquivos do Mercato Libero, formato, volume e quem envia.
-- [ ] Tabelas que o script lê e grava direto, e com que regra (pendência 7d de 13/10).
+- [ ] O que o script faz no banco depois de subir os dados: tabelas, estados e regras (ponto 1).
+- [ ] A que horas os dados do dia ficam completos no sistema (base do horário de corte).
 - [ ] Como ele percebe falha hoje, como reprocessa e o que faz nos casos de exceção.
-- [ ] Produtos, originadores, fundos e origens: lista fixa ou descoberta a cada rodada.
 - [ ] Quem do negócio depende do fluxo e quem é o contato do lado do Mercato Libero.
-- [ ] Plano de contingência se a máquina parar antes da absorção.
+- [ ] Para a parte do time: crontab, onde está o código, origem e formato dos arquivos.
 
-Com isso, quebrar em tarefas (14, 15...) e registrar as decisões em `decisions.md`.
+## Próximos passos
+
+1. Levantar com o Rafael os pontos 1 e 2 e o horário em que os dados ficam completos.
+2. Conferir na master a contingência e decidir a D25.
+3. Desenhar a tarefa 11 com o caso do Mercato Libero; aprovação do Pietro antes do código.
+4. Rodar o fechamento automático junto com a varredura, comparar os lotes e só então desligar a
+   varredura.
