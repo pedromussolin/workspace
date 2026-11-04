@@ -1,4 +1,4 @@
-# GMUD — TS-5536: lotes fake no fluxo novo (listagem, exclusão, worker), com TS-5377, TS-5435 e TS-5537
+# GMUD — TS-5536: lotes fake no fluxo novo (listagem, exclusão, worker), com TS-5377 e TS-5435
 
 > **Status (04/11/2026, 13h30):** rascunho para a janela de hoje, **20h às 22h (Brasília)**, ou
 > 23:00 a 01:00 UTC. Não criada no portal. Faltam os itens **[a preencher]** e "a confirmar".
@@ -18,17 +18,16 @@ Lotes de Liquidação: lotes fake mostram os aptos e a exclusão apaga só o pen
   administradora, sem como desfazer. Pela tela foram 5 pagamentos (19/10), nenhum em lote.
 - **Linha "fechável" sem pagamento apto (R7) e linha por remessa que a tela não fecha (B22):** a
   listagem antiga não sabe quais pagamentos podem entrar no lote nem a modalidade do produto.
-- **Contratos presos (B18, TS-5537, réplica e Datadog):** 10 contratos do produto 15 ficam em
-  "liberando" com o cedente já concluído; 41 erros "'NoneType' object is not iterable" em 30
-  dias. Origem: TS-187, 06/2025.
 - **Deploy no meio de um fechamento (C6):** o worker (processo que executa as tarefas da fila)
   de fechamento não recebe o sinal de desligamento e é morto; o fechamento é refeito.
-- **Cards:** TS-5536 (principal), TS-5377 (fase 2 do fechamento), TS-5435 (fechamento por
-  remessa e modalidade de fechamento) e TS-5537 (B18).
+- **Cards:** TS-5536 (principal), TS-5377 (fase 2 do fechamento) e TS-5435 (fechamento por
+  remessa e modalidade de fechamento). A TS-5537 (B18) saiu desta mudança em 04/11, combinado com a
+  revisão do time: vai depois, com calma.
 
 **O que muda**
-- **platform-cessao** (`release/20261104`, PR #2743 → `master`, commit `8515b71b7`: a árvore da
-  `release/20261103` testada na sandbox mais a concorrência por fila, PR #2744 na sandbox):
+- **platform-cessao** (`release/20261104`, PR #2743 → `master`, commit `79f799624`: a árvore da
+  `release/20261103` testada na sandbox, sem a TS-5537, mais a concorrência por fila, PR #2744 na
+  sandbox):
   - rotas novas: `GET /liquidacao/fake-batches` (listagem, com `qtd_aptos`),
     `DELETE /liquidacao/fake-batches` (exclusão por linha) e
     `GET /liquidacao/fake-batches/payments` (expandir a linha); as duas leituras usam a réplica
@@ -54,7 +53,6 @@ Lotes de Liquidação: lotes fake mostram os aptos e a exclusão apaga só o pen
     o `2` do values (o worker de fechamento subiu com 16 em 29/10). Agora cada worker dedicado pega
     o `N` da sua fila em `CONCORRENCIA_POR_FILA="fila=N,..."`; quem não está na lista segue igual.
     Produção: `fake_batch_closing_celery=4`, 4 por pod;
-  - B18: `callbacks or []` em `cessao/framework/cessao/estados_cessao.py:84`.
 - **BFF** (backend do Portal; `release/20261104-artemis`, PR #264 → `master`, commit `cbb482f`;
   é a release do whitelabel, PR #263, mais a adaptação da TS-5536):
   - listagem, expandir e exclusão pelas rotas novas da cessão; a exclusão passa a receber a chave
@@ -133,8 +131,6 @@ Médio. O que pode dar errado, o que acontece e o que segura.
 - **Redis descartando chaves (B24) [C, Datadog]:** o Redis (armazenamento em memória das travas e
   dos status) descartou ~19,7 mi chaves em outubro (nenhuma de 16/10 a 03/11; 89% de memória em
   30/10). Sem a trava, o fechamento para e a tela avisa; a exclusão segue pelas guardas do banco.
-- **B18 libera contratos [C, código e réplica]:** na próxima baixa do produto 15, os 10 contratos
-  presos vão para `cadastrado`. Segura: alinhar com o time antes (pré-requisito).
 - **Modalidade fora de sincronia [H]:** flag mudada direto no banco não atualiza a modalidade; a
   tela fecha pela modalidade. Hoje os 156 produtos estão coerentes (réplica, 28/10).
 - **Fluxo novo pouco exercitado na sandbox [C, Datadog]:** desde 02/11 nenhum pedido de
@@ -145,7 +141,6 @@ Médio. O que pode dar errado, o que acontece e o que segura.
 - **Tela de lotes de liquidação (aba lotes fake):** "N de M registros aptos"; Fechar só com apto;
   Excluir apaga só os pagamentos sem lote da linha; a tela acompanha a exclusão; expandir pela rota
   nova. Linha por remessa fecha um lote por fundo e originador.
-- **Contratos:** 10 contratos do produto 15 saem de "liberando" na próxima baixa do produto.
 - **Banco:** coluna e tipo novos na `produto_config`; um UPDATE de preenchimento na migration.
 - **Infra:** worker de fechamento com 2 pods e sondas novas; a fila `fake_batch_closing_celery`
   leva também a exclusão; chave nova no Redis `liquidacao:fake-batch-deletion:status:*` (até 1 h).
@@ -159,7 +154,6 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
 
 0. **Antes das 20h:**
    - whitelabel em produção e conferido (BFF #263 e Portal #285 na `master`);
-   - B18: time de acordo com a liberação dos 10 contratos (decisão de 03/11 com o Pietro);
    - testes de tela críticos na sandbox, com registro no Datadog e no banco: S1, S2, exclusão, S8
      e S9 ok (ver Evidências);
    - teto de largura do diálogo central: na `release/20261104-artemis`, validado e conferido na
@@ -206,7 +200,7 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
 1. **Parcial, se o problema for na tela (preferido):** Portal e depois BFF voltam às tags do
    whitelabel de hoje **[a preencher: tag do whitelabel de 04/11]**.
    - A cessão fica: rotas novas sem uso, rotas antigas iguais. Ficam o fechamento da fase 2 e da
-     TS-5435 (na rota de antes), a modalidade e a B18.
+     TS-5435 (na rota de antes) e a modalidade.
    - O BFF antigo aceita o status novo (`status` é texto e campos extras são ignorados) [C no
      código].
    - Entre os dois passos, a exclusão pelo Portal antigo dá 422 (minutos).
@@ -233,16 +227,15 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - lotes criados pelo fluxo novo são lotes normais e seguem a esteira;
    - pagamentos excluídos não voltam (exclusão em cascata, como sempre);
    - chaves no Redis vencem em até 1 h; a fila já existia;
-   - contratos liberados pela B18 ficam `cadastrado` (estado correto).
 5. **Sem deploy:** não há como desligar o fluxo por configuração. Zerar o worker acumula pedidos
    na fila; não usar.
 
 ## Evidências de validação
 
 - **Testes:**
-  - cessão `e5b886429`, 03/11/2026, ~18:59 a 19:00 UTC, suíte em Docker: **5.225 ok, 50
-    pulados, 0 falhas**. A rodada é do commit da release: em 04/11 o `e5b886429` coleta 5.275
-    testes (5.225 + 50); antes do merge da TS-5537 seriam 5.273. Não rodada de novo;
+  - cessão `79f799624` (a release sem a TS-5537, com a concorrência por fila), 04/11/2026, suíte
+    em Docker com o westworld 1.36.6 da release: **5.223 ok, 50 pulados, 0 falhas**, em 66 s. Os 2
+    a menos que a rodada de 03/11 (`e5b886429`, 5.225) são os testes da TS-5537;
   - cessão `-sdbx` `b6ba0cc8d` (contém o `e5b886429`), com o westworld e o httpx da sandbox:
     5.918 ok, 50 pulados, 03/11 ~19:09 a 19:11 UTC;
   - os 8 testes de integração com Postgres e Redis reais ficam fora da suíte (entre os pulados);
@@ -262,7 +255,7 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - Portal `97da6501`: árvore idêntica à da `release/20261104-sdbx` (`b02006c2`, conferido),
     validada em 04/11: build, lint (0 erros), padrões, formatação, **6.477 testes ok**, audit sem
     vulnerabilidade;
-  - concorrência por fila (`54be206d0`, na release pelo `8515b71b7`): `bash -n` e 11 casos com o
+  - concorrência por fila (`dc0c82d72`, na release pelo `79f799624`): `bash -n` e 11 casos com o
     `entrypoint.sh` simulado (um e dois pares, fila fora da lista, worker geral, valor inválido e
     zero, nome parecido, espaços, worker com consumer), todos com a concorrência esperada. Na
     sandbox, pela #2744 (`sand-15d185b`, 04/11 16:56 UTC): o `fake-batch-closing` subiu com
