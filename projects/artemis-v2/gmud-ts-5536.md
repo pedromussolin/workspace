@@ -160,8 +160,8 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
 0. **Antes das 20h:**
    - whitelabel em produção e conferido (BFF #263 e Portal #285 na `master`);
    - B18: time de acordo com a liberação dos 10 contratos (decisão de 03/11 com o Pietro);
-   - testes de tela críticos na sandbox, com registro no Datadog: S1 e exclusão ok; S2 parcial
-     (falta o 409 por outra aba); S8 sem massa (ver Evidências);
+   - testes de tela críticos na sandbox, com registro no Datadog e no banco: S1, S2, exclusão, S8
+     e S9 ok (ver Evidências);
    - teto de largura do diálogo central: na `release/20261104-artemis` e validado; conferir na
      sandbox pela #288 **[a preencher]**;
    - concorrência por fila na sandbox (PR #2744): conferida em 04/11, 13h56 (ver Evidências);
@@ -291,12 +291,18 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - **Exclusão, ok (14h21):** fundo 27, dia 17/09, linha `origem:PagPmt-2026-09-17T20:34:05…`.
     "Exclusão de lote fake solicitada" e "concluída" em 286 ms; no banco, só essa linha saiu (26 →
     25 pendentes e 20 → 19 linhas no dia); as outras ficaram. É a correção do B23.
-  - **S2, parcial:** um lote só; o segundo clique foi barrado na tela (botão desligado durante o
-    fechamento). O 409 do servidor não foi exercido (pede outra aba em até 30 s)
-    **[a preencher]**.
-  - **S8 e S9, sem massa na sandbox:** pedem um produto em `automatico_por_remessa` (S9: remessa
-    com 2 originadores, que não existe); ficam para produção ou para uma massa criada
-    **[a preencher]**.
+  - **S2, ok (16h09):** duas abas na mesma linha (fundo 27, dia 14/09, 19 aptos). A segunda aba
+    já mostrou a linha em "Fechando…" pelo status compartilhado e travou o botão; o BFF recebeu um
+    pedido só (202) e o fechamento saiu com os 19 pagamentos num lote só, em 1 s. O 409 do servidor
+    fica coberto pelos testes da suíte (a tela não deixa chegar até ele).
+  - **S8, ok (16h20):** produto antigo 25, que passou a `automatico_por_remessa` só para o teste.
+    A linha virou `proc:ab083496…` e fechou com 1 pagamento num lote, em 75 ms.
+  - **S9, ok (16h48):** remessa `proc:d71542a2…` do produto 25, com 2 originadores: 200 pagamentos
+    em 762 ms e **2 lotes**, um por fundo e originador (no banco: lote 50023 com 194 pagamentos do
+    originador 28 e lote 50024 com 6 do originador 403, ambos no fundo 23).
+  - **Produto 25 depois do teste:** a modalidade mudou, mas as flags antigas (`lote_liquidacao`,
+    `fechar_lote_por_proc_id`) ficaram desligadas. Volta a `manual` depois dos testes **[a
+    preencher: como foi mudado e o retorno]**.
   - **Achado:** o modal de confirmação abre quase da largura da tela com o texto longo novo. A
     causa é o `DialogService`, que deixa o diálogo central sem `width` com largura automática até o
     limite da tela (já assim na `master`). A correção, com teto de 560 px para o diálogo central sem
