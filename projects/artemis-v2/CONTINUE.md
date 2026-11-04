@@ -103,8 +103,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
   adaptada à `release/20261030`) entrou só na `release/20261030-sdbx`: PRs #261 (BFF) e #283
   (front). A `release/20261030` de produção não tem nada da Artemis.
 
-1. Pietro mergeia na sandbox na ordem cessão #2739 → BFF #261 → front #283 (sem a cessão, a tela
-   de lotes fake da sandbox quebra).
+1. ~~Merge na sandbox~~ (03/11, ~21h): cessão #2739, BFF #261 e front #283 estão mergeados e no argocd.
+   - Cessão: `sand-6f411b3` e as sondas por arquivo do `fake-batch-closing`, só no values da
+     sandbox. As réplicas ficaram em 1: o usuário não quis 2 na sandbox.
+   - O `30f4814` da branch `chore/TS-5536-worker-fechamento` do argocd continua sem merge. A parte
+     de produção vai com a imagem nova.
+   - BFF `sand-99f87d3`; front `sand-29325b0`.
+   - Produção: em janela separada da reestruturação do whitelabel (decisão do usuário).
 2. 04/11: tradução para PT-BR do `refact.py` e afins (decidir o escopo antes).
 3. Semana: testes de tela na sandbox (S1–S14 de `tasks/02-03-sandbox-tests.md` mais listagem com
    aptos, exclusão, acompanhamento e expandir a linha).
