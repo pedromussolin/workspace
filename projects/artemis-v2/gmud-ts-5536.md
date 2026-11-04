@@ -162,8 +162,8 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - B18: time de acordo com a liberação dos 10 contratos (decisão de 03/11 com o Pietro);
    - testes de tela críticos na sandbox, com registro no Datadog e no banco: S1, S2, exclusão, S8
      e S9 ok (ver Evidências);
-   - teto de largura do diálogo central: na `release/20261104-artemis` e validado; conferir na
-     sandbox pela #288 **[a preencher]**;
+   - teto de largura do diálogo central: na `release/20261104-artemis`, validado e conferido na
+     sandbox pela #288 (front `sand-480323e`);
    - concorrência por fila na sandbox (PR #2744): conferida em 04/11, 13h56 (ver Evidências);
    - Parameter Store de produção: `CONCORRENCIA_POR_FILA=fake_batch_closing_celery=4` (conferido
      em 04/11, 13h);
@@ -177,8 +177,10 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - **Sync seletivo:** com o auto-sync do app desligado no ArgoCD, sincronizar primeiro só o Job
      de migration, esperar o Completed e então o resto. Se o app não deixar desligar o auto-sync,
      seguir com a tag única e acompanhar o Job (ver Risco);
-   - Job de migration concluído e coluna criada (a confirmar como conferir: painel do argocd ou
-     DBA), em cada ambiente;
+   - Job de migration concluído e, em cada ambiente, `attachments/sql/closing-modality-validate.sql`
+     na réplica (só leitura) com **0 nulos e 0 divergentes** entre a coluna nova e as flags. Se
+     divergir, `closing-modality-apply.sql` (só os divergentes, numa transação que só confirma com 0
+     divergentes, `lock_timeout` de 5 s) e a validação de novo;
    - API e workers na versão nova (Datadog, por `version`), sem erro com
      `modalidade_fechamento_lote`.
 3. **Argocd do worker: merge da branch `chore/TS-5536-worker-fechamento`** (3 commits, só
@@ -250,6 +252,11 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
     (`evidence/closing-stress-2026-10-27.md`), na versão anterior ao `75fac8ce3` (17:56), que só
     trocou nomes, inclusive o do tipo no banco. Downgrade na versão final: a confirmar. O SQL do
     preenchimento é conferido na suíte (`test/database/test_batch_closing_modality.py`);
+  - modalidade de cada produto (04/11, réplica de produção, `closing-modality-preview.sql`): a
+    migration grava 131 `manual`, 13 `acumulado`, 9 `automatico_por_chave`, 2
+    `automatico_por_remessa` e 1 `agendado` (156 produtos), sem combinação ambígua de flags. Na
+    sandbox, `closing-modality-validate.sql`: 147 produtos, 0 nulos, 0 divergentes;
+    `closing-modality-apply.sql` testado com `ROLLBACK` no lugar do `COMMIT` (0 a mudar);
   - BFF `cbb482f`, 04/11/2026, ~10:18 a 10:29 UTC: **4.480 ok**, com Redis de verdade; ruff e
     black limpos nos 17 arquivos Python do merge;
   - Portal `97da6501`: árvore idêntica à da `release/20261104-sdbx` (`b02006c2`, conferido),
@@ -300,16 +307,16 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - **S9, ok (16h48):** remessa `proc:d71542a2…` do produto 25, com 2 originadores: 200 pagamentos
     em 762 ms e **2 lotes**, um por fundo e originador (no banco: lote 50023 com 194 pagamentos do
     originador 28 e lote 50024 com 6 do originador 403, ambos no fundo 23).
-  - **Produto 25 depois do teste:** a modalidade mudou, mas as flags antigas (`lote_liquidacao`,
-    `fechar_lote_por_proc_id`) ficaram desligadas. Volta a `manual` depois dos testes **[a
-    preencher: como foi mudado e o retorno]**.
+  - **Produto 25 depois do teste:** a modalidade foi mudada direto no banco (a rota de atualização
+    não aparece no Datadog), por isso as flags antigas não acompanharam; voltou a `manual` e, na
+    validação, os 147 produtos da sandbox batem com as flags (0 divergentes).
   - **Achado:** o modal de confirmação abre quase da largura da tela com o texto longo novo. A
     causa é o `DialogService`, que deixa o diálogo central sem `width` com largura automática até o
     limite da tela (já assim na `master`). A correção, com teto de 560 px para o diálogo central sem
     `width`, entrou na `release/20261104-artemis` (`25867603`, PR #287): testes primeiro (2 vermelhos
     antes; o painel media 733 px), `validate.sh` com `RESULTADO: ok` (6.483 testes) e larguras
     medidas no navegador em 1440 px (Fechar lote 976 → 560, Excluir lote 880 → 560; no celular nada
-    muda). Na sandbox pela PR #288 **[a preencher: conferido na tela]**.
+    muda). Na sandbox pela PR #288 (`sand-480323e`): conferido na tela em 04/11.
   - Os de 03/11 (checklist, ~23h): listagem com aptos e expandir aparecem no Datadog; a exclusão
     e o S2 daquela noite não deixaram registro na sandbox e foram refeitos hoje (acima). S1–S14 de
     `tasks/02-03-sandbox-tests.md` rodam nesta semana, já em produção.
