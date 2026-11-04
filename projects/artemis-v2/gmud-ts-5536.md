@@ -60,9 +60,11 @@ Lotes de Liquidação: lotes fake mostram os aptos e a exclusão apaga só o pen
   - listagem, expandir e exclusão pelas rotas novas da cessão; a exclusão passa a receber a chave
     da linha e o dia (`key`, `date`) no lugar dos `proc_id`, e confere o produto do usuário;
   - a consulta de status devolve as exclusões.
-- **Portal** (`release/20261104-artemis`, PR #287 → `master`, commit `97da6501`; release do
+- **Portal** (`release/20261104-artemis`, PR #287 → `master`, commit `25867603`; release do
   whitelabel, PR #285, mais a adaptação): mostra "N de M registros aptos"; o Fechar só habilita
-  com apto; a exclusão manda a chave e o dia; a tela acompanha a exclusão pelo status.
+  com apto; a exclusão manda a chave e o dia; a tela acompanha a exclusão pelo status; o diálogo
+  central sem largura definida passa a ter teto de 560 px (o modal de confirmação não estica mais
+  até a borda).
 - **Argocd** (repositório de configuração do deploy; `platform-cessao-argocd`, branch
   `chore/TS-5536-worker-fechamento`, commits `30f4814`, `6880187` e `46911fc`, sem PR; só
   `asgard-production`, a sandbox fica como está): `fake-batch-closing` com **2 réplicas** (era 1),
@@ -160,8 +162,8 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
    - B18: time de acordo com a liberação dos 10 contratos (decisão de 03/11 com o Pietro);
    - testes de tela críticos na sandbox, com registro no Datadog: S1 e exclusão ok; S2 parcial
      (falta o 409 por outra aba); S8 sem massa (ver Evidências);
-   - teto de largura do diálogo central na `release/20261104-artemis`, validado
-     **[a preencher]**;
+   - teto de largura do diálogo central: na `release/20261104-artemis` e validado; conferir na
+     sandbox pela #288 **[a preencher]**;
    - concorrência por fila na sandbox (PR #2744): conferida em 04/11, 13h56 (ver Evidências);
    - Parameter Store de produção: `CONCORRENCIA_POR_FILA=fake_batch_closing_celery=4` (conferido
      em 04/11, 13h);
@@ -298,7 +300,10 @@ Horários em Brasília. A ordem é cessão (migration e worker), BFF e Portal.
   - **Achado:** o modal de confirmação abre quase da largura da tela com o texto longo novo. A
     causa é o `DialogService`, que deixa o diálogo central sem `width` com largura automática até o
     limite da tela (já assim na `master`). A correção, com teto de 560 px para o diálogo central sem
-    `width`, entra na `release/20261104-artemis` **[a preencher: commit e validação]**.
+    `width`, entrou na `release/20261104-artemis` (`25867603`, PR #287): testes primeiro (2 vermelhos
+    antes; o painel media 733 px), `validate.sh` com `RESULTADO: ok` (6.483 testes) e larguras
+    medidas no navegador em 1440 px (Fechar lote 976 → 560, Excluir lote 880 → 560; no celular nada
+    muda). Na sandbox pela PR #288 **[a preencher: conferido na tela]**.
   - Os de 03/11 (checklist, ~23h): listagem com aptos e expandir aparecem no Datadog; a exclusão
     e o S2 daquela noite não deixaram registro na sandbox e foram refeitos hoje (acima). S1–S14 de
     `tasks/02-03-sandbox-tests.md` rodam nesta semana, já em produção.
