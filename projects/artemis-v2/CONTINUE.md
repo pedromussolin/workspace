@@ -110,18 +110,24 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
      de produção vai com a imagem nova.
    - BFF `sand-99f87d3`; front `sand-29325b0`.
    - Produção: em janela separada da reestruturação do whitelabel (decisão do usuário).
-2. 04/11: tradução para PT-BR do `refact.py` e afins (decidir o escopo antes).
-3. Semana: testes de tela na sandbox (S1–S14 de `tasks/02-03-sandbox-tests.md` mais listagem com
-   aptos, exclusão, acompanhamento e expandir a linha).
-4. Produção: nova release do BFF e do front a partir da `master` pós-20261030 com a branch de
-   adaptação; cessão pela `release/20261103`. B18 com o time; argocd do worker só com a imagem nova.
-   - **Data: 04/11** (decidido pelo usuário na madrugada de 04/11), numa janela depois da do
-     whitelabel. A release do BFF e do front sai da `master` depois do merge da 20261030.
-   - **Falta:**
-     - abrir a PR da cessão `release/20261103` → `master`;
-     - confirmar as réplicas do `fake-batch-closing` em produção (o `30f4814` pede 2; a sandbox
-       ficou com 1);
-     - GMUD própria pela skill `change-request`, com migration e rollback.
-   - **A decidir com o usuário:** quais testes de tela (item 3) rodam antes da produção, e se a
-     tradução do item 2 fica para depois.
-   - O roteiro do dia está no handoff de 04/11, fora deste repo (seção 0, item 5).
+2. Depois da produção: tradução para PT-BR do `refact.py` e afins (decidido em 04/11).
+3. Semana: S1–S14 de `tasks/02-03-sandbox-tests.md`, já em produção. Antes das 20h de 04/11 só os
+   críticos na sandbox: S1 (fechar e acompanhar), exclusão, S2 e S8. Os de 03/11 que não deixaram
+   registro no Datadog (exclusão, S2) rodam de novo.
+4. **Produção em 04/11, 20h às 22h**, depois do whitelabel (18h às 20h). GMUD: `gmud-ts-5536.md`.
+   - **Cessão:** `release/20261104`, PR #2743 (renomeada da `release/20261103` para ter a data do
+     deploy), commit `8515b71b7`: a árvore testada mais a concorrência por fila.
+   - **Concorrência por fila (decidida em 04/11):** o `guardian` aplica o Parameter Store (o mesmo
+     para todos os pods) por cima do values, e a `CELERY_WORKER_CONCURRENCY=16` de lá vencia o `2`
+     do values. O `entrypoint.sh` lê `CONCORRENCIA_POR_FILA="fila=N,..."` e cada worker dedicado
+     pega o `N` da sua fila. Produção: `fake_batch_closing_celery=4`, 2 réplicas, até 8. Na sandbox
+     pela #2744 (`fix/TS-5536-concorrencia-do-fechamento-sdbx`, que mantém a fila
+     `cobransaas_celery` da sandbox); falta o merge e conferir o log de partida.
+   - **BFF e front:** `release/20261104-artemis`, PRs #264 e #287, sobre a release do whitelabel.
+   - **Argocd:** branch `chore/TS-5536-worker-fechamento` com 3 commits, só produção (2 réplicas,
+     sondas e sem a concorrência do values), commitada local, sem push; o push e o merge são do
+     usuário, na janela. A sandbox fica com 1 réplica.
+   - **Migration:** sync seletivo no ArgoCD (o Job primeiro). `viva-production` também sobe hoje.
+   - **Regra do usuário:** nada de merge ou push em branch de ambiente nem no argocd, menos o argocd
+     da sandbox.
+   - O roteiro do dia está no handoff de 04/11, fora deste repo.
