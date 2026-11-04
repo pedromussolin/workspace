@@ -12,6 +12,7 @@ item diz de onde veio, quando foi adiado e o que falta para retomar.
 | D18 — registro durável de cada fechamento (quem pediu, lotes, pagamentos, motivo) | [casos de 20/10](tasks/03-post-production-cases.md#decisões-abertas) | 27/10/2026 | auditoria de quem fechou além da retenção do Datadog; uma coluna "quem pediu" no lote real pode bastar |
 | D20 (b) — fechamento em blocos para grupos acima de ~80 mil | [evidência de 27/10](evidence/closing-group-sizes-2026-10-27.md) | 27/10/2026 | varredura ou Atlas passarem pela rota nova; exige lote "em montagem", despacho no fim e retomada pelo mesmo lote |
 | `terminationGracePeriodSeconds` do worker de fechamento acima do `time_limit` (600 s) | C6, [casos de 20/10](tasks/03-post-production-cases.md) | 03/11/2026 | o valor é fixo em 30 s no `standard-service-chart` (compartilhado); exige versão nova do chart com o campo configurável e a dependência atualizada no argocd |
+| Nome da coluna de modalidade explícito sobre liquidação (`produto_config.modalidade_fechamento_lote` → ex.: `modalidade_fechamento_lote_liquidacao`; enum `EnumBatchClosingModality` e nomes no código) | pedido do usuário na produção de 04/11 | 04/11/2026 | migration nova (a `c3f81d7a5e24` já rodou e não muda), BFF e scripts `attachments/sql/closing-modality-*.sql` juntos; próxima release da cessão |
 | [Índices para o fechamento de lote](#índices-para-o-fechamento-de-lote) | [tarefa 03](tasks/03-closing-analysis.md), antigo P6 (12 h) | 13/10/2026 | DBA; medir o efeito das etapas 1 e 2 da tarefa 03 antes |
 
 ## Índices para o fechamento de lote

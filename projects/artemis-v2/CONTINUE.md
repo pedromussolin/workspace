@@ -116,7 +116,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    registro no Datadog (exclusão, S2) rodam de novo.
 4. **Produção em 04/11, 20h às 22h**, depois do whitelabel (18h às 20h). GMUD: `gmud-ts-5536.md`.
    - **Cessão:** `release/20261104`, PR #2743 (renomeada da `release/20261103` para ter a data do
-     deploy), commit `8515b71b7`: a árvore testada mais a concorrência por fila.
+     deploy), commit `79f799624`: a árvore testada, sem a TS-5537, mais a concorrência por fila
+     (5.223 testes ok). A TS-5537 (B18) saiu em 04/11, a pedido do time (revisão de um dev da cessão),
+     e vai numa release seguinte, com calma.
    - **Concorrência por fila (decidida em 04/11):** o `guardian` aplica o Parameter Store (o mesmo
      para todos os pods) por cima do values, e a `CELERY_WORKER_CONCURRENCY=16` de lá vencia o `2`
      do values. O `entrypoint.sh` lê `CONCORRENCIA_POR_FILA="fila=N,..."` e cada worker dedicado
@@ -131,3 +133,8 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    - **Regra do usuário:** nada de merge ou push em branch de ambiente nem no argocd, menos o argocd
      da sandbox.
    - O roteiro do dia está no handoff de 04/11, fora deste repo.
+5. **Próximas tarefas (pedido do usuário em 04/11):** renomear a coluna
+   `produto_config.modalidade_fechamento_lote` para deixar explícito que é do lote de liquidação
+   (ex.: `modalidade_fechamento_lote_liquidacao`), com o enum e os nomes no código. Migration nova
+   (a `c3f81d7a5e24` já rodou e não muda) e os scripts `attachments/sql/closing-modality-*.sql`
+   junto. Registrado em `after-v2.md`.
