@@ -133,6 +133,11 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    - **Regra do usuário:** nada de merge ou push em branch de ambiente nem no argocd, menos o argocd
      da sandbox.
    - O roteiro do dia está no handoff de 04/11, fora deste repo.
+6. **Pendências da produção de 04/11 no `viva-production`:**
+   - validar a modalidade no banco dele com `attachments/sql/closing-modality-validate.sql` (a migration rodou
+     com a imagem nova; não tenho acesso a esse banco);
+   - ele não tem o worker `fake-batch-closing`, e nenhum pod de lá consome a fila; sem efeito enquanto o portal
+     chamar só a cessão do `asgard` (registrado em `after-v2.md`).
 5. **Próximas tarefas (pedido do usuário em 04/11):** renomear a coluna
    `produto_config.modalidade_fechamento_lote` para deixar explícito que é do lote de liquidação
    (ex.: `modalidade_fechamento_lote_liquidacao`), com o enum e os nomes no código. Migration nova
