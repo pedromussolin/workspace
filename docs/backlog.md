@@ -25,6 +25,8 @@ Frozen since 2026-10-26: these items move only when a real case shows up.
 | `secret-assignment` is slow on very long `a_a_a_…` lines (seconds at 20 000 characters) | only synthetic or generated lines trigger it | bound the identifier prefix |
 | PT-BR commit messages where senha, token or secret is followed by a colon and a word are blocked by `commit-msg` | rewording the message is enough | a message-scoped allow entry, or skip prose shapes in messages |
 | `#` lines are skipped by `commit-msg` | same as git's comment stripping; `pre-push` scans the stored message | none needed unless messages are kept with `--cleanup=verbatim` |
+| A clone whose `user.email` has a company domain learns it only at `pre-push`, after the commits exist (a real case on 2026-11-03: a new machine with the company e-mail as the global git e-mail) | caught before the push; the fix is a `user.email` for the clone, and the commits are redone | `ws setup` and `pre-commit` check the effective `user.email` against `blocked_domains` and print the `git config user.email` fix |
+| Why commit e-mails are checked is written nowhere (asked on 2026-11-04) | docs only | one line in the README "What protects the repo": each commit's e-mail is published with it, a company domain names the employer, and once pushed it only goes away with a history rewrite |
 
 ## Gates and tools
 
