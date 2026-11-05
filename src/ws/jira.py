@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
 
-FIELDS = ["summary", "status", "parent", "reporter", "updated"]
+FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype"]
 
 PAGE_SIZE = 100
 META_PAGE_SIZE = 200
@@ -88,6 +88,8 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
     parent = fields.get("parent") or {}
     reporter = fields.get("reporter") or {}
     updated = datetime.fromisoformat(_required(fields, "updated", where))
+    level = (fields.get("issuetype") or {}).get("hierarchyLevel")
+    is_epic = isinstance(level, int) and not isinstance(level, bool) and level >= 1
     return {
         "key": key,
         "title": _required(fields, "summary", where),
@@ -97,6 +99,7 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
         "epic_title": (parent.get("fields") or {}).get("summary"),
         "reporter_is_me": reporter.get("accountId") == my_account_id,
         "updated": updated.isoformat(),
+        "is_epic": is_epic,
     }
 
 

@@ -49,6 +49,7 @@ CARD = {
     "epic_title": "[FRONT] Épico de exemplo",
     "reporter_is_me": True,
     "updated": "2026-10-26T12:15:36.854000-03:00",
+    "is_epic": False,
 }
 
 
@@ -106,6 +107,27 @@ def test_card_from_issue_rest_and_mcp_shapes_are_equal():
 
 def test_card_reporter_is_me_only_for_my_account():
     assert card_from_issue(REST_ISSUE, "acc-other")["reporter_is_me"] is False
+
+
+def test_fields_ask_for_issuetype():
+    assert "issuetype" in FIELDS
+
+
+def test_card_from_issue_flags_epic_by_hierarchy_level():
+    epic = deepcopy(REST_ISSUE)
+    epic["fields"]["issuetype"] = {"name": "Épico", "hierarchyLevel": 1}
+    task = deepcopy(REST_ISSUE)
+    task["fields"]["issuetype"] = {"name": "Tarefa", "hierarchyLevel": 0}
+    no_level = deepcopy(REST_ISSUE)
+    no_level["fields"]["issuetype"] = {"name": "Épico"}
+    odd_level = deepcopy(REST_ISSUE)
+    odd_level["fields"]["issuetype"] = {"name": "Épico", "hierarchyLevel": "1"}
+
+    assert card_from_issue(epic, "acc-me")["is_epic"] is True
+    assert card_from_issue(task, "acc-me")["is_epic"] is False
+    assert card_from_issue(REST_ISSUE, "acc-me")["is_epic"] is False
+    assert card_from_issue(no_level, "acc-me")["is_epic"] is False
+    assert card_from_issue(odd_level, "acc-me")["is_epic"] is False
 
 
 def test_card_without_parent_has_null_epic():
