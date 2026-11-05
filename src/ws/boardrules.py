@@ -6,6 +6,7 @@ from datetime import date
 from ws.boardconfig import BoardConfig
 from ws.codeposition import Position
 from ws.taskmodel import RUNG, STATUS_AT_RUNG, Status, Task
+from ws.workdays import previous_workday
 
 
 def _epic_keys(tasks: list[Task]) -> set[str]:
@@ -28,11 +29,17 @@ def plan_moves(
     moves: list[dict] = []
     held: list[dict] = []
     limited: list[dict] = []
+    to_confirm: list[dict] = []
+    cutoff = previous_workday(today)
     for task in tasks:
         if task.status not in RUNG or task.status == Status.DONE:
             continue
         if task.is_epic or task.key in epics:
             continue
+        if task.status == Status.VALIDATION and task.updated.date() <= cutoff:
+            to_confirm.append(
+                {"key": task.key, "title": task.title, "since": task.updated.date().isoformat()}
+            )
         position = positions.get(task.key)
         if position is None:
             continue
@@ -69,4 +76,4 @@ def plan_moves(
                     "repos": list(position.repos),
                 }
             )
-    return {"moves": moves, "held": held, "limited": limited}
+    return {"moves": moves, "held": held, "limited": limited, "to_confirm": to_confirm}

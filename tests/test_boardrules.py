@@ -110,7 +110,7 @@ def test_blocked_cancelled_done_and_epic_are_skipped():
     ]
     positions = {t.key: pos(4, "production", limited=True) for t in tasks}
     out = plan(tasks, positions)
-    assert out == {"moves": [], "held": [], "limited": []}
+    assert out == {"moves": [], "held": [], "limited": [], "to_confirm": []}
 
 
 def test_key_that_is_epic_of_another_task_is_skipped():
@@ -175,3 +175,21 @@ def test_limited_position_lists_card_with_what_it_proves():
             "repos": ["demo-api"],
         }
     ]
+
+
+def test_to_confirm_lists_validation_card_updated_on_previous_workday():
+    yesterday = task("TS-101", Status.VALIDATION, updated=datetime(2026, 11, 4, 9, 0))
+    today = task("TS-102", Status.VALIDATION, updated=datetime(2026, 11, 5, 9, 0))
+    out = plan([yesterday, today], {})
+    assert out["to_confirm"] == [{"key": "TS-101", "title": "title TS-101", "since": "2026-11-04"}]
+
+
+def test_to_confirm_ignores_other_statuses_and_epics():
+    old = datetime(2026, 10, 1)
+    tasks = [
+        task("TS-101", Status.IN_PROGRESS, updated=old),
+        task("TS-102", Status.VALIDATION, updated=old, is_epic=True),
+        task("TS-103", Status.VALIDATION, updated=old),
+    ]
+    out = plan(tasks, {})
+    assert [c["key"] for c in out["to_confirm"]] == ["TS-103"]
