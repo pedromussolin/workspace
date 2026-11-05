@@ -25,6 +25,9 @@ the "holds only as far as it can prove" rule are the contract).
   `uv run ruff check` and `uv run ruff format --check`.
 - Every file and identifier name in English; JSON keys in English; texts the user reads in the
   skills are PT-BR.
+- A task has as many commits as it has behaviors: one behavior per commit, its tests in the
+  same commit, the whole suite passing at each one. The split listed in each task is the
+  expected one; a finer split is fine, merging two into one is not.
 - Commits: atomic, prefix `feat:`, `fix:`, `test:`, `docs:` or `chore:`, message in PT-BR, at most
   72 characters, no task ID, no `Co-Authored-By`, no "Generated with" line. Run `git diff` before
   each message. `git pull` before starting; push to `main` at the end.
@@ -104,8 +107,9 @@ the "holds only as far as it can prove" rule are the contract).
 
 - [ ] **Step 4: Run** `uv run pytest tests/test_boardconfig.py -q`. Expected: PASS.
 
-- [ ] **Step 5: Commit** `git add src/ws/boardconfig.py src/ws/taskmodel.py tests/test_boardconfig.py`
-  and `git commit -m "feat: configuração dos ambientes do board"`.
+- [ ] **Step 5: Commits:** `feat: etapas do card no modelo de tarefa` (`RUNG`, `STATUS_AT_RUNG`
+  and a test of their order in `tests/test_taskmodel.py`), then
+  `feat: configuração dos ambientes do board` (`boardconfig.py` and its tests).
 
 ### Task 2: Epics flagged on cards
 
@@ -135,7 +139,8 @@ the "holds only as far as it can prove" rule are the contract).
 - [ ] **Step 4: Run** `uv run pytest -q`. Expected: PASS (whole suite: `Task` gained a defaulted
   field).
 
-- [ ] **Step 5: Commit** `git commit -m "feat: card do Jira sabe se é épico"`.
+- [ ] **Step 5: Commits:** `feat: card do Jira sabe se é épico` (`FIELDS`, `card_from_issue`),
+  then `feat: tarefa carrega a marca de épico` (`Task.is_epic`, `task_from_card`, `task_to_json`).
 
 ### Task 3: Code positions from git
 
@@ -230,7 +235,11 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
 - [ ] **Step 4: Run** `uv run pytest tests/test_codeposition.py tests/test_standup.py -q`.
   Expected: PASS.
 
-- [ ] **Step 5: Commit** `git commit -m "feat: posição do código de cada card no git"`.
+- [ ] **Step 5: Commits:** `chore: coletor da daily expõe a busca de repos` (the rename alone),
+  `feat: fetch dos repos em paralelo com aviso por falha` (`fetch` and its test),
+  `feat: posição do card pelos ambientes de branch` (commits, branch environments, cap, holding,
+  stale; every test without a deploy repo), then `feat: produção provada pelas tags do repo de
+  deploy` (the deploy environment and its four tests).
 
 ### Task 4: Moves from positions
 
@@ -262,7 +271,8 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
 
 - [ ] **Step 4: Run** `uv run pytest tests/test_boardrules.py -q`. Expected: PASS.
 
-- [ ] **Step 5: Commit** `git commit -m "feat: movimentos dos cards a partir da posição do código"`.
+- [ ] **Step 5: Commits:** `feat: movimentos dos cards a partir da posição do código` (`moves`,
+  `held`), then `feat: card em validação pede confirmação do teste` (`to_confirm`).
 
 ### Task 5: `ws board status` and `ws board drafts`
 
@@ -303,7 +313,9 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
 - [ ] **Step 4: Run** `uv run pytest -q && uv run ruff check && uv run ruff format --check`.
   Expected: PASS and clean.
 
-- [ ] **Step 5: Commit** `git commit -m "feat: comandos ws board status e ws board drafts"`.
+- [ ] **Step 5: Commits:** `chore: escape de texto TOML com nome público`,
+  `feat: pasta de rascunhos de card criada pelo ws` (`drafts_folder` and a test in
+  `tests/test_card.py`), `feat: comando ws board status`, then `feat: comando ws board drafts`.
 
 ### Task 6: The standup report uses the board
 
@@ -331,7 +343,10 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
 
 - [ ] **Step 4: Run** `uv run pytest -q && uv run ruff check`. Expected: PASS.
 
-- [ ] **Step 5: Commit** `git commit -m "feat: daily usa os movimentos do board"`.
+- [ ] **Step 5: Commits:** `feat: daily usa os movimentos do board` (`--board`, suggestions and
+  `to_confirm` from the board, R1 and R2 still in place), then
+  `feat: sugestões da daily só pela posição do código` (R1 and R2 removed, `moving`, `ws task
+  status` output).
 
 ### Task 7: Skills and README
 
@@ -353,7 +368,8 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
   `moves`, `held` and `warnings` in PT-BR in a short list, then `ws board drafts --board ...` and
   the usual steps 3 and 4 on the printed folder. No moves: say so and stop.
 - [ ] **Step 3: README.**
-- [ ] **Step 4: Commit** `git commit -m "docs: daily e /card com a sincronização do board"`.
+- [ ] **Step 4: Commits:** `docs: daily com a sincronização do board`,
+  `docs: /card sincronizar`, then `docs: comandos ws board e a tabela [board] no README`.
 
 ### Task 8: Evals of the daily
 
