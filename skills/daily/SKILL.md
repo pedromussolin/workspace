@@ -38,7 +38,7 @@ one: card titles must not land in whatever folder the session is in. Never read
      end of this step.
    - Call `atlassianUserInfo` for the account id (used only to set `reporter_is_me`).
    - Call `searchJiraIssuesUsingJql` with `cloudId`, `maxResults: 100`,
-     `fields: ["summary", "status", "parent", "reporter", "updated"]` and this `jql`:
+     `fields: ["summary", "status", "parent", "reporter", "updated", "issuetype"]` and this `jql`:
 
      ```text
      assignee = currentUser() AND (statusCategory != Done OR updated >= "<since>") ORDER BY updated DESC
@@ -51,7 +51,8 @@ one: card titles must not land in whatever folder the session is in. Never read
      (`fields.status.statusCategory.key`: `new`, `indeterminate` or `done`); `epic_key` and
      `epic_title` (`fields.parent.key` and `fields.parent.fields.summary`, `null` without a
      parent); `reporter_is_me` (`fields.reporter.accountId` equals the account id);
-     `updated` (`fields.updated`, as it came).
+     `updated` (`fields.updated`, as it came); `is_epic` (`fields.issuetype.hierarchyLevel >= 1`,
+     true or false, whatever the type's name).
    - Create `~/.local/share/workspace/standup/cards.json` with the Write tool (not an inline shell
      string, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`. When
      the Write tool is denied, write the same JSON with a quoted heredoc
@@ -59,12 +60,20 @@ one: card titles must not land in whatever folder the session is in. Never read
      `EOF` keep the shell from touching the titles. Never drop the fetched cards because Write
      was denied.
    - **No cards** (the script and the MCP both failed): go to step 4 without `--cards`.
+3b. **Board.** Only when a `cards.json` exists (from step 2 or 3). Run
+   `rm -f ~/.local/share/workspace/standup/board.json ~/.local/share/workspace/standup/board.json.tmp`,
+   then `ws board status --cards ~/.local/share/workspace/standup/cards.json > ~/.local/share/workspace/standup/board.json.tmp`.
+   Only when the exit code is 0, `mv` the `.tmp` file to `board.json`. Exit 2 (no `[board]` table
+   or bad input) or exit 1: go on without the board and keep its stderr as one more warning for the
+   final line. It reads git and fetches the remotes of the repos, so it can take a while.
 4. **Report.** Run
-   `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json --top 3`
-   (without the `--cards` part when there are no cards; without `--top 3` in detailed mode, see
-   Modes). It prints one JSON: `jira`, `yesterday`, `today`, `next_steps`, `blockers`, `keyless`,
-   `more` (`yesterday` and `today`: entries cut by `--top`), `moves` (every suggested card move,
-   before any cut) and `warnings` (the fields are used below). If the
+   `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json --board ~/.local/share/workspace/standup/board.json --top 3`
+   (without the `--cards` part when there are no cards; without the `--board` part when there is
+   no `board.json`; without `--top 3` in detailed mode, see Modes). It prints one JSON: `jira`, `yesterday`, `today`, `next_steps`, `blockers`, `keyless`,
+   `more` (`yesterday` and `today`: entries cut by `--top`), `moves` (every card move the board
+   found, `{key, from, to}`, before any cut), `to_confirm` (cards to ask about, see below) and
+   `warnings` (the board's warnings included; the fields are used below). Without `--board` there
+   are no suggestions, no `moves` and no `to_confirm`. If the
    run with `--cards` fails (a malformed `cards.json` or a rejected config), run it again with only
    `--activity`, write the standup from that report (`jira` false) and add the first run's stderr
    to the final warnings line. If the run without `--cards` fails, say so with its stderr and
@@ -98,8 +107,8 @@ the card title, commit subjects and PR titles for people.
 Algum desses é impedimento?
 
 ---
-Para você: para aplicar /card mover <KEY> para <status>; ...; Jira indisponível;
-N avisos, peça "daily detalhado"
+Para você: para aplicar /card sincronizar (N cards); testado na sandbox? <KEY> (desde <dd/mm>);
+Jira indisponível; N avisos, peça "daily detalhado"
 ```
 
 - **Describe the task, never the person.** No first person ("fiz", "fechei", "ajustei") and no
@@ -117,8 +126,10 @@ N avisos, peça "daily detalhado"
   date. Ask "Algum desses é impedimento?" once, only when at least one `stuck` line is shown; it
   refers to those. With none, "Nenhum." and no question.
 - The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
-  `moves`, as one "para aplicar /card mover TS-5431 para em validação; /card mover ..."
-  (the user types `/card`; nothing moves before); "Jira indisponível" when `jira` is false; "N
+  `moves`, as one "para aplicar /card sincronizar (N cards)" with N = the number of `moves` (the
+  user types `/card`; nothing moves before); then, when `to_confirm` is not empty, "testado na
+  sandbox? TS-5537 (desde 03/11); ..." with each card's `key` and `since` as dd/mm;
+  "Jira indisponível" when `jira` is false; "N
   avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.
 - Status names in PT-BR: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
