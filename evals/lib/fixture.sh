@@ -82,3 +82,12 @@ JSON
 Revisar a rota de exemplo (TS-102) e abrir o PR.
 MD
 }
+
+# TS-103 is only on demo-api's sandbox branch of the remote (not on its main), so it proves
+# validation; TS-102 stays a local branch and proves in progress.
+add_sandbox_remote() {
+  git init -q --bare "$HOME/remotes/demo-api.git"
+  git -C "$HOME/repos/demo-api" remote add origin "$HOME/remotes/demo-api.git"
+  git -C "$HOME/repos/demo-api" push -q origin main:sandbox
+  git -C "$HOME/repos/demo-api" fetch -q origin
+}
