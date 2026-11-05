@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from ws import (
+    board_cli,
     bootstrap,
     card,
     checkpoint,
@@ -995,6 +996,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_standup(subparsers)
     _add_checkpoint(subparsers)
     handoff_cli.register(subparsers)
+    board_cli.register(subparsers)
     envcheck_cli.register(subparsers)
     deploycheck_cli.register(subparsers)
     return parser
