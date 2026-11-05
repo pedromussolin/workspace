@@ -83,6 +83,8 @@ takes the highest environment that contains it, and the card takes the lowest of
 remote = "origin"          # default
 lookback_days = 120        # default
 fetch = true               # default
+ignore_repos = ["*-workspace"]        # globs: repos left out entirely (default [])
+direct_deploy_repos = ["*-argocd"]    # globs: the last branch environment is production
 
 # In order, from the first environment to the last. `status` is the card status the
 # environment proves; the statuses must rise along the list.
@@ -104,7 +106,10 @@ deploy_repo = "{repo}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{7,40})'
 
-# Optional: other branch names for one repo.
+# Optional, per repo: other branch names, another deploy repo.
+[board.repos."some-repo"]
+deploy_repo = "some-deploy-repo"
+
 [board.repos."some-repo".branches]
 sandbox = ["homolog"]
 
@@ -147,11 +152,26 @@ commit is at its cap, the card takes the highest cap among them. A card with any
 in progress. So a personal repo only proves "in progress", and the deploy repo's `master` commit of
 a card does not keep it from done once the code repos are deployed.
 
+## Risks: alternative and warning (user, 2026-11-05)
+
+Every risk found while planning has a way around it, a warning, or both. Warnings are short
+English strings in `warnings`; the skills say them in PT-BR.
+
+| Risk | Alternative | Warning |
+|---|---|---|
+| A fetch fails (no credentials, network) | the last fetched refs are used; moves still come, since old refs only under-report | `fetch <repo>: <error>`; positions from that repo carry `stale: true` |
+| A repo has no `remote` (local or personal repo) | `ignore_repos` leaves it out entirely | one line listing the repos without the remote that were not ignored (they prove only "in progress") |
+| A card's code lives only in repos that cannot prove production (a deploy repo, a repo with no deploy tags) | `direct_deploy_repos`: in those repos the last branch environment counts as production (`*-argocd`: merged into `master` is deployed) | the card goes to `limited` ("the git proves only up to <status> in <repos>") |
+| The deploy repo is not under `repo_roots`, or none of its tags belongs to the repo | `[board.repos."<repo>"] deploy_repo` points to the right one | `deploy <repo>: <deploy repo> not found` or `deploy <repo>: no image tag of this repo in <deploy repo>`, only for repos with commits of open cards |
+| A key is the prefix of another (`TS-15`, `TS-150`) | keys are taken whole from the subject (word boundary), tested | none needed |
+| A cards file without `is_epic` (old file, MCP fallback) | a card that is the `epic_key` of another card is an epic too | `cards without is_epic: epics known only as parents; run ws task list again` |
+
 ## Commands
 
 - **`ws board status --cards FILE`**: fetch (D9), compute positions for the open cards of `FILE`
   (the `ws task list` output), apply the rules and print JSON: `moves` (key, from, to, Jira status
-  name, reason), `held` (cards that stay, with the reason), `to_confirm` (D8) and `warnings`.
+  name, reason), `held` (cards that stay, with the reason), `limited` (see Risks), `to_confirm`
+  (D8) and `warnings`.
   Read-only for Jira.
 - **`ws board drafts --board FILE`**: one `move` draft per move in a new folder under
   `cards/drafts/sync-<timestamp>/`; prints the folder. The existing `ws card preview <folder>` and
