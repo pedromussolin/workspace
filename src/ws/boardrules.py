@@ -36,15 +36,15 @@ def plan_moves(
             continue
         if task.is_epic or task.key in epics:
             continue
-        if task.status == Status.VALIDATION and task.updated.date() <= cutoff:
+        position = positions.get(task.key)
+        target = STATUS_AT_RUNG.get(position.rung) if position else None
+        moved = position is not None and target is not None and position.rung > RUNG[task.status]
+        if not moved and task.status == Status.VALIDATION and task.updated.date() <= cutoff:
             to_confirm.append(
                 {"key": task.key, "title": task.title, "since": task.updated.date().isoformat()}
             )
-        position = positions.get(task.key)
         if position is None:
             continue
-        target = STATUS_AT_RUNG.get(position.rung)
-        moved = target is not None and position.rung > RUNG[task.status]
         if moved:
             moves.append(
                 {

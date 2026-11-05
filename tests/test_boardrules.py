@@ -193,3 +193,11 @@ def test_to_confirm_ignores_other_statuses_and_epics():
     ]
     out = plan(tasks, {})
     assert [c["key"] for c in out["to_confirm"]] == ["TS-103"]
+
+
+def test_moved_validation_card_is_not_asked_to_confirm():
+    old = datetime(2026, 10, 1)
+    tasks = [task("TS-101", Status.VALIDATION, updated=old)]
+    out = plan(tasks, {"TS-101": pos(4, "production")})
+    assert [m["key"] for m in out["moves"]] == ["TS-101"]
+    assert out["to_confirm"] == []
