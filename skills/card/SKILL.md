@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação" or the daily's "para aplicar".
+description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -31,8 +31,23 @@ Nothing is written through the Atlassian MCP, ever.
    shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
    `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
-5. **Several changes** (the daily's "para aplicar: /card mover ...; ..."): one draft per change
-   in one folder, one preview, one approval.
+5. **Several changes**: one draft per change in one folder, one preview, one approval.
+6. **Sync** (`/card sincronizar`, the daily's "para aplicar /card sincronizar"): moves the cards
+   to the status the code proves. Work in `~/.local/share/workspace/board/` (`mkdir -p` first).
+   - Run `ws task list > ~/.local/share/workspace/board/cards.json.tmp` and, only on exit 0, `mv`
+     it to `cards.json`; then
+     `ws board status --cards ~/.local/share/workspace/board/cards.json > ~/.local/share/workspace/board/board.json`.
+     Exit 2 from `ws board status` with the `[board]` message: tell the user to add `[board]` to
+     `config.toml` (README, "Local config") and stop.
+   - Show the user, in PT-BR and short: each `moves` entry ("TS-1: em andamento → concluído (em
+     produção)", with `environment` in plain words, or without it when null); each `held` card
+     with its reason ("TS-2 fica em <status>: <holding.repo> só chegou a <holding.branch>", or
+     "... só chegou à tag <holding.tag>" when `holding.tag` is set); each `limited` card ("o git só prova até <status>"); for stale repos "dados de <repo>
+     podem estar desatualizados"; and the other `warnings`. Status names in PT-BR as in the daily.
+   - No `moves`: say so and stop.
+   - Otherwise run `ws board drafts --board ~/.local/share/workspace/board/board.json`; it prints
+     `{"folder", "count"}`. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
+     one approval box for all moves.
 
 ## The draft
 
