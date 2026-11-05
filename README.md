@@ -109,6 +109,60 @@ stale_workdays = 3
   your own terminal, outside Claude (the command refuses to run without a terminal). It is stored
   in `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
 
+### `[board]`
+
+`ws board` moves cards by what the code proves. Without a `[board]` table in `config.toml` it exits
+2 and says what to add, and the `daily` goes on with the activity alone. The names below are
+placeholders:
+
+```toml
+[board]
+remote = "origin"          # default
+lookback_days = 120        # default
+fetch = true               # default
+ignore_repos = ["*-workspace"]        # globs: repos left out entirely (default [])
+direct_deploy_repos = ["*-argocd"]    # globs: the last branch environment is production
+
+# In order, from the first environment to the last. `status` is the card status the
+# environment proves; the statuses must rise along the list.
+[[board.environments]]
+name = "sandbox"
+branches = ["sandbox", "staging"]
+status = "validation"
+
+[[board.environments]]
+name = "master"
+branches = ["master", "main"]
+status = "ready_deploy"
+
+[[board.environments]]
+name = "production"
+status = "done"
+# Proof by image tag: every tag the pattern finds in the deploy repo's branch.
+deploy_repo = "{repo}-argocd"
+deploy_branch = "master"
+image_tag = 'prod-([0-9a-f]{7,40})'
+
+# Optional, per repo: other branch names, another deploy repo.
+[board.repos."some-repo"]
+deploy_repo = "some-deploy-repo"
+
+[board.repos."some-repo".branches]
+sandbox = ["homolog"]
+
+# Jira status names of the statuses a move can reach.
+[board.statuses]
+in_progress = "Em andamento"
+validation = "In Validation"
+ready_deploy = "Ready Deploy"
+done = "Concluído"
+```
+
+- Each commit takes the highest environment that contains it; the card takes the lowest of its
+  commits. An environment has `branches` or `deploy_repo`, not both.
+- `[board.statuses]` needs a name for every status an environment uses, plus `in_progress`.
+- A bad value exits 2 with the key path.
+
 ## What protects the repo
 
 Protection starts after `ws setup`: a fresh clone has no git hooks. From then on, the hooks call
@@ -211,12 +265,14 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws gate catalog pass SERVER TOOL…` | Puts the tools in the `pass` list of the server in the repo's `catalog.json` (creating the server), takes them out of `ask` and of the unclassified record; commit the file and run `ws setup` to update the protected copy |
 | `ws gate catalog ask SERVER TOOL…` | Same for the `ask` list (writes); a name outside `[A-Za-z0-9_.-]+` is refused |
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
-| `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
-| `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
+| `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON (each card with `is_epic`) through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
+| `ws standup report --activity FILE [--cards FILE] [--board FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every card move; `--board FILE` (the `ws board status` output) brings the status suggestions, `moves` and `to_confirm`, and its warnings join `warnings`; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
 | `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
 | `ws card epics` | Lists the epics of your open cards (key, title, prefix, status) |
 | `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
 | `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the approval gate, whose box shows the preview's summary), exit 2 when those are not set up; on a real terminal it shows the summary and asks `Gravar no Jira? [s/N]` instead; a failed or uncertain draft goes to `cards/uncertain/` |
+| `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
+| `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
