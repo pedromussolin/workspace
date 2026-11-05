@@ -198,7 +198,7 @@ def _repo_pieces(
         if cfg.direct_deploy(repo.name) and branch_sets:
             sets.append((DONE_RUNG, branch_sets[-1][1]))
         for env in cfg.environments:
-            if env.image_tag is not None:
+            if env.image_tag is not None and not cfg.direct_deploy(repo.name):
                 tagged = _tagged_commits(repo, env, cfg, walk_since, warnings)
                 if tagged is not None:
                     sets.append((env.rung, tagged))

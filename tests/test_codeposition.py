@@ -242,8 +242,9 @@ def test_direct_deploy_repo_master_is_production(clone, commit, push):
     commit(repo, "chore(TS-107): bump")
     push(repo, "master")
     cfg = board(extra='direct_deploy_repos = ["*-argocd"]')
-    result, _ = positions([repo], {"TS-107"}, cfg, TODAY, set())
+    result, warnings = positions([repo], {"TS-107"}, cfg, TODAY, set())
     assert (result["TS-107"].rung, result["TS-107"].environment) == (4, "production")
+    assert warnings == []
     plain, _ = positions([repo], {"TS-107"}, board(), TODAY, set())
     assert plain["TS-107"].rung == 3
     assert plain["TS-107"].limited is True
