@@ -64,8 +64,8 @@ one: card titles must not land in whatever folder the session is in. Never read
    `rm -f ~/.local/share/workspace/standup/board.json ~/.local/share/workspace/standup/board.json.tmp`,
    then `ws board status --cards ~/.local/share/workspace/standup/cards.json > ~/.local/share/workspace/standup/board.json.tmp`.
    Only when the exit code is 0, `mv` the `.tmp` file to `board.json`. Exit 2 (no `[board]` table
-   or bad input) or exit 1: go on without the board and keep its stderr as one more warning for the
-   final line. It reads git and fetches the remotes of the repos, so it can take a while.
+   or bad input) or exit 1: go on without the board and keep its stderr as one more warning: it counts in
+   "N avisos", like the error of step 4's rerun. It reads git and fetches the remotes of the repos, so it can take a while.
 4. **Report.** Run
    `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json --board ~/.local/share/workspace/standup/board.json --top 3`
    (without the `--cards` part when there are no cards; without the `--board` part when there is
