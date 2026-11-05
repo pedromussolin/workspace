@@ -16,6 +16,22 @@ class Status(StrEnum):
     CANCELLED = "cancelled"
 
 
+RUNG: dict[Status, int] = {
+    Status.TODO: 0,
+    Status.IN_PROGRESS: 1,
+    Status.REVIEW: 1,
+    Status.VALIDATION: 2,
+    Status.READY_DEPLOY: 3,
+    Status.DONE: 4,
+}
+STATUS_AT_RUNG: dict[int, Status] = {
+    1: Status.IN_PROGRESS,
+    2: Status.VALIDATION,
+    3: Status.READY_DEPLOY,
+    4: Status.DONE,
+}
+
+
 @dataclass(frozen=True)
 class Task:
     ref: str
