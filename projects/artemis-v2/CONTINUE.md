@@ -35,7 +35,10 @@ rodava na EC2 de automações vem para a V2. Criada a [tarefa 13](tasks/13-merca
 só com o contexto, e a [evidência de 04/11](evidence/mercato-libero-ec2-calls-2026-11-04.md): a
 máquina segue chamando a cessão todo dia, com pico às 16h–17h de Brasília. As telas de operações
 dele foram para o projeto novo `projects/operations-screens-migration/`, que guarda o inventário
-da máquina (tarefa 01 de lá).
+da máquina (tarefa 01 de lá). Recorte da 13, a pedido do Pietro: a V2 cuida do sistema em diante,
+com o fechamento automático por horário de corte da tarefa 11 no lugar da varredura, tudo na rota
+nova (`refact.py`), inclusive o `POST /liquidacao/` que a varredura chama (migra antes ou junto).
+A chegada dos dados fica com o time. Contingência pelo agendamento antigo pendente na D25.
 
 ### 03/11/2026
 
