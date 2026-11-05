@@ -115,6 +115,16 @@ def _drafts_root() -> Path:
     return _store("drafts").resolve()
 
 
+def drafts_folder(name: str) -> Path:
+    """A new private folder under `cards/drafts/`; `FileExistsError` if the name is taken."""
+    if not name or name in (".", "..") or "/" in name or "\\" in name:
+        raise ValueError(f"{name!r} is not a folder name")
+    _ensure_store()
+    folder = _store("drafts", name)
+    folder.mkdir(mode=0o700)
+    return folder
+
+
 def collect(argument: str, single: bool = False) -> list[Path]:
     """Drafts are real files under `cards/drafts/`: nothing else is read, moved or sent."""
     root = _drafts_root()

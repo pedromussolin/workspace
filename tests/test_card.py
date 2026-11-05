@@ -2392,3 +2392,22 @@ def test_the_by_hand_limit_says_what_the_gate_really_asks_for():
         assert f"`{program}`" in doc
     assert "double fork" in doc
     assert "escapes the walk" in doc
+
+
+def test_drafts_folder_is_private_inside_the_drafts_root():
+    folder = card.drafts_folder("sync-20261105-120000")
+    assert folder == data_dir() / "cards" / "drafts" / "sync-20261105-120000"
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+    assert folder.resolve().is_relative_to(card._drafts_root())
+
+
+def test_drafts_folder_refuses_an_existing_name():
+    card.drafts_folder("sync-1")
+    with pytest.raises(FileExistsError):
+        card.drafts_folder("sync-1")
+
+
+@pytest.mark.parametrize("name", ["", ".", "..", "../x", "a/b"])
+def test_drafts_folder_refuses_a_name_that_leaves_the_root(name):
+    with pytest.raises(ValueError):
+        card.drafts_folder(name)
