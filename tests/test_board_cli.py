@@ -1,11 +1,14 @@
 import json
 import subprocess
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
+from ws import board_cli, carddraft
 from ws.cli import main
+from ws.config import data_dir
 
 Git = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -184,3 +187,79 @@ def test_status_ignored_repo_is_never_read(world, ws_config, capsys):
         capsys, "status", "--cards", str(standard_cards(world)), "--today", "2026-11-05"
     )
     assert json.loads(out)["moves"] == []
+
+
+def board_file(tmp_path: Path, moves: list[dict]) -> Path:
+    path = tmp_path / "board.json"
+    path.write_text(json.dumps({"moves": moves}), encoding="utf-8")
+    return path
+
+
+MOVE = {"key": "TS-101", "to_name": "Concluído"}
+
+
+def test_drafts_writes_one_move_draft_per_move(tmp_path, capsys):
+    code, out, _ = run(capsys, "drafts", "--board", str(board_file(tmp_path, [MOVE])))
+    assert code == 0
+    answer = json.loads(out)
+    assert answer["count"] == 1
+    folder = Path(answer["folder"])
+    assert folder.name.startswith("sync-")
+    draft = carddraft.parse_draft((folder / "move-TS-101.md").read_bytes())
+    assert draft.op == "move"
+    assert draft.values == {"key": "TS-101", "to": "Concluído"}
+    assert (folder / "move-TS-101.md").read_text(encoding="utf-8") == (
+        '+++\nop = "move"\nkey = "TS-101"\nto = "Concluído"\n+++\n'
+    )
+
+
+def test_drafts_without_moves_creates_nothing(tmp_path, capsys):
+    code, out, _ = run(capsys, "drafts", "--board", str(board_file(tmp_path, [])))
+    assert code == 0
+    assert json.loads(out) == {"folder": None, "count": 0}
+    assert not (tmp_path / "cards").exists()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"key": "ts-101", "to_name": "Concluído"},
+        {"key": "../x", "to_name": "Concluído"},
+        {"key": "TS-101", "to_name": ""},
+        {"key": "TS-101"},
+    ],
+)
+def test_drafts_invalid_move_exits_2_and_writes_nothing(tmp_path, capsys, bad):
+    code, out, err = run(capsys, "drafts", "--board", str(board_file(tmp_path, [MOVE, bad])))
+    assert code == 2
+    assert out == ""
+    assert err
+    assert not (data_dir() / "cards" / "drafts").exists() or not list(
+        (data_dir() / "cards" / "drafts").iterdir()
+    )
+
+
+def test_drafts_with_unreadable_board_exits_2(tmp_path, capsys):
+    code, _, err = run(capsys, "drafts", "--board", str(tmp_path / "missing.json"))
+    assert code == 2
+    assert "missing.json" in err
+
+
+def test_drafts_same_second_is_exit_1(tmp_path, capsys, monkeypatch):
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 5, 12, 0, 0)
+
+    monkeypatch.setattr(board_cli, "datetime", Frozen)
+    path = board_file(tmp_path, [MOVE])
+    assert run(capsys, "drafts", "--board", str(path))[0] == 0
+    code, _, err = run(capsys, "drafts", "--board", str(path))
+    assert code == 1
+    assert "sync-20261105-120000" in err
+
+
+def test_drafts_two_moves_for_one_card_exit_2(tmp_path, capsys):
+    code, _, err = run(capsys, "drafts", "--board", str(board_file(tmp_path, [MOVE, MOVE])))
+    assert code == 2
+    assert "same card" in err
