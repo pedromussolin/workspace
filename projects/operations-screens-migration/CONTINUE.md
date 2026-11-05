@@ -12,8 +12,9 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 Projeto criado com o contexto: o Rafael Frankl sai da empresa e as telas, rotinas e ferramentas
 que ele fez para o time de operações na EC2 de automações passam para o Pietro Nett. A liquidação
-do Mercato Libero, na mesma máquina, foi para a Artemis V2 (tarefa 13 de lá). Nada mapeado ainda;
-implementação fora de escopo por enquanto.
+do Mercato Libero, na mesma máquina, foi para a Artemis V2 (tarefa 13 de lá), só do sistema em
+diante; a chegada dos dados (arquivos, transformação, carga) o Pietro decide com o time, ainda sem
+projeto. Nada mapeado ainda; implementação fora de escopo por enquanto.
 
 ## Branches e worktrees
 
