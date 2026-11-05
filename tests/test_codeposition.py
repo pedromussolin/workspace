@@ -458,3 +458,20 @@ def test_holding_branch_failure_keeps_the_card(clone, branch, commit, push, monk
     assert result["TS-101"].rung == 1
     assert result["TS-101"].holding.branch is None
     assert "repo demo-api: holding branch unknown (branch exploded)" in warnings
+
+
+def test_fetch_never_prompts_for_credentials(clone, monkeypatch):
+    repo = clone("demo-api")
+    seen = []
+    real = subprocess.run
+
+    def spy(command, *args, **kwargs):
+        if "fetch" in command:
+            seen.append(kwargs.get("env"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(codeposition.subprocess, "run", spy)
+    assert fetch([repo], "origin") == {}
+    assert len(seen) == 1
+    assert seen[0]["GIT_TERMINAL_PROMPT"] == "0"
+    assert seen[0]["PATH"]

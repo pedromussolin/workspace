@@ -1,6 +1,7 @@
 """Where the commits of a card are: only a branch, the sandbox, master or a production image tag."""
 
 import math
+import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -48,7 +49,9 @@ class _Piece:
     tag: str | None = None
 
 
-def _run(repo: Path, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
+def _run(
+    repo: Path, *args: str, timeout: float | None = None, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-c", "core.quotepath=false", "-C", str(repo), *args],
         capture_output=True,
@@ -57,6 +60,7 @@ def _run(repo: Path, *args: str, timeout: float | None = None) -> subprocess.Com
         errors="replace",
         check=False,
         timeout=timeout,
+        env=env,
     )
 
 
@@ -71,7 +75,15 @@ def _first_line(text: str) -> str:
 
 def _fetch_one(repo: Path, remote: str) -> str | None:
     try:
-        result = _run(repo, "fetch", "--prune", "--quiet", remote, timeout=FETCH_TIMEOUT_SECONDS)
+        result = _run(
+            repo,
+            "fetch",
+            "--prune",
+            "--quiet",
+            remote,
+            timeout=FETCH_TIMEOUT_SECONDS,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
     except subprocess.TimeoutExpired:
         return f"timeout after {FETCH_TIMEOUT_SECONDS}s"
     except OSError as error:
