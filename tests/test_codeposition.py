@@ -391,3 +391,15 @@ def test_repo_override_deploy_repo(clone, git, commit, push, tags):
     result, warnings = positions([repo, deploy], {"TS-101"}, cfg, TODAY, set())
     assert result["TS-101"].rung == 4
     assert warnings == []
+
+
+def test_stash_does_not_hold_a_deployed_card(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deploy = tags({"a.yaml": values(head(git, repo))})
+    (repo / "scratch.txt").write_text("wip", encoding="utf-8")
+    git(repo, "add", "scratch.txt")
+    git(repo, "stash", "push", "-q", "-m", "wip TS-101")
+    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert result["TS-101"].rung == 4

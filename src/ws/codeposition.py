@@ -100,8 +100,8 @@ def _commits(repo: Path, keys: set[str], since: date) -> list[tuple[str, str, se
     output = _git_out(
         repo,
         "log",
-        "--all",
         "--exclude=refs/stash",
+        "--all",
         "--no-merges",
         f"--since={since.isoformat()}",
         f"--format=%H{FIELD_SEPARATOR}%s",
