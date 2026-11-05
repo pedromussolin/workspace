@@ -33,6 +33,24 @@ email = "dev@example.com"
 
 [standup]
 repo_roots = ["~/repos"]
+
+[board]
+fetch = false
+
+[[board.environments]]
+name = "sandbox"
+status = "validation"
+branches = ["sandbox"]
+
+[[board.environments]]
+name = "master"
+status = "ready_deploy"
+branches = ["main"]
+
+[board.statuses]
+in_progress = "Em andamento"
+validation = "Em validação"
+ready_deploy = "Ready Deploy"
 TOML
 
   new_repo demo-front
