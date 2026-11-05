@@ -720,7 +720,7 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     listing.set_defaults(handler=_cmd_task_list)
     status = commands.add_parser(
         "status",
-        help="Apply the status rules to Jira cards and the collected activity (JSON).",
+        help="List the Jira cards and which ones are stuck, from the collected activity (JSON).",
     )
     status.add_argument("--cards", type=Path, required=True, help="Output of `ws task list`.")
     status.add_argument(
@@ -829,8 +829,9 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         help="Group the activity by task: yesterday, today, blockers.",
         description=(
             "Turns the output of `ws standup collect` into JSON grouped by task. With --cards "
-            "(the output of `ws task list`) it adds titles, statuses, status suggestions and "
-            "blockers, and needs config.toml; without it the report comes from the activity alone."
+            "(the output of `ws task list`) it adds titles, statuses and blockers, and needs "
+            "config.toml; without it the report comes from the activity alone. Status suggestions "
+            "and `moves` come only from --board (the output of `ws board status`)."
         ),
     )
     report.add_argument("--activity", type=Path, required=True, help="output of standup collect")
