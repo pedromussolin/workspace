@@ -127,6 +127,7 @@ def task_from_card(card: dict, site: str, overrides: dict[str, str]) -> Task:
         epic_title=card["epic_title"],
         requested_by_other=not card["reporter_is_me"],
         updated=datetime.fromisoformat(card["updated"]),
+        is_epic=bool(card.get("is_epic", False)),
     )
 
 

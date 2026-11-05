@@ -43,6 +43,7 @@ class Task:
     epic_title: str | None
     requested_by_other: bool
     updated: datetime
+    is_epic: bool = False
 
 
 def task_to_json(task: Task) -> dict:
@@ -56,4 +57,5 @@ def task_to_json(task: Task) -> dict:
         "epic_title": task.epic_title,
         "requested_by_other": task.requested_by_other,
         "updated": task.updated.isoformat(),
+        "is_epic": task.is_epic,
     }

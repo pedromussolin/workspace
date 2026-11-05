@@ -158,6 +158,14 @@ def test_task_from_card_builds_the_neutral_task():
     assert task.updated.isoformat() == CARD["updated"]
 
 
+def test_task_from_card_without_is_epic_is_not_epic():
+    card = {key: value for key, value in CARD.items() if key != "is_epic"}
+    site = "https://example.atlassian.net"
+
+    assert task_from_card(card, site, {}).is_epic is False
+    assert task_from_card({**card, "is_epic": True}, site, {}).is_epic is True
+
+
 def test_task_from_card_names_the_missing_field():
     card = {key: value for key, value in CARD.items() if key != "status_category"}
 

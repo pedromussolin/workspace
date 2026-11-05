@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from ws.taskmodel import RUNG, STATUS_AT_RUNG, Status, Task, task_to_json
@@ -18,6 +19,23 @@ def test_task_to_json_uses_plain_values():
     data = task_to_json(task)
     assert data["status"] == "in_progress"
     assert data["updated"] == "2026-10-26T09:00:00+00:00"
+
+
+def test_task_to_json_has_is_epic():
+    task = Task(
+        "jira:TS-100",
+        "TS-100",
+        "[FRONT] Épico",
+        "https://example.atlassian.net/browse/TS-100",
+        Status.IN_PROGRESS,
+        None,
+        None,
+        False,
+        datetime(2026, 10, 26, 9, 0, tzinfo=UTC),
+        is_epic=True,
+    )
+    assert task_to_json(task)["is_epic"] is True
+    assert task_to_json(replace(task, is_epic=False))["is_epic"] is False
 
 
 def test_status_has_the_workflow_stage_values():
