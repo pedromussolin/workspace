@@ -418,3 +418,104 @@ def test_blockers_list_blocked_first_then_stuck_each_in_card_order():
         ("TS-103", "stuck"),
     ]
     assert report["today"] == []
+
+
+def make_board(**overrides) -> dict:
+    board = {"moves": [], "held": [], "limited": [], "to_confirm": [], "warnings": []}
+    board.update(overrides)
+    return board
+
+
+def make_move(key: str, to: str = "validation", environment: str | None = "dev") -> dict:
+    return {
+        "key": key,
+        "title": "Titulo de exemplo",
+        "from": "in_progress",
+        "to": to,
+        "to_name": "Validation",
+        "environment": environment,
+        "stale": False,
+    }
+
+
+def test_board_move_becomes_the_suggestion_with_its_environment_as_evidence():
+    commits = [make_commit("abc1234", "2026-10-26", "ajuste", ["TS-101"])]
+    board = make_board(moves=[make_move("TS-101")])
+    report = build_report(
+        make_activity(commits=commits),
+        [make_task("TS-101", Status.IN_PROGRESS)],
+        TODAY,
+        3,
+        board=board,
+    )
+    assert report["yesterday"][0]["suggestion"] == {
+        "from": "in_progress",
+        "to": "validation",
+        "rule": "board",
+        "evidence": "dev",
+    }
+    assert report["moves"] == [{"key": "TS-101", "from": "in_progress", "to": "validation"}]
+
+
+def test_board_move_without_environment_has_commit_as_evidence():
+    board = make_board(moves=[make_move("TS-101", to="in_progress", environment=None)])
+    report = build_report(
+        make_activity(), [make_task("TS-101", Status.TODO)], TODAY, 3, board=board
+    )
+    assert report["today"][0]["suggestion"]["evidence"] == "commit"
+
+
+def test_board_wins_over_the_activity_rules():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    board = make_board(moves=[make_move("TS-101", to="ready_deploy", environment="prod")])
+    report = build_report(
+        activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3, board=board
+    )
+    assert report["yesterday"][0]["suggestion"]["rule"] == "board"
+    assert report["yesterday"][0]["suggestion"]["to"] == "ready_deploy"
+
+
+def test_board_with_no_moves_drops_the_activity_suggestions():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    report = build_report(
+        activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3, board=make_board()
+    )
+    assert report["yesterday"][0]["suggestion"] is None
+    assert report["moves"] == []
+
+
+def test_board_moves_list_every_move_even_cut_by_top_or_not_shown():
+    moves = [make_move(f"TS-10{n}") for n in range(1, 4)] + [make_move("TS-999")]
+    commits = [make_commit(f"s{n}", "2026-10-26", "x", [f"TS-10{n}"]) for n in range(1, 4)]
+    tasks = [make_task(f"TS-10{n}", Status.IN_PROGRESS) for n in range(1, 4)]
+    report = build_report(
+        make_activity(commits=commits), tasks, TODAY, 3, top=1, board=make_board(moves=moves)
+    )
+    assert len(report["yesterday"]) == 1
+    assert [move["key"] for move in report["moves"]] == ["TS-101", "TS-102", "TS-103", "TS-999"]
+
+
+def test_board_to_confirm_passes_through_and_warnings_follow_the_activity_ones():
+    confirm = [{"key": "TS-105", "title": "Titulo de exemplo", "since": "2026-10-20"}]
+    board = make_board(to_confirm=confirm, warnings=["fetch demo-api: boom"])
+    report = build_report(make_activity(warnings=["a"]), None, TODAY, 3, board=board)
+    assert report["to_confirm"] == confirm
+    assert report["warnings"] == ["a", "fetch demo-api: boom"]
+
+
+def test_report_without_board_has_empty_to_confirm():
+    assert build_report(make_activity(), None, TODAY, 3)["to_confirm"] == []
+
+
+def test_cli_board_flag_reads_the_file_and_rejects_bad_ones(ws_config, tmp_path, capsys):
+    args = write_files(tmp_path, make_activity())
+    board_file = tmp_path / "board.json"
+    board_file.write_text(json.dumps(make_board(warnings=["w"])))
+    assert main([*args, "--board", str(board_file)]) == 0
+    assert json.loads(capsys.readouterr().out)["warnings"] == ["w"]
+    board_file.write_text("{}")
+    assert main([*args, "--board", str(board_file)]) == 2
+    assert "invalid input" in capsys.readouterr().err
+    board_file.write_text("not json")
+    assert main([*args, "--board", str(board_file)]) == 2
+    assert "invalid input" in capsys.readouterr().err

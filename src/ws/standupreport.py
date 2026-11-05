@@ -77,6 +77,7 @@ def build_report(
     today: date,
     stale_workdays: int,
     top: int | None = None,
+    board: dict | None = None,
 ) -> dict:
     cards = {task.key: task for task in tasks or []}
     yesterday = _yesterday(activity, cards)
@@ -116,7 +117,20 @@ def build_report(
         for key in keys_in(step["text"]):
             step_of.setdefault(key, step["text"])
 
-    suggestions = {item["key"]: _suggestion(item) for item in evaluated["suggestions"]}
+    if board is not None:
+        suggestions = {
+            move["key"]: _suggestion(
+                {
+                    "from": move["from"],
+                    "to": move["to"],
+                    "rule": "board",
+                    "evidence": move["environment"] or "commit",
+                }
+            )
+            for move in board["moves"]
+        }
+    else:
+        suggestions = {item["key"]: _suggestion(item) for item in evaluated["suggestions"]}
     in_yesterday = {item["key"]: item for item in yesterday}
     for key, item in in_yesterday.items():
         item["suggestion"] = suggestions.get(key)
@@ -148,11 +162,20 @@ def build_report(
         )
     shown = {entry["key"] for entry in today_entries}
 
-    moves = [
-        {"key": entry["key"], "from": entry["suggestion"]["from"], "to": entry["suggestion"]["to"]}
-        for entry in (*yesterday, *today_entries)
-        if entry["suggestion"]
-    ]
+    if board is not None:
+        moves = [
+            {"key": move["key"], "from": move["from"], "to": move["to"]} for move in board["moves"]
+        ]
+    else:
+        moves = [
+            {
+                "key": entry["key"],
+                "from": entry["suggestion"]["from"],
+                "to": entry["suggestion"]["to"],
+            }
+            for entry in (*yesterday, *today_entries)
+            if entry["suggestion"]
+        ]
     more = {"yesterday": 0, "today": 0}
     if top is not None:
         more = {
@@ -174,9 +197,10 @@ def build_report(
         "blockers": blockers,
         "more": more,
         "moves": moves,
+        "to_confirm": board["to_confirm"] if board is not None else [],
         "keyless": {
             "commits": len(keyless),
             "repos": sorted({commit["repo"] for commit in keyless}),
         },
-        "warnings": activity["warnings"],
+        "warnings": [*activity["warnings"], *(board["warnings"] if board is not None else [])],
     }

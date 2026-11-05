@@ -836,6 +836,12 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
     report.add_argument("--activity", type=Path, required=True, help="output of standup collect")
     report.add_argument("--cards", type=Path, default=None, help="cards file; absent: no Jira")
     report.add_argument(
+        "--board",
+        type=Path,
+        default=None,
+        help="output of `ws board status`: status moves and cards to confirm come from it",
+    )
+    report.add_argument(
         "--today",
         type=date.fromisoformat,
         default=None,
@@ -896,8 +902,12 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
                 jira.task_from_card(card, config.jira.site, config.jira.status_overrides)
                 for card in cards
             ]
+        board = None
+        if args.board is not None:
+            raw = json.loads(args.board.read_text(encoding="utf-8"))
+            board = {name: raw[name] for name in ("moves", "to_confirm", "warnings")}
         result = standupreport.build_report(
-            activity, tasks, args.today or date.today(), stale_workdays, args.top
+            activity, tasks, args.today or date.today(), stale_workdays, args.top, board
         )
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         print(f"ws standup report: {error}", file=sys.stderr)
