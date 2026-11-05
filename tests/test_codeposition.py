@@ -171,6 +171,7 @@ def test_merge_commits_do_not_count(clone, branch, commit, merge, git):
 
 def test_hotfix_without_sandbox_reaches_master(clone, commit, push):
     repo = clone("demo-api")
+    push(repo, "master:sandbox")
     commit(repo, "fix: TS-101 hotfix")
     push(repo, "master")
     result, _ = positions([repo], {"TS-101"}, board(), TODAY, set())
