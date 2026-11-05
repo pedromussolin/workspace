@@ -259,3 +259,135 @@ def test_git_failure_in_one_repo_is_a_warning(clone, commit, git):
     result, warnings = positions([broken, healthy], {"TS-101"}, board(), TODAY, set())
     assert result["TS-101"].repos == ("demo-web",)
     assert any(line.startswith("repo demo-api: left out (") for line in warnings)
+
+
+@pytest.fixture
+def tags(clone, git, commit, push) -> Callable[..., Path]:
+    """A deploy repo whose master holds one values file per entry of `files`."""
+
+    def make(files: dict[str, str], name: str = "demo-api-argocd") -> Path:
+        deploy = clone(name)
+        for filename, content in files.items():
+            (deploy / filename).write_text(content, encoding="utf-8")
+        git(deploy, "add", ".")
+        commit(deploy, "chore: bump tags")
+        push(deploy, "master")
+        return deploy
+
+    return make
+
+
+def head(git: Git, repo: Path, ref: str = "HEAD") -> str:
+    return git(repo, "rev-parse", ref).stdout.strip()[:7]
+
+
+def values(sha: str) -> str:
+    return f"image:\n  tag: prod-{sha}\n"
+
+
+def test_in_master_not_deployed_is_ready_deploy(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    old = head(git, repo)
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deploy = tags({"values.yaml": values(old)})
+    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    position = result["TS-101"]
+    assert (position.rung, position.environment) == (3, "master")
+    assert position.holding.reached == "master"
+    assert position.limited is False
+
+
+def test_in_every_production_tag_is_done(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    new = head(git, repo)
+    deploy = tags({"a.yaml": values(new), "b.yaml": values(new)})
+    result, warnings = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].environment) == (4, "production")
+    assert result["TS-101"].holding is None
+    assert warnings == []
+
+
+def test_one_stale_tag_holds_the_card(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    old = head(git, repo)
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    new = head(git, repo)
+    deploy = tags({"a.yaml": values(new), "b.yaml": values(old)})
+    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert result["TS-101"].rung == 3
+    assert result["TS-101"].holding.reached == "master"
+
+
+def test_tag_of_another_app_is_ignored(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    new = head(git, repo)
+    deploy = tags({"a.yaml": values(new), "b.yaml": values(new), "c.yaml": values("deadbee")})
+    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert result["TS-101"].rung == 4
+
+
+def test_unmerged_commit_holds_the_card(clone, git, branch, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-103 a")
+    push(repo, "master")
+    new = head(git, repo)
+    branch(repo, "feature/TS-103-b")
+    commit(repo, "fix: TS-103 b")
+    push(repo, "feature/TS-103-b")
+    deploy = tags({"a.yaml": values(new)})
+    result, _ = positions([repo, deploy], {"TS-103"}, board(), TODAY, set())
+    position = result["TS-103"]
+    assert position.rung == 1
+    assert position.holding.branch.endswith("feature/TS-103-b")
+
+
+def test_personal_repo_commit_does_not_hold_a_deployed_card(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-105 a")
+    push(repo, "master")
+    personal = clone("notes", remote=False)
+    commit(personal, "chore: TS-105 notes")
+    deploy = tags({"a.yaml": values(head(git, repo))})
+    result, _ = positions([repo, personal, deploy], {"TS-105"}, board(), TODAY, set())
+    assert result["TS-105"].rung == 4
+    assert result["TS-105"].repos == ("demo-api", "notes")
+
+
+def test_deploy_repo_master_commit_does_not_hold(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-106 a")
+    push(repo, "master")
+    deploy = tags({"a.yaml": values(head(git, repo))})
+    commit(deploy, "chore(TS-106): bump")
+    push(deploy, "master")
+    result, _ = positions([repo, deploy], {"TS-106"}, board(), TODAY, set())
+    assert result["TS-106"].rung == 4
+
+
+def test_missing_deploy_repo_warns_only_for_repos_with_keys(clone, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-108 a")
+    push(repo, "master")
+    other = clone("other-api")
+    _, warnings = positions([repo, other], {"TS-108"}, board(), TODAY, set())
+    assert warnings == ["deploy demo-api: demo-api-argocd not found"]
+    deploy = tags({"a.yaml": values("deadbee")})
+    _, warnings = positions([repo, other, deploy], {"TS-108"}, board(), TODAY, set())
+    assert warnings == ["deploy demo-api: no image tag of this repo in demo-api-argocd"]
+
+
+def test_repo_override_deploy_repo(clone, git, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deploy = tags({"a.yaml": values(head(git, repo))}, name="deploys")
+    cfg = board(tables='[repos."demo-api"]\ndeploy_repo = "deploys"')
+    result, warnings = positions([repo, deploy], {"TS-101"}, cfg, TODAY, set())
+    assert result["TS-101"].rung == 4
+    assert warnings == []

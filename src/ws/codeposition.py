@@ -134,6 +134,38 @@ def _branch_sets(
     return available
 
 
+def _tagged_commits(
+    repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
+) -> set[str] | None:
+    """Commits contained in every image tag of `repo` found in the deploy repo's branch."""
+    deploy_name = cfg.deploy_repo_for(repo.name, env)
+    deploy = repo.parent / deploy_name
+    if not (deploy / ".git").exists():
+        warnings.append(f"deploy {repo.name}: {deploy_name} not found")
+        return None
+    ref = f"{cfg.remote}/{env.deploy_branch}"
+    found = _run(deploy, "grep", "-hoE", env.image_tag.pattern, ref)
+    if found.returncode not in (0, 1, 128):
+        raise RuntimeError(_first_line(found.stderr))
+    tags = set()
+    for line in _lines(found.stdout) if found.returncode == 0 else []:
+        match = env.image_tag.search(line)
+        if match:
+            tags.add(match.group(1))
+    full = []
+    for tag in sorted(tags):
+        resolved = _run(repo, "rev-parse", "--verify", "-q", f"{tag}^{{commit}}")
+        if resolved.returncode == 0:
+            full.append(resolved.stdout.strip())
+    if not full:
+        warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
+        return None
+    shas = _reachable(repo, full[0], walk_since)
+    for sha in full[1:]:
+        shas &= _reachable(repo, sha, walk_since)
+    return shas
+
+
 def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
     names: set[str] = set()
     for env in cfg.environments:
@@ -157,6 +189,7 @@ def _repo_pieces(
     cfg: BoardConfig,
     walk_since: date,
     commits: list[tuple[str, str, set[str]]],
+    warnings: list[str],
 ) -> list[tuple[_Piece, set[str]]]:
     sets: list[tuple[int, set[str]]] = []
     if _has_remote(repo, cfg.remote):
@@ -164,6 +197,11 @@ def _repo_pieces(
         sets = [(env.rung, shas) for env, shas in branch_sets]
         if cfg.direct_deploy(repo.name) and branch_sets:
             sets.append((DONE_RUNG, branch_sets[-1][1]))
+        for env in cfg.environments:
+            if env.image_tag is not None:
+                tagged = _tagged_commits(repo, env, cfg, walk_since, warnings)
+                if tagged is not None:
+                    sets.append((env.rung, tagged))
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:
@@ -231,7 +269,7 @@ def positions(
             commits = _commits(repo, keys, since)
             if not commits:
                 continue
-            found = _repo_pieces(repo, cfg, walk_since, commits)
+            found = _repo_pieces(repo, cfg, walk_since, commits, warnings)
         except (RuntimeError, OSError) as error:
             warnings.append(f"repo {repo.name}: left out ({error})")
             continue
