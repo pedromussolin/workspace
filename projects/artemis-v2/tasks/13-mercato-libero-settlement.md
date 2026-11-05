@@ -52,8 +52,10 @@ de outros devs.
 - **Sem lista de combinações.** A varredura manda uma chamada por combinação; o fechamento
   automático fecha tudo o que está apto no produto, então combinação nova não fica para trás (o
   erro de 14/10).
-- **Caminho novo:** a rotina usa o `refact.py`, como decidido em 03/11 para os outros escopos do
-  fechamento; o legado não ganha correção.
+- **Tudo na rota nova (04/11, reforça a decisão de 03/11):** o fechamento automático e o
+  `POST /liquidacao/` que a varredura chama passam para o fluxo novo (`refact.py`); o legado não
+  ganha correção e é apagado no fim. Pela decisão de 03/11, essa migração começa depois da semana
+  de testes da tela.
 
 ## O que conferir antes de assumir que o fechamento resolve tudo
 
@@ -64,10 +66,11 @@ de outros devs.
    se o Database Monitoring do Datadog estiver ligado na cessão, ver o que esse usuário executa.
 2. **"Entrada bem diferente dos outros produtos" (13/10) [H].** Entender se a diferença é só na
    carga (fica com o time) ou se muda o que chega pronto para fechar.
-3. **Transição em paralelo [H].** O fechamento novo só pega pagamento sem lote
-   (`WHERE liquidacao_lote_id IS NULL`), então rodar com a varredura não põe o mesmo pagamento em
-   dois lotes. Conferir se a rota antiga, que a varredura chama, tem a mesma guarda; se não tiver,
-   avaliar a corrida antes de rodar os dois juntos.
+3. **Transição em paralelo.** O fluxo novo só pega pagamento sem lote
+   (`WHERE liquidacao_lote_id IS NULL`). Com o `POST /liquidacao/` também nele, a varredura e o
+   fechamento automático passam pela mesma guarda, e rodar os dois juntos não põe o mesmo pagamento
+   em dois lotes. Por isso a rota da varredura migra antes ou junto com o fechamento automático,
+   nunca depois.
 
 ## Contingência: o agendamento que já existe (D25)
 
@@ -80,6 +83,9 @@ de outros devs.
   sair antes da tarefa 11. Antes, conferir: o código na master atual; o custo da busca antiga, a
   mais pesada no banco; o efeito nos produtos 15 e 581. Horário fixo no beat vai contra "o horário
   mora no banco", por isso é só ponte.
+- **Com tudo indo para a rota nova,** essa ponte roda no legado. Só vale se a saída do Rafael
+  chegar antes da migração; se der tempo, o melhor é não ligá-la e priorizar o fechamento
+  automático no fluxo novo.
 
 ## Fora do recorte: até chegar no sistema
 
@@ -108,6 +114,8 @@ Fica com o time; aqui só a referência do que o Rafael faz hoje.
 
 1. Levantar com o Rafael os pontos 1 e 2 e o horário em que os dados ficam completos.
 2. Conferir na master a contingência e decidir a D25.
-3. Desenhar a tarefa 11 com o caso do Mercato Libero; aprovação do Pietro antes do código.
-4. Rodar o fechamento automático junto com a varredura, comparar os lotes e só então desligar a
+3. Desenhar a tarefa 11 com o caso do Mercato Libero, no fluxo novo; aprovação do Pietro antes do
+   código.
+4. Migrar o `POST /liquidacao/` para o fluxo novo antes ou junto do fechamento automático.
+5. Rodar o fechamento automático junto com a varredura, comparar os lotes e só então desligar a
    varredura.
