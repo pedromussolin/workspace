@@ -215,7 +215,7 @@ TOML_ESCAPES = {
 }
 
 
-def _toml_string(value: str) -> str:
+def toml_string(value: str) -> str:
     """A TOML basic string; `json.dumps` is not one (DEL stays raw, astral characters split)."""
     out = []
     for char in value:
@@ -240,7 +240,7 @@ def _credentials_text(tables: dict, path: Path) -> str:
                 raise ConfigInvalid(
                     f"{path} holds content ws cannot rewrite; add the token by hand"
                 )
-            lines.append(f"{key} = {_toml_string(value)}")
+            lines.append(f"{key} = {toml_string(value)}")
         chunks.append("\n".join(lines) + "\n")
     return "\n".join(chunks)
 

@@ -1,6 +1,7 @@
 import json
 import stat
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from ws.userconfig import (
     load_token,
     save_jira_token,
     save_token,
+    toml_string,
 )
 
 CONFIG = """\
@@ -482,3 +484,8 @@ def test_load_standup_defaults_and_rejects_a_bad_value(config_dir, tmp_path, mon
     (config_dir / "config.toml").write_text("[standup]\nstale_workdays = 0\n", encoding="utf-8")
     with pytest.raises(ConfigInvalid, match="stale_workdays"):
         load_standup()
+
+
+def test_toml_string_escapes_what_a_basic_string_cannot_hold():
+    text = 'a"b\\c\n\x7f\U0001f600'
+    assert tomllib.loads(f"v = {toml_string(text)}")["v"] == text
