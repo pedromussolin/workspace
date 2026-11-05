@@ -177,8 +177,12 @@ def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
     return names
 
 
-def _holding_branch(repo: Path, sha: str, cfg: BoardConfig) -> str | None:
-    output = _git_out(repo, "branch", "-a", "--contains", sha, "--format=%(refname:short)")
+def _holding_branch(repo: Path, sha: str, cfg: BoardConfig, warnings: list[str]) -> str | None:
+    try:
+        output = _git_out(repo, "branch", "-a", "--contains", sha, "--format=%(refname:short)")
+    except (RuntimeError, OSError) as error:
+        warnings.append(f"repo {repo.name}: holding branch unknown ({error})")
+        return None
     skip = _environment_branches(repo, cfg) | {cfg.remote}
     for name in _lines(output):
         if name in skip or name.endswith("/HEAD") or name.startswith("("):
@@ -231,6 +235,7 @@ def _position(
     cfg: BoardConfig,
     stale: set[str],
     repos: dict[str, Path],
+    warnings: list[str],
 ) -> Position:
     low = min(_value(piece) for piece in pieces)
     if low == math.inf:
@@ -246,7 +251,7 @@ def _position(
             held.sha[:7],
             held.subject,
             _environment_at(cfg, held.reached) if held.reached else None,
-            _holding_branch(repos[held.repo], held.sha, cfg),
+            _holding_branch(repos[held.repo], held.sha, cfg, warnings),
             held.tag,
         )
     names = sorted({piece.repo for piece in pieces})
@@ -285,10 +290,6 @@ def positions(
         for piece, wanted in found:
             for key in wanted:
                 by_key.setdefault(key, []).append(piece)
-    result = {}
-    for key, pieces in by_key.items():
-        try:
-            result[key] = _position(pieces, cfg, stale, by_name)
-        except (RuntimeError, OSError) as error:
-            warnings.append(f"repo {pieces[0].repo}: left out ({error})")
-    return result, warnings
+    return {
+        key: _position(pieces, cfg, stale, by_name, warnings) for key, pieces in by_key.items()
+    }, warnings

@@ -439,3 +439,22 @@ def test_missing_deploy_branch_is_no_image_tag(clone, commit, push, tags):
     cfg = parse_board(tomllib.loads(text), Path("config.toml"))
     _, warnings = positions([repo, deploy], {"TS-101"}, cfg, TODAY, set())
     assert warnings == ["deploy demo-api: no image tag of this repo in demo-api-argocd"]
+
+
+def test_holding_branch_failure_keeps_the_card(clone, branch, commit, push, monkeypatch):
+    repo = clone("demo-api")
+    branch(repo, "feature/TS-101-x")
+    commit(repo, "feat: TS-101 x")
+    push(repo, "feature/TS-101-x")
+    real = codeposition._git_out
+
+    def failing(path, *args, **kwargs):
+        if args[0] == "branch":
+            raise RuntimeError("branch exploded")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(codeposition, "_git_out", failing)
+    result, warnings = positions([repo], {"TS-101"}, board(), TODAY, set())
+    assert result["TS-101"].rung == 1
+    assert result["TS-101"].holding.branch is None
+    assert "repo demo-api: holding branch unknown (branch exploded)" in warnings
