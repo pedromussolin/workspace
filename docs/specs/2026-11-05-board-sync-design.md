@@ -139,8 +139,13 @@ Per repo under `repo_roots`, after the fetch:
 4. Output per key: `rung`, `environment`, `holding` (the branch or tag that keeps it lower, when
    one does), `repos` and `stale` (a fetch failed).
 
-Repos without the environment branches (personal repos, the deploy repos themselves) give only
-"in progress" evidence.
+**A repo holds a card only as far as it can prove (refines D6, 2026-11-05).** Each repo has a cap:
+the highest rung among the environments it has (a deploy repo has `master` but no sandbox and no
+image tag of its own; a personal repo has none). A commit that reached its repo's cap does not hold
+the card. The card's rung is the lowest rung among the commits below their repo's cap; when every
+commit is at its cap, the card takes the highest cap among them. A card with any commit is at least
+in progress. So a personal repo only proves "in progress", and the deploy repo's `master` commit of
+a card does not keep it from done once the code repos are deployed.
 
 ## Commands
 
