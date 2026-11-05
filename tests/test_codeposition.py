@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ws.boardconfig import BoardConfig, parse_board
+from ws import codeposition
 from ws.codeposition import fetch, positions
 
 TODAY = date(2026, 11, 5)
@@ -404,3 +405,36 @@ def test_stash_does_not_hold_a_deployed_card(clone, git, commit, push, tags):
     git(repo, "stash", "push", "-q", "-m", "wip TS-101")
     result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
     assert result["TS-101"].rung == 4
+
+
+def test_grep_failure_in_deploy_repo_is_its_own_warning(
+    clone, git, commit, push, tags, monkeypatch
+):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deploy = tags({"a.yaml": values(head(git, repo))})
+    real = codeposition._run
+
+    def failing(path, *args, **kwargs):
+        if args[0] == "grep":
+            return subprocess.CompletedProcess(args, 2, "", "fatal: grep exploded\n")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(codeposition, "_run", failing)
+    result, warnings = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert warnings == ["deploy demo-api: fatal: grep exploded"]
+    assert result["TS-101"].rung == 3
+
+
+def test_missing_deploy_branch_is_no_image_tag(clone, commit, push, tags):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deploy = tags({"a.yaml": values("deadbee")})
+    text = BOARD.format(extra="", tables="").replace(
+        'deploy_branch = "master"', 'deploy_branch = "nope"'
+    )
+    cfg = parse_board(tomllib.loads(text), Path("config.toml"))
+    _, warnings = positions([repo, deploy], {"TS-101"}, cfg, TODAY, set())
+    assert warnings == ["deploy demo-api: no image tag of this repo in demo-api-argocd"]

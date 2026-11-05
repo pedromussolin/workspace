@@ -144,11 +144,15 @@ def _tagged_commits(
         warnings.append(f"deploy {repo.name}: {deploy_name} not found")
         return None
     ref = f"{cfg.remote}/{env.deploy_branch}"
-    found = _run(deploy, "grep", "-hoE", env.image_tag.pattern, ref)
-    if found.returncode not in (0, 1, 128):
-        raise RuntimeError(_first_line(found.stderr))
+    lines: list[str] = []
+    if _run(deploy, "rev-parse", "--verify", "-q", ref).returncode == 0:
+        found = _run(deploy, "grep", "-h", "-o", "-E", "-e", env.image_tag.pattern, ref, "--")
+        if found.returncode not in (0, 1):
+            warnings.append(f"deploy {repo.name}: {_first_line(found.stderr)}")
+            return None
+        lines = _lines(found.stdout)
     tags = set()
-    for line in _lines(found.stdout) if found.returncode == 0 else []:
+    for line in lines:
         match = env.image_tag.search(line)
         if match:
             tags.add(match.group(1))
