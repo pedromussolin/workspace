@@ -25,6 +25,7 @@ class Holding:
     subject: str
     reached: str | None
     branch: str | None
+    tag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class _Piece:
     subject: str
     reached: int
     cap: int
+    tag: str | None = None
 
 
 def _run(repo: Path, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess[str]:
@@ -136,8 +138,8 @@ def _branch_sets(
 
 def _tagged_commits(
     repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
-) -> set[str] | None:
-    """Commits contained in every image tag of `repo` found in the deploy repo's branch."""
+) -> list[tuple[str, set[str]]] | None:
+    """The history of each image tag of `repo` found in the deploy repo's branch."""
     deploy_name = cfg.deploy_repo_for(repo.name, env)
     deploy = repo.parent / deploy_name
     if not (deploy / ".git").exists():
@@ -151,23 +153,20 @@ def _tagged_commits(
             warnings.append(f"deploy {repo.name}: {_first_line(found.stderr)}")
             return None
         lines = _lines(found.stdout)
-    tags = set()
+    tags: dict[str, str] = {}
     for line in lines:
         match = env.image_tag.search(line)
         if match:
-            tags.add(match.group(1))
+            tags.setdefault(match.group(1), match.group(0))
     full = []
-    for tag in sorted(tags):
-        resolved = _run(repo, "rev-parse", "--verify", "-q", f"{tag}^{{commit}}")
+    for sha, text in sorted(tags.items(), key=lambda item: item[1]):
+        resolved = _run(repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}")
         if resolved.returncode == 0:
-            full.append(resolved.stdout.strip())
+            full.append((text, resolved.stdout.strip()))
     if not full:
         warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
         return None
-    shas = _reachable(repo, full[0], walk_since)
-    for sha in full[1:]:
-        shas &= _reachable(repo, sha, walk_since)
-    return shas
+    return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
 
 
 def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
@@ -196,6 +195,7 @@ def _repo_pieces(
     warnings: list[str],
 ) -> list[tuple[_Piece, set[str]]]:
     sets: list[tuple[int, set[str]]] = []
+    tag_sets: list[list[tuple[str, set[str]]]] = []
     if _has_remote(repo, cfg.remote):
         branch_sets = _branch_sets(repo, cfg, walk_since)
         sets = [(env.rung, shas) for env, shas in branch_sets]
@@ -205,12 +205,16 @@ def _repo_pieces(
             if env.image_tag is not None and not cfg.direct_deploy(repo.name):
                 tagged = _tagged_commits(repo, env, cfg, walk_since, warnings)
                 if tagged is not None:
-                    sets.append((env.rung, tagged))
+                    tag_sets.append(tagged)
+                    sets.append((env.rung, set.intersection(*(shas for _, shas in tagged))))
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:
         reached = max((rung for rung, shas in sets if sha in shas), default=0)
-        pieces.append((_Piece(repo.name, sha, subject, reached, cap), wanted))
+        lacking = next(
+            (text for tagged in tag_sets for text, shas in tagged if sha not in shas), None
+        )
+        pieces.append((_Piece(repo.name, sha, subject, reached, cap, lacking), wanted))
     return pieces
 
 
@@ -243,6 +247,7 @@ def _position(
             held.subject,
             _environment_at(cfg, held.reached) if held.reached else None,
             _holding_branch(repos[held.repo], held.sha, cfg),
+            held.tag,
         )
     names = sorted({piece.repo for piece in pieces})
     return Position(

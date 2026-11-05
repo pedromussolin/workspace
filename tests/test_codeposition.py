@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from ws.boardconfig import BoardConfig, parse_board
 from ws import codeposition
+from ws.boardconfig import BoardConfig, parse_board
 from ws.codeposition import fetch, positions
 
 TODAY = date(2026, 11, 5)
@@ -322,6 +322,7 @@ def test_one_stale_tag_holds_the_card(clone, git, commit, push, tags):
     result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
     assert result["TS-101"].rung == 3
     assert result["TS-101"].holding.reached == "master"
+    assert result["TS-101"].holding.tag == f"prod-{old}"
 
 
 def test_tag_of_another_app_is_ignored(clone, git, commit, push, tags):
