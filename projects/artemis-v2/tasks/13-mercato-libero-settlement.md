@@ -126,6 +126,23 @@ Três leituras de código, com o detalhe em arquivos próprios:
   poder informar o total.
 - **ETL [C, `origin/master` bddbc2f]:** `portfolio/dwcaptalys/query.py:316-334`. Com `left join`
   no lote e o pagamento sem lote no filtro incremental, o pendente continua no lake.
+- **Datawall [C, `master` bd8ed15]:** `processar` (`src/datawall/core.clj:58`) gera um `proc-id` por
+  arquivo e processa as linhas em paralelo; cada linha válida vira uma mensagem no RabbitMQ
+  (`src/datawall/implementacoes/liquidacao_csv_padrao.clj`, `enviar`) **sem** o `proc-id`. O consumer
+  da cessão (`cessao/consumer/callbacks/liquidacao.py`) usa o `proc-id` da mensagem ou gera um novo:
+  daí uma remessa por linha. A rota HTTP só responde depois de todas as linhas, então no fim o
+  datawall sabe quantas mensagens publicou.
+- **Desenho para o arquivo virar a remessa:** o datawall manda o `proc-id` do arquivo em cada linha
+  e, no fim, uma mensagem de "remessa concluída" com o total publicado. A cessão não registra total
+  nas linhas dessa remessa (o `SET NX` faria valer o 1 da primeira linha); registra o total quando
+  chega a mensagem final e confere o fechamento nessa hora, porque as linhas podem ter terminado antes.
+- **Registro no Redis:** ao fechar, vira `fechado` e expira em 24h (`lote_controle.py`, `mark_fechado`).
+  Não apagar é de propósito: segura a reentrega da mesma mensagem. O risco é o inverso, a remessa que
+  passa de 24h perde o registro; com o scheduler (TS-5569) o registro vai para o banco.
+- **Conciliação automática [C, `origin/master` 6c152445d]:** roda no horário de corte (padrão 14h de
+  Brasília, `CONCILIACAO_HORARIO_CORTE`, `cessao/shared/saldo_liquidacao/corte.py:26`). Lote fechado
+  depois do corte, ou em dia não útil, vai para a fila manual (`passou_do_corte`). O fechamento por
+  agendamento de hoje roda às 16h de Brasília (`crontab(hour=19)` em UTC), depois do corte.
 
 ## Por que é urgente
 
