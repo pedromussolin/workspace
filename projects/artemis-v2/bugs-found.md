@@ -416,6 +416,26 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   picos (chaves por prefixo, tamanho), e decidir entre limpar, aumentar ou separar um Redis para
   travas.
 
+## B25 — Pagamento entra em lote já enviado quando o vigente não é fechado (importante)
+
+- **Onde:** `get_create_or_update_liquidacao_lote_vigente` reaproveita o vigente enquanto
+  `fechado = false`, sem olhar o estado do lote (`api/liquidacao/repository.py:429-457`, em
+  579ad13e3); o `POST /liquidacao/liquidar` envia o lote sem fechar o vigente
+  (`api/liquidacao/validator.py:39-45` só confere se o lote existe).
+- **Efeito [C, réplica, 06/11]:** 14 lotes dos produtos 1109 e 1373 receberam 10.562 pagamentos
+  (R$ 10,9 mi) depois de concluídos, sem nenhuma atividade no log do lote depois da conclusão:
+  4 lotes concluídos em 09/07 receberam 6.559 em 07/08; 8 lotes concluídos em 30/10 receberam
+  3.944 em 05/11; 2 lotes receberam 59 pagamentos 6 s depois do envio (corrida, ver B15).
+- **Quem envia [C, Datadog]:** os lotes de 30/10 saíram por `POST /liquidacao/liquidar` às
+  20h32 UTC, chamado por pods com python-requests 2.28.2 (**[H]** Atlas/fetch-api).
+- **Não é bug [C]:** nos outros ~2.000 lotes concluídos com vigente aberto dos oito acumulados
+  fora do Mercato Libero, nada entrou depois da conclusão; a data de envio deles é uma data de
+  referência (dia anterior, 12h), anterior à criação do lote. A primeira leitura de 06/11
+  (pagamentos "depois do envio", centenas de milhões) comparava com essa data e estava errada.
+- **Validar:** com a operação e a administradora, se os 10.562 pagamentos saíram por outro caminho.
+- **Correção:** some com o acúmulo como padrão (TS-5567); os afetados vão para um lote novo
+  (`POST /liquidacao/pagamentos/reenviar`). Card TS-5573.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
