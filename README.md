@@ -191,10 +191,17 @@ done = "Concluído"
 - Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent
   tag matching the glob), `file` (the commit shas that `image_tag` captures in the deploy repo's
   branch) and `command` (a program that prints the deployed shas, one per line).
-- A `file` or `command` proof that errors (the program fails, times out or prints something that
-  is not a sha, or a captured sha does not resolve) holds the environment: it fails closed, so no
-  commit of that repo counts as being there and the card stays below it, with the warning
-  `proof <repo>/<env>: ...`.
+- A proof that errors holds the environment (fails closed): it stays in the repo's cap and no
+  commit of that repo counts as being there, so the card stays below it.
+  - `command`: a failure to run, a non-zero exit, a timeout, a line that is not a sha or a sha
+    that does not resolve holds, with the warning `proof <repo>/<env>: ...`.
+  - `file`: a `git grep` error holds, and so does a captured sha that does not resolve in the
+    repo while others do (warning `deploy <repo>: tag <tag> not found in this repo`), both with
+    the prefix `deploy <repo>: ...`.
+  - `file`, not an error: a deploy repo that is not found (`deploy <repo>: <deploy repo> not
+    found`) or no captured sha resolving in the repo (`deploy <repo>: no image tag of this repo
+    in <deploy repo>`) means the environment is ignored for that repo: it is out of the cap and
+    holds nothing.
 - A `tag` proof fetches with `--tags`. A tag moved on the remote makes that repo's fetch fail, and
   its data is then stale (warning `fetch <repo>: ...`).
 - A deploy repo shared by several apps needs an `image_tag` specific to the app, so only that
