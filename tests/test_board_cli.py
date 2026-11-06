@@ -229,6 +229,31 @@ def test_status_names_mapped_by_category_are_fine(world, capsys):
     assert code == 0
 
 
+@pytest.mark.parametrize(
+    ("name", "category", "reads"),
+    [("Em andamento", "new", "todo"), ("Concluído", "indeterminate", "in_progress")],
+)
+def test_status_card_whose_board_name_reads_otherwise_is_skipped(
+    world, capsys, name, category, reads
+):
+    cards = world.cards(card("TS-101", name, status_category=category, is_epic=False))
+    code, out, _ = run(capsys, "status", "--cards", str(cards), "--today", "2026-11-05")
+    assert code == 0
+    result = json.loads(out)
+    assert result["moves"] == result["held"] == result["limited"] == result["to_confirm"] == []
+    assert result["warnings"] == [
+        f'card TS-101: status "{name}" reads as {reads}; check [jira.status_overrides]'
+    ]
+
+
+def test_status_card_whose_board_name_reads_back_moves(world, capsys):
+    cards = world.cards(card("TS-101", "Em andamento", is_epic=False))
+    _, out, _ = run(capsys, "status", "--cards", str(cards), "--today", "2026-11-05")
+    result = json.loads(out)
+    assert [(m["key"], m["to"]) for m in result["moves"]] == [("TS-101", "done")]
+    assert result["warnings"] == []
+
+
 def board_file(tmp_path: Path, moves: list[dict]) -> Path:
     path = tmp_path / "board.json"
     path.write_text(json.dumps({"moves": moves}), encoding="utf-8")

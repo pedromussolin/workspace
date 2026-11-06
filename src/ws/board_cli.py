@@ -9,11 +9,11 @@ from pathlib import Path
 
 from ws import card as cards_store
 from ws import codeposition, jira, userconfig
-from ws.boardconfig import BoardMissing, load_board, unmapped_status
+from ws.boardconfig import BoardConfig, BoardMissing, load_board, unmapped_status
 from ws.boardrules import plan_moves
 from ws.config import config_dir, repo_root
 from ws.standup import find_repos
-from ws.taskmodel import RUNG, Status
+from ws.taskmodel import RUNG, Status, Task
 from ws.userconfig import toml_string
 
 SPEC = "docs/specs/2026-11-05-board-sync-design.md"
@@ -52,6 +52,26 @@ def _read_cards(path: Path) -> list[dict]:
     return cards
 
 
+def _misread(
+    cards: list[dict], tasks: list[Task], cfg: BoardConfig, warnings: list[str]
+) -> set[str]:
+    """Cards in a `[board.statuses]` name that the tracker's mapping reads as another status.
+
+    Their position is not computed, so they get no move: a wrong reading could move them back.
+    """
+    board_status = {name: status for status, name in cfg.statuses.items()}
+    keys = set()
+    for card, task in zip(cards, tasks, strict=True):
+        expected = board_status.get(card["status_name"])
+        if expected is not None and task.status != expected:
+            warnings.append(
+                f'card {task.key}: status "{card["status_name"]}" reads as {task.status.value}; '
+                "check [jira.status_overrides]"
+            )
+            keys.add(task.key)
+    return keys
+
+
 def _status(args: argparse.Namespace) -> int:
     try:
         config = userconfig.load_config()
@@ -83,7 +103,9 @@ def _status(args: argparse.Namespace) -> int:
         for repo in find_repos(config.standup, repo_root(), warnings)
         if not cfg.ignored(repo.name)
     ]
+    misread = _misread(cards, tasks, cfg, warnings)
     keys = {task.key for task in tasks if task.status in RUNG and task.status != Status.DONE}
+    keys -= misread
     stale: set[str] = set()
     if cfg.fetch:
         errors = codeposition.fetch(repos, cfg)
