@@ -36,13 +36,13 @@ de outros devs.
 | TS-5566 | documentação do fechamento em `docs/liquidacao/` da cessão (depois vai para o repo `docs`) | 13/11 |
 | TS-5573 | investigar vigentes abertos com lote já enviado nos oito acumulados fora do Mercato Libero | 13/11 |
 | TS-5567 | acúmulo como comportamento natural (pagamento espera sem lote; modalidade renomeada) | 18/11 |
-| TS-5568 | `POST /liquidacao/` no fechamento novo (rota única) | 18/11 |
+| TS-5568 | `POST /liquidacao/` no fechamento novo (rota única); fora do caminho crítico: a varredura fica na rota antiga até ser desativada | 18/11 |
 | TS-5569 | scheduler da cessão no banco | 18/11 |
 | TS-5570 | fechamento automático por horário de corte (seis produtos do Mercato Libero) | 20/11 |
 | TS-5571 | aprovação na conciliação antes do corte | 27/11 |
 | TS-5572 | fechamento automático em tempo de execução no fluxo novo (pagamento a pagamento, B19, B21) | 04/12 |
 
-Prazos provisórios, a ajustar.
+Prazos provisórios; a meta é terminar até 13/11. Caminho crítico: TS-5567 → TS-5569 → TS-5570.
 
 ## Levantamentos de 05/11
 
