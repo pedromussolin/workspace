@@ -63,6 +63,8 @@ Nothing is written through the Atlassian MCP, ever.
      `~/.local/share/workspace/cards/drafts/`; `mkdir -p` first), tell the user, in PT-BR, which
      cards to move by hand and why (the problem the preview printed), and preview the folder again
      with the rest. If no draft is left, stop.
+     When the preview names no failing file (one `ws card preview: ...` line on stderr, a draft
+     that did not load), show that message and ask the user; do not guess which drafts to move.
 
 ## The draft
 
