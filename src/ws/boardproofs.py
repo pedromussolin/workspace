@@ -75,7 +75,11 @@ def _tag(repo: Path, proof: TagProof, walk_since: date) -> Markers | None:
 def _file(
     repo: Path, proof: FileProof, cfg: BoardConfig, walk_since: date, warnings: list[str]
 ) -> Markers | None:
-    """The history of each image tag of `repo` found in the deploy repo's branch."""
+    """The history of each image tag of `repo` found in the deploy repo's branch.
+
+    No tag resolving here means the deploy repo serves another app (ignored); some resolving and
+    some not means a deploy this clone cannot see, so the environment proves nothing.
+    """
     deploy_name = proof.deploy_repo.format(repo=repo.name)
     deploy = repo.parent / deploy_name
     if not (deploy / ".git").exists():
@@ -94,13 +98,20 @@ def _file(
         match = proof.image_tag.search(line)
         if match:
             tags.setdefault(match.group(1), match.group(0))
-    full = []
+    full, missing = [], []
     for sha, text in sorted(tags.items(), key=lambda item: item[1]):
         resolved = run_git(repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}")
         if resolved.returncode == 0:
             full.append((text, resolved.stdout.strip()))
+        else:
+            missing.append(text)
     if not full:
         warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
+        return None
+    if missing:
+        warnings.extend(
+            f"deploy {repo.name}: tag {text} not found in this repo" for text in missing
+        )
         return None
     return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
 

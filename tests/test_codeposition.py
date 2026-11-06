@@ -430,14 +430,17 @@ def test_one_stale_tag_holds_the_card(clone, git, commit, push, tags):
     assert result["TS-101"].holding.tag == f"prod-{old}"
 
 
-def test_tag_of_another_app_is_ignored(clone, git, commit, push, tags):
+def test_unresolved_tag_among_resolved_ones_holds_the_environment(
+    clone, git, commit, push, tags
+):
     repo = clone("demo-api")
     commit(repo, "fix: TS-101 x")
     push(repo, "master")
     new = head(git, repo)
     deploy = tags({"a.yaml": values(new), "b.yaml": values(new), "c.yaml": values("deadbee")})
-    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
-    assert result["TS-101"].rung == 4
+    result, warnings = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    assert warnings == ["deploy demo-api: tag prod-deadbee not found in this repo"]
+    assert (result["TS-101"].rung, result["TS-101"].limited) == (3, True)
 
 
 def test_unmerged_commit_holds_the_card(clone, git, branch, commit, push, tags):
