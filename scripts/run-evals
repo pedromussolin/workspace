@@ -14,11 +14,21 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 # claude plugin eval refuses a plugin that holds a file with more than one name, and uv hard-links
-# the packages of .venv by default. .claude holds the other worktrees of the repo.
-linked="$(find . \( -path ./.git -o -path ./.claude \) -prune -o -type f -links +1 -print -quit)"
+# the packages of a .venv unless told otherwise (pyproject.toml sets link-mode = "copy"). The eval
+# also reads .claude, where the other worktrees of the repo keep their own .venv.
+linked="$(find . -path ./.git -prune -o -type f -links +1 -print -quit)"
 if [ -n "$linked" ]; then
   echo "run-evals: $linked has more than one hard link, and claude plugin eval refuses that." >&2
-  echo "Recreate the environment with copies: rm -rf .venv && UV_LINK_MODE=copy uv sync" >&2
+  case "$linked" in
+    */.venv/*)
+      env_dir="${linked%%/.venv/*}"
+      echo "Recreate that environment with copies:" >&2
+      echo "  rm -rf $env_dir/.venv && (cd $env_dir && UV_LINK_MODE=copy uv sync)" >&2
+      ;;
+    *)
+      echo "Replace it with a copy of itself: cp -p FILE FILE.tmp && mv FILE.tmp FILE" >&2
+      ;;
+  esac
   exit 1
 fi
 
