@@ -436,6 +436,22 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Correção:** some com o acúmulo como padrão (TS-5567); os afetados vão para um lote novo
   (`POST /liquidacao/pagamentos/reenviar`). Card TS-5573.
 
+## B26 — Lotes vazios em todos os estados (importante para o resumo da fila manual)
+
+- **Efeito [C, réplica, 06/11, lotes criados nos últimos 60 dias]:** lotes sem nenhum pagamento:
+  `errado` 10.293 (1145, 1472, 1505, 1571, 1637, 1703, 1901), `conciliacao_manual` 3.222 (713,
+  1043, 449, 1505, 1637), `pendente` 1.319 (inclui 4, 80, 81, 1109, 1373), `liquidando` 433,
+  `concluido` 96. Na fila manual, só 7 lotes do 1637 têm pagamento (226, R$ 47,3 mil); o resto
+  está vazio.
+- **Amostra [C, log do lote]:** lotes do 713 criados pelo SISTEMA em 22/09 às 00h17 de Brasília,
+  já vazios; foram para `aguarda_conciliacao` e, às 14h01, a rotina de conciliação os mandou para a
+  fila manual.
+- **Causa [H]:** o fechamento cria o lote e não acha pagamento elegível (regra D9, ou a guarda
+  `WHERE liquidacao_lote_id IS NULL` perdendo a corrida), e o lote vazio fica. Validar no log de
+  outros estados e no código do fechamento (legado e `refact.py`) antes do fechamento por horário.
+- **Por que importa:** o resumo da fila manual e o Excel listariam milhares de lotes vazios; o
+  fechamento agendado pode criar mais. Limpar os pendentes antes de ligar o resumo.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota

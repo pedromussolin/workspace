@@ -7,6 +7,8 @@ o motivo — é o que evita rediscutir depois.
 
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
+| 06/11/2026 | A modalidade de fechamento vira duas colunas: quando fecha (gatilho: `manual`, `agendado`, `automatico`) e como agrupa (agrupamento: `por_chave`, `por_chave_sem_origem`, `por_remessa`), com nomes explícitos de liquidação (absorve o item de renomear a coluna do `after-v2.md`). Recurso genérico, para qualquer produto | Pietro |
+| 06/11/2026 | O resumo da fila manual sai por e-mail com um Excel anexo (por fundo, produto, data e status). Antes de ligar, resolver os lotes parados na fila manual (B26) | Pietro |
 | 06/11/2026 | Agrupar sem a origem vira um valor novo no enum de modalidade de fechamento (ex.: `agendado_sem_origem`, chave produto+originador+fundo), para listagem, fechamento e exclusão seguirem a mesma chave (`_chave_do_lote_fake_por_modalidade` e `FakeBatchKey`). Se um dia outro gatilho precisar agrupar sem a origem, avaliar separar "quando fecha" de "como agrupa" em duas colunas | Pietro |
 | 06/11/2026 | Horário de fechamento depois do corte da conciliação: salva e avisa (opção C). Os avisos saem por e-mail pelo disparo da shared (`POST /email-dispatches`, template e grupo do Entra ID): aviso de horário depois do corte e resumo diário dos lotes na fila de conciliação manual | Pietro |
 | 06/11/2026 | A cessão se blinda contra a estrutura do parceiro: quando fechar (horários) e como agrupar (chave) são definidos por produto do nosso lado, sem depender de como o parceiro envia. A Voltis manda pagamento a pagamento, mesmo os do mesmo lote, e no 1043 cada pagamento traz uma origem própria; o sistema absorve isso em vez de exigir mudança do parceiro | Pietro |
