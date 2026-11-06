@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ws import card as cards_store
 from ws import codeposition, jira, userconfig
-from ws.boardconfig import BoardMissing, load_board
+from ws.boardconfig import BoardMissing, load_board, unmapped_status
 from ws.boardrules import plan_moves
 from ws.config import config_dir, repo_root
 from ws.standup import find_repos
@@ -63,6 +63,9 @@ def _status(args: argparse.Namespace) -> int:
         )
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         return _fail("status", error)
+    problem = unmapped_status(cfg, config.jira.status_overrides)
+    if problem is not None:
+        return _fail("status", problem)
     try:
         cards = _read_cards(args.cards)
         tasks = [

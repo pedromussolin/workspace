@@ -45,6 +45,9 @@ done = "Concluído"
 """
 
 
+OVERRIDES = {"In Validation": "validation", "Ready Deploy": "ready_deploy"}
+
+
 def card(key: str, status: str = "In Progress", **extra) -> dict:
     return {
         "key": key,
@@ -65,10 +68,12 @@ def world(tmp_path: Path, ws_config: Path, git: Git, monkeypatch: pytest.MonkeyP
     roots = tmp_path / "roots"
     roots.mkdir()
 
-    def write_config(board: bool = True, fetch: bool = False) -> None:
+    def write_config(board: bool = True, fetch: bool = False, overrides=OVERRIDES) -> None:
         text = (
             '[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
-            f'[standup]\nrepo_roots = ["{roots}"]\n'
+            "[jira.status_overrides]\n"
+            + "".join(f'"{name}" = "{status}"\n' for name, status in overrides.items())
+            + f'[standup]\nrepo_roots = ["{roots}"]\n'
         )
         if board:
             text += BOARD.format(fetch=str(fetch).lower())
@@ -191,6 +196,37 @@ def test_status_ignored_repo_is_never_read(world, ws_config, capsys):
         capsys, "status", "--cards", str(standard_cards(world)), "--today", "2026-11-05"
     )
     assert json.loads(out)["moves"] == []
+
+
+BACKWARDS = (
+    "does not map back to {0} in [jira.status_overrides]; "
+    "a card in it would be read wrong and could move backwards"
+)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "status", "name"),
+    [
+        ({"Ready Deploy": "ready_deploy"}, "validation", "In Validation"),
+        ({"In Validation": "validation", "Ready Deploy": "done"}, "ready_deploy", "Ready Deploy"),
+        ({**OVERRIDES, "Em andamento": "todo"}, "in_progress", "Em andamento"),
+        ({**OVERRIDES, "Concluído": "in_progress"}, "done", "Concluído"),
+    ],
+)
+def test_status_name_that_does_not_map_back_exits_2(world, capsys, overrides, status, name):
+    world.write_config(overrides=overrides)
+    code, out, err = run(capsys, "status", "--cards", str(standard_cards(world)))
+    assert code == 2
+    assert out == ""
+    assert err == f'ws board status: board.statuses.{status} "{name}" {BACKWARDS.format(status)}\n'
+
+
+def test_status_names_mapped_by_category_are_fine(world, capsys):
+    world.write_config(overrides={**OVERRIDES, "Em andamento": "in_progress"})
+    code, _, _ = run(
+        capsys, "status", "--cards", str(standard_cards(world)), "--today", "2026-11-05"
+    )
+    assert code == 0
 
 
 def board_file(tmp_path: Path, moves: list[dict]) -> Path:

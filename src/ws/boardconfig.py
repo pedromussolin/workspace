@@ -35,6 +35,7 @@ PROOF_KEYS = {
     "command": ("command", "timeout"),
 }
 ENVIRONMENT_STATUSES = tuple(STATUS_AT_RUNG[rung] for rung in sorted(STATUS_AT_RUNG))
+MAPPED_STATUSES = (Status.VALIDATION, Status.READY_DEPLOY)
 
 
 class BoardMissing(Exception):
@@ -356,6 +357,23 @@ def parse_board(table: dict, path: Path) -> BoardConfig:
     return BoardConfig(
         remote, lookback, fetch, default, profiles, repos, _statuses(table, profiles, path)
     )
+
+
+def unmapped_status(cfg: BoardConfig, overrides: dict[str, str]) -> str | None:
+    """The first `[board.statuses]` name the tracker's mapping would read as another status.
+
+    `validation` and `ready_deploy` have no tracker category of their own, so their names must be
+    in the overrides; `in_progress` and `done` may rely on the category.
+    """
+    for status, name in cfg.statuses.items():
+        mapped = overrides.get(name)
+        if mapped == status.value or (mapped is None and status not in MAPPED_STATUSES):
+            continue
+        return (
+            f'board.statuses.{status.value} "{name}" does not map back to {status.value} in '
+            "[jira.status_overrides]; a card in it would be read wrong and could move backwards"
+        )
+    return None
 
 
 def load_board() -> BoardConfig:
