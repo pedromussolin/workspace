@@ -452,7 +452,37 @@ def test_unresolved_tag_among_resolved_ones_holds_the_environment(clone, git, co
     deploy = tags({"a.yaml": values(new), "b.yaml": values(new), "c.yaml": values("deadbee")})
     result, warnings = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
     assert warnings == ["deploy demo-api: tag prod-deadbee not found in this repo"]
-    assert (result["TS-101"].rung, result["TS-101"].limited) == (3, True)
+    position = result["TS-101"]
+    assert (position.rung, position.limited) == (3, False)
+    assert (position.holding.reached, position.holding.tag) == ("master", "prod-deadbee")
+
+
+@pytest.fixture
+def web_in_production(clone, git, commit, push, tags) -> Callable[[], list[Path]]:
+    """demo-web with a TS-101 commit deployed to production by demo-web-argocd."""
+
+    def make() -> list[Path]:
+        web = clone("demo-web")
+        commit(web, "fix: TS-101 web")
+        push(web, "master")
+        return [web, tags({"a.yaml": values(head(git, web))}, name="demo-web-argocd")]
+
+    return make
+
+
+def test_unresolved_tag_in_one_repo_holds_a_card_deployed_elsewhere(
+    clone, git, commit, push, tags, web_in_production
+):
+    api = clone("demo-api")
+    commit(api, "fix: TS-101 api")
+    push(api, "master")
+    deploy = tags({"a.yaml": values(head(git, api)), "b.yaml": values("deadbee")})
+    repos = [api, deploy, *web_in_production()]
+    result, warnings = positions(repos, {"TS-101"}, board(), TODAY, set())
+    position = result["TS-101"]
+    assert (position.rung, position.environment) == (3, "master")
+    assert (position.holding.repo, position.holding.reached) == ("demo-api", "master")
+    assert warnings == ["deploy demo-api: tag prod-deadbee not found in this repo"]
 
 
 def test_unmerged_commit_holds_the_card(clone, git, branch, commit, push, tags):
@@ -759,7 +789,7 @@ def test_command_older_sha_holds_the_card(clone, git, commit, push, deployed):
         ("echo 'deployed: abc1234'", "'deployed: abc1234' is not a sha"),
     ],
 )
-def test_command_failure_is_a_warning_and_proves_nothing(
+def test_command_failure_is_a_warning_and_holds_the_environment(
     clone, commit, push, deployed, body, error
 ):
     repo = clone("demo-api")
@@ -768,7 +798,40 @@ def test_command_failure_is_a_warning_and_proves_nothing(
     deployed(body)
     result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
     assert warnings == [f"proof demo-api/production: {error}"]
+    position = result["TS-101"]
+    assert (position.rung, position.limited, position.holding.reached) == (3, False, "main")
+
+
+@pytest.mark.parametrize(
+    ("body", "error"),
+    [
+        ("echo 'no deploy found' >&2; exit 1", "exit 1: no deploy found"),
+        ("exec sleep 5", "timeout after 2s"),
+    ],
+)
+def test_command_failure_in_one_repo_holds_a_card_deployed_elsewhere(
+    clone, commit, push, deployed, web_in_production, body, error
+):
+    api = clone("demo-api")
+    commit(api, "fix: TS-101 api")
+    push(api, "master")
+    deployed(body)
+    repos = [api, *web_in_production()]
+    result, warnings = positions(repos, {"TS-101"}, board(tables=API), TODAY, set())
+    position = result["TS-101"]
+    assert (position.rung, position.environment) == (3, "main")
+    assert (position.holding.repo, position.holding.reached) == ("demo-api", "main")
+    assert warnings == [f"proof demo-api/production: {error}"]
+
+
+def test_command_with_nothing_deployed_proves_nothing_silently(clone, commit, push, deployed):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deployed("echo")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
     assert (result["TS-101"].rung, result["TS-101"].limited) == (3, True)
+    assert warnings == []
 
 
 def test_command_that_cannot_run_is_a_warning(clone, commit, push, tmp_path, monkeypatch):
@@ -780,4 +843,4 @@ def test_command_that_cannot_run_is_a_warning(clone, commit, push, tmp_path, mon
     assert len(warnings) == 1
     assert warnings[0].startswith("proof demo-api/production: ")
     assert str(tmp_path / "bin" / "deployed-sha") in warnings[0]
-    assert result["TS-101"].rung == 3
+    assert (result["TS-101"].rung, result["TS-101"].limited) == (3, False)

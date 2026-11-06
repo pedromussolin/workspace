@@ -151,6 +151,11 @@ def _lacking_tag(
     return next((text for text, shas in given if sha not in shas), None)
 
 
+def _inside(given: Markers) -> set[str]:
+    """The commits every marker reaches; none when the proof failed and gave no marker."""
+    return set.intersection(*(shas for _, shas in given)) if given else set()
+
+
 def _repo_pieces(
     repo: Path,
     cfg: BoardConfig,
@@ -165,11 +170,7 @@ def _repo_pieces(
             given = markers(repo, env, cfg, walk_since, warnings)
             if given is not None:
                 proven[env.name] = given
-    sets = [
-        (env.rung, set.intersection(*(shas for _, shas in proven[env.name])))
-        for env in active
-        if env.name in proven
-    ]
+    sets = [(env.rung, _inside(proven[env.name])) for env in active if env.name in proven]
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:

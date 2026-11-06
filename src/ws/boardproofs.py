@@ -78,7 +78,7 @@ def _file(
     """The history of each image tag of `repo` found in the deploy repo's branch.
 
     No tag resolving here means the deploy repo serves another app (ignored); some resolving and
-    some not means a deploy this clone cannot see, so the environment proves nothing.
+    some not means a deploy this clone cannot see, so the environment holds every commit.
     """
     deploy_name = proof.deploy_repo.format(repo=repo.name)
     deploy = repo.parent / deploy_name
@@ -91,7 +91,7 @@ def _file(
         found = run_git(deploy, "grep", "-h", "-o", "-E", "-e", proof.image_tag.pattern, ref, "--")
         if found.returncode not in (0, 1):
             warnings.append(f"deploy {repo.name}: {first_line(found.stderr)}")
-            return None
+            return []
         found_lines = lines(found.stdout)
     tags: dict[str, str] = {}
     for line in found_lines:
@@ -108,12 +108,9 @@ def _file(
     if not full:
         warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
         return None
-    if missing:
-        warnings.extend(
-            f"deploy {repo.name}: tag {text} not found in this repo" for text in missing
-        )
-        return None
-    return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
+    warnings.extend(f"deploy {repo.name}: tag {text} not found in this repo" for text in missing)
+    unresolved: Markers = [(text, set()) for text in missing]
+    return unresolved + [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
 
 
 def _argv(proof: CommandProof, repo: str, env: str) -> list[str]:
@@ -127,10 +124,11 @@ def _argv(proof: CommandProof, repo: str, env: str) -> list[str]:
 def _command(
     repo: Path, env: Environment, proof: CommandProof, walk_since: date, warnings: list[str]
 ) -> Markers | None:
-    """The shas a read-only command prints, one per line; any doubt proves nothing (fail closed)."""
+    """The shas a read-only command prints, one per line; any doubt holds every commit."""
 
-    def failed(error: str) -> None:
+    def failed(error: str) -> Markers:
         warnings.append(f"proof {repo.name}/{env.name}: {error}")
+        return []
 
     try:
         result = subprocess.run(
@@ -165,9 +163,11 @@ def _command(
 def markers(
     repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
 ) -> Markers | None:
-    """What `env`'s proof gives in `repo`: (marker, commits reachable from it); None proves nothing.
+    """What `env`'s proof gives in `repo`: (marker, commits reachable from it).
 
-    A commit is in the environment when every marker reaches it.
+    A commit is in the environment when every marker reaches it. None: nothing to prove here (the
+    environment is unavailable in the repo). A proof that failed gives no markers, or a marker
+    that reaches nothing: the environment stays in the repo and holds every commit (fail closed).
     """
     if isinstance(env.proof, BranchProof):
         return _branch(repo, env.proof, cfg, walk_since)
