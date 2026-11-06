@@ -34,11 +34,14 @@ Nothing is written through the Atlassian MCP, ever.
 5. **Several changes**: one draft per change in one folder, one preview, one approval.
 6. **Sync** (`/card sincronizar`, the daily's "para aplicar /card sincronizar"): moves the cards
    to the status the code proves. Work in `~/.local/share/workspace/board/` (`mkdir -p` first).
-   - Run `ws task list > ~/.local/share/workspace/board/cards.json.tmp` and, only on exit 0, `mv`
-     it to `cards.json`; then
-     `ws board status --cards ~/.local/share/workspace/board/cards.json > ~/.local/share/workspace/board/board.json`.
-     Exit 2 from `ws board status` with the `[board]` message: tell the user to add `[board]` to
-     `config.toml` (README, "Local config") and stop.
+   - Run `rm -f ~/.local/share/workspace/board/cards.json ~/.local/share/workspace/board/cards.json.tmp ~/.local/share/workspace/board/board.json ~/.local/share/workspace/board/board.json.tmp`
+     first, so a file from an earlier run is never used. Then
+     `ws task list > ~/.local/share/workspace/board/cards.json.tmp` and, only on exit 0, `mv` it to
+     `cards.json`; then
+     `ws board status --cards ~/.local/share/workspace/board/cards.json > ~/.local/share/workspace/board/board.json.tmp`
+     and, only on exit 0, `mv` it to `board.json`. When `ws task list` or `ws board status` fails,
+     stop and say why, in PT-BR, from its stderr. Exit 2 from `ws board status` with the `[board]`
+     message: tell the user to add `[board]` to `config.toml` (README, "Local config").
    - Show the user, in PT-BR and short: each `moves` entry ("TS-1: em andamento → concluído (em
      produção)", with `environment` in plain words, or without it when null); each `held` card
      with its reason, the first case that applies: `holding.tag` set, "TS-2 fica em <status>: o
@@ -53,7 +56,11 @@ Nothing is written through the Atlassian MCP, ever.
    - No `moves`: say so and stop.
    - Otherwise run `ws board drafts --board ~/.local/share/workspace/board/board.json`; it prints
      `{"folder", "count"}`. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
-     one approval box for all moves.
+     one approval box for all moves. When the preview exits 1, it lists the failing drafts by file
+     name: `mv` exactly those files to `<folder>-refused/` (next to the sync folder, inside
+     `~/.local/share/workspace/cards/drafts/`; `mkdir -p` first), tell the user, in PT-BR, which
+     cards to move by hand and why (the problem the preview printed), and preview the folder again
+     with the rest. If no draft is left, stop.
 
 ## The draft
 
