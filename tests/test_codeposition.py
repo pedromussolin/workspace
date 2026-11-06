@@ -444,9 +444,7 @@ def test_commit_only_in_sandbox_names_no_tag(clone, git, branch, commit, merge, 
     assert position.holding.tag is None
 
 
-def test_unresolved_tag_among_resolved_ones_holds_the_environment(
-    clone, git, commit, push, tags
-):
+def test_unresolved_tag_among_resolved_ones_holds_the_environment(clone, git, commit, push, tags):
     repo = clone("demo-api")
     commit(repo, "fix: TS-101 x")
     push(repo, "master")
