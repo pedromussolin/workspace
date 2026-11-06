@@ -245,18 +245,30 @@ def positions(
         warnings.append(
             f"no remote '{cfg.remote}' (only prove in progress): {', '.join(no_remote)}"
         )
+    unread: dict[str, str] = {}
     for repo in sorted(repos, key=lambda item: item.name):
         try:
             commits = _commits(repo, keys, cfg.remote, since)
-            if not commits:
-                continue
-            found = _repo_pieces(repo, cfg, walk_since, commits, warnings)
         except (RuntimeError, OSError) as error:
             warnings.append(f"repo {repo.name}: left out ({error})")
+            continue
+        if not commits:
+            continue
+        try:
+            found = _repo_pieces(repo, cfg, walk_since, commits, warnings)
+        except (RuntimeError, OSError):
+            for _, _, wanted in commits:
+                for key in wanted:
+                    unread.setdefault(key, repo.name)
             continue
         for piece, wanted in found:
             for key in wanted:
                 by_key.setdefault(key, []).append(piece)
+    warnings.extend(
+        f"card {key}: left out, {repo} could not be read" for key, repo in sorted(unread.items())
+    )
     return {
-        key: _position(key, pieces, cfg, stale, by_name, warnings) for key, pieces in by_key.items()
+        key: _position(key, pieces, cfg, stale, by_name, warnings)
+        for key, pieces in by_key.items()
+        if key not in unread
     }, warnings

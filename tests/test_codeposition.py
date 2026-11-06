@@ -484,6 +484,30 @@ def web_in_production(clone, git, commit, push, tags) -> Callable[[], list[Path]
     return make
 
 
+def test_repo_read_but_not_proven_holds_its_cards(
+    clone, commit, push, web_in_production, monkeypatch
+):
+    api = clone("demo-api")
+    commit(api, "fix: TS-101 api")
+    push(api, "master")
+    commit(api, "fix: TS-102 api only")
+    repos = [api, *web_in_production()]
+    real = boardproofs.git_out
+
+    def failing(path, *args, **kwargs):
+        if path.name == "demo-api" and args[0] == "rev-list":
+            raise RuntimeError("rev-list exploded")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(boardproofs, "git_out", failing)
+    result, warnings = positions(repos, {"TS-101", "TS-102"}, board(), TODAY, set())
+    assert result == {}
+    assert warnings == [
+        "card TS-101: left out, demo-api could not be read",
+        "card TS-102: left out, demo-api could not be read",
+    ]
+
+
 def test_unresolved_tag_in_one_repo_holds_a_card_deployed_elsewhere(
     clone, git, commit, push, tags, web_in_production
 ):
