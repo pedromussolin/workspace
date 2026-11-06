@@ -516,6 +516,18 @@ def test_stash_does_not_hold_a_deployed_card(clone, git, commit, push, tags):
     assert result["TS-101"].rung == 4
 
 
+def test_archived_ref_and_stash_are_not_work(clone, git, commit):
+    repo = clone("demo-api")
+    commit(repo, "feat: TS-109 archived")
+    git(repo, "update-ref", "refs/archive/wt/x", "HEAD")
+    git(repo, "reset", "-q", "--hard", "HEAD~1")
+    (repo / "scratch.txt").write_text("wip", encoding="utf-8")
+    git(repo, "add", "scratch.txt")
+    git(repo, "stash", "push", "-q", "-m", "wip TS-110")
+    result, _ = positions([repo], {"TS-109", "TS-110"}, board(), TODAY, set())
+    assert result == {}
+
+
 def test_grep_failure_in_deploy_repo_is_its_own_warning(
     clone, git, commit, push, tags, monkeypatch
 ):

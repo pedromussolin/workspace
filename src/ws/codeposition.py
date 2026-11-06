@@ -85,12 +85,15 @@ def fetch(repos: list[Path], cfg: BoardConfig) -> dict[str, str]:
     return {repo.name: error for repo, error in zip(with_remote, errors, strict=True) if error}
 
 
-def _commits(repo: Path, keys: set[str], since: date) -> list[tuple[str, str, set[str]]]:
+def _commits(
+    repo: Path, keys: set[str], remote: str, since: date
+) -> list[tuple[str, str, set[str]]]:
+    """Commits of branches and remote branches only: archived refs and stashes are not work."""
     output = git_out(
         repo,
         "log",
-        "--exclude=refs/stash",
-        "--all",
+        "--branches",
+        f"--remotes={remote}",
         "--no-merges",
         f"--since={since.isoformat()}",
         f"--format=%H{FIELD_SEPARATOR}%s",
@@ -214,7 +217,7 @@ def positions(
         )
     for repo in sorted(repos, key=lambda item: item.name):
         try:
-            commits = _commits(repo, keys, since)
+            commits = _commits(repo, keys, cfg.remote, since)
             if not commits:
                 continue
             found = _repo_pieces(repo, cfg, walk_since, commits, warnings)
