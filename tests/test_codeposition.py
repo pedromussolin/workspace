@@ -575,6 +575,25 @@ def test_missing_deploy_branch_is_no_image_tag(clone, commit, push, tags):
     assert warnings == ["deploy demo-api: no image tag of this repo in demo-api-argocd"]
 
 
+@pytest.mark.parametrize(
+    ("names", "expected"),
+    [
+        (["fix/TS-101-y", "fix/TS-100-x-sdbx"], "fix/TS-101-y"),
+        (["fix/TS-101-y", "fix/TS-101-a-sdbx"], "fix/TS-101-y"),
+        (["fix/TS-101-a-sdbx", "chore/a"], "fix/TS-101-a-sdbx"),
+        (["zz/other", "chore/a"], "chore/a"),
+    ],
+)
+def test_holding_branch_prefers_the_cards_own(clone, git, branch, commit, names, expected):
+    repo = clone("demo-api")
+    branch(repo, names[0])
+    commit(repo, "fix: TS-101 y")
+    for name in names[1:]:
+        git(repo, "branch", name)
+    result, _ = positions([repo], {"TS-101"}, board(), TODAY, set())
+    assert result["TS-101"].holding.branch == expected
+
+
 def test_holding_branch_failure_keeps_the_card(clone, branch, commit, push, monkeypatch):
     repo = clone("demo-api")
     branch(repo, "feature/TS-101-x")

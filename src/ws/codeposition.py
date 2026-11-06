@@ -117,18 +117,24 @@ def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
     return names
 
 
-def _holding_branch(repo: Path, sha: str, cfg: BoardConfig, warnings: list[str]) -> str | None:
+def _holding_branch(
+    repo: Path, sha: str, key: str, cfg: BoardConfig, warnings: list[str]
+) -> str | None:
+    """The card's own branch first (a `-sdbx` copy only after it), then any work branch."""
     try:
         output = git_out(repo, "branch", "-a", "--contains", sha, "--format=%(refname:short)")
     except (RuntimeError, OSError) as error:
         warnings.append(f"repo {repo.name}: holding branch unknown ({error})")
         return None
     skip = _environment_branches(repo, cfg) | {cfg.remote}
-    for name in lines(output):
-        if name in skip or name.endswith("/HEAD") or name.startswith("("):
-            continue
-        return name
-    return None
+    names = [
+        name
+        for name in lines(output)
+        if name not in skip and not name.endswith("/HEAD") and not name.startswith("(")
+    ]
+    with_key = [name for name in names if key in keys_in(name)]
+    own = [name for name in with_key if not name.endswith("-sdbx")]
+    return next(iter(own or with_key or names), None)
 
 
 def _lacking_tag(
@@ -182,6 +188,7 @@ def _environment_at(cfg: BoardConfig, repo: str, rung: int) -> str | None:
 
 
 def _position(
+    key: str,
     pieces: list[_Piece],
     cfg: BoardConfig,
     stale: set[str],
@@ -199,7 +206,7 @@ def _position(
             held.sha[:7],
             held.subject,
             _environment_at(cfg, held.repo, held.reached) if held.reached else None,
-            _holding_branch(repos[held.repo], held.sha, cfg, warnings),
+            _holding_branch(repos[held.repo], held.sha, key, cfg, warnings),
             held.tag,
         )
     names = sorted({piece.repo for piece in pieces})
@@ -239,5 +246,5 @@ def positions(
             for key in wanted:
                 by_key.setdefault(key, []).append(piece)
     return {
-        key: _position(pieces, cfg, stale, by_name, warnings) for key, pieces in by_key.items()
+        key: _position(key, pieces, cfg, stale, by_name, warnings) for key, pieces in by_key.items()
     }, warnings
