@@ -161,12 +161,16 @@ a commit is in the environment when it is reachable from every one of them:
   Repos whose profile uses a `tag` proof are fetched with `--tags`; the others with `--no-tags`.
 - `file`: every sha the `image_tag` pattern captures in `<remote>/<deploy_branch>` of the deploy
   repo (`deploy_repo` with `{repo}` replaced; a sibling under the same root). A captured sha that
-  does not resolve in the repo is a warning and holds the environment (fail closed), unless none
-  resolves (the tag belongs to another app: ignored).
+  does not resolve in the repo while others do is a warning `deploy <repo>: tag <tag> not found
+  in this repo`, and the environment holds (fail closed): it stays in the repo's cap and no commit
+  of the repo is in it. When none resolves, the tags belong to another app: the environment is
+  unavailable in that repo (warning `no image tag of this repo`).
 - `command`: argv with `~`, `{repo}` and `{env}` expanded, run without a shell, with `timeout`;
-  each stdout line is a sha (7 to 40 hex) that must resolve in the repo. A failure, a timeout or
-  an unresolved sha is a warning `proof <repo>/<env>: <error>`, and the environment is unavailable
-  in that repo (it proves nothing). The command must only read; that is the user's
+  each stdout line is a sha (7 to 40 hex) that must resolve in the repo. A failure to run, a
+  non-zero exit, a timeout, a line that is not a sha or an unresolved sha is a warning
+  `proof <repo>/<env>: <error>`, and the environment holds (fail closed): it stays in the repo's
+  cap and no commit of the repo is in it. Exit 0 with no sha means nothing is deployed there: the
+  environment is unavailable in that repo. The command must only read; that is the user's
   responsibility, stated in the README.
 
 Which settings a repo gets: the `[board.repos]` table whose key is the repo's exact name; else the
@@ -208,8 +212,9 @@ Per repo under `repo_roots`, after the fetch:
    when one does), `repos` and `stale` (a fetch failed).
 
 **A repo holds a card only as far as it can prove (refines D6, 2026-11-05).** Each repo has a cap:
-the highest rung among the active environments of its profile whose proof gave commits (a repo
-without the sandbox branch on the remote has no sandbox; a repo without a remote has none). A commit that reached its repo's cap does not hold
+the highest rung among the active environments of its profile whose proof gave commits or failed
+(a proof that failed holds; a repo without the sandbox branch on the remote has no sandbox; a repo
+without a remote has none). A commit that reached its repo's cap does not hold
 the card. The card's rung is the lowest rung among the commits below their repo's cap; when every
 commit is at its cap, the card takes the highest cap among them. A card with any commit is at least
 in progress. So a repo without proofs only proves "in progress", and an ignored repo proves
@@ -226,7 +231,7 @@ English strings in `warnings`; the skills say them in PT-BR.
 | A repo has no `remote` (local or personal repo) | `ignore = true` in its `[board.repos."..."]` table leaves it out entirely | one line listing the repos without the remote that were not ignored (they prove only "in progress") |
 | A card's code lives only in repos that cannot prove production (a deploy repo, a repo with no deploy tags) | a profile that fits the repo (`file`, `tag` or `command` proof); deploy and config repos are `ignore = true`, since one commit there may be for any environment | the card goes to `limited` ("the git proves only up to <status> in <repos>") |
 | The deploy repo is not under `repo_roots`, or none of its tags belongs to the repo | a profile with the right `deploy_repo` for those repos | `deploy <repo>: <deploy repo> not found` or `deploy <repo>: no image tag of this repo in <deploy repo>`, only for repos with commits of open cards |
-| A `command` proof fails, times out or prints an unknown sha | the environment proves nothing in that repo (fail closed) | `proof <repo>/<env>: <error>` |
+| A `command` proof fails, times out or prints an unknown sha | the environment holds in that repo (fail closed): it stays in the repo's cap and none of the repo's commits is in it, so they hold the card below it | `proof <repo>/<env>: <error>` |
 | A key is the prefix of another (`TS-15`, `TS-150`) | keys are taken whole from the subject (word boundary), tested | none needed |
 | A cards file without `is_epic` (old file, MCP fallback) | a card that is the `epic_key` of another card is an epic too | `cards without is_epic: epics known only as parents; run ws task list again` |
 
