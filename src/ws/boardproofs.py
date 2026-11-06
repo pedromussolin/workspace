@@ -1,0 +1,118 @@
+"""Board proofs: which commits of a repo are in an environment, one function per proof."""
+
+import subprocess
+from datetime import date
+from pathlib import Path
+
+from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof, TagProof
+
+Markers = list[tuple[str, set[str]]]
+
+
+def run_git(
+    repo: Path, *args: str, timeout: float | None = None, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-c", "core.quotepath=false", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=timeout,
+        env=env,
+    )
+
+
+def first_line(text: str) -> str:
+    found = [line for line in text.split("\n") if line.strip()]
+    return found[0].strip() if found else "unknown error"
+
+
+def git_out(repo: Path, *args: str) -> str:
+    result = run_git(repo, *args)
+    if result.returncode != 0:
+        raise RuntimeError(first_line(result.stderr))
+    return result.stdout
+
+
+def lines(output: str) -> list[str]:
+    return [line for line in output.split("\n") if line]
+
+
+def _reachable(repo: Path, ref: str, since: date) -> set[str]:
+    return set(lines(git_out(repo, "rev-list", f"--since={since.isoformat()}", ref)))
+
+
+def _branch(repo: Path, proof: BranchProof, cfg: BoardConfig, walk_since: date) -> Markers | None:
+    """The tip of the first branch of `proof` that exists on the remote."""
+    for branch in proof.branches:
+        ref = f"refs/remotes/{cfg.remote}/{branch}"
+        if run_git(repo, "rev-parse", "--verify", "-q", ref).returncode == 0:
+            return [(branch, _reachable(repo, ref, walk_since))]
+    return None
+
+
+def _tag(repo: Path, proof: TagProof, walk_since: date) -> Markers | None:
+    """The most recent tag (creation date, then the highest name) matching the glob."""
+    newest = git_out(
+        repo,
+        "for-each-ref",
+        "--sort=-v:refname",
+        "--sort=-creatordate",
+        "--count=1",
+        "--format=%(refname)",
+        f"refs/tags/{proof.pattern}",
+    ).strip()
+    if not newest:
+        return None
+    return [(newest.removeprefix("refs/tags/"), _reachable(repo, newest, walk_since))]
+
+
+def _file(
+    repo: Path, proof: FileProof, cfg: BoardConfig, walk_since: date, warnings: list[str]
+) -> Markers | None:
+    """The history of each image tag of `repo` found in the deploy repo's branch."""
+    deploy_name = proof.deploy_repo.format(repo=repo.name)
+    deploy = repo.parent / deploy_name
+    if not (deploy / ".git").exists():
+        warnings.append(f"deploy {repo.name}: {deploy_name} not found")
+        return None
+    ref = f"{cfg.remote}/{proof.deploy_branch}"
+    found_lines: list[str] = []
+    if run_git(deploy, "rev-parse", "--verify", "-q", ref).returncode == 0:
+        found = run_git(deploy, "grep", "-h", "-o", "-E", "-e", proof.image_tag.pattern, ref, "--")
+        if found.returncode not in (0, 1):
+            warnings.append(f"deploy {repo.name}: {first_line(found.stderr)}")
+            return None
+        found_lines = lines(found.stdout)
+    tags: dict[str, str] = {}
+    for line in found_lines:
+        match = proof.image_tag.search(line)
+        if match:
+            tags.setdefault(match.group(1), match.group(0))
+    full = []
+    for sha, text in sorted(tags.items(), key=lambda item: item[1]):
+        resolved = run_git(repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}")
+        if resolved.returncode == 0:
+            full.append((text, resolved.stdout.strip()))
+    if not full:
+        warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
+        return None
+    return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
+
+
+def markers(
+    repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
+) -> Markers | None:
+    """What `env`'s proof gives in `repo`: (marker, commits reachable from it); None proves nothing.
+
+    A commit is in the environment when every marker reaches it.
+    """
+    if isinstance(env.proof, BranchProof):
+        return _branch(repo, env.proof, cfg, walk_since)
+    if isinstance(env.proof, TagProof):
+        return _tag(repo, env.proof, walk_since)
+    if isinstance(env.proof, FileProof):
+        return _file(repo, env.proof, cfg, walk_since, warnings)
+    return None

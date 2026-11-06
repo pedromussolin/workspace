@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ws import codeposition
+from ws import boardproofs, codeposition
 from ws.boardconfig import BoardConfig, parse_board
 from ws.codeposition import fetch, positions
 
@@ -503,14 +503,14 @@ def test_grep_failure_in_deploy_repo_is_its_own_warning(
     commit(repo, "fix: TS-101 x")
     push(repo, "master")
     deploy = tags({"a.yaml": values(head(git, repo))})
-    real = codeposition._run
+    real = boardproofs.run_git
 
     def failing(path, *args, **kwargs):
         if args[0] == "grep":
             return subprocess.CompletedProcess(args, 2, "", "fatal: grep exploded\n")
         return real(path, *args, **kwargs)
 
-    monkeypatch.setattr(codeposition, "_run", failing)
+    monkeypatch.setattr(boardproofs, "run_git", failing)
     result, warnings = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
     assert warnings == ["deploy demo-api: fatal: grep exploded"]
     assert result["TS-101"].rung == 3
@@ -534,14 +534,14 @@ def test_holding_branch_failure_keeps_the_card(clone, branch, commit, push, monk
     branch(repo, "feature/TS-101-x")
     commit(repo, "feat: TS-101 x")
     push(repo, "feature/TS-101-x")
-    real = codeposition._git_out
+    real = codeposition.git_out
 
     def failing(path, *args, **kwargs):
         if args[0] == "branch":
             raise RuntimeError("branch exploded")
         return real(path, *args, **kwargs)
 
-    monkeypatch.setattr(codeposition, "_git_out", failing)
+    monkeypatch.setattr(codeposition, "git_out", failing)
     result, warnings = positions([repo], {"TS-101"}, board(), TODAY, set())
     assert result["TS-101"].rung == 1
     assert result["TS-101"].holding.branch is None

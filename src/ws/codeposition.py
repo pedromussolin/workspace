@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof, TagProof
+from ws.boardconfig import BoardConfig, BranchProof, Environment
+from ws.boardproofs import Markers, first_line, git_out, lines, markers, run_git
 from ws.standup import keys_in
 from ws.taskmodel import RUNG, Status
 
@@ -49,34 +50,14 @@ class _Piece:
     tag: str | None = None
 
 
-def _run(
-    repo: Path, *args: str, timeout: float | None = None, env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-c", "core.quotepath=false", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=timeout,
-        env=env,
-    )
-
-
 def _has_remote(repo: Path, remote: str) -> bool:
-    return _run(repo, "remote", "get-url", remote).returncode == 0
-
-
-def _first_line(text: str) -> str:
-    lines = [line for line in text.split("\n") if line.strip()]
-    return lines[0].strip() if lines else "unknown error"
+    return run_git(repo, "remote", "get-url", remote).returncode == 0
 
 
 def _fetch_one(repo: Path, cfg: BoardConfig) -> str | None:
     tags = "--tags" if cfg.uses_tags(repo.name) else "--no-tags"
     try:
-        result = _run(
+        result = run_git(
             repo,
             "fetch",
             "--prune",
@@ -90,7 +71,7 @@ def _fetch_one(repo: Path, cfg: BoardConfig) -> str | None:
         return f"timeout after {FETCH_TIMEOUT_SECONDS}s"
     except OSError as error:
         return str(error)
-    return None if result.returncode == 0 else _first_line(result.stderr)
+    return None if result.returncode == 0 else first_line(result.stderr)
 
 
 def fetch(repos: list[Path], cfg: BoardConfig) -> dict[str, str]:
@@ -104,19 +85,8 @@ def fetch(repos: list[Path], cfg: BoardConfig) -> dict[str, str]:
     return {repo.name: error for repo, error in zip(with_remote, errors, strict=True) if error}
 
 
-def _git_out(repo: Path, *args: str, ok: tuple[int, ...] = (0,)) -> str:
-    result = _run(repo, *args)
-    if result.returncode not in ok:
-        raise RuntimeError(_first_line(result.stderr))
-    return result.stdout
-
-
-def _lines(output: str) -> list[str]:
-    return [line for line in output.split("\n") if line]
-
-
 def _commits(repo: Path, keys: set[str], since: date) -> list[tuple[str, str, set[str]]]:
-    output = _git_out(
+    output = git_out(
         repo,
         "log",
         "--exclude=refs/stash",
@@ -126,94 +96,12 @@ def _commits(repo: Path, keys: set[str], since: date) -> list[tuple[str, str, se
         f"--format=%H{FIELD_SEPARATOR}%s",
     )
     found = []
-    for line in _lines(output):
+    for line in lines(output):
         sha, _, subject = line.partition(FIELD_SEPARATOR)
         wanted = set(keys_in(subject)) & keys
         if wanted:
             found.append((sha, subject, wanted))
     return found
-
-
-def _reachable(repo: Path, ref: str, since: date) -> set[str]:
-    return set(_lines(_git_out(repo, "rev-list", f"--since={since.isoformat()}", ref)))
-
-
-def _branch_markers(
-    repo: Path, proof: BranchProof, cfg: BoardConfig, walk_since: date
-) -> list[tuple[str, set[str]]] | None:
-    """The tip of the first branch of `proof` that exists on the remote."""
-    for branch in proof.branches:
-        ref = f"refs/remotes/{cfg.remote}/{branch}"
-        if _run(repo, "rev-parse", "--verify", "-q", ref).returncode == 0:
-            return [(branch, _reachable(repo, ref, walk_since))]
-    return None
-
-
-def _tag_markers(
-    repo: Path, proof: TagProof, walk_since: date
-) -> list[tuple[str, set[str]]] | None:
-    """The most recent tag (creation date, then the highest name) matching the glob."""
-    newest = _git_out(
-        repo,
-        "for-each-ref",
-        "--sort=-v:refname",
-        "--sort=-creatordate",
-        "--count=1",
-        "--format=%(refname)",
-        f"refs/tags/{proof.pattern}",
-    ).strip()
-    if not newest:
-        return None
-    return [(newest.removeprefix("refs/tags/"), _reachable(repo, newest, walk_since))]
-
-
-def _file_markers(
-    repo: Path, proof: FileProof, cfg: BoardConfig, walk_since: date, warnings: list[str]
-) -> list[tuple[str, set[str]]] | None:
-    """The history of each image tag of `repo` found in the deploy repo's branch."""
-    deploy_name = proof.deploy_repo.format(repo=repo.name)
-    deploy = repo.parent / deploy_name
-    if not (deploy / ".git").exists():
-        warnings.append(f"deploy {repo.name}: {deploy_name} not found")
-        return None
-    ref = f"{cfg.remote}/{proof.deploy_branch}"
-    lines: list[str] = []
-    if _run(deploy, "rev-parse", "--verify", "-q", ref).returncode == 0:
-        found = _run(deploy, "grep", "-h", "-o", "-E", "-e", proof.image_tag.pattern, ref, "--")
-        if found.returncode not in (0, 1):
-            warnings.append(f"deploy {repo.name}: {_first_line(found.stderr)}")
-            return None
-        lines = _lines(found.stdout)
-    tags: dict[str, str] = {}
-    for line in lines:
-        match = proof.image_tag.search(line)
-        if match:
-            tags.setdefault(match.group(1), match.group(0))
-    full = []
-    for sha, text in sorted(tags.items(), key=lambda item: item[1]):
-        resolved = _run(repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}")
-        if resolved.returncode == 0:
-            full.append((text, resolved.stdout.strip()))
-    if not full:
-        warnings.append(f"deploy {repo.name}: no image tag of this repo in {deploy_name}")
-        return None
-    return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
-
-
-def _markers(
-    repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
-) -> list[tuple[str, set[str]]] | None:
-    """What `env`'s proof gives in `repo`: (marker, commits reachable from it); None proves nothing.
-
-    A commit is in the environment when every marker reaches it.
-    """
-    if isinstance(env.proof, BranchProof):
-        return _branch_markers(repo, env.proof, cfg, walk_since)
-    if isinstance(env.proof, TagProof):
-        return _tag_markers(repo, env.proof, walk_since)
-    if isinstance(env.proof, FileProof):
-        return _file_markers(repo, env.proof, cfg, walk_since, warnings)
-    return None
 
 
 def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
@@ -227,12 +115,12 @@ def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
 
 def _holding_branch(repo: Path, sha: str, cfg: BoardConfig, warnings: list[str]) -> str | None:
     try:
-        output = _git_out(repo, "branch", "-a", "--contains", sha, "--format=%(refname:short)")
+        output = git_out(repo, "branch", "-a", "--contains", sha, "--format=%(refname:short)")
     except (RuntimeError, OSError) as error:
         warnings.append(f"repo {repo.name}: holding branch unknown ({error})")
         return None
     skip = _environment_branches(repo, cfg) | {cfg.remote}
-    for name in _lines(output):
+    for name in lines(output):
         if name in skip or name.endswith("/HEAD") or name.startswith("("):
             continue
         return name
@@ -246,13 +134,13 @@ def _repo_pieces(
     commits: list[tuple[str, str, set[str]]],
     warnings: list[str],
 ) -> list[tuple[_Piece, set[str]]]:
-    proven: list[tuple[Environment, list[tuple[str, set[str]]]]] = []
+    proven: list[tuple[Environment, Markers]] = []
     if _has_remote(repo, cfg.remote):
         for env in cfg.environments_for(repo.name):
-            markers = _markers(repo, env, cfg, walk_since, warnings)
-            if markers is not None:
-                proven.append((env, markers))
-    sets = [(env.rung, set.intersection(*(shas for _, shas in markers))) for env, markers in proven]
+            given = markers(repo, env, cfg, walk_since, warnings)
+            if given is not None:
+                proven.append((env, given))
+    sets = [(env.rung, set.intersection(*(shas for _, shas in given))) for env, given in proven]
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:
@@ -260,9 +148,9 @@ def _repo_pieces(
         lacking = next(
             (
                 text
-                for env, markers in proven
+                for env, given in proven
                 if not isinstance(env.proof, BranchProof)
-                for text, shas in markers
+                for text, shas in given
                 if sha not in shas
             ),
             None,
