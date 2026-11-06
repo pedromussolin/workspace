@@ -158,6 +158,13 @@ Três leituras de código, com o detalhe em arquivos próprios:
   da Voltis (449, 713, 1043, 1044); o Mercato Libero está em `nao_aplica` (sem a etapa). Lote de par
   `automatica` fechado depois do corte vai para a fila manual (`cessao/framework/liquidacao/baixar.py:53`):
   em 03/11 e 06/11 os lotes da Voltis fechados às ~14h30 foram com `motivo_conciliacao = pos_horario_corte`.
+- **Fila de conciliação manual [C, réplica, 06/11]:** 3.214 lotes parados em `conciliacao_manual`
+  (713: 3.192; 1043: 14; 449: 8), todos criados em 22 e 23/09 e quase todos sem
+  `pos_horario_corte`. Os lotes recentes que caem lá andam (os de 03/11 e 06/11 já estão `concluido`
+  ou `liquidando`). [H] resíduo da estreia da conciliação; conferir com a operação.
+- **Origem na Voltis, 05/11 [C, réplica]:** no 713 e no 449 a origem é categoria ("pagamento com
+  atraso, porém realizado baixa sacado" ou "pagamento sem atraso"): 713 teve 4 lotes (2 origens × 2
+  originadores) e 449 teve 2. No 1043, um UUID por pagamento.
 - **Sem mexer no datawall:** a cessão não sabe quais linhas vieram do mesmo arquivo (a mensagem não
   leva o arquivo), então o Mercato Libero também vai para o horário por produto. A contagem por
   arquivo volta quando a carga dos arquivos entrar no sistema: quem carrega informa o total.

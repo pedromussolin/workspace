@@ -7,6 +7,8 @@ o motivo — é o que evita rediscutir depois.
 
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
+| 06/11/2026 | Agrupar sem a origem vira um valor novo no enum de modalidade de fechamento (ex.: `agendado_sem_origem`, chave produto+originador+fundo), para listagem, fechamento e exclusão seguirem a mesma chave (`_chave_do_lote_fake_por_modalidade` e `FakeBatchKey`). Se um dia outro gatilho precisar agrupar sem a origem, avaliar separar "quando fecha" de "como agrupa" em duas colunas | Pietro |
+| 06/11/2026 | Horário de fechamento depois do corte da conciliação: salva e avisa (opção C). Os avisos saem por e-mail pelo disparo da shared (`POST /email-dispatches`, template e grupo do Entra ID): aviso de horário depois do corte e resumo diário dos lotes na fila de conciliação manual | Pietro |
 | 06/11/2026 | A cessão se blinda contra a estrutura do parceiro: quando fechar (horários) e como agrupar (chave) são definidos por produto do nosso lado, sem depender de como o parceiro envia. A Voltis manda pagamento a pagamento, mesmo os do mesmo lote, e no 1043 cada pagamento traz uma origem própria; o sistema absorve isso em vez de exigir mudança do parceiro | Pietro |
 | D2 | Réplica: usuário da aplicação, `statement_timeout` e ajustes de conflito com replicação | — | `statement_timeout` ~120 s (o limite do BFF); avaliar `hot_standby_feedback`. A réplica já existe (conexão "[REPLICA] platform-cessao" do DBeaver, 06/10/2026) | DBA | [01](tasks/01-read-replica.md) |
 | D4 | Qual nome de CNAB mostrar | (a) o arquivo que o parceiro enviou (já salvo); (b) o arquivo que mandamos à ADM (não é salvo hoje) | depende do uso pela operação | Pietro + operação | [06](tasks/06-cnab-name-on-screen.md) |
