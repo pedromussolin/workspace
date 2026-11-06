@@ -429,9 +429,9 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
   rules: TS-102 local commit → em andamento, TS-103 in the sandbox → em validação)
 
 - [ ] **Step 1: Make the changes.**
-- [ ] **Step 2: Run** `scripts/run-evals out-of-sync-card` (see `scripts/run-evals --help` for the
-  exact flags; if it refuses because of hard links in `.venv`, run
-  `rm -rf .venv && UV_LINK_MODE=copy uv sync` first, as its message says). Expected: every grader passes in 3 of 3 runs. The full round (~US$ 6–7.5) runs
+- [ ] **Step 2: Run** `scripts/run-evals --case out-of-sync-card --ablation none` (a bare case
+  name filters nothing and runs every case; if it refuses because of hard links in a `.venv`, run
+  the command its message prints first). Expected: every grader passes in 3 of 3 runs. The full round (~US$ 6–7.5) runs
   only with the user's ok.
 - [ ] **Step 3: Commit** `git commit -m "test: evals da daily com a posição do código"` and
   `git push origin main`.
