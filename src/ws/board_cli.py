@@ -57,7 +57,8 @@ def _misread(
 ) -> set[str]:
     """Cards in a `[board.statuses]` name that the tracker's mapping reads as another status.
 
-    Their position is not computed, so they get no move: a wrong reading could move them back.
+    Their position is not computed and they are not asked to confirm: a wrong reading could move
+    them back.
     """
     board_status = {name: status for status, name in cfg.statuses.items()}
     keys = set()
@@ -114,6 +115,7 @@ def _status(args: argparse.Namespace) -> int:
     found, more = codeposition.positions(repos, keys, cfg, today, stale)
     warnings.extend(more)
     plan = plan_moves(tasks, found, cfg, today)
+    plan["to_confirm"] = [item for item in plan["to_confirm"] if item["key"] not in misread]
     print(json.dumps({**plan, "warnings": warnings}, ensure_ascii=False, indent=2))
     return 0
 

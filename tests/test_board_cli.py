@@ -246,6 +246,18 @@ def test_status_card_whose_board_name_reads_otherwise_is_skipped(
     ]
 
 
+def test_status_misread_card_is_not_asked_to_confirm(world, capsys, monkeypatch):
+    world.write_config(overrides={**OVERRIDES, "Em andamento": "validation"})
+    monkeypatch.setattr(board_cli, "unmapped_status", lambda cfg, overrides: None)
+    cards = world.cards(card("TS-103", "Em andamento", is_epic=False))
+    _, out, _ = run(capsys, "status", "--cards", str(cards), "--today", "2026-11-05")
+    result = json.loads(out)
+    assert result["to_confirm"] == []
+    assert result["warnings"] == [
+        'card TS-103: status "Em andamento" reads as validation; check [jira.status_overrides]'
+    ]
+
+
 def test_status_card_whose_board_name_reads_back_moves(world, capsys):
     cards = world.cards(card("TS-101", "Em andamento", is_epic=False))
     _, out, _ = run(capsys, "status", "--cards", str(cards), "--today", "2026-11-05")
