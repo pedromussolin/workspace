@@ -28,6 +28,22 @@ de outros devs.
 - **O contrato entre as duas partes:** os dados do dia estão no sistema até o horário de corte do
   produto. O horário se define com o time e a operação.
 
+## Cards (06/11, épico TS-5278)
+
+| Card | O quê | Prazo |
+|---|---|---|
+| TS-5565 | passagem da VM do Rafael (agenda, credenciais fora da conta dele, alertas) | 13/11 |
+| TS-5566 | documentação do fechamento em `docs/liquidacao/` da cessão (depois vai para o repo `docs`) | 13/11 |
+| TS-5573 | investigar vigentes abertos com lote já enviado nos oito acumulados fora do Mercato Libero | 13/11 |
+| TS-5567 | acúmulo como comportamento natural (pagamento espera sem lote; modalidade renomeada) | 18/11 |
+| TS-5568 | `POST /liquidacao/` no fechamento novo (rota única) | 18/11 |
+| TS-5569 | scheduler da cessão no banco | 18/11 |
+| TS-5570 | fechamento automático por horário de corte (seis produtos do Mercato Libero) | 20/11 |
+| TS-5571 | aprovação na conciliação antes do corte | 27/11 |
+| TS-5572 | fechamento automático em tempo de execução no fluxo novo (pagamento a pagamento, B19, B21) | 04/12 |
+
+Prazos provisórios, a ajustar.
+
 ## Levantamentos de 05/11
 
 Três leituras de código, com o detalhe em arquivos próprios:
