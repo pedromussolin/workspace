@@ -2,6 +2,7 @@
 
 import os
 import re
+import signal
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -121,6 +122,15 @@ def _argv(proof: CommandProof, repo: str, env: str) -> list[str]:
     ]
 
 
+def _kill_group(process: subprocess.Popen[str]) -> None:
+    """Kills the command and whatever it started (its own session), then reaps it."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.communicate()
+
+
 def _command(
     repo: Path, env: Environment, proof: CommandProof, walk_since: date, warnings: list[str]
 ) -> Markers | None:
@@ -131,24 +141,27 @@ def _command(
         return []
 
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             _argv(proof, repo.name, env.name),
-            capture_output=True,
             stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            check=False,
-            timeout=proof.timeout,
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired:
-        return failed(f"timeout after {proof.timeout}s")
     except OSError as error:
         return failed(str(error))
-    if result.returncode != 0:
-        detail = f": {first_line(result.stderr)}" if result.stderr.strip() else ""
-        return failed(f"exit {result.returncode}{detail}")
-    shas = list(dict.fromkeys(line.strip() for line in result.stdout.split("\n") if line.strip()))
+    try:
+        stdout, stderr = process.communicate(timeout=proof.timeout)
+    except subprocess.TimeoutExpired:
+        _kill_group(process)
+        return failed(f"timeout after {proof.timeout}s")
+    if process.returncode != 0:
+        detail = f": {first_line(stderr)}" if stderr.strip() else ""
+        return failed(f"exit {process.returncode}{detail}")
+    shas = list(dict.fromkeys(line.strip() for line in stdout.split("\n") if line.strip()))
     full = []
     for sha in shas:
         if not SHA.fullmatch(sha):

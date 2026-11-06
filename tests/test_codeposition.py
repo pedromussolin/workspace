@@ -1,4 +1,7 @@
+import os
+import signal
 import subprocess
+import time
 import tomllib
 from collections.abc import Callable
 from datetime import date
@@ -823,6 +826,33 @@ def test_command_failure_in_one_repo_holds_a_card_deployed_elsewhere(
     assert (position.rung, position.environment) == (3, "main")
     assert (position.holding.repo, position.holding.reached) == ("demo-api", "main")
     assert warnings == [f"proof demo-api/production: {error}"]
+
+
+def running(pid: int) -> bool:
+    """Whether `pid` is a live process (a zombie waiting to be reaped is not)."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+    return stat.rsplit(") ", 1)[1][0] != "Z"
+
+
+def test_command_timeout_kills_the_commands_children(clone, commit, push, deployed, tmp_path):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deployed('sleep 30 >/dev/null 2>&1 &\necho $! > "$HOME/child.pid"\nwait')
+    _, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
+    child = int((tmp_path / "child.pid").read_text(encoding="utf-8"))
+    try:
+        assert warnings == ["proof demo-api/production: timeout after 2s"]
+        deadline = time.monotonic() + 3
+        while running(child) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not running(child)
+    finally:
+        if running(child):
+            os.kill(child, signal.SIGKILL)
 
 
 def test_command_with_nothing_deployed_proves_nothing_silently(clone, commit, push, deployed):
