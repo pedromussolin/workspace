@@ -138,7 +138,12 @@ day = 2026-10-28
 - Description sections, level-2 headings exactly: `## Contexto`, `## Desenho combinado`,
   `## A fazer antes de implementar`, `## Pronto quando`. `## Contexto` and `## Pronto quando` are
   required and not empty; the other two only when there is something to say.
-- Plain PT-BR describing the task, not the person. Only headings, paragraphs, lists, fenced code,
+- Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
+  conversation or agreements between them. Bad: "Validar a estrutura do documento com <o usuário>."
+  Good: "Validar a estrutura do documento." Valid for create, edit (title and description) and
+  comment. Citing the user or Claude stays when it is part of the task itself, and other people stay
+  when the task depends on them.
+- Only headings, paragraphs, lists, fenced code,
   `**bold**`, `` `code` `` and links; no tables, quotes, images or HTML (the converter refuses).
 
 ## Exit codes
