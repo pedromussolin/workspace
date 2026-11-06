@@ -191,6 +191,14 @@ done = "Concluído"
 - Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent
   tag matching the glob), `file` (the commit shas that `image_tag` captures in the deploy repo's
   branch) and `command` (a program that prints the deployed shas, one per line).
+- A `file` or `command` proof that errors (the program fails, times out or prints something that
+  is not a sha, or a captured sha does not resolve) holds the environment: it fails closed, so no
+  commit of that repo counts as being there and the card stays below it, with the warning
+  `proof <repo>/<env>: ...`.
+- A `tag` proof fetches with `--tags`. A tag moved on the remote makes that repo's fetch fail, and
+  its data is then stale (warning `fetch <repo>: ...`).
+- A deploy repo shared by several apps needs an `image_tag` specific to the app, so only that
+  app's tags are captured.
 - A `command` proof must only read (it asks, it never changes anything): it runs without a shell,
   with `~`, `{repo}` and `{env}` expanded, and is stopped after `timeout` seconds. What it does is
   your responsibility.
