@@ -657,6 +657,7 @@ def fetch_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 def test_fetch_never_prompts_for_credentials(clone, monkeypatch):
     repo = clone("demo-api")
     monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+    monkeypatch.delenv("GIT_SSH", raising=False)
     seen = fetch_calls(monkeypatch)
     assert fetch([repo], board()) == {}
     assert len(seen) == 1
@@ -844,3 +845,17 @@ def test_command_that_cannot_run_is_a_warning(clone, commit, push, tmp_path, mon
     assert warnings[0].startswith("proof demo-api/production: ")
     assert str(tmp_path / "bin" / "deployed-sha") in warnings[0]
     assert (result["TS-101"].rung, result["TS-101"].limited) == (3, False)
+
+
+@pytest.mark.parametrize("how", ["GIT_SSH", "core.sshCommand"])
+def test_fetch_leaves_the_users_ssh_program_alone(clone, git, monkeypatch, how):
+    repo = clone("demo-api")
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+    monkeypatch.delenv("GIT_SSH", raising=False)
+    if how == "GIT_SSH":
+        monkeypatch.setenv("GIT_SSH", "ssh")
+    else:
+        git(repo, "config", "core.sshCommand", "ssh -i ~/.ssh/work")
+    seen = fetch_calls(monkeypatch)
+    assert fetch([repo], board()) == {}
+    assert "GIT_SSH_COMMAND" not in seen[0]["env"]
