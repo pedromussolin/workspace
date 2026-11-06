@@ -112,45 +112,73 @@ stale_workdays = 3
 ### `[board]`
 
 `ws board` moves cards by what the code proves. Without a `[board]` table in `config.toml` it exits
-2 and says what to add, and the `daily` goes on with the activity alone. The names below are
-placeholders:
+2 and says what to add, and the `daily` goes on with the activity alone. An environment is a
+question (which commits are in it?) answered by one proof; a profile is an ordered list of
+environments, and each repo, or glob of repos, uses one profile. The names below are placeholders:
 
 ```toml
 [board]
-remote = "origin"          # default
-lookback_days = 120        # default
-fetch = true               # default
-ignore_repos = ["*-workspace"]        # globs: repos left out entirely (default [])
-direct_deploy_repos = ["*-argocd"]    # globs: the last branch environment is production
+remote = "origin"            # default
+lookback_days = 120          # default
+fetch = true                 # default
+default_profile = "gitops"   # the profile of every repo without its own
 
-# In order, from the first environment to the last. `status` is the card status the
-# environment proves; the statuses must rise along the list.
-[[board.environments]]
+# A profile: environments in order, statuses rising. Each environment has one proof.
+[[board.profiles.gitops.environments]]
 name = "sandbox"
-branches = ["sandbox", "staging"]
 status = "validation"
+proof = "branch"
+branches = ["sandbox", "staging"]   # the first that exists on the remote
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "master"
-branches = ["master", "main"]
 status = "ready_deploy"
+proof = "branch"
+branches = ["master", "main"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "production"
 status = "done"
-# Proof by image tag: every tag the pattern finds in the deploy repo's branch.
+proof = "file"                      # GitOps: image tags written in a deploy repo
 deploy_repo = "{repo}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{7,40})'
 
-# Optional, per repo: other branch names, another deploy repo.
+# Release by tag in the code repo itself.
+[[board.profiles.release-tag.environments]]
+name = "main"
+status = "ready_deploy"
+proof = "branch"
+branches = ["main"]
+
+[[board.profiles.release-tag.environments]]
+name = "production"
+status = "done"
+proof = "tag"
+tag = "v*"                          # the most recent tag matching the glob
+
+# Anything else (a deploy API, Kubernetes, an observability tool): a read-only command that
+# prints the deployed shas, one per line.
+[[board.profiles.api.environments]]
+name = "production"
+status = "done"
+proof = "command"
+command = ["~/bin/deployed-sha", "{repo}", "{env}"]
+timeout = 20                        # seconds, default 20
+
 [board.repos."some-repo"]
-deploy_repo = "some-deploy-repo"
+profile = "release-tag"
 
-[board.repos."some-repo".branches]
-sandbox = ["homolog"]
+[board.repos."data-*"]
+inactive = ["sandbox"]              # declared, switched off: proves nothing in these repos
 
-# Jira status names of the statuses a move can reach.
+[board.repos."*-argocd"]
+ignore = true                       # deploy repos are proof sources, not code
+
+[board.repos."*-workspace"]
+ignore = true
+
+# Status names in the tracker for the statuses a move can reach (global: one board).
 [board.statuses]
 in_progress = "Em andamento"
 validation = "In Validation"
@@ -159,8 +187,17 @@ done = "Concluído"
 ```
 
 - Each commit takes the highest environment that contains it; the card takes the lowest of its
-  commits. An environment has `branches` or `deploy_repo`, not both.
-- `[board.statuses]` needs a name for every status an environment uses, plus `in_progress`.
+  commits. The statuses of a profile must rise along its list.
+- Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent
+  tag matching the glob), `file` (the commit shas that `image_tag` captures in the deploy repo's
+  branch) and `command` (a program that prints the deployed shas, one per line).
+- A `command` proof must only read (it asks, it never changes anything): it runs without a shell,
+  with `~`, `{repo}` and `{env}` expanded, and is stopped after `timeout` seconds. What it does is
+  your responsibility.
+- A repo uses the table whose key is its exact name, else the first glob that matches, else
+  `default_profile`. `ignore = true` leaves a repo out; `inactive` switches environments off.
+- `[board.statuses]` needs a name for every status any profile uses, plus `in_progress`, and each
+  name must map back to its own status through `[jira.status_overrides]`.
 - A bad value exits 2 with the key path.
 
 ## What protects the repo
@@ -273,7 +310,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the approval gate, whose box shows the preview's summary), exit 2 when those are not set up; on a real terminal it shows the summary and asks `Gravar no Jira? [s/N]` instead; a failed or uncertain draft goes to `cards/uncertain/` |
 | `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
 | `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
-| `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
+| `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints `tasks` (the neutral tasks) and `stuck` (active cards with no activity for the configured workdays) |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
 | `ws checkpoint check SLUG` | Validates the project's `CONTINUE.md` (required sections `## Onde parei` and `## Próximo passo` filled in, size limit on the next step) and `decisions.md`; prints a JSON verdict, exit 0 when ok, 1 otherwise |
