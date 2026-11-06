@@ -81,6 +81,22 @@ image_tag = 'prod-([0-9a-f]{7,40})'
 [repos."demo-api"]
 profile = "other-deploy"
 """
+RELEASE = """
+[[profiles.release.environments]]
+name = "main"
+status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
+
+[[profiles.release.environments]]
+name = "production"
+status = "done"
+proof = "tag"
+tag = "v*"
+
+[repos."demo-api"]
+profile = "release"
+"""
 TRUNK = """
 [[profiles.trunk.environments]]
 name = "trunk"
@@ -120,7 +136,7 @@ def test_fetch_failure_is_reported_and_no_remote_is_silent(clone, git, tmp_path)
     git(broken, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
     healthy = clone("demo-web")
     personal = clone("notes", remote=False)
-    errors = fetch([broken, healthy, personal], "origin")
+    errors = fetch([broken, healthy, personal], board())
     assert list(errors) == ["demo-api"]
     assert errors["demo-api"]
 
@@ -543,7 +559,71 @@ def test_fetch_never_prompts_for_credentials(clone, monkeypatch):
         return real(command, *args, **kwargs)
 
     monkeypatch.setattr(codeposition.subprocess, "run", spy)
-    assert fetch([repo], "origin") == {}
+    assert fetch([repo], board()) == {}
     assert len(seen) == 1
     assert seen[0]["GIT_TERMINAL_PROMPT"] == "0"
     assert seen[0]["PATH"]
+
+
+@pytest.fixture
+def tag(git: Git, monkeypatch: pytest.MonkeyPatch) -> Callable[[Path, str, str, str], None]:
+    """An annotated tag on `ref` created on `day`, so its creatordate is that day."""
+
+    def make(repo: Path, name: str, ref: str, day: str) -> None:
+        monkeypatch.setenv("GIT_COMMITTER_DATE", f"{day}T12:00:00")
+        git(repo, "tag", "-a", name, "-m", name, ref)
+
+    return make
+
+
+def test_commit_before_the_newest_release_tag_is_done(clone, git, commit, push, tag):
+    repo = clone("demo-api")
+    tag(repo, "v2.0", "HEAD", "2026-10-01")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    tag(repo, "v1.0", "HEAD", "2026-10-22")
+    commit(repo, "chore: after the release", day="2026-10-23")
+    tag(repo, "build-7", "HEAD", "2026-10-24")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=RELEASE), TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].environment) == (4, "production")
+    assert result["TS-101"].holding is None
+    assert warnings == []
+
+
+def test_commit_after_the_newest_release_tag_is_held_below(clone, commit, push, tag):
+    repo = clone("demo-api")
+    tag(repo, "v1.0", "HEAD", "2026-10-01")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    result, _ = positions([repo], {"TS-101"}, board(tables=RELEASE), TODAY, set())
+    position = result["TS-101"]
+    assert (position.rung, position.environment) == (3, "main")
+    assert position.holding.reached == "main"
+    assert position.holding.tag == "v1.0"
+    assert position.limited is False
+
+
+def test_repo_without_release_tag_proves_up_to_main_silently(clone, commit, push):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=RELEASE), TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].limited) == (3, True)
+    assert warnings == []
+
+
+def test_fetch_takes_tags_only_for_repos_with_a_tag_proof(clone, monkeypatch):
+    released = clone("demo-api")
+    plain = clone("demo-web")
+    seen = {}
+    real = subprocess.run
+
+    def spy(command, *args, **kwargs):
+        if "fetch" in command:
+            seen[Path(command[command.index("-C") + 1]).name] = command
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(codeposition.subprocess, "run", spy)
+    assert fetch([released, plain], board(tables=RELEASE)) == {}
+    assert "--tags" in seen["demo-api"] and "--no-tags" not in seen["demo-api"]
+    assert "--no-tags" in seen["demo-web"] and "--tags" not in seen["demo-web"]

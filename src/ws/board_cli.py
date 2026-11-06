@@ -83,7 +83,7 @@ def _status(args: argparse.Namespace) -> int:
     keys = {task.key for task in tasks if task.status in RUNG and task.status != Status.DONE}
     stale: set[str] = set()
     if cfg.fetch:
-        errors = codeposition.fetch(repos, cfg.remote)
+        errors = codeposition.fetch(repos, cfg)
         warnings.extend(f"fetch {repo}: {error}" for repo, error in errors.items())
         stale = set(errors)
     found, more = codeposition.positions(repos, keys, cfg, today, stale)

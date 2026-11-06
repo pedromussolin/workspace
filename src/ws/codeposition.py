@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof
+from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof, TagProof
 from ws.standup import keys_in
 from ws.taskmodel import RUNG, Status
 
@@ -73,14 +73,16 @@ def _first_line(text: str) -> str:
     return lines[0].strip() if lines else "unknown error"
 
 
-def _fetch_one(repo: Path, remote: str) -> str | None:
+def _fetch_one(repo: Path, cfg: BoardConfig) -> str | None:
+    tags = "--tags" if cfg.uses_tags(repo.name) else "--no-tags"
     try:
         result = _run(
             repo,
             "fetch",
             "--prune",
             "--quiet",
-            remote,
+            tags,
+            cfg.remote,
             timeout=FETCH_TIMEOUT_SECONDS,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
@@ -91,11 +93,14 @@ def _fetch_one(repo: Path, remote: str) -> str | None:
     return None if result.returncode == 0 else _first_line(result.stderr)
 
 
-def fetch(repos: list[Path], remote: str) -> dict[str, str]:
-    """Fetches `remote` in every repo that has it; returns repo name -> error for failures."""
-    with_remote = [repo for repo in repos if _has_remote(repo, remote)]
+def fetch(repos: list[Path], cfg: BoardConfig) -> dict[str, str]:
+    """Fetches the remote in every repo that has it; returns repo name -> error for failures.
+
+    Tags come only to repos whose profile proves an environment by a tag.
+    """
+    with_remote = [repo for repo in repos if _has_remote(repo, cfg.remote)]
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-        errors = list(pool.map(lambda repo: _fetch_one(repo, remote), with_remote))
+        errors = list(pool.map(lambda repo: _fetch_one(repo, cfg), with_remote))
     return {repo.name: error for repo, error in zip(with_remote, errors, strict=True) if error}
 
 
@@ -144,6 +149,24 @@ def _branch_markers(
     return None
 
 
+def _tag_markers(
+    repo: Path, proof: TagProof, walk_since: date
+) -> list[tuple[str, set[str]]] | None:
+    """The most recent tag (creation date, then the highest name) matching the glob."""
+    newest = _git_out(
+        repo,
+        "for-each-ref",
+        "--sort=-v:refname",
+        "--sort=-creatordate",
+        "--count=1",
+        "--format=%(refname)",
+        f"refs/tags/{proof.pattern}",
+    ).strip()
+    if not newest:
+        return None
+    return [(newest.removeprefix("refs/tags/"), _reachable(repo, newest, walk_since))]
+
+
 def _file_markers(
     repo: Path, proof: FileProof, cfg: BoardConfig, walk_since: date, warnings: list[str]
 ) -> list[tuple[str, set[str]]] | None:
@@ -186,6 +209,8 @@ def _markers(
     """
     if isinstance(env.proof, BranchProof):
         return _branch_markers(repo, env.proof, cfg, walk_since)
+    if isinstance(env.proof, TagProof):
+        return _tag_markers(repo, env.proof, walk_since)
     if isinstance(env.proof, FileProof):
         return _file_markers(repo, env.proof, cfg, walk_since, warnings)
     return None
