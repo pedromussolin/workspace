@@ -27,7 +27,7 @@ one: card titles must not land in whatever folder the session is in. Never read
    (so a card file from an earlier day is never used), then
    `ws task list --since <since> > ~/.local/share/workspace/standup/cards.json.tmp`, where `<since>`
    is `window.since` from `activity.json`. Only when the exit code is 0, `mv` the `.tmp` file to
-   `cards.json`; a failed run must not leave a `cards.json`. Exit 0: go to step 4 with cards. Exit 2 (no
+   `cards.json`; a failed run must not leave a `cards.json`. Exit 0: go to step 3b with cards. Exit 2 (no
    `config.toml` or no Jira API key; the user can create the key on the Atlassian site and run
    `ws config token jira` in their own terminal, outside Claude, since it needs a terminal and the
    key is never pasted in the chat) or exit 1 (Jira error): go to step 3.
@@ -60,7 +60,7 @@ one: card titles must not land in whatever folder the session is in. Never read
      `EOF` keep the shell from touching the titles. Never drop the fetched cards because Write
      was denied.
    - **No cards** (the script and the MCP both failed): go to step 4 without `--cards`.
-3b. **Board.** Only when a `cards.json` exists (from step 2 or 3). Run
+3b. **Board.** Runs after step 2 or step 3, whichever produced `cards.json`; without one, skip it. Run
    `rm -f ~/.local/share/workspace/standup/board.json ~/.local/share/workspace/standup/board.json.tmp`,
    then `ws board status --cards ~/.local/share/workspace/standup/cards.json > ~/.local/share/workspace/standup/board.json.tmp`.
    Only when the exit code is 0, `mv` the `.tmp` file to `board.json`. Exit 2 (no `[board]` table
