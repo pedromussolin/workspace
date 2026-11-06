@@ -126,7 +126,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 ## B9 — Parceiro sem `internal_id` enxerga todos os produtos (segurança)
 
 - **Onde:** BFF `src/shared/repository/users.py:33-50` e
-  `src/shared/business/users.py:128-131`. Para quem não é PLGN,
+  `src/shared/business/users.py:128-131`. Para quem não é PLDR,
   `get_partner_internal_id_list` devolve `[]` quando falta `client_id`, ele não
   é inteiro ou nenhum produto tem `internal_id`. A busca de fundos vai sem
   `identificador_parceiro`, e a cessão só filtra com a lista preenchida
@@ -135,7 +135,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   status de lotes de qualquer produto. Enfraquece o B5.
 - **Confirmado:** leitura do código no code review da TS-5377 (14/10). Não se
   sabe se há usuários nessa situação.
-- **Correção:** em `get_allowed_product_ids`, lista vazia para não PLGN vira
+- **Correção:** em `get_allowed_product_ids`, lista vazia para não PLDR vira
   `[]` (nenhum produto) ou 403, nunca busca sem filtro.
 
 ## B10 — Rotas de lote sem checagem de produto (segurança)
