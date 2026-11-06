@@ -44,15 +44,17 @@ Nothing is written through the Atlassian MCP, ever.
      message: tell the user to add `[board]` to `config.toml` (README, "Local config").
    - Show the user, in PT-BR and short: each `moves` entry ("TS-1: em andamento → concluído (em
      produção)", with `environment` in plain words, or without it when null); each `held` card
-     with its reason, the first case that applies: `holding.tag` set, "TS-2 fica em <status>: o
-     commit <holding.commit> de <holding.repo> ainda não está na tag de produção <holding.tag>";
-     else `holding.reached` set, "TS-2 fica em <status>: o commit <holding.commit> de
-     <holding.repo> só chegou a <holding.reached>"; else "TS-2 fica em <status>: o commit
-     <holding.commit> de <holding.repo> está só na branch <holding.branch>" (or "está fora dos
-     ambientes" when `holding.branch` is null); each `limited` card ("o git só prova até
+     with its reason, the first case that applies (`<status>` in PT-BR, so no "fica em em"):
+     `holding.tag` set, "TS-2 (<status>): o commit <holding.commit> de <holding.repo> ainda não
+     está na tag de produção <holding.tag>"; else `holding.reached` set, "TS-2 (<status>): o
+     commit <holding.commit> de <holding.repo> só chegou a <holding.reached>"; else "TS-2
+     (<status>): o commit <holding.commit> de <holding.repo> está só na branch <holding.branch>"
+     (or "está fora dos ambientes" when `holding.branch` is null); each `limited` card ("o git só prova até
      <status>"); and the `warnings`: one starting with `fetch <repo>:` is written "dados de <repo>
      podem estar desatualizados" instead of the raw text (`stale` on a move is only a bool, the
-     repo name exists only there); the others as they are. Status names in PT-BR as in the daily.
+     repo name exists only there); the others as they are. Status names in PT-BR:
+     `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done`
+     "concluída", `cancelled` "cancelada".
    - No `moves`: say so and stop.
    - Otherwise run `ws board drafts --board ~/.local/share/workspace/board/board.json`; it prints
      `{"folder", "count"}`. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
