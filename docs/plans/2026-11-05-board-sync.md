@@ -448,3 +448,102 @@ per key: low = min(values); rung = max(caps of its commits) if low == inf else l
 - [ ] **Step 3:** Save the memory "mergeei/subiu → oferecer e rodar a sincronização do board, a
   caixa de aprovação continua" (`~/.claude/projects/-home-pnetto-repos/memory/`, linked in
   `MEMORY.md`).
+
+### Task 10: Profiles, proofs and the final-review fixes in the code
+
+Spec sections "Config" (profiles, the four proofs, `[board.repos]`, validation) and "Positions"
+(step 1 refs, step 2 holding tag) were rewritten on 2026-11-06; they are the contract. This task
+replaces the first config shape (top-level `environments`, `ignore_repos`, `direct_deploy_repos`,
+a repo's `branches`/`deploy_repo`) and folds in the final review's code findings.
+
+**Files:**
+- Modify: `src/ws/boardconfig.py` (rewrite), `src/ws/codeposition.py`, `src/ws/board_cli.py`
+- Modify: `evals/lib/fixture.sh` (the `[board]` and `[jira.status_overrides]` of the fixture)
+- Test: `tests/test_boardconfig.py`, `tests/test_codeposition.py`, `tests/test_board_cli.py`
+
+**Interfaces:**
+- Produces (`ws.boardconfig`):
+  - `@dataclass(frozen=True)` proofs: `BranchProof(branches: tuple[str, ...])`,
+    `TagProof(pattern: str)`, `FileProof(deploy_repo: str, deploy_branch: str, image_tag:
+    re.Pattern[str])`, `CommandProof(argv: tuple[str, ...], timeout: int)`; `Proof` = their union.
+  - `Environment(name: str, status: Status, proof: Proof)` with property `rung`.
+  - `Profile(name: str, environments: tuple[Environment, ...])`.
+  - `RepoSettings(key: str, ignore: bool, profile: str | None, inactive: tuple[str, ...])`.
+  - `BoardConfig(remote, lookback_days, fetch, default_profile: str, profiles: dict[str, Profile],
+    repos: tuple[RepoSettings, ...], statuses: dict[Status, str])` with `settings_for(repo) ->
+    RepoSettings | None` (exact key first, else the first glob in file order), `ignored(repo) ->
+    bool`, `environments_for(repo) -> tuple[Environment, ...]` (the repo's profile, inactive
+    ones removed) and `uses_tags(repo) -> bool`.
+  - `parse_board`, `load_board`, `BoardMissing` keep their names.
+- `codeposition.positions` and `fetch` keep their signatures; `fetch` takes the config
+  (`fetch(repos, cfg)`) to choose `--tags`/`--no-tags` per repo.
+
+- [ ] **Step 1: Config v2 (`feat: perfis e provas na configuração do board`).** Tests: the spec
+  example parses (profiles `gitops`, `release-tag`, `api`; `settings_for("data-api").inactive ==
+  ("sandbox",)`; `ignored("x-argocd")`; `environments_for("data-api")` has no sandbox;
+  `settings_for` exact beats glob, first glob in file order wins); every validation rule of the
+  spec raises `ConfigInvalid` naming the key path (one parametrized case each, including unknown
+  keys at every level and each first-version key with the message
+  `is from the first version; use [board.profiles.<name>] and [board.repos."<glob>"]`).
+  `codeposition` and `board_cli` move to `environments_for` with the `branch` and `file` proofs
+  (behavior unchanged; adapt the existing tests to the new config shape). `evals/lib/fixture.sh`
+  gets the new shape (`default_profile`, one profile with `sandbox` on `sandbox` and `master` on
+  `main`) and `[jira.status_overrides]` with `"Em validação" = "validation"` and
+  `"Ready Deploy" = "ready_deploy"`.
+- [ ] **Step 2: (`feat: prova por tag de release no próprio repo`).** `TagProof`: the most recent
+  tag by `creatordate` matching the glob (`git for-each-ref --sort=-creatordate --count=1
+  refs/tags/<glob>`); `fetch` uses `--tags` for repos where `uses_tags`, `--no-tags` otherwise.
+  Tests: commit before the newest `v*` tag → done; after it → held below; `--no-tags` for a
+  branch-only repo (spy on the argv).
+- [ ] **Step 3: (`feat: prova por comando para qualquer fonte de deploy`).** `CommandProof`:
+  argv with `~`, `{repo}`, `{env}` expanded, `subprocess.run` without a shell, `timeout`; stdout
+  lines must be 7–40 hex and resolve in the repo. Failure, timeout or unresolved sha → warning
+  `proof <repo>/<env>: <error>` and the environment proves nothing in that repo. Tests with a
+  script in `tmp_path`: prints the deployed sha → done; exits 1 → warning, not done; sleeps past
+  the timeout → warning; prints an unknown sha → warning.
+- [ ] **Step 4: (`fix: tag do repo de deploy que não resolve segura o ambiente`).** `file` proof:
+  when some captured shas resolve and others do not, warn `deploy <repo>: tag <tag> not found in
+  this repo` and the environment proves nothing (fail closed); when none resolves, keep today's
+  "no image tag of this repo" (another app's tags).
+- [ ] **Step 5: (`fix: refs arquivadas e stash não contam como trabalho`).** Commits come from
+  `git log --branches --remotes=<remote> --no-merges ...`. Test: a commit only under
+  `refs/archive/wt/x` and one only in a stash → no position.
+- [ ] **Step 6: (`fix: tag só aparece quando o commit já passou do ambiente anterior`).**
+  `Holding.tag` is set only when the holding commit's `reached` is the environment right before
+  the one the tag proves. Test: a commit only in the sandbox → `tag is None`.
+- [ ] **Step 7: (`fix: fetch com tempo menor e ssh sem esperar senha`).** Fetch timeout 60 s;
+  env adds `GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10"` unless the user already
+  set `GIT_SSH_COMMAND`. Test: spy on the env.
+- [ ] **Step 8: (`fix: branch que segura o card prefere a do próprio card`).** `_holding_branch`
+  prefers, in order: a branch whose name carries the card key and does not end with `-sdbx`; a
+  branch carrying the key; any other non-environment branch. Test: TS-101 commit on
+  `fix/TS-100-x-sdbx` and `fix/TS-101-y` → `fix/TS-101-y`.
+- [ ] **Step 9: (`feat: status do board conferidos contra o mapa do Jira`).** `ws board status`
+  exits 2 when a `[board.statuses]` name for `validation` or `ready_deploy` is not in
+  `[jira.status_overrides]` with that same status, or any name is in the overrides with another
+  status: `board.statuses.<status> "<name>" does not map back to <status> in
+  [jira.status_overrides]; a card in it would be read wrong and could move backwards`. Names for
+  `in_progress` and `done` may rely on the Jira category. Tests: each case.
+- [ ] **Step 10:** `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --check`; each step
+  above is its own commit with its tests, suite passing at each.
+
+### Task 11: Skills and README after the final review
+
+**Files:** `skills/daily/SKILL.md`, `skills/daily/references/detailed.md`, `skills/card/SKILL.md`,
+`README.md`.
+
+- [ ] **Step 1 (`fix: daily monta o board quando o Jira responde`).** Step 2 of the daily says
+  "Exit 0: go to step 3b with cards"; step 3b runs after step 2 or step 3, whichever produced
+  `cards.json`.
+- [ ] **Step 2 (`fix: /card sincronizar limpa e segue sem o card recusado`).** Step 6 starts with
+  `rm -f` of the board folder's `cards.json`, `board.json` and their `.tmp`; stops when
+  `ws task list` or `ws board status` fails (saying why); when `ws card preview <folder>` exits 1,
+  moves the drafts the preview lists as failed into `<folder>-refused/` (inside the drafts root),
+  tells the user which cards to move by hand and why, and previews the rest.
+- [ ] **Step 3 (`docs: textos do /card com status em PT-BR`).** Copy the PT-BR status table into
+  the card skill; the held reason reads "TS-2 (em validação): o commit ..." (no "fica em em").
+- [ ] **Step 4 (`docs: daily pergunta pelo teste em homologação`).** The `to_confirm` line becomes
+  "testado em homologação? TS-5537 (última atualização 03/11)" in the short and detailed modes.
+- [ ] **Step 5 (`docs: README com perfis e provas do board`).** The `[board]` subsection shows the
+  spec's new example, states that a `command` proof must only read, and the `ws task status` row
+  says it prints `tasks` and `stuck`.
