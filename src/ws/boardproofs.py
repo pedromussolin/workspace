@@ -1,12 +1,15 @@
 """Board proofs: which commits of a repo are in an environment, one function per proof."""
 
+import os
+import re
 import subprocess
 from datetime import date
 from pathlib import Path
 
-from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof, TagProof
+from ws.boardconfig import BoardConfig, BranchProof, CommandProof, Environment, FileProof, TagProof
 
 Markers = list[tuple[str, set[str]]]
+SHA = re.compile(r"[0-9a-fA-F]{7,40}")
 
 
 def run_git(
@@ -102,6 +105,52 @@ def _file(
     return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
 
 
+def _argv(proof: CommandProof, repo: str, env: str) -> list[str]:
+    expanded = [item.format(repo=repo, env=env) for item in proof.argv]
+    return [
+        os.path.expanduser(text) if item.startswith("~") else text
+        for item, text in zip(proof.argv, expanded, strict=True)
+    ]
+
+
+def _command(
+    repo: Path, env: Environment, proof: CommandProof, walk_since: date, warnings: list[str]
+) -> Markers | None:
+    """The shas a read-only command prints, one per line; any doubt proves nothing (fail closed)."""
+
+    def failed(error: str) -> None:
+        warnings.append(f"proof {repo.name}/{env.name}: {error}")
+
+    try:
+        result = subprocess.run(
+            _argv(proof, repo.name, env.name),
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=proof.timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return failed(f"timeout after {proof.timeout}s")
+    except OSError as error:
+        return failed(str(error))
+    if result.returncode != 0:
+        detail = f": {first_line(result.stderr)}" if result.stderr.strip() else ""
+        return failed(f"exit {result.returncode}{detail}")
+    shas = list(dict.fromkeys(line.strip() for line in result.stdout.split("\n") if line.strip()))
+    full = []
+    for sha in shas:
+        if not SHA.fullmatch(sha):
+            return failed(f"{sha!r} is not a sha")
+        resolved = run_git(repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}")
+        if resolved.returncode != 0:
+            return failed(f"{sha} not found in this repo")
+        full.append((sha, resolved.stdout.strip()))
+    return [(sha, _reachable(repo, commit, walk_since)) for sha, commit in full] or None
+
+
 def markers(
     repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
 ) -> Markers | None:
@@ -115,4 +164,4 @@ def markers(
         return _tag(repo, env.proof, walk_since)
     if isinstance(env.proof, FileProof):
         return _file(repo, env.proof, cfg, walk_since, warnings)
-    return None
+    return _command(repo, env, env.proof, walk_since, warnings)

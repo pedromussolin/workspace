@@ -97,6 +97,23 @@ tag = "v*"
 [repos."demo-api"]
 profile = "release"
 """
+API = """
+[[profiles.api.environments]]
+name = "main"
+status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
+
+[[profiles.api.environments]]
+name = "production"
+status = "done"
+proof = "command"
+command = ["~/bin/deployed-sha", "{repo}", "{env}"]
+timeout = 2
+
+[repos."demo-api"]
+profile = "api"
+"""
 TRUNK = """
 [[profiles.trunk.environments]]
 name = "trunk"
@@ -627,3 +644,77 @@ def test_fetch_takes_tags_only_for_repos_with_a_tag_proof(clone, monkeypatch):
     assert fetch([released, plain], board(tables=RELEASE)) == {}
     assert "--tags" in seen["demo-api"] and "--no-tags" not in seen["demo-api"]
     assert "--no-tags" in seen["demo-web"] and "--tags" not in seen["demo-web"]
+
+
+@pytest.fixture
+def deployed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
+    """~/bin/deployed-sha: prints ~/deployed when called as `demo-api production`, else fails."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    script = tmp_path / "bin" / "deployed-sha"
+    script.parent.mkdir()
+
+    def make(body: str) -> None:
+        script.write_text(
+            "#!/bin/sh\n"
+            '[ "$1" = demo-api ] && [ "$2" = production ] || { echo "bad args: $*" >&2; exit 9; }\n'
+            f"{body}\n",
+            encoding="utf-8",
+        )
+        script.chmod(0o755)
+
+    return make
+
+
+def test_command_printing_the_deployed_sha_is_done(clone, git, commit, push, deployed):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deployed(f"echo; echo {head(git, repo)}; echo")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].environment) == (4, "production")
+    assert warnings == []
+
+
+def test_command_older_sha_holds_the_card(clone, git, commit, push, deployed):
+    repo = clone("demo-api")
+    old = head(git, repo)
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deployed(f"echo {old}")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
+    assert result["TS-101"].rung == 3
+    assert (result["TS-101"].holding.reached, result["TS-101"].holding.tag) == ("main", old)
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    ("body", "error"),
+    [
+        ("echo 'no deploy found' >&2; exit 1", "exit 1: no deploy found"),
+        ("exec sleep 5", "timeout after 2s"),
+        ("echo deadbee", "deadbee not found in this repo"),
+        ("echo 'deployed: abc1234'", "'deployed: abc1234' is not a sha"),
+    ],
+)
+def test_command_failure_is_a_warning_and_proves_nothing(
+    clone, commit, push, deployed, body, error
+):
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    deployed(body)
+    result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
+    assert warnings == [f"proof demo-api/production: {error}"]
+    assert (result["TS-101"].rung, result["TS-101"].limited) == (3, True)
+
+
+def test_command_that_cannot_run_is_a_warning(clone, commit, push, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    repo = clone("demo-api")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    result, warnings = positions([repo], {"TS-101"}, board(tables=API), TODAY, set())
+    assert len(warnings) == 1
+    assert warnings[0].startswith("proof demo-api/production: ")
+    assert str(tmp_path / "bin" / "deployed-sha") in warnings[0]
+    assert result["TS-101"].rung == 3
