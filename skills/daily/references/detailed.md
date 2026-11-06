@@ -39,8 +39,8 @@ Algum desses é impedimento?
   `production`, and "no ambiente <name>" for any other; `commit` reads "commit numa branch". The
   closing note says "para aplicar /card sincronizar (N cards)" with N = the number of `moves`
   (the report's `moves` holds `{key, from, to}`). Otherwise nothing.
-- **Testado na sandbox?** Only when `to_confirm` is not empty: one line after **Impedimentos**,
-  "Testado na sandbox? <KEY> (desde <dd/mm>); ..." from each entry's `key` and `since`. The report
+- **Testado em homologação?** Only when `to_confirm` is not empty: one line after **Impedimentos**,
+  "Testado em homologação? <KEY> (última atualização <dd/mm>); ..." from each entry's `key` and `since`. The report
   has no list of held or limited cards, so do not write one; `/card sincronizar` shows them.
 - Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
   validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".

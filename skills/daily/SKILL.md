@@ -107,7 +107,7 @@ the card title, commit subjects and PR titles for people.
 Algum desses é impedimento?
 
 ---
-Para você: para aplicar /card sincronizar (N cards); testado na sandbox? <KEY> (desde <dd/mm>);
+Para você: para aplicar /card sincronizar (N cards); testado em homologação? <KEY> (última atualização <dd/mm>);
 Jira indisponível; N avisos, peça "daily detalhado"
 ```
 
@@ -127,8 +127,8 @@ Jira indisponível; N avisos, peça "daily detalhado"
   refers to those. With none, "Nenhum." and no question.
 - The note after `---` starts with "Para você:" and holds, in this order, only what exists: the
   `moves`, as one "para aplicar /card sincronizar (N cards)" with N = the number of `moves` (the
-  user types `/card`; nothing moves before); then, when `to_confirm` is not empty, "testado na
-  sandbox? TS-5537 (desde 03/11); ..." with each card's `key` and `since` as dd/mm;
+  user types `/card`; nothing moves before); then, when `to_confirm` is not empty, "testado em
+  homologação? TS-5537 (última atualização 03/11); ..." with each card's `key` and `since` as dd/mm;
   "Jira indisponível" when `jira` is false; "N
   avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.
