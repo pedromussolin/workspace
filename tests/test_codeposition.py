@@ -594,21 +594,38 @@ def test_holding_branch_failure_keeps_the_card(clone, branch, commit, push, monk
     assert "repo demo-api: holding branch unknown (branch exploded)" in warnings
 
 
-def test_fetch_never_prompts_for_credentials(clone, monkeypatch):
-    repo = clone("demo-api")
-    seen = []
+def fetch_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    seen: list[dict] = []
     real = subprocess.run
 
     def spy(command, *args, **kwargs):
         if "fetch" in command:
-            seen.append(kwargs.get("env"))
+            seen.append(kwargs)
         return real(command, *args, **kwargs)
 
     monkeypatch.setattr(codeposition.subprocess, "run", spy)
+    return seen
+
+
+def test_fetch_never_prompts_for_credentials(clone, monkeypatch):
+    repo = clone("demo-api")
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+    seen = fetch_calls(monkeypatch)
     assert fetch([repo], board()) == {}
     assert len(seen) == 1
-    assert seen[0]["GIT_TERMINAL_PROMPT"] == "0"
-    assert seen[0]["PATH"]
+    env = seen[0]["env"]
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes -o ConnectTimeout=10"
+    assert env["PATH"]
+    assert seen[0]["timeout"] == 60
+
+
+def test_fetch_keeps_the_users_ssh_command(clone, monkeypatch):
+    repo = clone("demo-api")
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i ~/.ssh/work")
+    seen = fetch_calls(monkeypatch)
+    assert fetch([repo], board()) == {}
+    assert seen[0]["env"]["GIT_SSH_COMMAND"] == "ssh -i ~/.ssh/work"
 
 
 @pytest.fixture

@@ -13,7 +13,8 @@ from ws.boardproofs import Markers, first_line, git_out, lines, markers, run_git
 from ws.standup import keys_in
 from ws.taskmodel import RUNG, Status
 
-FETCH_TIMEOUT_SECONDS = 120
+FETCH_TIMEOUT_SECONDS = 60
+BATCH_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=10"
 FETCH_WORKERS = 8
 CLOCK_SKEW_DAYS = 30
 DONE_RUNG = RUNG[Status.DONE]
@@ -65,7 +66,7 @@ def _fetch_one(repo: Path, cfg: BoardConfig) -> str | None:
             tags,
             cfg.remote,
             timeout=FETCH_TIMEOUT_SECONDS,
-            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            env={"GIT_SSH_COMMAND": BATCH_SSH, **os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
     except subprocess.TimeoutExpired:
         return f"timeout after {FETCH_TIMEOUT_SECONDS}s"
