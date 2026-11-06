@@ -151,6 +151,13 @@ Três leituras de código, com o detalhe em arquivos próprios:
   `origem_pagamento` próprio (um UUID), e como a origem faz parte da chave, cada pagamento vira uma
   chave. O lote de um pagamento da Voltis vem da chave, não do gatilho; trocar o gatilho por horário
   não resolve o 1043. Quem fecha hoje [H]: a operação pela tela ou pelo Atlas; a EC2 só lê.
+- **Origem e conciliação [C, `origin/master` 6c152445d e réplica, 06/11]:** a origem do pagamento é a
+  "descrição do extrato" que o parceiro manda (`cessao/conciliacao/conciliador_liquidacao.py:101`);
+  fora da chave do lote, nada no fechamento, no envio ou na conciliação a usa. A conciliação automática
+  é por par produto+fundo (`produto_fundo.conciliacao_liquidacao`): 6 pares em `automatica`, 4 deles
+  da Voltis (449, 713, 1043, 1044); o Mercato Libero está em `nao_aplica` (sem a etapa). Lote de par
+  `automatica` fechado depois do corte vai para a fila manual (`cessao/framework/liquidacao/baixar.py:53`):
+  em 03/11 e 06/11 os lotes da Voltis fechados às ~14h30 foram com `motivo_conciliacao = pos_horario_corte`.
 - **Sem mexer no datawall:** a cessão não sabe quais linhas vieram do mesmo arquivo (a mensagem não
   leva o arquivo), então o Mercato Libero também vai para o horário por produto. A contagem por
   arquivo volta quando a carga dos arquivos entrar no sistema: quem carrega informa o total.

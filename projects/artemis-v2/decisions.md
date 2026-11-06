@@ -7,6 +7,7 @@ o motivo — é o que evita rediscutir depois.
 
 | # | Decisão | Opções | Recomendação | Quem decide | Tarefa |
 |---|---|---|---|---|---|
+| 06/11/2026 | A cessão se blinda contra a estrutura do parceiro: quando fechar (horários) e como agrupar (chave) são definidos por produto do nosso lado, sem depender de como o parceiro envia. A Voltis manda pagamento a pagamento, mesmo os do mesmo lote, e no 1043 cada pagamento traz uma origem própria; o sistema absorve isso em vez de exigir mudança do parceiro | Pietro |
 | D2 | Réplica: usuário da aplicação, `statement_timeout` e ajustes de conflito com replicação | — | `statement_timeout` ~120 s (o limite do BFF); avaliar `hot_standby_feedback`. A réplica já existe (conexão "[REPLICA] platform-cessao" do DBeaver, 06/10/2026) | DBA | [01](tasks/01-read-replica.md) |
 | D4 | Qual nome de CNAB mostrar | (a) o arquivo que o parceiro enviou (já salvo); (b) o arquivo que mandamos à ADM (não é salvo hoje) | depende do uso pela operação | Pietro + operação | [06](tasks/06-cnab-name-on-screen.md) |
 | D5 | Filtro por contrato: igualdade, prefixo ou "contém" | — | igualdade ou prefixo, para usar índice | Pietro | [07](tasks/07-contract-identifier-filter.md) |
