@@ -430,6 +430,20 @@ def test_one_stale_tag_holds_the_card(clone, git, commit, push, tags):
     assert result["TS-101"].holding.tag == f"prod-{old}"
 
 
+def test_commit_only_in_sandbox_names_no_tag(clone, git, branch, commit, merge, push, tags):
+    repo = clone("demo-api")
+    old = head(git, repo)
+    branch(repo, "feature/TS-101-x")
+    commit(repo, "feat: TS-101 x")
+    merge(repo, "feature/TS-101-x", "sandbox")
+    push(repo, "sandbox")
+    deploy = tags({"a.yaml": values(old)})
+    result, _ = positions([repo, deploy], {"TS-101"}, board(), TODAY, set())
+    position = result["TS-101"]
+    assert (position.rung, position.holding.reached) == (2, "sandbox")
+    assert position.holding.tag is None
+
+
 def test_unresolved_tag_among_resolved_ones_holds_the_environment(
     clone, git, commit, push, tags
 ):

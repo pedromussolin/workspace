@@ -130,6 +130,20 @@ def _holding_branch(repo: Path, sha: str, cfg: BoardConfig, warnings: list[str])
     return None
 
 
+def _lacking_tag(
+    sha: str, reached: int, active: tuple[Environment, ...], proven: dict[str, Markers]
+) -> str | None:
+    """The marker of the next environment that lacks `sha`, once `sha` reached the one before it."""
+    index = next((i for i, env in enumerate(active) if env.rung == reached), None)
+    if index is None or index + 1 == len(active):
+        return None
+    following = active[index + 1]
+    if isinstance(following.proof, BranchProof):
+        return None
+    given = proven.get(following.name, [])
+    return next((text for text, shas in given if sha not in shas), None)
+
+
 def _repo_pieces(
     repo: Path,
     cfg: BoardConfig,
@@ -137,28 +151,24 @@ def _repo_pieces(
     commits: list[tuple[str, str, set[str]]],
     warnings: list[str],
 ) -> list[tuple[_Piece, set[str]]]:
-    proven: list[tuple[Environment, Markers]] = []
+    active = cfg.environments_for(repo.name)
+    proven: dict[str, Markers] = {}
     if _has_remote(repo, cfg.remote):
-        for env in cfg.environments_for(repo.name):
+        for env in active:
             given = markers(repo, env, cfg, walk_since, warnings)
             if given is not None:
-                proven.append((env, given))
-    sets = [(env.rung, set.intersection(*(shas for _, shas in given))) for env, given in proven]
+                proven[env.name] = given
+    sets = [
+        (env.rung, set.intersection(*(shas for _, shas in proven[env.name])))
+        for env in active
+        if env.name in proven
+    ]
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:
         reached = max((rung for rung, shas in sets if sha in shas), default=0)
-        lacking = next(
-            (
-                text
-                for env, given in proven
-                if not isinstance(env.proof, BranchProof)
-                for text, shas in given
-                if sha not in shas
-            ),
-            None,
-        )
-        pieces.append((_Piece(repo.name, sha, subject, reached, cap, lacking), wanted))
+        tag = _lacking_tag(sha, reached, active, proven)
+        pieces.append((_Piece(repo.name, sha, subject, reached, cap, tag), wanted))
     return pieces
 
 
