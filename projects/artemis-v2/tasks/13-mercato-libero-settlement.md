@@ -64,6 +64,25 @@ Três leituras de código, com o detalhe em arquivos próprios:
   fixas no beat, em UTC, sem registro de execução nem checagem de dia útil. A lógica da shared é
   copiável; modelos, rotas e a ligação com o Celery 5.2 e o SQLAlchemy 1.3 se reescrevem.
 
+- **Acúmulo como comportamento natural (06/11)** — [impacto na cessão](13-natural-accumulation-impact.md)
+  e [consumidores externos](13-external-consumers.md). Proposta: nenhum pagamento ganha lote ao chegar;
+  ele espera sem lote até um fechamento (manual, fim da remessa ou horário), e o fechamento novo junta
+  por chave, de qualquer data, com a D9. `acumulado` é a única modalidade que dá lote na chegada
+  (`estados_liquidacao.py:349-351`); `manual` e `agendado` já esperam sem lote. Cancelamento, estorno,
+  recompra, reenviar, `contrato_transacao`, conciliação e callbacks ficam iguais; renegociação nunca
+  vai a lote. Fora da cessão ninguém lê o vigente nem a flag; no data lake, o pagamento pendente só
+  entra quando o lote fechar. **Armadilha:** os três fechadores de vigente só o enxergam com a
+  flag/modalidade `acumulado` ligada; desligar antes de drenar deixa lote órfão. Ordem: parar o
+  acúmulo e tirar a dependência da flag no mesmo deploy, drenar, trocar a modalidade, ligar o
+  agendado. **[C, réplica, 06/11]** nenhum dos 13 produtos acumulados tem `baixa_por_agendamento`;
+  fora do Mercato Libero, 9 têm vigentes abertos que ninguém fecha (o 1109 com 27.875 desde 05/2026;
+  outros desde 04/2024 e 04/2025): a drenagem é produto a produto, com o negócio. A medição de
+  pagamentos fora da D9 dentro dos vigentes estourou o tempo da réplica; refazer com LATERAL por lote.
+- **Chamadores do `POST /liquidacao/` [C, Datadog, 14 dias]:** VM do Rafael (964), dois pods com
+  python-requests (52, a identificar), um navegador (20) e o BFF (1, rota morta
+  `/fake-batches/consolidate`). O front de produção só usa a rota nova. A troca para o fluxo novo
+  precisa manter o 400 síncrono "nenhum pagamento apto para liquidar" e o 429.
+
 ## Por que é urgente
 
 - **Sem a varredura, os lotes não fecham [C em 15/10, conferir de novo]:** nos produtos que
