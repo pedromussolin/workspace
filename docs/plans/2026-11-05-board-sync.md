@@ -547,3 +547,13 @@ a repo's `branches`/`deploy_repo`) and folds in the final review's code findings
 - [ ] **Step 5 (`docs: README com perfis e provas do board`).** The `[board]` subsection shows the
   spec's new example, states that a `command` proof must only read, and the `ws task status` row
   says it prints `tasks` and `stuck`.
+- [ ] **Step 6 (`docs: card fala só da tarefa`, user 2026-11-06).** In the card skill's style
+  section: the text describes only the task — no mention of the user, the AI, the conversation or
+  agreements between them (bad: "Validar a estrutura do documento com <o usuário>."; good: "Validar a
+  estrutura do documento."). Valid for create, edit (title and description) and comment. Citing
+  the user or Claude stays possible when it is part of the task itself; other people stay when
+  the task depends on them. No automatic term check (the user refused an avoid list).
+- [ ] **Step 7 (`docs: README com provas que falham fechado`).** The README's proofs text says an
+  errored `file`/`command` proof holds the environment (fail closed), a `tag` proof fetches with
+  `--tags` (a tag moved on the remote makes that repo's fetch fail and its data stale), and a
+  deploy repo shared by several apps needs an `image_tag` specific to the app.
