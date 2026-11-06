@@ -107,6 +107,26 @@ Três leituras de código, com o detalhe em arquivos próprios:
 - **Lotes "abertos" já enviados (B25):** bug real em 14 lotes dos produtos 1109 e 1373 (10.562
   pagamentos depois da conclusão); o resto era data de referência.
 
+## Levantamentos de 06/11
+
+- **A cessão já fecha por contagem [C, `origin/master` 6c152445d]:** desde a TS-4944 (ago/2026),
+  toda entrada passa por `publicar_pagamentos_liquidacao` (`cessao/tasks/liquidacao.py:~172`), que
+  registra o total esperado da remessa no Redis (`cessao/utils/lote_controle.py:44`, `SET NX`, TTL
+  de 24h). O fechamento por remessa (`cessao/database/models.py:5691`) só fecha quando todos os
+  processos dela chegam a estado final, e o backstop do agendado (`:5734`) fecha a remessa em que
+  tudo o que chegou já terminou. Sem registro ou com o TTL vencido, a remessa não fecha sozinha.
+- **Por que dá um lote por pagamento:** no Mercato Libero e na Voltis a remessa tem um pagamento,
+  então o total registrado é 1. O upload de arquivo da cessão (`cessao/api/operacao/viewer.py:801`)
+  usa um `proc_id` por arquivo, mas o arquivo do Mercato Libero entra pelo datawall
+  (`POST /csv/liquidacao`) e chega à cessão uma linha por remessa [C pela réplica]. Onde o datawall
+  quebra o arquivo [H]: o código dele não está nos repos locais.
+- **Proposta:** no Mercato Libero, o arquivo vira a remessa (um `proc_id` e o total de linhas
+  registrado uma vez); o `automatico_por_remessa` atual fecha um lote por arquivo e chave. Na Voltis
+  não há arquivo nem total antes da carga: fecha por chave no horário do produto, até a Voltis
+  poder informar o total.
+- **ETL [C, `origin/master` bddbc2f]:** `portfolio/dwcaptalys/query.py:316-334`. Com `left join`
+  no lote e o pagamento sem lote no filtro incremental, o pendente continua no lake.
+
 ## Por que é urgente
 
 - **Sem a varredura, os lotes não fecham [C em 15/10, conferir de novo]:** nos produtos que
