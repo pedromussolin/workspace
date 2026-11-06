@@ -31,20 +31,27 @@ build_fixture() {
 site = "https://example.atlassian.net"
 email = "dev@example.com"
 
+[jira.status_overrides]
+"Em validação" = "validation"
+"Ready Deploy" = "ready_deploy"
+
 [standup]
 repo_roots = ["~/repos"]
 
 [board]
 fetch = false
+default_profile = "trunk"
 
-[[board.environments]]
+[[board.profiles.trunk.environments]]
 name = "sandbox"
 status = "validation"
+proof = "branch"
 branches = ["sandbox"]
 
-[[board.environments]]
+[[board.profiles.trunk.environments]]
 name = "master"
 status = "ready_deploy"
+proof = "branch"
 branches = ["main"]
 
 [board.statuses]

@@ -1,4 +1,4 @@
-"""Where the commits of a card are: only a branch, the sandbox, master or a production image tag."""
+"""Where the commits of a card are: outside every environment, or in the ones their proofs give."""
 
 import math
 import os
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-from ws.boardconfig import BoardConfig, Environment
+from ws.boardconfig import BoardConfig, BranchProof, Environment, FileProof
 from ws.standup import keys_in
 from ws.taskmodel import RUNG, Status
 
@@ -133,41 +133,37 @@ def _reachable(repo: Path, ref: str, since: date) -> set[str]:
     return set(_lines(_git_out(repo, "rev-list", f"--since={since.isoformat()}", ref)))
 
 
-def _branch_sets(
-    repo: Path, cfg: BoardConfig, walk_since: date
-) -> list[tuple[Environment, set[str]]]:
-    available = []
-    for env in cfg.environments:
-        if not env.branches:
-            continue
-        for branch in cfg.branches_for(repo.name, env):
-            ref = f"refs/remotes/{cfg.remote}/{branch}"
-            if _run(repo, "rev-parse", "--verify", "-q", ref).returncode == 0:
-                available.append((env, _reachable(repo, ref, walk_since)))
-                break
-    return available
+def _branch_markers(
+    repo: Path, proof: BranchProof, cfg: BoardConfig, walk_since: date
+) -> list[tuple[str, set[str]]] | None:
+    """The tip of the first branch of `proof` that exists on the remote."""
+    for branch in proof.branches:
+        ref = f"refs/remotes/{cfg.remote}/{branch}"
+        if _run(repo, "rev-parse", "--verify", "-q", ref).returncode == 0:
+            return [(branch, _reachable(repo, ref, walk_since))]
+    return None
 
 
-def _tagged_commits(
-    repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
+def _file_markers(
+    repo: Path, proof: FileProof, cfg: BoardConfig, walk_since: date, warnings: list[str]
 ) -> list[tuple[str, set[str]]] | None:
     """The history of each image tag of `repo` found in the deploy repo's branch."""
-    deploy_name = cfg.deploy_repo_for(repo.name, env)
+    deploy_name = proof.deploy_repo.format(repo=repo.name)
     deploy = repo.parent / deploy_name
     if not (deploy / ".git").exists():
         warnings.append(f"deploy {repo.name}: {deploy_name} not found")
         return None
-    ref = f"{cfg.remote}/{env.deploy_branch}"
+    ref = f"{cfg.remote}/{proof.deploy_branch}"
     lines: list[str] = []
     if _run(deploy, "rev-parse", "--verify", "-q", ref).returncode == 0:
-        found = _run(deploy, "grep", "-h", "-o", "-E", "-e", env.image_tag.pattern, ref, "--")
+        found = _run(deploy, "grep", "-h", "-o", "-E", "-e", proof.image_tag.pattern, ref, "--")
         if found.returncode not in (0, 1):
             warnings.append(f"deploy {repo.name}: {_first_line(found.stderr)}")
             return None
         lines = _lines(found.stdout)
     tags: dict[str, str] = {}
     for line in lines:
-        match = env.image_tag.search(line)
+        match = proof.image_tag.search(line)
         if match:
             tags.setdefault(match.group(1), match.group(0))
     full = []
@@ -181,11 +177,26 @@ def _tagged_commits(
     return [(text, _reachable(repo, sha, walk_since)) for text, sha in full]
 
 
+def _markers(
+    repo: Path, env: Environment, cfg: BoardConfig, walk_since: date, warnings: list[str]
+) -> list[tuple[str, set[str]]] | None:
+    """What `env`'s proof gives in `repo`: (marker, commits reachable from it); None proves nothing.
+
+    A commit is in the environment when every marker reaches it.
+    """
+    if isinstance(env.proof, BranchProof):
+        return _branch_markers(repo, env.proof, cfg, walk_since)
+    if isinstance(env.proof, FileProof):
+        return _file_markers(repo, env.proof, cfg, walk_since, warnings)
+    return None
+
+
 def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
     names: set[str] = set()
-    for env in cfg.environments:
-        for branch in cfg.branches_for(repo.name, env):
-            names.update({branch, f"{cfg.remote}/{branch}"})
+    for env in cfg.environments_for(repo.name):
+        if isinstance(env.proof, BranchProof):
+            for branch in env.proof.branches:
+                names.update({branch, f"{cfg.remote}/{branch}"})
     return names
 
 
@@ -210,25 +221,26 @@ def _repo_pieces(
     commits: list[tuple[str, str, set[str]]],
     warnings: list[str],
 ) -> list[tuple[_Piece, set[str]]]:
-    sets: list[tuple[int, set[str]]] = []
-    tag_sets: list[list[tuple[str, set[str]]]] = []
+    proven: list[tuple[Environment, list[tuple[str, set[str]]]]] = []
     if _has_remote(repo, cfg.remote):
-        branch_sets = _branch_sets(repo, cfg, walk_since)
-        sets = [(env.rung, shas) for env, shas in branch_sets]
-        if cfg.direct_deploy(repo.name) and branch_sets:
-            sets.append((DONE_RUNG, branch_sets[-1][1]))
-        for env in cfg.environments:
-            if env.image_tag is not None and not cfg.direct_deploy(repo.name):
-                tagged = _tagged_commits(repo, env, cfg, walk_since, warnings)
-                if tagged is not None:
-                    tag_sets.append(tagged)
-                    sets.append((env.rung, set.intersection(*(shas for _, shas in tagged))))
+        for env in cfg.environments_for(repo.name):
+            markers = _markers(repo, env, cfg, walk_since, warnings)
+            if markers is not None:
+                proven.append((env, markers))
+    sets = [(env.rung, set.intersection(*(shas for _, shas in markers))) for env, markers in proven]
     cap = max((rung for rung, _ in sets), default=0)
     pieces = []
     for sha, subject, wanted in commits:
         reached = max((rung for rung, shas in sets if sha in shas), default=0)
         lacking = next(
-            (text for tagged in tag_sets for text, shas in tagged if sha not in shas), None
+            (
+                text
+                for env, markers in proven
+                if not isinstance(env.proof, BranchProof)
+                for text, shas in markers
+                if sha not in shas
+            ),
+            None,
         )
         pieces.append((_Piece(repo.name, sha, subject, reached, cap, lacking), wanted))
     return pieces
@@ -238,8 +250,8 @@ def _value(piece: _Piece) -> float:
     return math.inf if piece.reached == piece.cap else piece.reached
 
 
-def _environment_at(cfg: BoardConfig, rung: int) -> str | None:
-    return next((env.name for env in cfg.environments if env.rung == rung), None)
+def _environment_at(cfg: BoardConfig, repo: str, rung: int) -> str | None:
+    return next((env.name for env in cfg.environments_for(repo) if env.rung == rung), None)
 
 
 def _position(
@@ -250,26 +262,23 @@ def _position(
     warnings: list[str],
 ) -> Position:
     low = min(_value(piece) for piece in pieces)
-    if low == math.inf:
-        rung = max(piece.cap for piece in pieces)
-    else:
-        rung = int(low)
-    rung = max(rung, 1)
+    held = None if low == math.inf else next(piece for piece in pieces if _value(piece) == low)
+    decider = held or max(pieces, key=lambda piece: piece.cap)
+    rung = max(decider.cap if held is None else decider.reached, 1)
     holding = None
-    if low != math.inf:
-        held = next(piece for piece in pieces if _value(piece) == low)
+    if held is not None:
         holding = Holding(
             held.repo,
             held.sha[:7],
             held.subject,
-            _environment_at(cfg, held.reached) if held.reached else None,
+            _environment_at(cfg, held.repo, held.reached) if held.reached else None,
             _holding_branch(repos[held.repo], held.sha, cfg, warnings),
             held.tag,
         )
     names = sorted({piece.repo for piece in pieces})
     return Position(
         rung,
-        None if rung == 1 else _environment_at(cfg, rung),
+        None if rung == 1 else _environment_at(cfg, decider.repo, rung),
         holding,
         tuple(names),
         any(name in stale for name in names),

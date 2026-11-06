@@ -11,19 +11,24 @@ CFG = parse_board(
     tomllib.loads(
         """
 [board]
-[[board.environments]]
+default_profile = "gitops"
+
+[[board.profiles.gitops.environments]]
 name = "sandbox"
-branches = ["sandbox"]
 status = "validation"
+proof = "branch"
+branches = ["sandbox"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "master"
-branches = ["master"]
 status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "production"
 status = "done"
+proof = "file"
 deploy_repo = "{repo}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{7,40})'

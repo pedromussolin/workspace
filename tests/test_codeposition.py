@@ -13,21 +13,25 @@ from ws.codeposition import fetch, positions
 TODAY = date(2026, 11, 5)
 BOARD = """\
 fetch = false
+default_profile = "gitops"
 {extra}
 
-[[environments]]
+[[profiles.gitops.environments]]
 name = "sandbox"
-branches = ["sandbox", "staging"]
 status = "validation"
+proof = "branch"
+branches = ["sandbox", "staging"]
 
-[[environments]]
+[[profiles.gitops.environments]]
 name = "master"
-branches = ["master", "main"]
 status = "ready_deploy"
+proof = "branch"
+branches = ["master", "main"]
 
-[[environments]]
+[[profiles.gitops.environments]]
 name = "production"
 status = "done"
+proof = "file"
 deploy_repo = "{{repo}}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{{7,40}})'
@@ -39,6 +43,53 @@ ready_deploy = "Ready Deploy"
 done = "Concluído"
 
 {tables}
+"""
+HOMOLOG = """
+[[profiles.homolog.environments]]
+name = "sandbox"
+status = "validation"
+proof = "branch"
+branches = ["homolog"]
+
+[repos."demo-api"]
+profile = "homolog"
+"""
+DIRECT = """
+[[profiles.direct.environments]]
+name = "production"
+status = "done"
+proof = "branch"
+branches = ["master"]
+
+[repos."*-argocd"]
+profile = "direct"
+"""
+OTHER_DEPLOY = """
+[[profiles.other-deploy.environments]]
+name = "master"
+status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
+
+[[profiles.other-deploy.environments]]
+name = "production"
+status = "done"
+proof = "file"
+deploy_repo = "deploys"
+image_tag = 'prod-([0-9a-f]{7,40})'
+
+[repos."demo-api"]
+profile = "other-deploy"
+"""
+TRUNK = """
+[[profiles.trunk.environments]]
+name = "trunk"
+status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
+
+[repos."demo-web"]
+profile = "trunk"
 """
 
 Git = Callable[..., subprocess.CompletedProcess[str]]
@@ -185,9 +236,29 @@ def test_repo_override_branch_name(clone, branch, commit, merge, push):
     commit(repo, "feat: TS-101 x")
     merge(repo, "feature/TS-101-x", "homolog")
     push(repo, "homolog")
-    cfg = board(tables='[repos."demo-api".branches]\nsandbox = ["homolog"]')
+    cfg = board(tables=HOMOLOG)
     result, _ = positions([repo], {"TS-101"}, cfg, TODAY, set())
     assert (result["TS-101"].rung, result["TS-101"].environment) == (2, "sandbox")
+
+
+def test_inactive_environment_proves_nothing(clone, branch, commit, merge, push):
+    repo = clone("demo-api")
+    branch(repo, "feature/TS-101-x")
+    commit(repo, "feat: TS-101 x")
+    merge(repo, "feature/TS-101-x", "sandbox")
+    push(repo, "sandbox")
+    cfg = board(tables='[repos."demo-*"]\ninactive = ["sandbox"]')
+    result, _ = positions([repo], {"TS-101"}, cfg, TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].environment) == (1, None)
+
+
+def test_environment_name_comes_from_the_repo_profile(clone, commit, push):
+    repo = clone("demo-web")
+    commit(repo, "fix: TS-101 x")
+    push(repo, "master")
+    result, _ = positions([repo], {"TS-101"}, board(tables=TRUNK), TODAY, set())
+    assert (result["TS-101"].rung, result["TS-101"].environment) == (3, "trunk")
+    assert result["TS-101"].limited is True
 
 
 def test_key_prefix_does_not_match(clone, branch, commit, merge, push):
@@ -239,11 +310,11 @@ def test_personal_repo_commit_only_proves_in_progress(clone, commit):
     assert result["TS-105"].holding is None
 
 
-def test_direct_deploy_repo_master_is_production(clone, commit, push):
+def test_profile_with_master_as_production(clone, commit, push):
     repo = clone("demo-api-argocd")
     commit(repo, "chore(TS-107): bump")
     push(repo, "master")
-    cfg = board(extra='direct_deploy_repos = ["*-argocd"]')
+    cfg = board(tables=DIRECT)
     result, warnings = positions([repo], {"TS-107"}, cfg, TODAY, set())
     assert (result["TS-107"].rung, result["TS-107"].environment) == (4, "production")
     assert warnings == []
@@ -391,7 +462,7 @@ def test_repo_override_deploy_repo(clone, git, commit, push, tags):
     commit(repo, "fix: TS-101 x")
     push(repo, "master")
     deploy = tags({"a.yaml": values(head(git, repo))}, name="deploys")
-    cfg = board(tables='[repos."demo-api"]\ndeploy_repo = "deploys"')
+    cfg = board(tables=OTHER_DEPLOY)
     result, warnings = positions([repo, deploy], {"TS-101"}, cfg, TODAY, set())
     assert result["TS-101"].rung == 4
     assert warnings == []

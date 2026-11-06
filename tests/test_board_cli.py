@@ -15,20 +15,24 @@ Git = Callable[..., subprocess.CompletedProcess[str]]
 BOARD = """
 [board]
 fetch = {fetch}
+default_profile = "gitops"
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "sandbox"
-branches = ["sandbox"]
 status = "validation"
+proof = "branch"
+branches = ["sandbox"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "master"
-branches = ["master"]
 status = "ready_deploy"
+proof = "branch"
+branches = ["master"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "production"
 status = "done"
+proof = "file"
 deploy_repo = "{{repo}}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{{7,40}})'
@@ -181,7 +185,7 @@ def test_status_does_not_fetch_when_the_config_says_no(world, tmp_path, capsys):
 def test_status_ignored_repo_is_never_read(world, ws_config, capsys):
     text = (ws_config / "config.toml").read_text(encoding="utf-8")
     (ws_config / "config.toml").write_text(
-        text.replace("[board]\n", '[board]\nignore_repos = ["demo-api"]\n', 1), encoding="utf-8"
+        text + '\n[board.repos."demo-api"]\nignore = true\n', encoding="utf-8"
     )
     _, out, _ = run(
         capsys, "status", "--cards", str(standard_cards(world)), "--today", "2026-11-05"

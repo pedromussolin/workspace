@@ -4,7 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from ws.boardconfig import BoardMissing, load_board, parse_board
+from ws.boardconfig import (
+    BoardMissing,
+    BranchProof,
+    CommandProof,
+    FileProof,
+    TagProof,
+    load_board,
+    parse_board,
+)
 from ws.taskmodel import Status
 from ws.userconfig import ConfigInvalid
 
@@ -13,31 +21,58 @@ EXAMPLE = """\
 remote = "origin"
 lookback_days = 120
 fetch = true
-ignore_repos = ["*-workspace"]
-direct_deploy_repos = ["*-argocd"]
+default_profile = "gitops"
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "sandbox"
-branches = ["sandbox", "staging"]
 status = "validation"
+proof = "branch"
+branches = ["sandbox", "staging"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "master"
-branches = ["master", "main"]
 status = "ready_deploy"
+proof = "branch"
+branches = ["master", "main"]
 
-[[board.environments]]
+[[board.profiles.gitops.environments]]
 name = "production"
 status = "done"
+proof = "file"
 deploy_repo = "{repo}-argocd"
 deploy_branch = "master"
 image_tag = 'prod-([0-9a-f]{7,40})'
 
-[board.repos."some-repo"]
-deploy_repo = "some-deploy-repo"
+[[board.profiles.release-tag.environments]]
+name = "main"
+status = "ready_deploy"
+proof = "branch"
+branches = ["main"]
 
-[board.repos."some-repo".branches]
-sandbox = ["homolog"]
+[[board.profiles.release-tag.environments]]
+name = "production"
+status = "done"
+proof = "tag"
+tag = "v*"
+
+[[board.profiles.api.environments]]
+name = "production"
+status = "done"
+proof = "command"
+command = ["~/bin/deployed-sha", "{repo}", "{env}"]
+timeout = 20
+
+[board.repos."some-repo"]
+profile = "release-tag"
+
+[board.repos."data-*"]
+inactive = ["sandbox"]
+
+[board.repos."*-argocd"]
+ignore = true
+
+[board.repos."*-workspace"]
+ignore = true
 
 [board.statuses]
 in_progress = "Em andamento"
@@ -48,144 +83,202 @@ done = "Concluído"
 
 VALID = tomllib.loads(EXAMPLE)["board"]
 PATH = Path("config.toml")
+FIRST_VERSION = 'is from the first version; use [board.profiles.<name>] and [board.repos."<glob>"]'
 
 
 def parse(table):
     return parse_board(table, PATH)
 
 
-def test_valid_example_parses():
+def names(environments):
+    return tuple(env.name for env in environments)
+
+
+def test_spec_example_parses():
     cfg = parse(VALID)
-    sandbox, master, production = cfg.environments
 
-    assert [env.name for env in cfg.environments] == ["sandbox", "master", "production"]
     assert (cfg.remote, cfg.lookback_days, cfg.fetch) == ("origin", 120, True)
-    assert [env.rung for env in cfg.environments] == [2, 3, 4]
-    assert production.deploy_repo == "{repo}-argocd"
-    assert production.deploy_branch == "master"
-    assert production.image_tag.pattern == "prod-([0-9a-f]{7,40})"
-    assert production.branches == ()
-    assert sandbox.deploy_repo is None and sandbox.image_tag is None
+    assert cfg.default_profile == "gitops"
+    assert list(cfg.profiles) == ["gitops", "release-tag", "api"]
+    sandbox, master, production = cfg.profiles["gitops"].environments
+    assert [env.rung for env in cfg.profiles["gitops"].environments] == [2, 3, 4]
+    assert sandbox.proof == BranchProof(("sandbox", "staging"))
+    assert master.proof == BranchProof(("master", "main"))
+    assert isinstance(production.proof, FileProof)
+    assert production.proof.deploy_repo == "{repo}-argocd"
+    assert production.proof.deploy_branch == "master"
+    assert production.proof.image_tag.pattern == "prod-([0-9a-f]{7,40})"
+    assert cfg.profiles["release-tag"].environments[1].proof == TagProof("v*")
+    assert cfg.profiles["api"].environments[0].proof == CommandProof(
+        ("~/bin/deployed-sha", "{repo}", "{env}"), 20
+    )
     assert cfg.statuses[Status.DONE] == "Concluído"
-    assert cfg.branches_for("some-repo", sandbox) == ("homolog",)
-    assert cfg.branches_for("other", sandbox) == ("sandbox", "staging")
-    assert cfg.branches_for("some-repo", master) == ("master", "main")
-    assert cfg.deploy_repo_for("some-repo", production) == "some-deploy-repo"
-    assert cfg.deploy_repo_for("demo-api", production) == "demo-api-argocd"
-    assert cfg.ignored("artemis-workspace") and not cfg.ignored("demo-api")
-    assert cfg.direct_deploy("demo-api-argocd") and not cfg.direct_deploy("demo-api")
+    assert cfg.settings_for("data-api").inactive == ("sandbox",)
+    assert cfg.ignored("x-argocd") and cfg.ignored("demo-workspace")
+    assert not cfg.ignored("demo-api") and not cfg.ignored("data-api")
+    assert names(cfg.environments_for("data-api")) == ("master", "production")
+    assert names(cfg.environments_for("demo-api")) == ("sandbox", "master", "production")
+    assert names(cfg.environments_for("some-repo")) == ("main", "production")
+    assert cfg.settings_for("demo-api") is None
+    assert cfg.uses_tags("some-repo") and not cfg.uses_tags("demo-api")
 
 
-def test_defaults_when_keys_absent():
-    table = {k: copy.deepcopy(VALID[k]) for k in ("environments", "statuses")}
+def test_exact_key_beats_glob_and_first_glob_wins():
+    table = copy.deepcopy(VALID)
+    table["repos"] = {
+        "demo-*": {"inactive": ["sandbox"]},
+        "*-api": {"profile": "release-tag"},
+        "demo-api": {"profile": "api"},
+    }
 
     cfg = parse(table)
 
-    assert cfg.remote == "origin"
-    assert cfg.lookback_days == 120
-    assert cfg.fetch is True
-    assert cfg.environments[2].deploy_branch == "master"
-    assert cfg.ignore_repos == ()
-    assert cfg.direct_deploy_repos == ()
-    assert cfg.repo_branches == {}
-    assert cfg.repo_deploy == {}
+    assert cfg.settings_for("demo-api").key == "demo-api"
+    assert cfg.settings_for("demo-web-api").key == "demo-*"
+    assert cfg.settings_for("other-api").key == "*-api"
+    assert cfg.settings_for("other") is None
+    assert names(cfg.environments_for("demo-api")) == ("production",)
 
 
-def mutated(change):
-    table = copy.deepcopy(VALID)
-    change(table)
+def test_defaults_when_keys_absent():
+    table = {k: copy.deepcopy(VALID[k]) for k in ("default_profile", "profiles", "statuses")}
+    del table["profiles"]["gitops"]["environments"][2]["deploy_branch"]
+    del table["profiles"]["api"]["environments"][0]["timeout"]
+
+    cfg = parse(table)
+
+    assert (cfg.remote, cfg.lookback_days, cfg.fetch) == ("origin", 120, True)
+    assert cfg.repos == ()
+    assert cfg.profiles["gitops"].environments[2].proof.deploy_branch == "master"
+    assert cfg.profiles["api"].environments[0].proof.timeout == 20
+
+
+G = ("profiles", "gitops", "environments")
+T = ("profiles", "release-tag", "environments", 1)
+A = ("profiles", "api", "environments", 0)
+GITOPS = "board.profiles.gitops.environments"
+TAG = "board.profiles.release-tag.environments[1]"
+API = "board.profiles.api.environments[0]"
+
+
+def _target(table, keys):
+    for key in keys:
+        table = table[key]
     return table
 
 
-def _duplicate_name(t):
-    t["environments"][1]["name"] = "sandbox"
+def put(*keys_and_value):
+    *keys, last, value = keys_and_value
+    return lambda table: _target(table, keys).__setitem__(last, value)
 
 
-def _status_todo(t):
-    t["environments"][0]["status"] = "todo"
-
-
-def _not_rising(t):
-    t["environments"][0]["status"] = "ready_deploy"
-    t["environments"][1]["status"] = "validation"
-
-
-def _both(t):
-    t["environments"][0]["deploy_repo"] = "{repo}-argocd"
-
-
-def _neither(t):
-    del t["environments"][0]["branches"]
-
-
-def _no_group(t):
-    t["environments"][2]["image_tag"] = "prod-[0-9a-f]+"
-
-
-def _bad_regex(t):
-    t["environments"][2]["image_tag"] = "prod-("
-
-
-def _unknown_env(t):
-    t["repos"]["some-repo"]["branches"]["nowhere"] = ["x"]
-
-
-def _no_in_progress(t):
-    del t["statuses"]["in_progress"]
-
-
-def _no_status_name(t):
-    del t["statuses"]["done"]
-
-
-def _zero_lookback(t):
-    t["lookback_days"] = 0
-
-
-def _fetch_string(t):
-    t["fetch"] = "yes"
-
-
-def _ignore_not_list(t):
-    t["ignore_repos"] = "x"
-
-
-def _bad_repo_deploy(t):
-    t["repos"]["some-repo"]["deploy_repo"] = ""
+def drop(*keys):
+    *keys, last = keys
+    return lambda table: _target(table, keys).pop(last)
 
 
 @pytest.mark.parametrize(
     ("change", "key_path"),
     [
-        (_duplicate_name, "board.environments[1].name"),
-        (_status_todo, "board.environments[0].status"),
-        (_not_rising, "board.environments[1].status"),
-        (_both, "board.environments[0]"),
-        (_neither, "board.environments[0]"),
-        (_no_group, "board.environments[2].image_tag"),
-        (_bad_regex, "board.environments[2].image_tag"),
-        (_unknown_env, "board.repos.some-repo.branches.nowhere"),
-        (_no_in_progress, "board.statuses.in_progress"),
-        (_no_status_name, "board.statuses.done"),
-        (_zero_lookback, "board.lookback_days"),
-        (_fetch_string, "board.fetch"),
-        (_ignore_not_list, "board.ignore_repos"),
-        (_bad_repo_deploy, "board.repos.some-repo.deploy_repo"),
+        (put("remote", ""), "board.remote"),
+        (put("lookback_days", 0), "board.lookback_days"),
+        (put("fetch", "yes"), "board.fetch"),
+        (put("colour", "x"), "board.colour"),
+        (drop("default_profile"), "board.default_profile"),
+        (put("default_profile", "nope"), "board.default_profile"),
+        (put("default_profile", ["gitops"]), "board.default_profile"),
+        (drop("profiles"), "board.profiles"),
+        (put("profiles", {}), "board.profiles"),
+        (put("profiles", "gitops", []), "board.profiles.gitops"),
+        (put("profiles", "gitops", "colour", 1), "board.profiles.gitops.colour"),
+        (put(*G[:2], "environments", []), GITOPS),
+        (put(*G, 0, "x"), f"{GITOPS}[0]"),
+        (drop(*G, 0, "name"), f"{GITOPS}[0].name"),
+        (put(*G, 1, "name", "sandbox"), f"{GITOPS}[1].name"),
+        (put(*G, 0, "status", "todo"), f"{GITOPS}[0].status"),
+        (put(*G, 1, "status", "validation"), f"{GITOPS}[1].status"),
+        (drop(*G, 0, "proof"), f"{GITOPS}[0].proof"),
+        (put(*G, 0, "proof", "deploy"), f"{GITOPS}[0].proof"),
+        (put(*G, 0, "proof", ["branch"]), f"{GITOPS}[0].proof"),
+        (put(*G, 0, "colour", 1), f"{GITOPS}[0].colour"),
+        (put(*G, 0, "tag", "v*"), f"{GITOPS}[0].tag"),
+        (drop(*G, 0, "branches"), f"{GITOPS}[0].branches"),
+        (put(*G, 0, "branches", []), f"{GITOPS}[0].branches"),
+        (put(*G, 0, "branches", ["a", 1]), f"{GITOPS}[0].branches"),
+        (put(*G, 2, "branches", ["x"]), f"{GITOPS}[2].branches"),
+        (drop(*G, 2, "deploy_repo"), f"{GITOPS}[2].deploy_repo"),
+        (put(*G, 2, "deploy_repo", "{name}-x"), f"{GITOPS}[2].deploy_repo"),
+        (put(*G, 2, "deploy_repo", "{repo-x"), f"{GITOPS}[2].deploy_repo"),
+        (put(*G, 2, "deploy_repo", "{repo!r}"), f"{GITOPS}[2].deploy_repo"),
+        (put(*G, 2, "deploy_branch", 1), f"{GITOPS}[2].deploy_branch"),
+        (drop(*G, 2, "image_tag"), f"{GITOPS}[2].image_tag"),
+        (put(*G, 2, "image_tag", "prod-[0-9]+"), f"{GITOPS}[2].image_tag"),
+        (put(*G, 2, "image_tag", "prod-("), f"{GITOPS}[2].image_tag"),
+        (drop(*T, "tag"), f"{TAG}.tag"),
+        (put(*T, "tag", ""), f"{TAG}.tag"),
+        (put(*T, "timeout", 5), f"{TAG}.timeout"),
+        (drop(*A, "command"), f"{API}.command"),
+        (put(*A, "command", []), f"{API}.command"),
+        (put(*A, "command", "x"), f"{API}.command"),
+        (put(*A, "command", ["x", 1]), f"{API}.command"),
+        (put(*A, "command", ["x", "{sha}"]), f"{API}.command"),
+        (put(*A, "timeout", 0), f"{API}.timeout"),
+        (put(*A, "timeout", True), f"{API}.timeout"),
+        (put("repos", []), "board.repos"),
+        (put("repos", "x", 1), 'board.repos."x"'),
+        (put("repos", "some-repo", "profile", "nope"), 'board.repos."some-repo".profile'),
+        (put("repos", "some-repo", "profile", ["api"]), 'board.repos."some-repo".profile'),
+        (put("repos", "data-*", "inactive", ["nope"]), 'board.repos."data-*".inactive'),
+        (put("repos", "data-*", "inactive", "sandbox"), 'board.repos."data-*".inactive'),
+        (put("repos", "some-repo", "inactive", ["sandbox"]), 'board.repos."some-repo".inactive'),
+        (put("repos", "*-argocd", "ignore", "yes"), 'board.repos."*-argocd".ignore'),
+        (put("repos", "*-argocd", "profile", "gitops"), 'board.repos."*-argocd"'),
+        (put("repos", "some-repo", "colour", 1), 'board.repos."some-repo".colour'),
+        (put("statuses", []), "board.statuses"),
+        (drop("statuses", "in_progress"), "board.statuses.in_progress"),
+        (drop("statuses", "done"), "board.statuses.done"),
+        (put("statuses", "done", ""), "board.statuses.done"),
+        (put("statuses", "todo", "A fazer"), "board.statuses.todo"),
     ],
 )
 def test_invalid_raises_config_invalid(change, key_path):
-    with pytest.raises(ConfigInvalid) as error:
-        parse(mutated(change))
+    table = copy.deepcopy(VALID)
+    change(table)
 
-    assert str(error.value).startswith(f"{PATH}: ")
-    assert key_path in str(error.value)
+    with pytest.raises(ConfigInvalid) as error:
+        parse(table)
+
+    assert str(error.value).startswith(f"{PATH}: {key_path} ")
+
+
+@pytest.mark.parametrize(
+    ("change", "key_path"),
+    [
+        (put("environments", []), "board.environments"),
+        (put("ignore_repos", ["x"]), "board.ignore_repos"),
+        (put("direct_deploy_repos", ["x"]), "board.direct_deploy_repos"),
+        (
+            put("repos", "some-repo", "branches", {"sandbox": ["x"]}),
+            'board.repos."some-repo".branches',
+        ),
+        (put("repos", "some-repo", "deploy_repo", "x"), 'board.repos."some-repo".deploy_repo'),
+    ],
+)
+def test_first_version_keys_show_the_new_form(change, key_path):
+    table = copy.deepcopy(VALID)
+    change(table)
+
+    with pytest.raises(ConfigInvalid) as error:
+        parse(table)
+
+    assert str(error.value) == f"{PATH}: {key_path} {FIRST_VERSION}"
 
 
 def test_load_board_reads_the_table(tmp_path, monkeypatch):
     (tmp_path / "config.toml").write_text(EXAMPLE, encoding="utf-8")
     monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
 
-    assert load_board().remote == "origin"
+    assert load_board().default_profile == "gitops"
 
 
 def test_load_board_without_table_raises_board_missing(tmp_path, monkeypatch):

@@ -1,7 +1,8 @@
-"""The `[board]` table of config.toml: environments, Jira status names and per-repo overrides."""
+"""The `[board]` table of config.toml: profiles of environments, their proofs, per-repo settings."""
 
 import fnmatch
 import re
+import string
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,27 @@ from ws.userconfig import ConfigInvalid
 DEFAULT_REMOTE = "origin"
 DEFAULT_LOOKBACK_DAYS = 120
 DEFAULT_DEPLOY_BRANCH = "master"
+DEFAULT_COMMAND_TIMEOUT = 20
+BOARD_KEYS = (
+    "remote",
+    "lookback_days",
+    "fetch",
+    "default_profile",
+    "profiles",
+    "repos",
+    "statuses",
+)
+FIRST_VERSION_KEYS = ("environments", "ignore_repos", "direct_deploy_repos")
+FIRST_VERSION_REPO_KEYS = ("branches", "deploy_repo")
+REPO_KEYS = ("ignore", "profile", "inactive")
+FIRST_VERSION = 'is from the first version; use [board.profiles.<name>] and [board.repos."<glob>"]'
+PROOF_KEYS = {
+    "branch": ("branches",),
+    "tag": ("tag",),
+    "file": ("deploy_repo", "deploy_branch", "image_tag"),
+    "command": ("command", "timeout"),
+}
+ENVIRONMENT_STATUSES = tuple(STATUS_AT_RUNG[rung] for rung in sorted(STATUS_AT_RUNG))
 
 
 class BoardMissing(Exception):
@@ -20,13 +42,36 @@ class BoardMissing(Exception):
 
 
 @dataclass(frozen=True)
+class BranchProof:
+    branches: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TagProof:
+    pattern: str
+
+
+@dataclass(frozen=True)
+class FileProof:
+    deploy_repo: str
+    deploy_branch: str
+    image_tag: re.Pattern[str]
+
+
+@dataclass(frozen=True)
+class CommandProof:
+    argv: tuple[str, ...]
+    timeout: int
+
+
+Proof = BranchProof | TagProof | FileProof | CommandProof
+
+
+@dataclass(frozen=True)
 class Environment:
     name: str
     status: Status
-    branches: tuple[str, ...]
-    deploy_repo: str | None
-    deploy_branch: str
-    image_tag: re.Pattern[str] | None
+    proof: Proof
 
     @property
     def rung(self) -> int:
@@ -34,39 +79,68 @@ class Environment:
 
 
 @dataclass(frozen=True)
+class Profile:
+    name: str
+    environments: tuple[Environment, ...]
+
+
+@dataclass(frozen=True)
+class RepoSettings:
+    key: str
+    ignore: bool
+    profile: str | None
+    inactive: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class BoardConfig:
     remote: str
     lookback_days: int
     fetch: bool
-    environments: tuple[Environment, ...]
-    repo_branches: dict[str, dict[str, tuple[str, ...]]]
+    default_profile: str
+    profiles: dict[str, Profile]
+    repos: tuple[RepoSettings, ...]
     statuses: dict[Status, str]
-    ignore_repos: tuple[str, ...]
-    direct_deploy_repos: tuple[str, ...]
-    repo_deploy: dict[str, str]
 
-    def branches_for(self, repo: str, env: Environment) -> tuple[str, ...]:
-        return self.repo_branches.get(repo, {}).get(env.name, env.branches)
-
-    def deploy_repo_for(self, repo: str, env: Environment) -> str:
-        if repo in self.repo_deploy:
-            return self.repo_deploy[repo]
-        return (env.deploy_repo or "").format(repo=repo)
+    def settings_for(self, repo: str) -> RepoSettings | None:
+        """The table whose key is `repo`, else the first glob (file order) matching it."""
+        exact = next((settings for settings in self.repos if settings.key == repo), None)
+        if exact is not None:
+            return exact
+        return next((s for s in self.repos if fnmatch.fnmatchcase(repo, s.key)), None)
 
     def ignored(self, repo: str) -> bool:
-        return any(fnmatch.fnmatchcase(repo, glob) for glob in self.ignore_repos)
+        settings = self.settings_for(repo)
+        return settings is not None and settings.ignore
 
-    def direct_deploy(self, repo: str) -> bool:
-        return any(fnmatch.fnmatchcase(repo, glob) for glob in self.direct_deploy_repos)
+    def environments_for(self, repo: str) -> tuple[Environment, ...]:
+        """The environments of the repo's profile, without the ones it switches off."""
+        settings = self.settings_for(repo)
+        profile = self.profiles[(settings and settings.profile) or self.default_profile]
+        inactive = settings.inactive if settings else ()
+        return tuple(env for env in profile.environments if env.name not in inactive)
+
+    def uses_tags(self, repo: str) -> bool:
+        return any(isinstance(env.proof, TagProof) for env in self.environments_for(repo))
 
 
 def _invalid(path: Path, where: str, problem: str) -> ConfigInvalid:
     return ConfigInvalid(f"{path}: {where} {problem}")
 
 
+def _string(value: object, path: Path, where: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise _invalid(path, where, "must be a non-empty string")
+    return value
+
+
 def _strings(value: object, path: Path, where: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
-        raise _invalid(path, where, "must be a list of non-empty strings")
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) and item for item in value)
+    ):
+        raise _invalid(path, where, "must be a non-empty list of non-empty strings")
     return tuple(value)
 
 
@@ -76,11 +150,32 @@ def _table(value: object, path: Path, where: str) -> dict:
     return value
 
 
-def _image_tag(value: object, path: Path, where: str) -> re.Pattern[str]:
-    if not isinstance(value, str) or not value:
-        raise _invalid(path, where, "must be a non-empty string")
+def _unknown(table: dict, known: tuple[str, ...], path: Path, where: str) -> None:
+    for key in table:
+        if key not in known:
+            raise _invalid(path, f"{where}.{key}", f"is not a known key; use {', '.join(known)}")
+
+
+def _placeholders(value: str, allowed: tuple[str, ...], path: Path, where: str) -> None:
+    """`value` may only use `{name}` for the names in `allowed`, with no conversion or format."""
+    usable = ", ".join(f"{{{name}}}" for name in allowed)
     try:
-        pattern = re.compile(value)
+        fields = [
+            (field, spec, conversion)
+            for _, field, spec, conversion in string.Formatter().parse(value)
+            if field is not None
+        ]
+    except ValueError as error:
+        raise _invalid(path, where, f"has a bad brace ({error}); use {usable}") from None
+    for field, spec, conversion in fields:
+        if field not in allowed or spec or conversion:
+            raise _invalid(path, where, f"may only use {usable}; {value!r} has another")
+
+
+def _image_tag(value: object, path: Path, where: str) -> re.Pattern[str]:
+    text = _string(value, path, where)
+    try:
+        pattern = re.compile(text)
     except re.error as error:
         raise _invalid(path, where, f"is not a valid regular expression: {error}") from None
     if pattern.groups != 1:
@@ -88,139 +183,178 @@ def _image_tag(value: object, path: Path, where: str) -> re.Pattern[str]:
     return pattern
 
 
-def _environment(raw: object, index: int, path: Path) -> Environment:
-    where = f"board.environments[{index}]"
-    table = _table(raw, path, where)
-    name = table.get("name")
-    if not isinstance(name, str) or not name:
-        raise _invalid(path, f"{where}.name", "must be a non-empty string")
-    status_name = table.get("status")
-    allowed = [STATUS_AT_RUNG[rung] for rung in sorted(STATUS_AT_RUNG)]
-    if status_name not in allowed:
-        names = ", ".join(status.value for status in allowed)
-        raise _invalid(path, f"{where}.status", f"is {status_name!r}; use one of {names}")
-    has_branches = "branches" in table
-    has_deploy = "deploy_repo" in table
-    if has_branches == has_deploy:
-        raise _invalid(path, where, "must have either branches or deploy_repo, not both or none")
-    if has_branches:
-        for key in ("image_tag", "deploy_branch"):
-            if key in table:
-                raise _invalid(path, f"{where}.{key}", "only goes with deploy_repo")
-        return Environment(
-            name,
-            Status(status_name),
-            _strings(table["branches"], path, f"{where}.branches"),
-            None,
-            DEFAULT_DEPLOY_BRANCH,
-            None,
+def _command(value: object, path: Path, where: str) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) for item in value)
+        or not value[0]
+    ):
+        raise _invalid(path, where, "must be a non-empty list of strings (the program first)")
+    for item in value:
+        _placeholders(item, ("repo", "env"), path, where)
+    return tuple(value)
+
+
+def _timeout(value: object, path: Path, where: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise _invalid(path, where, "must be a positive integer (seconds)")
+    return value
+
+
+def _proof(table: dict, kind: str, path: Path, where: str) -> Proof:
+    for key in PROOF_KEYS[kind]:
+        if key not in table and key not in ("deploy_branch", "timeout"):
+            raise _invalid(path, f"{where}.{key}", f'is required with proof = "{kind}"')
+    if kind == "branch":
+        return BranchProof(_strings(table["branches"], path, f"{where}.branches"))
+    if kind == "tag":
+        return TagProof(_string(table["tag"], path, f"{where}.tag"))
+    if kind == "file":
+        deploy_repo = _string(table["deploy_repo"], path, f"{where}.deploy_repo")
+        _placeholders(deploy_repo, ("repo",), path, f"{where}.deploy_repo")
+        return FileProof(
+            deploy_repo,
+            _string(
+                table.get("deploy_branch", DEFAULT_DEPLOY_BRANCH), path, f"{where}.deploy_branch"
+            ),
+            _image_tag(table["image_tag"], path, f"{where}.image_tag"),
         )
-    deploy_repo = table["deploy_repo"]
-    if not isinstance(deploy_repo, str) or not deploy_repo:
-        raise _invalid(path, f"{where}.deploy_repo", "must be a non-empty string")
-    deploy_branch = table.get("deploy_branch", DEFAULT_DEPLOY_BRANCH)
-    if not isinstance(deploy_branch, str) or not deploy_branch:
-        raise _invalid(path, f"{where}.deploy_branch", "must be a non-empty string")
-    if "image_tag" not in table:
-        raise _invalid(path, f"{where}.image_tag", "is required with deploy_repo")
-    return Environment(
-        name,
-        Status(status_name),
-        (),
-        deploy_repo,
-        deploy_branch,
-        _image_tag(table["image_tag"], path, f"{where}.image_tag"),
+    return CommandProof(
+        _command(table["command"], path, f"{where}.command"),
+        _timeout(table.get("timeout", DEFAULT_COMMAND_TIMEOUT), path, f"{where}.timeout"),
     )
 
 
-def _environments(table: dict, path: Path) -> tuple[Environment, ...]:
-    raw = table.get("environments")
-    if not isinstance(raw, list) or not raw:
-        raise _invalid(path, "board.environments", "must be a non-empty list of tables")
-    environments = tuple(_environment(item, index, path) for index, item in enumerate(raw))
+def _environment(raw: object, where: str, path: Path) -> Environment:
+    table = _table(raw, path, where)
+    name = _string(table.get("name"), path, f"{where}.name")
+    status_name = table.get("status")
+    if status_name not in ENVIRONMENT_STATUSES:
+        names = ", ".join(status.value for status in ENVIRONMENT_STATUSES)
+        raise _invalid(path, f"{where}.status", f"is {status_name!r}; use one of {names}")
+    kind = table.get("proof")
+    if not isinstance(kind, str) or kind not in PROOF_KEYS:
+        raise _invalid(path, f"{where}.proof", f"is {kind!r}; use one of {', '.join(PROOF_KEYS)}")
+    for key in table:
+        if key in ("name", "status", "proof") or key in PROOF_KEYS[kind]:
+            continue
+        owner = next((other for other, keys in PROOF_KEYS.items() if key in keys), None)
+        if owner is not None:
+            raise _invalid(path, f"{where}.{key}", f'only goes with proof = "{owner}"')
+        raise _invalid(path, f"{where}.{key}", "is not a known key")
+    return Environment(name, Status(status_name), _proof(table, kind, path, where))
+
+
+def _profile(name: str, raw: object, path: Path) -> Profile:
+    where = f"board.profiles.{name}"
+    table = _table(raw, path, where)
+    _unknown(table, ("environments",), path, where)
+    raw_environments = table.get("environments")
+    if not isinstance(raw_environments, list) or not raw_environments:
+        raise _invalid(path, f"{where}.environments", "must be a non-empty list of tables")
+    environments = tuple(
+        _environment(item, f"{where}.environments[{index}]", path)
+        for index, item in enumerate(raw_environments)
+    )
     for index, env in enumerate(environments):
+        at = f"{where}.environments[{index}]"
         if any(env.name == other.name for other in environments[:index]):
-            raise _invalid(path, f"board.environments[{index}].name", f"{env.name!r} is repeated")
+            raise _invalid(path, f"{at}.name", f"{env.name!r} is repeated")
         if index and env.rung <= environments[index - 1].rung:
             raise _invalid(
                 path,
-                f"board.environments[{index}].status",
+                f"{at}.status",
                 f"must rise along the list; {env.status.value} does not follow "
                 f"{environments[index - 1].status.value}",
             )
-    return environments
+    return Profile(name, environments)
 
 
-def _statuses(table: dict, environments: tuple[Environment, ...], path: Path) -> dict[Status, str]:
+def _profiles(table: dict, path: Path) -> dict[str, Profile]:
+    raw = table.get("profiles")
+    if not isinstance(raw, dict) or not raw:
+        raise _invalid(path, "board.profiles", "must hold at least one profile table")
+    return {name: _profile(name, value, path) for name, value in raw.items()}
+
+
+def _repo(
+    key: str, raw: object, profiles: dict[str, Profile], default: str, path: Path
+) -> RepoSettings:
+    where = f'board.repos."{key}"'
+    table = _table(raw, path, where)
+    for name in table:
+        if name in FIRST_VERSION_REPO_KEYS:
+            raise _invalid(path, f"{where}.{name}", FIRST_VERSION)
+    _unknown(table, REPO_KEYS, path, where)
+    ignore = table.get("ignore", False)
+    if not isinstance(ignore, bool):
+        raise _invalid(path, f"{where}.ignore", "must be true or false")
+    if ignore and len(table) > 1:
+        raise _invalid(path, where, "must hold ignore = true alone")
+    profile = table.get("profile")
+    if profile is not None and (not isinstance(profile, str) or profile not in profiles):
+        raise _invalid(
+            path, f"{where}.profile", f"is {profile!r}; use one of {', '.join(profiles)}"
+        )
+    inactive: tuple[str, ...] = ()
+    if "inactive" in table:
+        inactive = _strings(table["inactive"], path, f"{where}.inactive")
+        used = profile or default
+        known = [env.name for env in profiles[used].environments]
+        unknown = [name for name in inactive if name not in known]
+        if unknown:
+            raise _invalid(
+                path,
+                f"{where}.inactive",
+                f"names {unknown[0]!r}, not an environment of profile {used!r}; "
+                f"use one of {', '.join(known)}",
+            )
+    return RepoSettings(key, ignore, profile, inactive)
+
+
+def _statuses(table: dict, profiles: dict[str, Profile], path: Path) -> dict[Status, str]:
     raw = _table(table.get("statuses", {}), path, "board.statuses")
-    needed = [Status.IN_PROGRESS, *(env.status for env in environments)]
+    _unknown(raw, tuple(status.value for status in ENVIRONMENT_STATUSES), path, "board.statuses")
+    used = {Status.IN_PROGRESS}
+    used.update(env.status for profile in profiles.values() for env in profile.environments)
     statuses: dict[Status, str] = {}
-    for status in needed:
+    for status in ENVIRONMENT_STATUSES:
+        if status not in used and status.value not in raw:
+            continue
         name = raw.get(status.value)
         if not isinstance(name, str) or not name:
             raise _invalid(
                 path,
                 f"board.statuses.{status.value}",
-                "must be a non-empty string (Jira status name)",
+                "must be a non-empty string (the tracker's status name)",
             )
         statuses[status] = name
     return statuses
 
 
-def _repos(
-    table: dict, environments: tuple[Environment, ...], path: Path
-) -> tuple[dict[str, dict[str, tuple[str, ...]]], dict[str, str]]:
-    raw = _table(table.get("repos", {}), path, "board.repos")
-    known = {env.name for env in environments}
-    repo_branches: dict[str, dict[str, tuple[str, ...]]] = {}
-    repo_deploy: dict[str, str] = {}
-    for repo, override in raw.items():
-        where = f"board.repos.{repo}"
-        override = _table(override, path, where)
-        if "deploy_repo" in override:
-            deploy_repo = override["deploy_repo"]
-            if not isinstance(deploy_repo, str) or not deploy_repo:
-                raise _invalid(path, f"{where}.deploy_repo", "must be a non-empty string")
-            repo_deploy[repo] = deploy_repo
-        branches = _table(override.get("branches", {}), path, f"{where}.branches")
-        for env_name, names in branches.items():
-            if env_name not in known:
-                raise _invalid(
-                    path,
-                    f"{where}.branches.{env_name}",
-                    f"names no environment; use one of {', '.join(sorted(known))}",
-                )
-            repo_branches.setdefault(repo, {})[env_name] = _strings(
-                names, path, f"{where}.branches.{env_name}"
-            )
-    return repo_branches, repo_deploy
-
-
 def parse_board(table: dict, path: Path) -> BoardConfig:
-    remote = table.get("remote", DEFAULT_REMOTE)
-    if not isinstance(remote, str) or not remote:
-        raise _invalid(path, "board.remote", "must be a non-empty string")
+    for key in table:
+        if key in FIRST_VERSION_KEYS:
+            raise _invalid(path, f"board.{key}", FIRST_VERSION)
+    _unknown(table, BOARD_KEYS, path, "board")
+    remote = _string(table.get("remote", DEFAULT_REMOTE), path, "board.remote")
     lookback = table.get("lookback_days", DEFAULT_LOOKBACK_DAYS)
     if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 1:
         raise _invalid(path, "board.lookback_days", "must be a positive integer")
     fetch = table.get("fetch", True)
     if not isinstance(fetch, bool):
         raise _invalid(path, "board.fetch", "must be true or false")
-    ignore_repos = _strings(table.get("ignore_repos", []), path, "board.ignore_repos")
-    direct = _strings(table.get("direct_deploy_repos", []), path, "board.direct_deploy_repos")
-    environments = _environments(table, path)
-    statuses = _statuses(table, environments, path)
-    repo_branches, repo_deploy = _repos(table, environments, path)
+    profiles = _profiles(table, path)
+    default = table.get("default_profile")
+    if not isinstance(default, str) or default not in profiles:
+        raise _invalid(
+            path, "board.default_profile", f"is {default!r}; use one of {', '.join(profiles)}"
+        )
+    raw_repos = _table(table.get("repos", {}), path, "board.repos")
+    repos = tuple(_repo(key, raw, profiles, default, path) for key, raw in raw_repos.items())
     return BoardConfig(
-        remote,
-        lookback,
-        fetch,
-        environments,
-        repo_branches,
-        statuses,
-        ignore_repos,
-        direct,
-        repo_deploy,
+        remote, lookback, fetch, default, profiles, repos, _statuses(table, profiles, path)
     )
 
 
