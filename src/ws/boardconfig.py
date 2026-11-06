@@ -114,12 +114,15 @@ class BoardConfig:
         settings = self.settings_for(repo)
         return settings is not None and settings.ignore
 
+    def profile_for(self, repo: str) -> Profile:
+        settings = self.settings_for(repo)
+        return self.profiles[(settings and settings.profile) or self.default_profile]
+
     def environments_for(self, repo: str) -> tuple[Environment, ...]:
         """The environments of the repo's profile, without the ones it switches off."""
         settings = self.settings_for(repo)
-        profile = self.profiles[(settings and settings.profile) or self.default_profile]
         inactive = settings.inactive if settings else ()
-        return tuple(env for env in profile.environments if env.name not in inactive)
+        return tuple(env for env in self.profile_for(repo).environments if env.name not in inactive)
 
     def uses_tags(self, repo: str) -> bool:
         return any(isinstance(env.proof, TagProof) for env in self.environments_for(repo))

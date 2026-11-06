@@ -288,6 +288,17 @@ def test_inactive_environment_proves_nothing(clone, branch, commit, merge, push)
     assert (result["TS-101"].rung, result["TS-101"].environment) == (1, None)
 
 
+def test_inactive_environment_branch_is_never_the_holding_branch(clone, git, commit, push):
+    repo = clone("demo-api")
+    git(repo, "checkout", "-q", "-b", "sandbox")
+    commit(repo, "feat: TS-101 x")
+    push(repo, "sandbox")
+    cfg = board(tables='[repos."demo-*"]\ninactive = ["sandbox"]')
+    result, _ = positions([repo], {"TS-101"}, cfg, TODAY, set())
+    assert result["TS-101"].holding.reached is None
+    assert result["TS-101"].holding.branch is None
+
+
 def test_environment_name_comes_from_the_repo_profile(clone, commit, push):
     repo = clone("demo-web")
     commit(repo, "fix: TS-101 x")

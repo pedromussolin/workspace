@@ -119,8 +119,9 @@ def _commits(
 
 
 def _environment_branches(repo: Path, cfg: BoardConfig) -> set[str]:
+    """Branches of every environment the repo's profile declares, switched off or not."""
     names: set[str] = set()
-    for env in cfg.environments_for(repo.name):
+    for env in cfg.profile_for(repo.name).environments:
         if isinstance(env.proof, BranchProof):
             for branch in env.proof.branches:
                 names.update({branch, f"{cfg.remote}/{branch}"})

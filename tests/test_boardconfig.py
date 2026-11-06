@@ -117,6 +117,8 @@ def test_spec_example_parses():
     assert cfg.ignored("x-argocd") and cfg.ignored("demo-workspace")
     assert not cfg.ignored("demo-api") and not cfg.ignored("data-api")
     assert names(cfg.environments_for("data-api")) == ("master", "production")
+    assert names(cfg.profile_for("data-api").environments) == ("sandbox", "master", "production")
+    assert cfg.profile_for("some-repo").name == "release-tag"
     assert names(cfg.environments_for("demo-api")) == ("sandbox", "master", "production")
     assert names(cfg.environments_for("some-repo")) == ("main", "production")
     assert cfg.settings_for("demo-api") is None
