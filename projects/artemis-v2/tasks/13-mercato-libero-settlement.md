@@ -1,7 +1,7 @@
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 
-- **Status:** recorte definido em 04/11/2026; a mapear. O desenho passa pela aprovação do Pietro
-  antes de qualquer código.
+- **Status:** recorte ampliado e levantamentos feitos em 05/11/2026 (ver "Levantamentos de
+  05/11"); desenho em andamento. O desenho passa pela aprovação do Pietro antes de qualquer código.
 - **Repos:** platform-cessao (principal); BFF e front só no bypass da tarefa 11.
 - **Decisões:** [D8](../decisions.md) (onde guardar modo e horário), [D25](../decisions.md)
   (contingência).
@@ -27,6 +27,42 @@ de outros devs.
   configuração do produto e subir os dados. O Pietro decide com o time como fica.
 - **O contrato entre as duas partes:** os dados do dia estão no sistema até o horário de corte do
   produto. O horário se define com o time e a operação.
+
+## Levantamentos de 05/11
+
+Três leituras de código, com o detalhe em arquivos próprios:
+[mapa dos fechamentos](13-closing-paths-map.md) (gatilhos, flags e combinações),
+[automações do Mercato Libero](13-automations-survey.md) (o repo do Rafael) e
+[scheduler](13-scheduler-survey.md) (o da shared e as rotinas periódicas da cessão).
+
+- **Produtos hoje [C, réplica, 05/11]:** 4, 80, 81 e 1406 em `acumulado` (só `acumula_liquidacoes`
+  ligada); 15 e 581 em `manual` (todas desligadas); nenhum com `liquidacao_automatico`. Em todo o
+  banco: 131 `manual`, 13 `acumulado`, 9 `automatico_por_chave`, 2 `automatico_por_remessa`, 1
+  `agendado`.
+- **A varredura fecha os seis produtos [C, código do Rafael]:** 4 vezes por dia útil (16h, 17h, 18h
+  e 20h45 pelo comentário; a agenda real fica numa tabela do Redshift), com 13 originadores e os
+  fundos fixos no código; só olha o status HTTP; `400 nenhum pagamento apto para liquidar` conta
+  como "nada a fazer". Corrige o que a tarefa dizia sobre 15 e 581.
+- **Não há gravação direta no banco da cessão [C]:** o script só lê a réplica; toda escrita é por
+  API (`PATCH /produto` com `padrao_liquidacao`, upload, `POST /liquidacao/`, `DELETE
+  /liquidacao/pagamentos`). Resolve o ponto 1 de "O que conferir". O `PATCH /produto` não apaga as
+  flags: os quatro acumulados seguem com `acumula_liquidacoes` depois de 466 chamadas [C, réplica].
+- **O fluxo novo não fecha lote vigente sozinho [C, `refact.py:965` em 579ad13e3]:** o pedido exige
+  um pagamento apto **sem lote** na chave; no `acumulado` o pagamento entra no vigente ao chegar em
+  `cadastrado` (`estados_liquidacao.py:350`), então a chave fica sem pagamento solto e o pedido
+  volta "nada a fechar". Apontar o `POST /liquidacao/` para o fluxo novo sem tratar isso para de
+  fechar os quatro acumulados. O acúmulo do legado também não confere a D9.
+- **Os outros jobs "do sistema em diante"** (autocorreção do upload, correção de aptos, zeradas às
+  16h, cancelamentos incompletos) contornam falhas de ingestão e lacunas de dado do cliente; o
+  fechamento depende de eles terminarem (corte não antes de ~16h30; melhor como condição "sem
+  `apto`").
+- **Riscos de passagem até 13/11 [C]:** credenciais no registro do usuário da VM, e-mails e alertas
+  com destinatários fixos no código (a caixa do Rafael), agenda fora do código, cópia da VM pode
+  diferir do repo.
+- **Scheduler:** a shared tem agendamento completo no banco (`scheduled_jobs` + `job_executions`,
+  disparo com `FOR UPDATE SKIP LOCKED`, atraso tolerado, resultado gravado); a cessão tem 6 entradas
+  fixas no beat, em UTC, sem registro de execução nem checagem de dia útil. A lógica da shared é
+  copiável; modelos, rotas e a ligação com o Celery 5.2 e o SQLAlchemy 1.3 se reescrevem.
 
 ## Por que é urgente
 
@@ -59,7 +95,8 @@ de outros devs.
 
 ## O que conferir antes de assumir que o fechamento resolve tudo
 
-1. **Gravações diretas no banco [H].** O usuário de banco próprio do Rafael lê e grava no Postgres
+1. **Gravações diretas no banco: descartado em 05/11 [C]** (o script do Rafael só lê a réplica;
+   ver "Levantamentos de 05/11"). Texto original: o usuário de banco próprio do Rafael lê e grava no Postgres
    da cessão, em tabelas ainda desconhecidas (pendência 7d de 13/10). Se o script marca algum
    estado de que o fechamento depende, por exemplo a cessão do contrato em `cadastrado` (a regra
    D9 exige), esse passo continua necessário e precisa de dono. Validar: perguntar ao Rafael e,
@@ -73,6 +110,8 @@ de outros devs.
    nunca depois.
 
 ## Contingência: o agendamento que já existe (D25)
+
+**Decidida em 05/11: não ligar** (`decisions.md`). A varredura segue até o Pietro desligar a VM.
 
 - **O que existe [C, leitura de outubro]:** `fechar_lote_liquidacao_por_agendamento`, beat fixo às
   19:00 UTC (16:00 de Brasília), ligado pela opção `baixa_por_agendamento` do produto. Fecha os
