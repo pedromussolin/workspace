@@ -99,6 +99,14 @@ Três leituras de código, com o detalhe em arquivos próprios:
   `/fake-batches/consolidate`). O front de produção só usa a rota nova. A troca para o fluxo novo
   precisa manter o 400 síncrono "nenhum pagamento apto para liquidar" e o 429.
 
+- **Remessas do Mercato Libero [C, réplica, 06/11]:** cada pagamento chega numa remessa própria
+  (`proc_id` distintos = processos por dia). Média de dias úteis (30/10, 03 a 05/11): produto 80
+  ~263 mil, 4 ~29 mil, 81 ~37 mil, 15 ~37 mil, 581 ~3 mil, 1406 ~2 mil, cerca de 370 mil por dia;
+  a carga vai das 8h às ~16h30 de Brasília e roda também no fim de semana. Fechar no fim da
+  remessa daria um lote por pagamento. O Datadog não separa o produto nas rotas de entrada.
+- **Lotes "abertos" já enviados (B25):** bug real em 14 lotes dos produtos 1109 e 1373 (10.562
+  pagamentos depois da conclusão); o resto era data de referência.
+
 ## Por que é urgente
 
 - **Sem a varredura, os lotes não fecham [C em 15/10, conferir de novo]:** nos produtos que
