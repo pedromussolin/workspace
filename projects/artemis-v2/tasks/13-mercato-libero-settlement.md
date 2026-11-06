@@ -143,6 +143,17 @@ Três leituras de código, com o detalhe em arquivos próprios:
   Brasília, `CONCILIACAO_HORARIO_CORTE`, `cessao/shared/saldo_liquidacao/corte.py:26`). Lote fechado
   depois do corte, ou em dia não útil, vai para a fila manual (`passou_do_corte`). O fechamento por
   agendamento de hoje roda às 16h de Brasília (`crontab(hour=19)` em UTC), depois do corte.
+- **Voltis hoje [C, réplica, 06/11, 7 dias]:** os produtos 449, 713, 746, 1043 e 1044 estão com tudo
+  desligado (`manual`, sem `liquidacao_automatico`, `lote_liquidacao`, `acumula_liquidacoes` nem
+  agendamento). Alguém fecha uma vez por dia útil, por chave: todos os lotes do dia nascem no mesmo
+  minuto, entre ~11h45 e ~14h30 de Brasília. 713: 22 lotes, 21.533 pagamentos, nenhum lote de 1. 449:
+  8 lotes, 85 pagamentos. **1043: 76 lotes, 87 pagamentos, 70 lotes de 1**: cada pagamento vem com um
+  `origem_pagamento` próprio (um UUID), e como a origem faz parte da chave, cada pagamento vira uma
+  chave. O lote de um pagamento da Voltis vem da chave, não do gatilho; trocar o gatilho por horário
+  não resolve o 1043. Quem fecha hoje [H]: a operação pela tela ou pelo Atlas; a EC2 só lê.
+- **Sem mexer no datawall:** a cessão não sabe quais linhas vieram do mesmo arquivo (a mensagem não
+  leva o arquivo), então o Mercato Libero também vai para o horário por produto. A contagem por
+  arquivo volta quando a carga dos arquivos entrar no sistema: quem carrega informa o total.
 
 ## Por que é urgente
 
