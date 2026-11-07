@@ -436,7 +436,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Correção:** some com o acúmulo como padrão (TS-5567); os afetados vão para um lote novo
   (`POST /liquidacao/pagamentos/reenviar`). Card TS-5573.
 
-## B26 — Lotes vazios em todos os estados (importante para o resumo da fila manual)
+## B26 — Lotes vazios em todos os estados (sobras de correções direto no banco)
 
 - **Efeito [C, réplica, 06/11, lotes criados nos últimos 60 dias]:** lotes sem nenhum pagamento:
   `errado` 10.293 (1145, 1472, 1505, 1571, 1637, 1703, 1901), `conciliacao_manual` 3.222 (713,
@@ -446,9 +446,26 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Amostra [C, log do lote]:** lotes do 713 criados pelo SISTEMA em 22/09 às 00h17 de Brasília,
   já vazios; foram para `aguarda_conciliacao` e, às 14h01, a rotina de conciliação os mandou para a
   fila manual.
-- **Causa [H]:** o fechamento cria o lote e não acha pagamento elegível (regra D9, ou a guarda
-  `WHERE liquidacao_lote_id IS NULL` perdendo a corrida), e o lote vazio fica. Validar no log de
-  outros estados e no código do fechamento (legado e `refact.py`) antes do fechamento por horário.
+- **Causa [C, réplica, 07/11]:** não é o fechamento atual. Todos os pontos do código que criam
+  lote descartam lote sem pagamento (`create_by_originador`, `refact.py` por chave e por remessa).
+  Os vazios são sobras de três episódios corrigidos direto no banco, mais o vigente do acúmulo:
+  - **1901, 12/09 23h03 a 13/09 8h34:** 10.247 lotes, um por pagamento; o envio à administradora
+    falhou ("nome do arquivo de liquidação não está no padrão") e os pagamentos foram apagados: não
+    existe mais pagamento criado nesse intervalo.
+  - **713, 1043 e 449 (Voltis), madrugadas de 22 e 23/09:** 3.640 lotes, um por pagamento, criados
+    ~3 s depois de cada pagamento virar `cadastrado` (fechamento na chegada). No mesmo dia os
+    pagamentos foram movidos para os lotes por chave: os 3.189 pagamentos do 713 criados na rajada
+    estão no lote concluído de 13h de 22/09 (1043: 13; 449: 8, iguais aos vazios da fila manual).
+  - **Produtos com acúmulo (1109, 1373, 81...):** lote vigente `pendente` que nasce vazio ao
+    reabrir; some com a TS-5567.
+  - **Por que "direto no banco":** o log do lote não registra a saída dos pagamentos (só criação e
+    roteamento), o código não tem caminho que desvincule pagamento, e a configuração desses
+    produtos hoje é `manual` com `produto_config.data_atualizacao` de jul/2026 (713) ou anterior.
+  - **Prova do lote com pagamento:** o roteamento da conciliação gravou `fundo_id` 120 ms depois
+    da criação, e `LiquidacaoLoteProcesso.fundo` (`models.py:5975`) vem do primeiro pagamento.
+- **Prevenção (proposta):** limpeza com registro, guarda para lote sem pagamento não seguir na
+  esteira, área administrativa no lugar de SQL para trocar configuração, e o resumo diário
+  mostrando lotes vazios como alerta.
 - **Por que importa:** o resumo da fila manual e o Excel listariam milhares de lotes vazios; o
   fechamento agendado pode criar mais. Limpar os pendentes antes de ligar o resumo.
 
