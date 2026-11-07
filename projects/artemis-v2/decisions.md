@@ -16,6 +16,7 @@ o motivo — é o que evita rediscutir depois.
 | D13 | Genius: nome do arquivo no reenvio | (a) `NNN` novo a cada envio; (b) manter nome e data do primeiro envio; (c) sufixo de tentativa | (a); exige migration nova e a Genius aceitar número novo para o mesmo lote. (c) esbarra na regex do layout. No modo repasse o nome vem do parceiro, e trocar o `NNN` é renomear o arquivo dele | a definir, depois de perguntar à Genius; depende de N2, N3, N4, N12, G4 (tarefa 08) | [08](tasks/08-genius-resend-and-logs.md) |
 | D14 | Genius: retorno que falha ao processar | (a) fila de erro (DLQ) com alarme; (b) devolver o item ao Redis como pendente; (c) só alarme e tratamento manual | (a); (b) entra em laço se o erro for permanente | a definir; depende de N11 (tarefa 08) | [08](tasks/08-genius-resend-and-logs.md) |
 | D16 | Genius: retorno com linhas que não são do lote | (a) não aplicar e mandar o lote para revisão; (b) aplicar só o que casa e logar o resto | (a): linha de outro lote é sinal de colisão de nome | a definir; depende de N8 (tarefa 08) | [08](tasks/08-genius-resend-and-logs.md) |
+| D26 | Destino do lote de liquidação vazio na limpeza (B26) | (a) estado final novo `descartado`, com registro no log do lote; (b) excluir o lote | a decidir: (a) guarda o rastro do que aconteceu; (b) limpa a base, mas apaga o histórico | Pietro | [13](tasks/13-mercato-libero-settlement.md), TS-5582 |
 
 ## Tomadas
 
