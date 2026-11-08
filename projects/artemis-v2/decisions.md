@@ -20,6 +20,7 @@ o motivo — é o que evita rediscutir depois.
 | D27 | Destinatários dos avisos e do resumo por e-mail | (a) grupo do Entra ID; (b) e-mails individuais (a shared aceita os dois em `targets`) | (a): os membros mudam no Entra ID sem mexer no sistema | Pietro (define e configura) | [13](tasks/13-mercato-libero-settlement.md) |
 | D28 | Horários definitivos de fechamento por produto | confirmar ou trocar os padrões (Mercato Libero 16h, 17h, 18h e 20h45; Voltis 13h30) | perguntar ao negócio; os padrões entram primeiro | Pietro com o negócio | [13](tasks/13-mercato-libero-settlement.md), TS-5570 |
 | D29 | Lote de dia anterior ainda na fila manual entra no e-mail do dia? | (a) só o Excel do dia; (b) o corpo do e-mail traz também o total da fila manual de qualquer data | (b): o lote parado não some do aviso no dia seguinte | Pietro | [13](tasks/13-mercato-libero-settlement.md) |
+| D30 | Onde fica a tela de configuração do produto no front (aba com permissão própria) | (a) aba "Configurações" na tela de lotes de liquidação e outra na de lotes de cessão; (b) página nova de configuração do produto com duas abas, Cessão e Liquidação | (b): a configuração é do produto e fica num lugar só; cada aba com seu escopo; as telas de lotes não crescem; vira a base da área administrativa | Pietro | [13](tasks/13-mercato-libero-settlement.md) |
 
 ## Tomadas
 
