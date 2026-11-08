@@ -30,26 +30,46 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
-| TS-5582 lotes vazios | `13-plan-ts-5582.md` | detalhado (08/11); tarefas da D26 marcadas | 10/11 |
-| TS-5583 duas colunas | `13-plan-ts-5583.md` | detalhado (08/11) | 18/11 |
-| TS-5567 acúmulo natural | `13-plan-ts-5567.md` | detalhado (08/11) | 18/11 |
-| TS-5569 scheduler no banco | `13-plan-ts-5569.md` | detalhado (08/11); Tarefa 1 = aprovar a arquitetura | 18/11 |
-| TS-5584 Excel na shared | `13-plan-ts-5584.md` | detalhado (08/11); pode começar já | 20/11 |
-| TS-5570 horário por produto | a escrever | depende das interfaces da 5569 e da 5583 | 20/11 |
-| TS-5585 resumo diário e aviso | a escrever | depende da 5584 e da 5569 | 27/11 |
-| TS-5571 aprovação antes do corte | a escrever | independente | 27/11 |
-| Tela de configuração do produto | a escrever | depende da D30, 5583 e 5569 | card a criar |
-| TS-5568 e TS-5572 | a escrever | depois da 5570 | 18/11 e 04/12 |
+| TS-5582 lotes vazios | `13-plan-ts-5582.md` | revisado (08/11); tarefas da D26 marcadas | 10/11 |
+| TS-5583 duas colunas | `13-plan-ts-5583.md` | revisado (08/11) | 18/11 |
+| TS-5567 acúmulo natural | `13-plan-ts-5567.md` | revisado (08/11) | 18/11 |
+| TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | revisado (08/11); Tarefa 1 = aprovar a arquitetura | 18/11 |
+| TS-5584 Excel na shared | `13-plan-ts-5584.md` | escrito; revisão pausada | 20/11 |
+| TS-5570 horário por produto | `13-plan-ts-5570.md` | escrito; revisão pausada (alinhar a `horarios`, lista) | 20/11 |
+| TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | escrito; revisão pausada | 27/11 |
+| TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | escrito; revisão pausada | 27/11 |
+| Tela de configuração do produto | `13-plan-tela-config-produto.md` | escrito; revisão pausada | card a criar |
+| TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | escrito; revisão pausada | 18/11 |
+| TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | escrito; revisão pausada | 04/12 |
 
 Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documentação), TS-5573
 (investigação), mensagens E1 (ETL) e E2 (negócio).
 
-## Paralelismo
+## Ordem, dono de cada trecho e paralelismo
 
-- Podem andar juntos, em branches separadas: TS-5582, TS-5583, TS-5569 e TS-5584 (repos ou módulos
-  diferentes). TS-5567 encosta na TS-5583 (a modalidade `acumulado`): começa depois da migração das
-  colunas, ou na mesma janela com a TS-5583 mergeada antes.
-- TS-5570 só começa com as interfaces da TS-5569 aprovadas (Tarefa 1 dela).
+1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). As tarefas da D26 esperam a
+   decisão.
+2. **TS-5583** (duas colunas): migration, enums, `apply_closing_modality` (com o padrão seguro de
+   produto novo), schemas, chave do lote fake pelo agrupamento, criação de lote sem origem e os
+   leitores de gatilho e agrupamento. **Não mexe no fechamento de lote vigente.**
+3. **TS-5567** (acúmulo natural): parte da TS-5583 mergeada; dona do acúmulo na chegada e dos três
+   fechadores de vigente (`refact.py`, `POST /liquidacao/`, task agendada).
+4. **TS-5569** (agendamentos em tabela): em paralelo às anteriores; acrescenta enums e modelos próprios
+   e o decorator nas tasks (conflitos só textuais com 5582 e 5583).
+5. **TS-5584** (Excel na shared): em paralelo, outro repositório; pode começar já.
+6. Depois: TS-5570 (com a interface da 5569 aprovada), TS-5585, TS-5571, tela de configuração do
+   produto (D30), TS-5568 e TS-5572.
+
+Arquivos que mais de um plano altera (conferir na revisão de cada card): `cessao/tasks/liquidacao_lote.py`
+(5582, 5583, 5567, 5569); `refact.py`, `repository.py`, `viewer.py` e `estados_liquidacao.py`
+(5583 → 5567); `service.py` e `tasks/conciliacao_liquidacao.py` (5582, 5569); `enum.py` e `models.py`
+(5583, 5569).
+
+## Execução (decisão de 08/11)
+
+Um subagente por tarefa e um revisor a cada tarefa, um card por vez. Os subagentes implementam e
+testam; o commit sai depois da revisão do Pietro em cada card. Antes de executar, os planos passam
+por revisão linha a linha contra o código (revisão de 08/11 no fim de cada plano).
 
 ## Decisões que travam algum passo
 
