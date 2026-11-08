@@ -80,6 +80,9 @@ para `platform-cessao` `origin/master` **6c152445d** (05/11/2026), salvo quando 
     `produto_config.data_atualizacao` anterior (713: jul/2026). Prova de que o lote nasceu com
     pagamento: o roteamento gravou `fundo_id` 120 ms depois da criação, e
     `LiquidacaoLoteProcesso.fundo` (`models.py:5975`) vem do primeiro pagamento.
+- **Lote vazio não nasce:** o código atual já não cria lote sem pagamento (acima). O que sobra é o
+  vigente do acúmulo, que nasce antes do pagamento (some com a TS-5567), e o lote que fica vazio
+  depois por mão no banco. A guarda abaixo cobre esse último caso sem quebrar a esteira.
 - **O que muda:**
   1. Limpeza por script revisado pela DBA, com registro no log de cada lote (não `UPDATE` solto).
      Destino do lote vazio: **D26** (estado final novo `descartado` ou exclusão).
@@ -327,6 +330,24 @@ para `platform-cessao` `origin/master` **6c152445d** (05/11/2026), salvo quando 
   `data_atualizacao`. Pergunta ao dev: a carga atualiza a linha quando ela volta com a data de
   liquidação?
 - **Dono:** o dev que cuida do ETL (o time de dados cuida só do lake). Mensagem pronta (E1).
+
+### 4.14 Tela de configuração do produto (front) — card a criar
+
+- **Pedido de 08/11:** o front ganha tela de configuração do produto, no padrão de aba com
+  permissão própria (o front pergunta ao BFF as ações do escopo; papéis só no BFF/Azure).
+- **Opções (D30):** (a) uma aba "Configurações" na tela de lotes de liquidação (configs de
+  liquidação) e outra na tela de lotes de cessão (configs de cessão); (b) uma página nova de
+  configuração do produto com duas abas, Cessão e Liquidação. **Recomendação: (b)**: a configuração
+  é do produto, então fica num lugar só; cada aba tem o seu escopo; as telas de lotes não crescem; e
+  a página vira a base da área administrativa.
+- **Aba Liquidação:** gatilho e agrupamento (TS-5583), horários de fechamento do produto (jobs da
+  TS-5569) com o aviso de horário depois do corte na própria tela (opção C), e o modo de conciliação
+  por fundo. **Aba Cessão:** as configurações de cessão de hoje.
+- **Hoje [C]:** BFF e front não têm tela nem schema de configuração do produto; a cessão já tem as
+  rotas de cadastro e de produto (`cessao/api/cadastro`, `cessao/api/produto`).
+- **Fora:** horários globais (corte da conciliação, verificação D0) ficam na área administrativa.
+- **Dependências:** TS-5583 e TS-5569. Fora do caminho crítico: até a tela existir, a configuração
+  vai por migration/rota.
 
 ### 4.13 Itens de apoio
 
