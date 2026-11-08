@@ -463,6 +463,12 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
     produtos hoje é `manual` com `produto_config.data_atualizacao` de jul/2026 (713) ou anterior.
   - **Prova do lote com pagamento:** o roteamento da conciliação gravou `fundo_id` 120 ms depois
     da criação, e `LiquidacaoLoteProcesso.fundo` (`models.py:5975`) vem do primeiro pagamento.
+- **Por que o 1901 fechou um lote por pagamento [C, código; H para a data da troca]:** o modelo nasce
+  com `lote_liquidacao = True` (`models.py:1327`, fecha na chegada) e `baixa_por_agendamento = True`
+  (`:1493`). Antes de 27/10 (`apply_closing_modality`), produto novo herdava esses valores; o 1901 foi
+  criado em 10/09 e a rajada começou em 12/09. A flag foi desligada depois direto no banco
+  (`data_atualizacao` igual à de criação). Proposta: produto novo nasce manual + por_chave, flags
+  desligadas (D7 do plano da TS-5583).
 - **Por que ficam presos na fila manual [C, código]:** `LiquidacaoLoteProcesso.fundo`
   (`models.py:5975`) faz `.first()` do primeiro pagamento e quebra no lote vazio. A rotina de
   conciliação captura o erro em `_agrupar_por_conta` (`cessao/tasks/conciliacao_liquidacao.py:70-97`)
