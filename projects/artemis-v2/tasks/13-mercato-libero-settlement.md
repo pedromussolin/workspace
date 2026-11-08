@@ -3,6 +3,7 @@
 - **Status:** recorte ampliado e levantamentos feitos em 05/11/2026 (ver "Levantamentos de
   05/11"); desenho em andamento. O desenho passa pela aprovação do Pietro antes de qualquer código.
 - **Repos:** platform-cessao (principal); BFF e front só no bypass da tarefa 11.
+- **Desenho (rascunho de 08/11, em revisão):** [13-closing-design.md](13-closing-design.md).
 - **Decisões:** [D8](../decisions.md) (onde guardar modo e horário), [D25](../decisions.md)
   (contingência).
 - **Relacionadas:** [11](11-closing-by-cutoff-time.md) (núcleo desta tarefa),
