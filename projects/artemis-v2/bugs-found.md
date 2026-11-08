@@ -463,6 +463,12 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
     produtos hoje é `manual` com `produto_config.data_atualizacao` de jul/2026 (713) ou anterior.
   - **Prova do lote com pagamento:** o roteamento da conciliação gravou `fundo_id` 120 ms depois
     da criação, e `LiquidacaoLoteProcesso.fundo` (`models.py:5975`) vem do primeiro pagamento.
+- **Por que ficam presos na fila manual [C, código]:** `LiquidacaoLoteProcesso.fundo`
+  (`models.py:5975`) faz `.first()` do primeiro pagamento e quebra no lote vazio. A rotina de
+  conciliação captura o erro em `_agrupar_por_conta` (`cessao/tasks/conciliacao_liquidacao.py:70-97`)
+  e manda o lote para a fila manual com `conta_vinculada_nao_resolvida` (o motivo dos vazios do 713).
+  O "aprovar" (`cessao/api/liquidacao/service.py:501`) e a esteira (`cessao/tasks/liquidacao_lote.py:101`)
+  montam o lote do mesmo jeito: a operação não consegue tirá-los da fila pela tela.
 - **Prevenção (proposta):** limpeza com registro, guarda para lote sem pagamento não seguir na
   esteira, área administrativa no lugar de SQL para trocar configuração, e o resumo diário
   mostrando lotes vazios como alerta.
