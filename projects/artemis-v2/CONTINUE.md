@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 04/11/2026
+Data: 09/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,21 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 09/11/2026
+
+**Tarefa 13, planos de implementação.** Desenho em `tasks/13-closing-design.md`; índice dos
+planos em `tasks/13-plan.md`, um plano por card (`tasks/13-plan-*.md`).
+- Revisados linha a linha contra o código: TS-5582, TS-5583, TS-5567 e TS-5569.
+- Escritos, com a revisão pausada para poupar tokens: TS-5584, TS-5570, TS-5585, TS-5571,
+  TS-5568, TS-5572 e a tela de configuração do produto. A TS-5570 ainda precisa trocar os jobs de
+  horário único pela lista `horarios` da TS-5569 (11 jobs mais o do produto 1604).
+- Cards criados no Jira: TS-5582, TS-5583, TS-5584 e TS-5585. O da tela de configuração ainda não.
+- Decisões de 07/11 e 08/11 em `decisions.md`; pendentes D26 a D30. B26 (lotes vazios) explicado
+  em `bugs-found.md`.
+- O PC foi formatado em 09/11 e os agentes de revisão pausados se perderam. Retomar com agentes
+  novos pelo brief de revisão, na cópia local `~/repos/.artemis_v2/agentes/ts13-plans/`
+  (`REVIEW-BRIEF.md`, `BRIEF.md`, `INDEX.md`), restaurada do backup.
 
 ### 04/11/2026
 
@@ -127,15 +142,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **05/11, operação:** acompanhar no Datadog o primeiro uso em produção (passo 6 da GMUD: listagem
-   com aptos, fechar uma linha, excluir). Registrar na `gmud-ts-5536.md` e montar o texto para colar
-   na GDM-352 (a API não comenta na GMUD).
-2. **05/11, Mercato Libero:** recorte da tarefa 13 definido (fechamento automático pela tarefa 11;
-   a chegada dos dados fica com o time). Seguir os "Próximos passos" dela: com o Rafael, a data de
-   saída, o que o script grava no banco e a hora em que os dados ficam completos; depois conferir
-   a contingência (D25).
-3. **`viva-production`:** pedir a validação da modalidade com `closing-modality-validate.sql` e
-   decidir o worker de fechamento (`after-v2.md`).
-4. **Semana:** S1 a S14 de `tasks/02-03-sandbox-tests.md`, já em produção.
-5. **Depois:** tradução do `refact.py` para PT-BR; TS-5537 (B18) numa release seguinte; renomear
-   `modalidade_fechamento_lote`; limpar as variáveis repetidas nos workers da cessão.
+1. **Revisão dos planos:** retomar os 7 pausados, primeiro TS-5584 e TS-5570 (os que começam
+   antes); depois conciliar os nomes entre os planos e montar a lista única de decisões.
+2. **Decisões:** D26 a D30 e as decisões de cada plano.
+3. **TS-5582 (prazo 10/11):** executar, um subagente por tarefa; commit só depois da revisão.
+4. **Até 13/11:** passagem com o Rafael Frankl (TS-5565) e as mensagens E1 (ETL) e E2 (negócio).
+5. **Pendências de antes:** `viva-production` (validar a modalidade e decidir o worker); S1 a S14
+   de `tasks/02-03-sandbox-tests.md`; tradução do `refact.py`; TS-5537 (B18).
