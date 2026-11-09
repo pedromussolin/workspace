@@ -19,12 +19,11 @@ Em "Quem", quem decide. A coluna "Motivo" traz a recomendação do Claude.
 | P5 | Escopo da 2a | usuário | 29/10 | Recomendado: registro genérico de pedidos, painel, servidor MCP, card migrado |
 | P6 | Escopo da 2b, em paralelo com a 2a | usuário | 29/10 | Recomendado: push de branch de tarefa e PR (criar, comentar) pelo `ws`, com o token do `credentials` |
 | P7 | GMUD (2c) | usuário | 29/10 | Recomendado: depois da 2a e da 2b |
-| P8 | Contexto = domínio ou sistema (cessão, portal, workspace pessoal, estudos), dono do conhecimento, dos repos e das releases (tarefa 03) | usuário | 30/10 | Recomendado: sim |
-| P9 | Todo item pertence a uma iniciativa; cada contexto tem uma `sustentacao/` permanente para bug e hotfix avulsos | usuário | 30/10 | Recomendado: sim (substitui o `standalone`) |
-| P10 | Itens planos por iniciativa, com épico, tipo e status como campos (não pastas por épico) | usuário | 30/10 | Recomendado: sim; nada se move, nenhum link quebra |
-| P11 | Pasta raiz `work/` no lugar de `projects/` | usuário | 30/10 | Recomendado: sim (o nome cobre contextos); alternativa: manter `projects/` e mudar só o interior |
-| P12 | Migração por script (`ws work migrate` com mapa aprovado): workspace primeiro; artemis e whitelabel com os chats parados | usuário | 30/10 | Recomendado: sim |
-| P13 | Ordem: a reorganização (tarefa 03) vem antes ou depois da fase 2 dos portões | usuário | 30/10 | Em aberto; o usuário disse que talvez mude o plano |
+| P10 | Itens planos por projeto, com épico, tipo e status como campos (não pastas por épico) | usuário | 30/10 | Recomendado: sim; nada se move, nenhum link quebra. Entra na estrutura da base (P15) |
+| P12 | Migração por script (`ws work migrate` com mapa aprovado): workspace primeiro; artemis e whitelabel com os chats parados | usuário | 30/10 | Recomendado: sim; vale para a migração para a base |
+| P14 | Base em três camadas: fonte (arquivos em git), índice por espaço (grafo vindo dos campos + trechos com busca por palavra e por significado, ligados entre si) e recuperação (pacote da sessão, busca híbrida, perguntas em vários passos) | usuário | 08/11 | Recomendado: sim. Resposta à dúvida do usuário sobre RAG e KAG: o grafo sai dos campos (card, épico, PR, sistema), sem extração por IA; SQLite FTS5 + sqlite-vec no local, pgvector na nuvem |
+| P15 | Estrutura do repo de cada espaço (`space.toml`, `memory/`, `systems/`, `inbox/items/`, `projects/<projeto>/` com `items/`, `decisions/` um arquivo cada, `docs/` tipados) e o repo de perfil | usuário | 08/11 | Recomendado: sim; apresentada como seção 1 do desenho, sem resposta ainda |
+| P16 | Frentes do 1º lançamento, segundo agente (Cursor ou OpenCode perguntam antes da ferramenta) e segundo tracker (Linear ou GitHub Issues) | usuário | 08/11 | Propostas no documento de descoberta de produto |
 
 ## Tomadas
 
@@ -45,3 +44,13 @@ Em "Quem", quem decidiu.
 | D11 | Parar a fase 1 após três revisões e documentar os limites | usuário | 29/10 | Portão que lê texto nunca fecha; quem fecha é tirar as chaves do alcance (fases 2 e 3) |
 | D12 | Branches de ambiente `master`, `main`, `sandbox`, `staging`: push só nos repos `*-argocd` e com caixa; merge de PR bloqueado só quando a base é de ambiente | usuário | 29/10 | Fluxo de PR em que o usuário mergeia |
 | D13 | Acelerar a fase 2: uma rodada de decisões, contrato no GitHub antes dos agentes, commit por item, uma revisão só no fim, sem reiniciar o Claude com agentes rodando | usuário | 29/10 | A fase 1 demorou |
+| D14 | O produto é um assistente do dev em várias frentes (rotina, tarefas e board, contexto e memória, organização de projetos, segurança, entrega e deploy, padrão de código); o board é uma delas | usuário | 07/11 | Revisão do documento de descoberta de produto |
+| D15 | Núcleo em arquitetura hexagonal: portas são interfaces (`Protocol`) do núcleo, cada sistema externo entra por adaptador; vale em qualquer agente, pago ou open source | usuário | 07/11 | Trocar agente ou tracker sem mexer no núcleo |
+| D16 | A base do produto (organização, memória, busca, nuvem) vem antes das frentes; a organização única é a primeira | usuário | 08/11 | "Antes disso tudo, precisamos melhorar nossa base sólida" |
+| D17 | Espaço por contexto no topo (empresa, cliente ou pessoal): fronteira de sigilo e de nuvem, nada cruza sem pedir | usuário | 08/11 | Substitui P11 (`work/`) e P13 (a base vem antes da fase 2) |
+| D18 | Projeto livre: tarefa = card (1 para 1); projeto agrupa por objetivo e pode juntar épicos; tarefa sem projeto vai para a caixa de entrada do espaço | usuário | 08/11 | Substitui P9 (`sustentacao/` vira `inbox/`) |
+| D19 | Sistema como cadastro no espaço (repos, branches de ambiente, conhecimento, releases), não como pasta acima do projeto | usuário | 08/11 | Substitui P8; projeto que cruza sistemas fica inteiro num lugar |
+| D20 | Um repo git por espaço, com remoto próprio | usuário | 08/11 | Sigilo: um vazamento não atinge os outros espaços |
+| D21 | Memória por nível (você, espaço, projeto, tarefa), fonte única; a memória do Claude Code deixa de ser a fonte e é importada separada por nível | usuário | 08/11 | Todo agente lê a mesma memória |
+| D22 | Arquivos como fonte; índice local reconstruível; nuvem = remoto git de cada espaço, serviço pago do time depois | usuário | 08/11 | Diff e revisão pelo git; perder o índice não perde nada |
+| D23 | Segredos por adaptador (1Password, GitHub, chaveiro) com o modelo local de hoje como reserva; mapeada para depois na tarefa 05 | usuário | 08/11 | Pedido do usuário |
