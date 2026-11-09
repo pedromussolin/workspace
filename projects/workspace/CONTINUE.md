@@ -10,7 +10,7 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 09/11/2026. Frente atual: o produto (o `ws` como assistente do dev para vender a devs do mundo
 todo) e a base dele. Passagem completa, com o desenho em aberto:
-`~/.local/share/workspace/projects/workspace/HANDOFF-20261109-base-do-produto.md`.
+`attachments/handoff-20261109-product-base.md` (nesta pasta).
 
 - Sincronização do board concluída e na `main`; evals `out-of-sync-card` e `daily-detailed`
   passam 3 de 3.
@@ -44,11 +44,20 @@ mudou para outra máquina.
 
 ## Branches e worktrees
 
-- `workspace`: tudo na `main`, sincronizada com o GitHub; nenhum worktree de agente aberto.
+- `workspace`: `main` sincronizada com o GitHub (09/11).
+- O trabalho dos agentes de 03/11 nunca entrou na `main` (lá os comandos `ws env`, `ws deploy-check`
+  e `ws handoff` ainda são esboços). Antes de formatar a máquina, foi salvo no GitHub em branches:
+  - `wip/automations-a-handoff`: parte A, skill de handoff e hooks;
+  - `wip/automations-b-daily-period`: parte B, daily por período e texto para gestor (com evals);
+  - `wip/automations-c-env-check`: parte C, `ws env` (código × Parameter Store × argocd);
+  - `wip/automations-d-deploy-check`: parte D, `ws deploy-check` após a revisão;
+  - `wip/gate-compound-push`: portão (push composto, dupla do gh, furo `$'…'`), com um commit "wip".
+  Detalhe de cada uma em `attachments/handoff-20261103-gate-tokens-automations.md`. Retomar:
+  `git switch <branch>`, conferir a suíte, revisar e juntar na `main`.
 
 ## Próximo passo
 
-1. Leia inteira a passagem `HANDOFF-20261109-base-do-produto.md` (caminho em "Onde parei").
+1. Leia inteira a passagem `attachments/handoff-20261109-product-base.md`.
 2. Peça o ok do usuário em P14 e P15 numa pergunta só.
 3. Siga o desenho da base uma seção por vez, com o ok dele: tipos de arquivo e campos, memória
    por nível, índice e busca, nuvem e sigilo, migração, portas do núcleo.
