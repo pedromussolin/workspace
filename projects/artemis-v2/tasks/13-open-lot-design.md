@@ -286,6 +286,10 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 
 ## 7. Decisões para o Pietro
 
+**Respostas de 10/11 (Pietro):** 1, 5, 6, 7 e 9 aprovadas como recomendado. 2, 3, 4, 8 e 10 em
+esclarecimento. Entra um item novo, vindo da revisão da TS-5585 e aprovado: o núcleo de fechamento
+grava no lote o instante em que ele foi fechado, e o resumo diário conta os lotes por esse instante.
+
 1. **Trava da chegada.** (a) exclusiva por chave, comando único, `lock_timeout` curto com recuo
    para avulso; (b) compartilhada nas chegadas e exclusiva para abrir e fechar. **Recomendação:
    (a)**; (b) só se a consulta 1 mostrar pico perto da capacidade.
