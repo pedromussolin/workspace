@@ -185,7 +185,9 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 3. Lote de destino = o lote aberto devolvido; sem lote aberto, um lote novo (como hoje).
 4. `UPDATE` guardado dos avulsos da chave (D9, qualquer data) **para o mesmo lote** (D2: uma linha,
    um lote, como a D22). Lote novo com zero linhas → `rollback`, "nada a fechar" (como hoje).
-5. Commit; limpa o cache legado; manda à esteira (`_send_real_batches_to_pipeline`,
+5. Antes do commit, um registro de fechamento no log de cada lote fechado (e do lote novo): mensagem fixa
+   `"Lote de liquidação fechado."`, dimensões no `extra` (decisão de 10/11; ver a seção 7).
+6. Commit; limpa o cache legado; manda à esteira (`_send_real_batches_to_pipeline`,
    `refact.py:2483`). O evento INFO "Fechamento de lote fake concluído" ganha `open_batch_id` e a
    contagem de avulsos.
 
@@ -322,7 +324,11 @@ remessa vem com a TS-5572. Na 8, o interruptor entra na lista de limpeza pós-de
 **feedback ao usuário**: a listagem devolve, por linha, quantos pagamentos sem lote de fora do período
 filtrado o fechamento vai levar, e o diálogo de confirmação do front mostra esse número (campo
 opcional no BFF e no front, na TS-5567). Entra um item novo, vindo da revisão da TS-5585 e aprovado: o núcleo de fechamento
-grava no lote o instante em que ele foi fechado, e o resumo diário conta os lotes por esse instante.
+registra no log do lote (`liquidacao_lote_log`, mensagem fixa `"Lote de liquidação fechado."`, com origem, chave,
+pagamentos e avulsos juntados no `extra`) que ele foi fechado, e o resumo diário conta os lotes pelo instante desse
+registro. **Decidido em 10/11: sem coluna e sem migration.** O fechamento não muda o estado do lote (marca o vigente
+`fechado`; o estado muda depois, pela esteira), então o registro não depende de transição de estado. Os outros
+fechadores da Fase 1 (`POST /liquidacao/`, task por agendamento, guarda da esteira) gravam o mesmo registro.
 
 1. **Trava da chegada.** (a) exclusiva por chave, comando único, `lock_timeout` curto com recuo
    para avulso; (b) compartilhada nas chegadas e exclusiva para abrir e fechar. **Recomendação:
