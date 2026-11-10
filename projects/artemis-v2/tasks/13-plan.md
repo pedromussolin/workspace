@@ -85,6 +85,8 @@ O que entra provisório na tarefa 13 e tem de sair depois que o novo estiver est
 - **Rotinas do beat fixo** (TS-5569, "Fora do escopo"): migrar as 6 para o agendador, inclusive a
   task legada do 1604, e apagar o `beat_schedule` fixo, as leituras do Parameter Store e as rotas
   legadas `/liquidacao/conciliacao/rotina/corte` e `/d0`.
+- **Linhas antigas do lote aberto** (`liquidacao_lote_vigente`): limpeza periódica das linhas de lotes
+  abertos já fechados há meses (uma linha por chave e, com a remessa, uma por remessa).
 
 ## Decisões que travam algum passo
 
