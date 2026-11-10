@@ -30,7 +30,8 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
-| TS-5582 lotes vazios | `13-plan-ts-5582.md` | revisado (08/11); tarefas da D26 marcadas | 10/11 |
+| TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | em execução (10/11); D26 = `descartado` | 10/11 |
+| TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | card criado (10/11); depois da TS-5582 em produção | 18/11 |
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | revisado (08/11) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | revisado (08/11) | 18/11 |
 | TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | revisado (08/11); Tarefa 1 = aprovar a arquitetura | 18/11 |
@@ -47,8 +48,8 @@ Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documenta�
 
 ## Ordem, dono de cada trecho e paralelismo
 
-1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). As tarefas da D26 esperam a
-   decisão.
+1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). Só as guardas, com BFF e front
+   na mesma branch; a limpeza ficou na TS-5596.
 2. **TS-5583** (duas colunas): migration, enums, `apply_closing_modality` (com o padrão seguro de
    produto novo), schemas, chave do lote fake pelo agrupamento, criação de lote sem origem e os
    leitores de gatilho e agrupamento. **Não mexe no fechamento de lote vigente.**
@@ -75,7 +76,6 @@ por revisão linha a linha contra o código (revisão de 08/11 no fim de cada pl
 
 | Decisão | Trava |
 |---|---|
-| D26 destino do lote vazio | tarefas marcadas da TS-5582 e a limpeza |
 | D27 destinatários, D29 fila manual no e-mail | ligar a TS-5585 |
 | D30 onde fica a tela de configuração do produto | o plano da tela |
 | Arquitetura da TS-5569 (dia útil, disparo duplo) | TS-5569 a partir da Tarefa 2 e a TS-5570 |
