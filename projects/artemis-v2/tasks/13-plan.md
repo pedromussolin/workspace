@@ -75,7 +75,7 @@ por revisão linha a linha contra o código (revisão de 08/11 no fim de cada pl
 ## Limpeza pós-deploy
 
 O que entra provisório na tarefa 13 e tem de sair depois que o novo estiver estável em produção
-(lista de 10/11; cada item vira card quando chegar a hora):
+(lista de 10/11; card **TS-5612**, sem sprint até o fluxo novo estabilizar):
 
 - **Interruptor do lote aberto** (D34, decisão 8 da proposta): variável no Parameter Store que
   desliga a entrada no lote aberto. Remover a variável e o código do desvio.
