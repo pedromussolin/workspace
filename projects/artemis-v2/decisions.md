@@ -17,12 +17,12 @@ o motivo — é o que evita rediscutir depois.
 | D14 | Genius: retorno que falha ao processar | (a) fila de erro (DLQ) com alarme; (b) devolver o item ao Redis como pendente; (c) só alarme e tratamento manual | (a); (b) entra em laço se o erro for permanente | a definir; depende de N11 (tarefa 08) | [08](tasks/08-genius-resend-and-logs.md) |
 | D16 | Genius: retorno com linhas que não são do lote | (a) não aplicar e mandar o lote para revisão; (b) aplicar só o que casa e logar o resto | (a): linha de outro lote é sinal de colisão de nome | a definir; depende de N8 (tarefa 08) | [08](tasks/08-genius-resend-and-logs.md) |
 | D28 | Horários definitivos de fechamento por produto | confirmar ou trocar os padrões (Mercato Libero 16h, 17h, 18h e 20h45; Voltis 13h30) | perguntar ao negócio; os padrões entram primeiro | Pietro com o negócio | [13](tasks/13-mercato-libero-settlement.md), TS-5570 |
-| D29 | Lote de dia anterior ainda na fila manual entra no e-mail do dia? | (a) só o Excel do dia; (b) o corpo do e-mail traz também o total da fila manual de qualquer data | (b): o lote parado não some do aviso no dia seguinte | Pietro | [13](tasks/13-mercato-libero-settlement.md) |
 
 ## Tomadas
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 10/11/2026 | D29: o corpo do e-mail do dia traz também o total da fila manual de qualquer data (quantidade, valor e o lote mais antigo) | Pietro: o lote parado não some do aviso no dia seguinte; custa uma contagem sobre a fila manual (dezenas de lotes) |
 | 10/11/2026 | D34: o lote aberto (vigente) passa a ser o comportamento padrão de todos os produtos, sem configuração, com guardas contra B25, B14, lote vazio e D9; substitui o "pagamento espera sem lote" do plano anterior da TS-5567. Proposta de desenho em `tasks/13-open-lot-design.md`, para aprovação antes de reescrever os planos | Pietro: fechar o lote aberto é só marcar `fechado`, barato em qualquer tamanho; sem ele, o produto 80 (lotes de até 621 mil pagamentos) estoura o UPDATE de 480 s do fechamento novo |
 | 10/11/2026 | D27: os avisos e o resumo diário por e-mail vão para um grupo do Entra ID (a shared aceita grupo em `targets`) | Pietro: os membros mudam no Entra ID sem mexer no sistema |
 | 10/11/2026 | D30: a configuração do produto ganha uma página própria no front, com duas abas (Cessão e Liquidação), cada uma com seu escopo de permissão | Pietro: a configuração é do produto e fica num lugar só; as telas de lotes não crescem |

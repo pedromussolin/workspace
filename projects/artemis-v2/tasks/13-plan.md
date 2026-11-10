@@ -76,6 +76,5 @@ por revisão linha a linha contra o código (revisão de 08/11 no fim de cada pl
 
 | Decisão | Trava |
 |---|---|
-| D29 fila manual no e-mail | ligar a TS-5585 |
 | Arquitetura da TS-5569 (dia útil, disparo duplo) | TS-5569 a partir da Tarefa 2 e a TS-5570 |
 | Formato da chave `por_chave_sem_origem` | TS-5583 (chave) e TS-5570 no 1043 |
