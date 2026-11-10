@@ -437,12 +437,16 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   replicado de uma securitizadora parceira). A operação recebe os arquivos dela, sobe o lote pelo
   Atlas, fecha e corrige à mão a data do lote para o dia anterior (é a "data de referência, dia
   anterior" vista acima). No 1109, o B25 afeta só o controle interno: não há pagamento que deixou
-  de chegar à administradora. O lemans_2 (1373) ficou sem resposta.
-- **Validar:** lemans_2 envia à administradora? No omnis, os pagamentos que entraram em lote já
-  liquidado aparecem certo na carteira? Qual campo de data a operação corrige e por onde?
+  de chegar à administradora. **Resposta final (10/11):** o lemans_2 (1373) segue a mesma lógica,
+  sem envio; os pagamentos que entraram em lote já liquidado têm volume muito pequeno e não têm
+  impacto. As datas: a operação recebe todo dia os arquivos de liquidação do dia anterior, processa e
+  volta a data para a data do arquivo (sempre o dia anterior).
+- **Conclusão:** o B25 não tem impacto nos dois produtos; nada a corrigir nos dados. A guarda da D34
+  evita que se repita. Com o Atlas descontinuado (D35), a troca de data precisa de outro caminho:
+  o ideal é o lote já nascer com a data do arquivo.
 - **Correção:** com a D34, a guarda da chegada (só entra em lote `pendente`) e o "Liquidar" que
-  fecha o lote aberto antes de enviar (decisão 5 da proposta). Os afetados do 1109 dependem da
-  resposta acima; os do 1373, de saber se ele envia. Card TS-5573.
+  fecha o lote aberto antes de enviar (decisão 5 da proposta). Os afetados ficam como estão
+  (resposta do negócio). Card TS-5573, que perde o objeto principal.
 
 ## B26 — Lotes vazios em todos os estados (sobras de correções direto no banco)
 
