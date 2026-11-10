@@ -35,7 +35,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | revisado (08/11) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | revisado (08/11) | 18/11 |
 | TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | revisado (08/11); Tarefa 1 = aprovar a arquitetura | 18/11 |
-| TS-5584 Excel na shared | `13-plan-ts-5584.md` | escrito; revisão pausada | 20/11 |
+| TS-5584 Excel na shared | `13-plan-ts-5584.md` | revisado (10/11); 2 decisões (teto do arquivo, compressão) | 20/11 |
 | TS-5570 horário por produto | `13-plan-ts-5570.md` | escrito; revisão pausada (alinhar a `horarios`, lista) | 20/11 |
 | TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | escrito; revisão pausada | 27/11 |
 | TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | escrito; revisão pausada | 27/11 |
