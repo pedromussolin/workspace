@@ -32,10 +32,10 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 |---|---|---|---|
 | TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | branches enviadas (10/11), falta abrir as PRs; D26 = `descartado` | 10/11 |
 | TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | card criado (10/11); depois da TS-5582 em produção; inclui fechar os vigentes dos vazios (ponto 5 da TS-5567) | 18/11 |
-| TS-5583 duas colunas | `13-plan-ts-5583.md` | revisado (08/11) | 18/11 |
+| TS-5583 duas colunas | `13-plan-ts-5583.md` | branch enviada (10/11), 8 commits; acúmulo em qualquer combinação (D36) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | reescrito (10/11) para o lote aberto (D34): Fase 1 nos 13 que acumulam (18/11, apertado), Fase 2 para todos; 5 decisões novas | 18/11 (Fase 1) |
-| TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | reescrito (10/11): cron, histórico, migração das 6 rotinas adiada; 4 decisões novas | 18/11 |
-| TS-5584 Excel na shared | `13-plan-ts-5584.md` | revisado (10/11); 2 decisões (teto do arquivo, compressão) | 20/11 |
+| TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | branch enviada (10/11), 9 commits sobre a TS-5583 (migration encadeada; PR depois da 5583) | 18/11 |
+| TS-5584 Excel na shared | `13-plan-ts-5584.md` | branch enviada (10/11), 8 commits; falta o snapshot OpenAPI no BFF depois da PR | 20/11 |
 | TS-5570 horário por produto | `13-plan-ts-5570.md` | revisado (10/11), alinhado à TS-5569 nova; decisões 1 a 6 e 3 novas em aberto | 20/11 |
 | TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | revisado (10/11); 4 decisões (horário do job, dia de referência com o lote aberto, `descartado`, chave do aviso) | 27/11 |
 | TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | revisado (10/11); 2 decisões (corrida com a rotina, `estado_anterior`) | 27/11 |
