@@ -23,6 +23,7 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 10/11/2026 | D34: o lote aberto (vigente) passa a ser o comportamento padrão de todos os produtos, sem configuração, com guardas contra B25, B14, lote vazio e D9; substitui o "pagamento espera sem lote" do plano anterior da TS-5567. Proposta de desenho em `tasks/13-open-lot-design.md`, para aprovação antes de reescrever os planos | Pietro: fechar o lote aberto é só marcar `fechado`, barato em qualquer tamanho; sem ele, o produto 80 (lotes de até 621 mil pagamentos) estoura o UPDATE de 480 s do fechamento novo |
 | 10/11/2026 | D27: os avisos e o resumo diário por e-mail vão para um grupo do Entra ID (a shared aceita grupo em `targets`) | Pietro: os membros mudam no Entra ID sem mexer no sistema |
 | 10/11/2026 | D30: a configuração do produto ganha uma página própria no front, com duas abas (Cessão e Liquidação), cada uma com seu escopo de permissão | Pietro: a configuração é do produto e fica num lugar só; as telas de lotes não crescem |
 | 10/11/2026 | D26: lote de liquidação vazio vai para o estado final novo `descartado`, com registro no log do lote (opção (a)); a exclusão (b) fica descartada | Pietro: guarda o rastro do que aconteceu, o retorno tardio da ADM ainda acha o lote e não precisa de migration |
