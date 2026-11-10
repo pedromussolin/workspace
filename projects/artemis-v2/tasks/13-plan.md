@@ -72,6 +72,20 @@ Um subagente por tarefa e um revisor a cada tarefa, um card por vez. Os subagent
 testam; o commit sai depois da revisão do Pietro em cada card. Antes de executar, os planos passam
 por revisão linha a linha contra o código (revisão de 08/11 no fim de cada plano).
 
+## Limpeza pós-deploy
+
+O que entra provisório na tarefa 13 e tem de sair depois que o novo estiver estável em produção
+(lista de 10/11; cada item vira card quando chegar a hora):
+
+- **Interruptor do lote aberto** (D34, decisão 8 da proposta): variável no Parameter Store que
+  desliga a entrada no lote aberto. Remover a variável e o código do desvio.
+- **Configuração de acúmulo** (`acumula_liquidacoes`): deixa de ter efeito com a D34 (item 6 da
+  revisão de 08/11 da TS-5567).
+- **Coluna antiga `modalidade_fechamento_lote` e flags legadas** (TS-5583): quando nada mais as ler.
+- **Rotinas do beat fixo** (TS-5569, "Fora do escopo"): migrar as 6 para o agendador, inclusive a
+  task legada do 1604, e apagar o `beat_schedule` fixo, as leituras do Parameter Store e as rotas
+  legadas `/liquidacao/conciliacao/rotina/corte` e `/d0`.
+
 ## Decisões que travam algum passo
 
 | Decisão | Trava |
