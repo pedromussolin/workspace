@@ -30,8 +30,8 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
-| TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | em execução (10/11); D26 = `descartado` | 10/11 |
-| TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | card criado (10/11); depois da TS-5582 em produção | 18/11 |
+| TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | branches enviadas (10/11), falta abrir as PRs; D26 = `descartado` | 10/11 |
+| TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | card criado (10/11); depois da TS-5582 em produção; inclui fechar os vigentes dos vazios (ponto 5 da TS-5567) | 18/11 |
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | revisado (08/11) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | revisado (08/11) | 18/11 |
 | TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | revisado (08/11); Tarefa 1 = aprovar a arquitetura | 18/11 |
@@ -76,7 +76,6 @@ por revisão linha a linha contra o código (revisão de 08/11 no fim de cada pl
 
 | Decisão | Trava |
 |---|---|
-| D27 destinatários, D29 fila manual no e-mail | ligar a TS-5585 |
-| D30 onde fica a tela de configuração do produto | o plano da tela |
+| D29 fila manual no e-mail | ligar a TS-5585 |
 | Arquitetura da TS-5569 (dia útil, disparo duplo) | TS-5569 a partir da Tarefa 2 e a TS-5570 |
 | Formato da chave `por_chave_sem_origem` | TS-5583 (chave) e TS-5570 no 1043 |
