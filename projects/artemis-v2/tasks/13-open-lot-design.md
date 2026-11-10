@@ -7,9 +7,11 @@ Datadog (com a fonte); **[H]** = hipótese, com o caminho para validar. Caminhos
 
 ## 0. Conclusão
 
-1. **Dá para manter o lote aberto e torná-lo padrão sem migration.** A tabela
-   `liquidacao_lote_vigente` já tem o que precisa: chave única por produto, fundo, originador e
-   origem (`database/models.py:6984-7021`), e a origem aceita a sentinela `*` da chave sem origem.
+1. **Dá para manter o lote aberto e torná-lo padrão, com uma migration pequena só para a remessa.**
+   A tabela `liquidacao_lote_vigente` já tem o que precisa para as chaves de origem: chave única por
+   produto, fundo, originador e origem (`database/models.py:6984-7021`), e a origem aceita a
+   sentinela `*` da chave sem origem. A D36 (10/11) leva o lote aberto também à remessa: o vigente
+   ganha a coluna `proc_id` (migration nova, nada existente é alterado; seção 3.3).
 2. **A premissa "a trava por chave já existe hoje" não se confirma [C].** A chegada comum lê o
    vigente sem trava (`api/liquidacao/repository.py:444-446`); só a reabertura usa `FOR UPDATE`
    (`:389-390`). O produto 80 funciona hoje porque nada serializa as chegadas. O desenho novo
@@ -22,8 +24,10 @@ Datadog (com a fonte); **[H]** = hipótese, com o caminho para validar. Caminhos
 4. **Fechar fica barato em qualquer tamanho:** marca o vigente `fechado` e junta no mesmo lote só
    os pagamentos que ficaram sem lote (D9 tardia, falha na entrada, recompra). O custo do `UPDATE`
    passa a ser o desses avulsos, não o do lote.
-5. **`por_remessa` e `automatico` (até a TS-5572) ficam fora do lote aberto**; o resto usa, sem
-   configuração por produto.
+5. **O lote aberto vale em qualquer caso (D36, 10/11):** todo gatilho (manual, agendado, automático)
+   e todo agrupamento (`por_chave`, `por_chave_sem_origem`, `por_remessa`), sem configuração por
+   produto. A remessa ganha lote aberto pela chave `proc:<proc_id>`; o automático entra junto, e o
+   fim da remessa (TS-5572) fecha o lote aberto pelo núcleo.
 6. **Recomendo duas fases:** primeiro as guardas nos 13 produtos que já acumulam (destrava a
    TS-5570 sem drenagem e sem fechar em blocos), depois todos os produtos, com a exclusão na tela.
 
@@ -115,12 +119,12 @@ Código novo em `refact.py` (`RefactLiquidacaoService.entrar_no_lote_aberto_da_l
 repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no lugar de
 `acumula_liquidacao`. As funções de chegada de `repository.py:370-475` saem.
 
-1. **Quem não entra:** renegociação (como hoje); agrupamento `por_remessa` (D3); gatilho
-   `automatico` até a TS-5572 (D4); pagamento com parcela sem fundo (o vigente exige fundo,
-   `models.py:7010-7012`). Esses ficam avulsos.
+1. **Quem não entra:** renegociação (como hoje); pagamento com parcela sem fundo (o vigente exige
+   fundo, `models.py:7010-7012`); em `por_remessa`, pagamento de processo sem `proc_id`. Esses
+   ficam avulsos. Nenhum agrupamento nem gatilho fica de fora (D36).
 2. **Chave por pagamento:** produto, originador do contrato, **fundo da parcela** e origem do
    pagamento (`''` quando nula, como a tela faz com `coalesce`); `*` no lugar da origem em
-   `por_chave_sem_origem`. Uma consulta pequena pelos pagamentos do processo. Várias chaves no
+   `por_chave_sem_origem`; em `por_remessa`, o `proc_id` do processo no lugar da origem (3.3). Uma consulta pequena pelos pagamentos do processo. Várias chaves no
    mesmo processo: tratar em ordem fixa.
 3. **Transação curta, só para isso** (a sessão chega limpa: `cadastrado` já foi commitado):
    `SET LOCAL lock_timeout` curto (ex.: 2 s).
@@ -147,8 +151,22 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 |---|---|---|
 | `por_chave` | um por (produto, originador, fundo, origem) | `origem:<origem>:<p>:<o>:<f>` |
 | `por_chave_sem_origem` | um por (produto, originador, fundo), origem gravada `*` | `origem:*:<p>:<o>:<f>` |
-| `por_remessa` | nenhum (D3): espera avulso e fecha pela remessa | `proc:<proc_id>` |
+| `por_remessa` (D36) | um por (produto, remessa, originador, fundo da parcela) | `proc:<proc_id>` (uma linha para a remessa inteira) |
 
+- **Como o vigente guarda a remessa (D36, substitui a decisão 3):** migration nova, só `add_column`
+  e índice, sem tocar nas existentes: coluna `proc_id` (UUID, nula) em `liquidacao_lote_vigente`,
+  índice parcial `ix_liquidacao_lote_vigente_proc_id` `WHERE proc_id IS NOT NULL`, usado para achar
+  os vigentes abertos da remessa. A restrição única existente (produto, fundo, originador,
+  `origem_pagamento`) **fica como está**: na remessa, `origem_pagamento` recebe o texto
+  `proc:<proc_id>` (cabe em `String(100)`, e a origem é `NOT NULL`), o que dá a unicidade por
+  (produto, fundo, originador, remessa) sem restrição nova. Nenhum vigente existente muda
+  (`proc_id` nulo).
+- **Uma linha na tela, vários lotes:** a remessa pode ter vários (originador, fundo), cada um com seu
+  lote aberto (um lote real por (fundo, originador), como a D22 já exige); o fechamento da linha
+  `proc:` fecha todos de uma vez (3.4).
+- **Volume:** os pagamentos de uma remessa chegam em rajada para o mesmo vigente (até 18 mil no 1637):
+  a trava por chave concentra mais que em `por_chave`. O recuo para avulso cobre (3.1, regra 5) e o
+  fechamento da remessa leva os avulsos; medir antes de ligar (consulta 6, seção 9, e R9).
 - **Troca de agrupamento com lote aberto:** a linha do lote aberto é a do **próprio** vigente
   (campos gravados), não a do agrupamento atual. Lote aberto antigo aparece como linha própria até
   ser fechado (tela ou horário); a chegada já usa a chave nova. A validação de
@@ -177,7 +195,9 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 |---|---|
 | Tela (`/fake-batches/close`) | usa o núcleo |
 | Horário (TS-5570) | a lista de chaves do produto passa a ser **vigentes abertos do produto ∪ chaves com avulso apto**; cada uma pelo núcleo |
-| Fim da remessa (TS-5572) | `automatico + por_chave`: fecha pelo núcleo as chaves que a remessa tocou; `por_remessa`: como hoje (`_close_remittance_fake_batch`) |
+| Fim da remessa (TS-5572), qualquer produto `automatico` | `por_chave`: fecha pelo núcleo o lote aberto das chaves que a remessa tocou (a chave inteira, D4 da TS-5572); `por_remessa`: fecha o lote aberto da própria remessa, pelo núcleo da remessa (abaixo) |
+| Linha `proc:` (tela, horário, fim da remessa) | núcleo da remessa (novo `_close_remittance_fake_batch`): `UPDATE ... SET fechado = true WHERE proc_id = <remessa> AND fechado = false RETURNING` (usa o índice parcial); por (originador, fundo) com avulso da remessa, o destino é o lote aberto devolvido do mesmo par, senão lote novo; vigente aberto sem avulso fecha igual; tudo num commit, depois o envio à esteira |
+| `lote_automatico` legado (até a TS-5572) | **não muda** (o legado não se corrige, é substituído): não enxerga o lote aberto. Por isso o produto `automatico` só entra no lote aberto quando a TS-5572 estiver em produção (recomendação da D36 no plano da TS-5567; alternativa na seção 7) |
 | `POST /liquidacao/` legado (até a TS-5568) | fecha vigente sem olhar a flag (Tarefa 4 do plano atual, mantida); avulsos seguem no `create_by_originador` |
 | Beat legado (só o 1604) | fecha vigente sem olhar a flag (Tarefa 5 do plano atual, mantida) |
 | `esteira_baixar` e `liquidar_task` | **guarda nova:** antes de qualquer coisa, `UPDATE ... SET fechado = true WHERE liquidacao_lote_id IN (...) AND fechado = false` e commit. Cobre `/liquidar` (D5), `reenviar` e qualquer envio futuro. Sem efeito nos lotes que já chegam fechados |
@@ -192,7 +212,8 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 - **Avulsos do dia do deploy** (produtos que hoje não acumulam): nada a fazer; o primeiro
   fechamento de cada chave os junta ao lote. Em 27/10 os 15 maiores grupos sem lote tinham até
   1.514 pagamentos (`evidence/closing-group-sizes-2026-10-27.md`); repetir no dia (consulta 5).
-- **`por_remessa` e `automatico`:** como hoje.
+- **`por_remessa` e `automatico` (D36):** entram no lote aberto como os demais; o que ficar avulso
+  (parcela sem fundo, falha de entrada) o fechamento da remessa leva.
 
 ### 3.6 Tela e listagens
 
@@ -203,11 +224,17 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
   com o `proc_id` de cada pagamento, 11,8 s [C, `evidence/real-batches-replica-2026-10-20.md`].
   Por isso a linha não monta `proc_ids` do lote aberto (só dos avulsos). **[H]** se o front usa
   `proc_ids` nessa linha.
+- **Linha `proc:` (D36):** soma os lotes abertos de todos os vigentes da remessa (índice parcial por
+  `proc_id`) com os avulsos da remessa. O `proc_id` da linha é a chave e **nunca fica vazio**; `proc_ids`
+  traz só o `proc_id` da remessa (sem consulta por pagamento). A linha com lote aberto aparece sempre,
+  sem janela de data, como a de origem.
 - **Pagamentos da linha** (`/fake-batches/payments`): os do lote aberto mais os avulsos.
 - **Exclusão na tela:** hoje pula pagamento com lote (`COM_LOTE`, `refact.py:2167`). Passa a
   apagar também pagamento do lote aberto da linha, travando antes o vigente e conferindo
   `fechado = false` e lote `pendente`, por blocos (o orçamento por tarefa já existe). A decisão 2 da
-  revisão de 08/11 (sem "Excluir" em "todas as datas") continua.
+  revisão de 08/11 (sem "Excluir" em "todas as datas") continua. Na linha `proc:`, a trava é a dos
+  vigentes abertos da remessa (índice parcial), sempre antes das linhas de pagamento. Hoje a linha
+  de remessa não exclui por data (a remessa inteira), e isso continua.
 - **"Lotes reais"** (`/lotes/reais`): hoje o lote aberto aparece como `pendente` com soma viva
   (`repository.py:727-755`). Proposta: some de lá até fechar (D6), o que também tira dele os botões
   de reenviar e liquidar.
@@ -274,11 +301,11 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 
 | Plano | Sai | Entra | Prazo |
 |---|---|---|---|
-| TS-5567 | Tarefas 1 e 2 (parar o acúmulo); Tarefa 8 (drenagem) vira retrato do B25 | chegada nova (3.2), guarda na esteira e no `/liquidar`, núcleo do fechamento (3.4), listagem e exclusão com lote aberto, `/lotes/reais`; Tarefas 3, 4 e 5 (fechadores sem flag) **ficam**, com a chave nova; Tarefas 6 e 7 (datas opcionais na cessão) ficam | maior que o plano anterior; 18/11 só para a Fase 1 [H]; Fase 2 a seguir |
+| TS-5567 | Tarefas 1 e 2 (parar o acúmulo); Tarefa 8 (drenagem) vira retrato do B25 | chegada nova (3.2), guarda na esteira e no `/liquidar`, núcleo do fechamento (3.4), listagem e exclusão com lote aberto, `/lotes/reais`; **D36:** na Fase 2, migration do `proc_id` no vigente, chegada pela chave `proc:`, fechamento da remessa pelo núcleo, listagem e exclusão da linha `proc:`, e o automático no portão (depois da TS-5572); Tarefas 3, 4 e 5 (fechadores sem flag) **ficam**, com a chave nova; Tarefas 6 e 7 (datas opcionais na cessão) ficam | maior que o plano anterior; 18/11 só para a Fase 1 [H]; Fase 2 a seguir |
 | TS-5583 | nada a refazer | D3 (recusar acúmulo com sem origem) e as recusas de acúmulo ficam inofensivas e somem com a flag; a validação da chave aceita também vigente aberto (3.3) | igual |
 | TS-5570 | drenagem antes de ligar; fechar em blocos (decisão 6) | lista de chaves = vigentes abertos ∪ avulsos aptos; medir avulsos, não o grupo da rodada | pode antecipar: depende só da Fase 1 |
 | TS-5568 | — | `POST /liquidacao/` usa o núcleo; o `fundo_id` do corpo é o da parcela (conferir com a consulta 3 e com o Atlas, Tarefa 1) | igual |
-| TS-5572 | — | `automatico + por_chave` passa a usar lote aberto; o fim da remessa fecha as chaves tocadas | igual |
+| TS-5572 | — | **D36:** o gatilho `automatico` passa a usar lote aberto (`por_chave` e `por_remessa`); o fim da remessa fecha o lote aberto das chaves tocadas (`por_chave`) e o da própria remessa (`por_remessa`) pelo núcleo da TS-5567, e a consulta das chaves da remessa passa a enxergar pagamento já dentro do lote aberto | igual; a TS-5572 entra antes de o automático ligar o lote aberto |
 | TS-5582 / TS-5596 | — | 5582 sem mudança (ordem da guarda na esteira, 3.7); 5596 fecha também os vigentes `concluido` abertos | igual |
 | TS-5573 | — | parte do retrato da consulta 4; a correção dos afetados segue com `reenviar` | igual |
 | Front e BFF | Tarefas 9 e 10 do plano atual ("todas as datas") perdem urgência (D10) | nada obrigatório: chaves iguais; campos novos opcionais | — |
@@ -286,7 +313,7 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 
 ## 7. Decisões para o Pietro
 
-**D36 (10/11, depois das respostas abaixo):** o lote aberto vale em qualquer caso. As decisões 3 (`por_remessa` fora) e 4 (`automatico` fora até a TS-5572) caem: remessa ganha lote aberto pela chave `proc:` e o automático também usa lote aberto. O que muda de plano está nas TS-5567 e TS-5572.
+**D36 (10/11, depois das respostas abaixo):** o lote aberto vale em qualquer caso, sem exceção. As decisões 3 (`por_remessa` fora) e 4 (`automatico` fora até a TS-5572) estão **substituídas**: a remessa ganha lote aberto pela chave `proc:` (3.3) e o automático também usa lote aberto (3.4). O que muda de plano está nas TS-5567 e TS-5572.
 
 **Respostas de 10/11 (Pietro):** todas aprovadas como recomendado (a 10 em 10/11, à
 tarde). Na 3, a remessa continua fora do lote aberto, mas vem para o fluxo novo: o fechamento manual
@@ -303,12 +330,12 @@ grava no lote o instante em que ele foi fechado, e o resumo diário conta os lot
 2. **Avulsos no fechamento.** (a) entram no próprio lote aberto, na mesma transação (uma linha, um
    lote); (b) lote separado, como o `_close_fake_batch` de hoje (até dois arquivos por linha).
    **Recomendação: (a).**
-3. **`por_remessa` usa lote aberto?** (a) não: espera avulso e fecha pela remessa (até 18 mil por
-   remessa no 1637); (b) sim, com `proc_id` no vigente (migration nova e índice novo).
-   **Recomendação: (a).**
-4. **`automatico` antes da TS-5572.** (a) fora do lote aberto até lá (o `lote_automatico` legado só
-   vê avulso); (b) entra já e o legado passa a fechar vigente. **Recomendação: (a)**: o legado não
-   se corrige.
+3. ~~**`por_remessa` usa lote aberto?**~~ **Substituída pela D36 (10/11):** sim, com `proc_id` no
+   vigente, migration nova e índice novo (alternativa (b) original). Texto original: (a) não, espera
+   avulso e fecha pela remessa (até 18 mil por remessa no 1637); (b) sim. Era **(a)**.
+4. ~~**`automatico` antes da TS-5572.**~~ **Substituída pela D36 (10/11):** o automático usa lote
+   aberto. Texto original: (a) fora até a TS-5572 (o `lote_automatico` legado só vê avulso); (b) entra
+   já e o legado passa a fechar vigente. Era **(a)**. Como ligar sem corrigir o legado: decisão 11.
 5. **`POST /liquidacao/liquidar` em lote aberto.** (a) a task fecha o vigente antes de enviar
    (mantém a rota para quem chama hoje, **[H]** Atlas); (b) a rota recusa com 400.
    **Recomendação: (a).**
@@ -324,6 +351,18 @@ grava no lote o instante em que ele foi fechado, e o resumo diário conta os lot
 10. **"Todas as datas" no BFF e no front.** (a) manter as Tarefas 9 e 10 na mesma release; (b)
     adiar: o lote aberto aparece sempre, e avulso antigo vai para o resumo diário (TS-5585).
     **Recomendação: (b)**, com as datas opcionais só na cessão.
+11. **(D36) Automático antes da TS-5572.** (a) o produto `automatico` só liga o lote aberto quando a
+    TS-5572 estiver em produção (o legado não muda; até lá segue avulso, como hoje); (b) o
+    `lote_automatico` legado passa a fechar também o vigente das chaves da remessa. **Recomendação:
+    (a)**: o legado é apagado na TS-5572 (corrigi-lo é trabalho jogado fora, e a regra é substituir),
+    e a D36 passa a valer para o automático no mesmo dia em que a TS-5572 sobe. (b) só se a TS-5572
+    escorregar além da Fase 2 e a operação exigir.
+12. **(D36) Como o vigente guarda a remessa.** (a) coluna `proc_id` (UUID) com índice parcial, mais
+    `origem_pagamento = 'proc:<proc_id>'` para manter a restrição única existente; (b) sem coluna:
+    só `origem_pagamento = 'proc:<proc_id>'` (sem migration; a busca usa o índice de
+    `origem_pagamento`, mas junta por texto). **Recomendação: (a)**: junta direto com
+    `liquidacao_processo.proc_id` e deixa a origem do vigente legível; custo: uma migration só com
+    `add_column` e índice.
 
 ## 8. Riscos e o que não foi confirmado
 
@@ -347,6 +386,16 @@ grava no lote o instante em que ele foi fechado, e o resumo diário conta os lot
   passo 4), com teste.
 - **R8 [H] Origem nula no acúmulo de hoje:** o vigente exige origem e a criação falharia; não deve
   ocorrer nos 13. Sem efeito no desenho (`''`).
+- **R9 [H] (D36) Rajada de uma remessa na trava de um vigente.** Uma remessa com milhares de pagamentos
+  chega em paralelo para o mesmo vigente (por originador e fundo): a trava por chave fica mais quente
+  que em `por_chave`, e o recuo para avulso pode ficar frequente. Efeito: o custo do `UPDATE` do fechamento
+  da remessa volta a depender dos avulsos (o limite é o de hoje, cerca de 170 a 290 pagamentos por
+  segundo no `UPDATE`; o 1637 chega a 18 mil por remessa). Validar: consulta 6 e o evento de recuo por
+  hora depois de ligar `por_remessa`; o interruptor desliga a entrada sem deploy.
+- **R10 [C] (D36) Fechadores legados veem o vigente da remessa.** `POST /liquidacao/` legado e o beat
+  filtram por produto e originador (`repository.py:476-495`), então fecham também os vigentes `proc:`
+  do produto. É o comportamento aprovado ("fecha vigente sem olhar a flag"); só confirmar com a
+  operação que um fechamento de originador no meio de uma remessa em andamento é aceitável.
 - **Não confirmado:** se a cessão sai de `cadastrado` depois (o apagamento lógico só alcança
   `rejeitado` e `errado`, `models.py:4484`, `receptores/base.py:131-142` [C]; transições de saída
   não mapeadas [H]); se `commit()` dentro do savepoint de `repository.py:417-420` fecha a transação
@@ -413,7 +462,32 @@ FROM liquidacao_lote_vigente v
 JOIN liquidacao_lote_processo l ON l.id = v.liquidacao_lote_id
 WHERE v.fechado = false
   AND (l.estado_atual <> 'pendente' OR l.data_envio_liquidacao IS NOT NULL);
+
+-- 6. (D36) Tamanho e simultaneidade das remessas `por_remessa` e `automatico` (30 dias)
+SET statement_timeout = '120s';
+SELECT lp.produto_id, lp.proc_id, count(*) AS liquidacoes,
+       min(lp.data_criacao) AS inicio, max(lp.data_criacao) AS fim,
+       count(DISTINCT (c.originador_id, pa.fundo_id)) AS pares_originador_fundo
+FROM liquidacao_processo lp
+JOIN liquidacao_pagamento p ON p.liquidacao_processo_uuid = lp.uuid
+JOIN contrato_parcela pa ON pa.id = p.parcela_id
+JOIN contrato c ON c.id = pa.contrato_id
+WHERE lp.proc_id IS NOT NULL AND lp.data_criacao >= now() - interval '30 days'
+  AND lp.produto_id IN (SELECT produto_id FROM produto_config
+                         WHERE agrupamento_lote_liquidacao = 'por_remessa'
+                            OR gatilho_fechamento_lote_liquidacao = 'automatico')
+GROUP BY 1, 2 ORDER BY liquidacoes DESC LIMIT 30;
 ```
 
 5. Avulsos por chave no dia do deploy: consulta 1 de `attachments/sql/new_closing_pending_groups.sql`,
    com `lp.data_criacao >= now() - interval '30 days'`.
+
+### D36 aplicada (10/11)
+
+- 0.1 e 0.5, 3.2 (passos 1 e 2), 3.3, 3.4 (linhas de remessa, fim da remessa e legado automático),
+  3.5, 3.6 (linha `proc:`, exclusão) e 6 (TS-5567, TS-5572) ajustadas: o lote aberto vale em qualquer
+  caso.
+- Decisões 3 e 4 marcadas como substituídas; entram as decisões 11 (automático antes da TS-5572) e
+  12 (como guardar a remessa no vigente).
+- Riscos novos: R9 (rajada da remessa na trava) e R10 (fechadores legados veem o vigente da remessa).
+- Consulta nova: 6 (tamanho e simultaneidade das remessas), na seção 9.
