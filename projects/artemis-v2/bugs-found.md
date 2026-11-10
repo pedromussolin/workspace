@@ -432,9 +432,17 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   fora do Mercato Libero, nada entrou depois da conclusão; a data de envio deles é uma data de
   referência (dia anterior, 12h), anterior à criação do lote. A primeira leitura de 06/11
   (pagamentos "depois do envio", centenas de milhões) comparava com essa data e estava errada.
-- **Validar:** com a operação e a administradora, se os 10.562 pagamentos saíram por outro caminho.
-- **Correção:** some com o acúmulo como padrão (TS-5567); os afetados vão para um lote novo
-  (`POST /liquidacao/pagamentos/reenviar`). Card TS-5573.
+- **Resposta do negócio (E2, 10/11):** o omnis (1109) **não envia lote à administradora**. O
+  "Liquidar" só fecha o lote de baixa na própria cessão, para controle da carteira (o estoque é
+  replicado de uma securitizadora parceira). A operação recebe os arquivos dela, sobe o lote pelo
+  Atlas, fecha e corrige à mão a data do lote para o dia anterior (é a "data de referência, dia
+  anterior" vista acima). No 1109, o B25 afeta só o controle interno: não há pagamento que deixou
+  de chegar à administradora. O lemans_2 (1373) ficou sem resposta.
+- **Validar:** lemans_2 envia à administradora? No omnis, os pagamentos que entraram em lote já
+  liquidado aparecem certo na carteira? Qual campo de data a operação corrige e por onde?
+- **Correção:** com a D34, a guarda da chegada (só entra em lote `pendente`) e o "Liquidar" que
+  fecha o lote aberto antes de enviar (decisão 5 da proposta). Os afetados do 1109 dependem da
+  resposta acima; os do 1373, de saber se ele envia. Card TS-5573.
 
 ## B26 — Lotes vazios em todos os estados (sobras de correções direto no banco)
 

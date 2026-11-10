@@ -44,7 +44,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | escrito; revisão pausada | 04/12 |
 
 Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documentação), TS-5573
-(investigação), mensagens E1 (ETL; perdeu prioridade com a D34) e E2 (negócio; enviada em 10/11, aguardando retorno).
+(investigação), mensagens E1 (ETL; perdeu prioridade com a D34) e E2 (negócio; respondida em 10/11 para o omnis, que não envia à administradora: ver B25; lemans_2 sem resposta).
 
 ## Ordem, dono de cada trecho e paralelismo
 
