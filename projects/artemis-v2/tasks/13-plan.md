@@ -31,6 +31,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
 | TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | branches enviadas (10/11), falta abrir as PRs; D26 = `descartado` | 10/11 |
+| TS-5620 omnis e lemans_2 sem o Atlas (upload, liquidar e data do lote no portal) | mapeamento em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo) | card criado (10/11); perguntas à operação antes do desenho da data | a definir |
 | TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | card criado (10/11); depois da TS-5582 em produção; inclui fechar os vigentes dos vazios (ponto 5 da TS-5567) | 18/11 |
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | branch enviada (10/11), 8 commits; acúmulo em qualquer combinação (D36) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | reescrito (10/11) para o lote aberto (D34): Fase 1 nos 13 que acumulam (18/11, apertado), Fase 2 para todos; 5 decisões novas | 18/11 (Fase 1) |
