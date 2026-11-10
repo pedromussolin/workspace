@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 09/11/2026
+Data: 10/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,19 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 10/11/2026
+
+**TS-5582 em execução (Em andamento no Jira desde 10/11).** D26 = `descartado`; a limpeza dos vazios
+antigos saiu para a **TS-5596** (prazo 18/11); BFF e front entraram no card (aviso de descartado na
+tela, filtro e cor). Decisões em `decisions.md`; escopo no topo de `tasks/13-plan-ts-5582.md`.
+- Worktrees em `~/repos/.artemis_v2/worktrees/` (`ts5582-cessao`, `ts5582-bff`, `ts5582-front`),
+  branch `feature/TS-5582-lotes-vazios-liquidacao` a partir da master de 10/11. Tudo implementado e
+  testado **sem commit**, esperando a revisão do Pietro (cessão 5.705 testes ok; BFF 4.492 ok; front
+  253 da área ok, 2 falhas de layout que já existem na master).
+- Instruções e logs dos agentes em `~/repos/.artemis_v2/agentes/ts5582/`.
+- Mensagens E1 (ETL, com aviso do estado `descartado`) e E2 (negócio, reescrita sem jargão) prontas
+  em `~/repos/.artemis_v2/agentes/ts13-mapeamento/` (fora do repo: nomes reais). Falta enviar.
 
 ### 09/11/2026
 
@@ -145,7 +158,7 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 1. **Revisão dos planos:** retomar os 7 pausados, primeiro TS-5584 e TS-5570 (os que começam
    antes); depois conciliar os nomes entre os planos e montar a lista única de decisões.
 2. **Decisões:** D26 a D30 e as decisões de cada plano.
-3. **TS-5582 (prazo 10/11):** executar, um subagente por tarefa; commit só depois da revisão.
+3. **TS-5582:** revisão do Pietro, commits atômicos nas três branches, PRs para a release.
 4. **Até 13/11:** passagem com o Rafael Frankl (TS-5565) e as mensagens E1 (ETL) e E2 (negócio).
 5. **Pendências de antes:** `viva-production` (validar a modalidade e decidir o worker); S1 a S14
    de `tasks/02-03-sandbox-tests.md`; tradução do `refact.py`; TS-5537 (B18).
