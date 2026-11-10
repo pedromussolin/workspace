@@ -286,8 +286,13 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 
 ## 7. Decisões para o Pietro
 
-**Respostas de 10/11 (Pietro):** 1, 5, 6, 7 e 9 aprovadas como recomendado. 2, 3, 4, 8 e 10 em
-esclarecimento. Entra um item novo, vindo da revisão da TS-5585 e aprovado: o núcleo de fechamento
+**Respostas de 10/11 (Pietro):** todas aprovadas como recomendado (a 10 em 10/11, à
+tarde). Na 3, a remessa continua fora do lote aberto, mas vem para o fluxo novo: o fechamento manual
+pela linha `proc:` já é do fluxo novo (`_close_remittance_fake_batch`), e o automático no fim da
+remessa vem com a TS-5572. Na 8, o interruptor entra na lista de limpeza pós-deploy. Na 10, com
+**feedback ao usuário**: a listagem devolve, por linha, quantos pagamentos sem lote de fora do período
+filtrado o fechamento vai levar, e o diálogo de confirmação do front mostra esse número (campo
+opcional no BFF e no front, na TS-5567). Entra um item novo, vindo da revisão da TS-5585 e aprovado: o núcleo de fechamento
 grava no lote o instante em que ele foi fechado, e o resumo diário conta os lotes por esse instante.
 
 1. **Trava da chegada.** (a) exclusiva por chave, comando único, `lock_timeout` curto com recuo

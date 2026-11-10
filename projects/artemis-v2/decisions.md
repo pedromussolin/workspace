@@ -22,6 +22,7 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 10/11/2026 | D35: o Atlas será descontinuado e a operação não fará mais nada por lá. Todo fluxo que hoje passa por ele precisa existir no portal; no omnis (1109): subir o lote, fechar, liquidar e corrigir a data do lote para o dia anterior | Pietro |
 | 10/11/2026 | D29: o corpo do e-mail do dia traz também o total da fila manual de qualquer data (quantidade, valor e o lote mais antigo) | Pietro: o lote parado não some do aviso no dia seguinte; custa uma contagem sobre a fila manual (dezenas de lotes) |
 | 10/11/2026 | D34: o lote aberto (vigente) passa a ser o comportamento padrão de todos os produtos, sem configuração, com guardas contra B25, B14, lote vazio e D9; substitui o "pagamento espera sem lote" do plano anterior da TS-5567. Proposta de desenho em `tasks/13-open-lot-design.md`, para aprovação antes de reescrever os planos | Pietro: fechar o lote aberto é só marcar `fechado`, barato em qualquer tamanho; sem ele, o produto 80 (lotes de até 621 mil pagamentos) estoura o UPDATE de 480 s do fechamento novo |
 | 10/11/2026 | D27: os avisos e o resumo diário por e-mail vão para um grupo do Entra ID (a shared aceita grupo em `targets`) | Pietro: os membros mudam no Entra ID sem mexer no sistema |
