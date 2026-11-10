@@ -10,11 +10,15 @@
 fechamento do produto (jobs do scheduler) e no modo de conciliação por fundo, sem mão no banco.
 
 **Arquitetura:** o front (Angular) chama um módulo novo do BFF (`src/modules/product_settings`, FastAPI),
-que traduz para as rotas da cessão (`GET /cadastro/produto?id=`, `PATCH /produto/<id>/` e as rotas de
-horário de fechamento do módulo da liquidação, por cima do scheduler da TS-5569). O front só pergunta
-ao BFF as ações do escopo (`GET /iam/actions?scope=`); papéis ficam no BFF e no Azure. Toda regra de
-negócio (par gatilho × agrupamento, aviso de horário depois do corte) fica na cessão; o BFF mapeia
-nomes e o front exibe.
+que traduz para as rotas da cessão (`GET /fundo/produtos`, `GET /cadastro/produto?id=`,
+`PATCH /produto/<id>/` e `GET`/`PUT /liquidacao/fechamento-por-horario/<produto_id>`, da TS-5570, por
+cima do scheduler da TS-5569). O front só pergunta ao BFF as ações do escopo
+(`GET /iam/actions?scope=`); papéis ficam no BFF e no Azure. Toda regra de negócio (ligar horário só
+com gatilho `agendado`, aviso de horário depois do corte) fica na cessão; o BFF mapeia nomes e o front
+exibe. **Não há regra de combinação entre gatilho e agrupamento (D36, 10/11):** qualquer par é aceito
+e o acúmulo (lote aberto) vale em qualquer caso, então a tela **não** oferece "acumula sim/não"
+(`acumula_liquidacoes` e `modalidade_fechamento_lote` não são lidos nem gravados; a Fase 1 da TS-5567
+guarda `acumula_liquidacoes` só como portão de transição, e a TS-5612 o apaga).
 
 **Stack:** platform-cessao (Flask + flask-restx, SQLAlchemy 1.3, Python 3.8, PT-BR);
 apl-credit-whitelabel-api (FastAPI 0.133, pydantic 2.12, pytest; inglês; `test_arch*`);
@@ -26,46 +30,55 @@ inglês).
 `feature/TS-XXXX-config-produto-api` (cessão), `feature/TS-XXXX-product-settings-bff` (BFF),
 `feature/TS-XXXX-product-settings-page` (front). Uma PR por repo.
 **Depende de:** TS-5583 (colunas `gatilho_fechamento_lote_liquidacao` e `agrupamento_lote_liquidacao`
-nos schemas) e TS-5569 (scheduler em tabela) mergeadas; TS-5570 (rota de horários, ver D2).
+nos schemas, branch `feature/TS-5583-gatilho-agrupamento-lote-liquidacao`) e TS-5569 (scheduler em
+tabela, branch `feature/TS-5569-scheduler-em-tabela`) mergeadas; **TS-5570** (rotas
+`GET`/`PUT /liquidacao/fechamento-por-horario/<produto_id>`, plano `tasks/13-plan-ts-5570.md`,
+Tarefas 3 e 4) mergeada, com o pedido da D2 (campo `horario_corte` na resposta).
 
-Linhas de código abaixo valem para `origin/master`: platform-cessao `6c152445d`, BFF `f0511cb`,
-front `8e3699ad`.
+Linhas de código abaixo valem para `origin/master`: platform-cessao `c041122eb` (o plano dizia
+`6c152445d`; conferido em 10/11), BFF `6472fb1` (era `f0511cb`), front `8e3699ad`. Os arquivos que as
+TS-5583, TS-5569 e TS-5570 tocam mudam de linha: localizar pelo nome.
 
 ## Decisões em aberto
 
-- **D30 — onde fica a tela.** (a) uma aba "Configurações" na tela de lotes de liquidação e outra na
-  de lotes de cessão; (b) página nova `/product-settings` com as abas Cessão e Liquidação.
-  **O plano segue (b)** (recomendação do desenho). Se o Pietro escolher (a), muda:
-  - BFF: os escopos novos não existem; as rotas entram sob `/operations/liquidation/settings` e
-    `/operations/assignment/settings`, com `require("liquidation-real-batches", Policies.UPDATE)` e
-    um escopo novo `assignment-batches` `UPDATE` (hoje só tem `READ`); nada de `Page` nova nem de
-    `FRONTEND_ROUTE_PERMISSIONS`; a lista `URL_PREFIXES_OF_PAGES` já cobre as URLs.
-  - Front: sem rota, menu e `product-settings.permissions.ts`; cada aba vira mais um `app-toggle`
-    em `liquidation-batches.page.html:5-14` e em `assignment-batches.page`, lendo `update` do escopo
-    da própria tela; o seletor de produto reaproveita o filtro de produto da barra de filtros.
-  - O que não muda: Tarefas 2 e 3 (cessão), schemas e business do BFF, os componentes
-    `app-liquidation-settings` e `app-assignment-settings` do front.
-- **D1 — quais campos do `produto_config` são "configuração de cessão".** O `produto_config` tem 52
-  colunas (`models.py:1277-1540`) misturando cessão, liquidação, cálculo, renegociação e cobrança.
+- **D30 — onde fica a tela (decidida em 10/11, Pietro).** Página nova `/product-settings`, com as
+  abas Cessão e Liquidação, cada uma com o seu escopo; as telas de lotes não crescem. A alternativa
+  "aba em cada tela de lotes" foi descartada e saiu do plano.
+- **D1 — quais campos do `produto_config` são "configuração de cessão".** O `produto_config` tem 54
+  colunas (`models.py:1283-1560`, contadas em `c041122eb`) misturando cessão, liquidação, cálculo, renegociação e cobrança.
   Opções: (i) só os campos do fluxo de cessão (20, lista na Tarefa 5); (ii) tudo que não é
   liquidação. **Recomendação: (i)**; cálculo (`base_dias`, `tipo_juros_vp`, `calcular_vp_curva`,
   `tipo_calculo`, `calcula_valor_aberto`, `taxa_fixa`, `calcular_taxa_operacao`, `discount_tax`),
   renegociação (`aceita_renegociacao`, `padrao_renegociacao`, `padrao_aditamento`) e cobrança
   (`emissor_boleto`, `tipo_cobranca`, `bucket`, `carencia_retencao_dias`, `originador_as_recebedor`)
   ficam para a área administrativa, por rota até lá.
-- **D2 — quem entrega a rota de horários de fechamento por produto.** O desenho (4.5 e 4.6) coloca
-  o serviço "por cima do scheduler" no módulo da liquidação, que é a TS-5570 (plano ainda não
-  escrito). **Recomendação:** a TS-5570 entrega a rota com o contrato fixado na Tarefa 3 deste plano;
-  a Tarefa 3 só é executada aqui se a TS-5570 ainda não a tiver entregue quando este card começar.
-  O e-mail do aviso (4.6) fica fora dos dois: é da integração com a shared (4.8, D27).
+- **D2 — quem entrega a rota de horários de fechamento por produto (resolvida pelo plano da
+  TS-5570).** A TS-5570 entrega `GET`/`PUT /liquidacao/fechamento-por-horario/<produto_id>`
+  (`tasks/13-plan-ts-5570.md`, Tarefas 3 e 4): **um agendamento por produto**
+  (`liquidacao.fechamento_lote_produto_<produto_id>`) com vários horários, `ativo` único, `avisos` em
+  texto e `solicitado_por` obrigatório (oid do Azure). O contrato que este plano tinha (um job por
+  horário, `ativo` por horário, aviso estruturado) **não vale mais**; a Tarefa 3 virou conferência e
+  o BFF e o front seguem o contrato da TS-5570. **Pedido à TS-5570** (cabe nela, uma linha no
+  serviço e na rota): `horario_corte` (`"HH:MM"`, de `horario_corte()`) em `GET` e `PUT`; sem ele o
+  front não avisa antes de salvar e o aviso pós-gravação não diz o corte (ver "Para decisão" 2).
+  O e-mail do aviso (4.6) fica fora dos dois: é da TS-5585 (D27).
 - **D3 — valores dos enums no contrato do BFF.** (i) manter os valores da cessão (`agendado`,
   `por_chave_sem_origem`, `automatica`), com rótulo PT-BR vindo do BFF; (ii) traduzir para inglês
   (`scheduled`) e destraduzir ao gravar. **Recomendação: (i)**, como o BFF já faz com os status de
-  lote (`liquidation_batches/schemas.py:65-73`: valor cru + `status_label`); um valor novo na cessão
-  não derruba a resposta, e o nome do campo é em inglês.
-- **D4 — de onde vem a lista de produtos do seletor.** (i) da cessão (`GET /cadastro/produto`:
-  `id`, `nome`); (ii) do product-manager (`GET products/lookup`, já usado pelo front). **Recomendação:
-  (i)**: os ids que a tela grava são os da cessão; o product-manager tem outro id.
+  lote (`liquidation_batches/schemas.py:65-73`: `str` cru na resposta); um valor novo na cessão não
+  derruba a resposta, e o nome do campo é em inglês. **O rótulo PT-BR fica no front**
+  (`CLOSING_TRIGGER_LABELS` etc., conjuntos fechados): o BFF não manda `*_label`. O `LabeledEnum`
+  só valida o pedido e documenta (`x-enum-labels`).
+- **D4 — de onde vem a lista de produtos do seletor.** (i) `GET /cadastro/produto` sem `id`
+  (`cadastro/viewer.py:41-55`): devolve **todos** os produtos já com config, acessos, emissores e
+  originadores aninhados (`schema_cadastro_prod`), pesado para um seletor; (ii) o product-manager
+  (`GET products/lookup`, BFF `modules/products/viewer.py:103`, `ProductLookupItem` do front): o id é
+  do product-manager, não o da cessão que a tela grava; (iii) `GET /fundo/produtos` da cessão
+  (`api/fundo/viewer.py:51`, já usado pelos lotes por `get_funds`, `src/services/platform_cessao/__init__.py:103`):
+  fundos com a lista de `produtos`, ids da cessão, sem config. **Recomendação: (iii)**, achatando e
+  deduplicando por `id` no business (`schema_produto_simple` já traz `id` e `nome`, `fundo/schema.py:4-13`).
+  Limite: produto sem fundo vinculado não aparece; se isso importar, cai para (i). Mais de ~15
+  produtos pedem `app-select` com busca (combobox).
 - **D5 — campo de horário no front.** Não existe componente de hora (só `app-date-picker` e texto
   cron). (i) `input[appInput] type="time"` nativo; (ii) componente novo `app-time-input`.
   **Recomendação: (i)** (Chrome, Edge e Safari atuais rendem o controle nativo; `step="60"`), com
@@ -83,20 +96,41 @@ front `8e3699ad`.
   `por_chave | por_chave_sem_origem | por_remessa`; conciliação `nao_aplica | automatica | manual`.
 - Horário em Brasília, `"HH:MM"`, no banco e no contrato; conversão para UTC só no scheduler.
 - Corte da conciliação lido de `horario_corte()` (`cessao/shared/saldo_liquidacao/corte.py:58`;
-  padrão 14:00; depois da TS-5569 Tarefa 10, lê o job `liquidacao.conciliacao_corte`).
-- Aviso de horário depois do corte: **salva e avisa** (nunca recusa); código `horario_apos_corte` na
-  cessão, `after_reconciliation_cutoff` no BFF.
-- Horário removido na tela vira job `ativo=False` (o `DELETE /agendamento/<chave>` devolve 409 quando
-  há histórico; TS-5569 Tarefa 9). Horário recolocado reativa o mesmo job.
-- Nome do job: `liquidacao.fechamento_produto_<produto_id>_<HHMM>`; tarefa
-  `liquidacao.fechar_lotes_do_produto_por_horario`; `somente_dia_util=True`; `dias_semana=[0,1,2,3,4]`;
-  `payload={"produto_id": <id>}` (interface da TS-5569, seção "Interface para o primeiro consumidor").
+  padrão 14:00, do Parameter Store; a TS-5570 não muda isso, o agendamento do corte é de um card
+  futuro).
+- Aviso de horário depois do corte: **salva e avisa** (nunca recusa). A cessão devolve `avisos` como
+  **lista de textos** (TS-5570, Tarefa 3, `AVISO_HORARIO_DEPOIS_DO_CORTE`); o BFF repassa como
+  `warnings: list[str]`, sem código nem estrutura.
+- Um agendamento por produto, `liquidacao.fechamento_lote_produto_<produto_id>`, com vários horários
+  e um `ativo` só; tarefa `liquidacao.fechar_lotes_do_produto_por_horario`; `somente_dia_util=True`;
+  `payload={"produto_id": <id>}` (TS-5570, "Restrições globais"). **A tela não cria nem apaga job:**
+  grava a lista de horários e o `ativo`; o agendador nunca exclui, só desativa. Lista vazia é recusada
+  pela cessão ("Informe ao menos um horário"): para desligar, `ativo=false` com os horários.
+- **Ligar horários (`ativo=true`) exige o gatilho `agendado` já gravado** (TS-5570, decisão 3a; 400
+  "Produto não está no gatilho agendado"). A tela segue a ordem: salvar o fechamento (gatilho) antes
+  de ligar os horários; o switch "Ativo" fica desabilitado enquanto o gatilho **gravado** não é
+  `agendado`. Gravar com `ativo=false` vale em qualquer gatilho.
+- Quem pede vai como **oid do Azure** (`request.state.user.azure_id`, opcional na sessão: sem ele o
+  BFF recusa a gravação com 403 e o motivo), nunca e-mail: o histórico da cessão e os logs não levam
+  dado pessoal (mesma regra do fechar lote, `liquidation_batches/business.py:340-343`).
+- **Sem acúmulo na tela (D34/D36):** nenhum controle, rótulo ou campo de `acumula_liquidacoes` nem
+  de `modalidade_fechamento_lote`; o pedido de gravação manda só o par gatilho/agrupamento (a cessão
+  da TS-5583 preserva o `acumula_liquidacoes` gravado, `closing_modality.py:68-100`). Não confundir
+  com `acumula_contratos` (acumula contratos na mesma remessa, `proc_id`), que é campo de cessão e
+  fica na aba Cessão.
+- Enum de produto: o identificador que a tela lê e grava é o **nome** do membro (`.name`,
+  `to_names()`): é o que o `PATCH /produto/<id>/` valida (`enum=...to_names()`). Onde valor e nome
+  diferem (`certificadora`, `tipo_lastro`, `padrao_originador`) o `.value` não volta no PATCH.
 - BFF: escopos `product-settings-assignment` e `product-settings-liquidation`, ações `read` e
   `update` (nunca `write`, `.ai/rules/permissions.md:22-25`); página `CONFIGURACAO-DO-PRODUTO`,
   prefixo `product-settings`; rotas só da organização interna (`internal_only`).
 - BFF: nomes de teste em inglês sem as palavras de `PORTUGUESE_TEST_WORDS` (`tests/test_arch.py:220-251`);
-  `HTTPException` só no viewer; log com mensagem fixa e `extra`.
-- Front: HTTP só em `data-access/`; interfaces em snake_case iguais ao BFF, sem mapeador; cor só por
+  `HTTPException` só no viewer; log com mensagem fixa e `extra`. Rota interna: cada viewer define o
+  próprio `internal_only(request)` com `require_internal_organization(user, INTERNAL_ONLY_DETAIL)`
+  (`src/shared/business/internal_only.py`), como `collateral_checks/viewer.py:105`.
+- Front: dado pessoal nunca na URL (LGPD): o link leva só `product` (id) e `tab`, nada digitado;
+  formulários em cartões empilhados de largura total (se virarem grade, altura igual); tabela de
+  fundos com os 10 primeiros e "ver mais" quando houver mais; HTTP só em `data-access/`; interfaces em snake_case iguais ao BFF, sem mapeador; cor só por
   token; `data-scheme` para o escuro; cabe em 390 px sem rolagem lateral; `aria-label` no
   `app-toggle-group`; `.page.spec.ts` com `expectNoAccessLock`/`expectActionButtonsLocked` e
   `writesOnlyFor(...)` (check `pagina-sem-trava-de-permissao`).
@@ -107,16 +141,22 @@ front `8e3699ad`.
 
 ## Foco de revisão
 
-1. **Forma real do `GET /cadastro/produto`.** `schema_config_prod` (`cadastro/schema.py:199-270`)
-   marshala `tipo_registro`, `tipo_lastro`, `tipo_cobranca` e `tipo_juros_vp` sem
-   `attribute=".value"`: a resposta sai `"EnumTipoRegistro.nao_aplica"`, não `"nao_aplica"`. O fake
-   do BFF copia a cessão real; se copiar o bug, o contrato passa e a tela quebra. Teste na Tarefa 2
-   (`test_campos_enum_da_config_saem_pelo_valor`) e no contrato da Tarefa 7
-   (`test_assignment_settings_enum_fields_are_plain_values`).
-2. **`PATCH /produto/<id>/` devolve texto e 400 genérico** (`produto/viewer.py:109-119`:
-   `raise BadRequest(str(e))`). O BFF relê o produto depois de gravar e repassa o 400 com a mensagem
-   (400 está em `STATUSES_PASSED_TO_CLIENT`); o front mostra `apiErrorMessage(err, fallback)`. Teste
-   na Tarefa 6 (`test_closing_update_passes_cessao_400_message_through`).
+1. **Forma real do `GET /cadastro/produto`.** `schema_config_prod` (`cadastro/schema.py:199-272`)
+   marshala `tipo_registro`, `tipo_lastro`, `tipo_cobranca` e `tipo_juros_vp` sem `attribute`: a
+   resposta sai `"EnumTipoRegistro.nao_aplica"`, não `"nao_aplica"`. **E o `.value` que os outros
+   campos já usam não volta no PATCH** onde valor e nome diferem: `certificadora` sai
+   `"ID Trust Certificadora Digital"` e o PATCH só aceita `idtrust`; `tipo_lastro` (o
+   `EnumLastroValidacao` é definido duas vezes em `database/enum.py`, vale a segunda, linha 717) sai
+   `"NAO_APLICA"` e o PATCH só aceita `nao_aplica`; `padrao_originador` idem para `mpmerchant`.
+   Por isso a tela lê e grava o **nome** (`.name`) e as opções saem de `to_names()` (Tarefa 2; "Para
+   decisão" 1). O fake do BFF copia a cessão real; se copiar o bug, o contrato passa e a tela quebra.
+   Teste na Tarefa 2 (`test_campos_enum_da_config_saem_pelo_nome`) e no contrato da Tarefa 7
+   (`test_assignment_settings_enum_fields_round_trip`).
+2. **`PATCH /produto/<id>/` devolve JSON string e 400 genérico** (`produto/viewer.py:103-114`:
+   `return "Dados atualizados com sucesso"`, `raise BadRequest(str(e))`). O BFF relê o produto depois
+   de gravar e repassa o 400 com a mensagem (400 está em `STATUSES_PASSED_TO_CLIENT`,
+   `shared/utils/errors.py:88`; `_extract_detail` lê `message`); o front mostra
+   `apiErrorMessage(err, fallback)`. Teste na Tarefa 6 (`test_closing_update_passes_cessao_400_message_through`).
 3. **Aviso não é erro.** Horário depois do corte grava e volta 200 com `warnings`; o front mostra
    `toast.success` e um `app-notice tone="warning"` persistente na aba, não `toast.error`. Teste na
    Tarefa 10 (`shows the cutoff warning after a successful save`).
@@ -124,7 +164,7 @@ front `8e3699ad`.
    devolve só `read`; parceiro com `admin:*` recebe 403 pelo `internal_only`. O front esconde o
    "Salvar" sem `update` e mostra o motivo. Testes na Tarefa 6 (`test_partner_session_is_refused`) e
    na Tarefa 9 (`expectActionButtonsLocked`).
-5. **Fundo sem par `produto_fundo`.** `_create_or_update_produto_fundos` (`produto/sevice.py:111-131`)
+5. **Fundo sem par `produto_fundo`.** `_create_or_update_produto_fundos` (`produto/sevice.py:92-112`)
    **cria** o vínculo se o CNPJ não estiver ligado ao produto. O BFF só aceita `fund_id` que veio no
    `GET` do mesmo produto (404 `FundNotLinkedError` caso contrário). Teste na Tarefa 5
    (`test_reconciliation_update_refuses_a_fund_not_linked_to_the_product`).
@@ -132,23 +172,22 @@ front `8e3699ad`.
 ## Mapa de arquivos
 
 **platform-cessao** (`~/repos/platform-cessao`)
-- Modificar `cessao/api/cadastro/schema.py:199-270` (`schema_config_prod`: campos que faltam,
-  `attribute=".value"`), `:312-338` (`fundoProduto`: `fundo_id`, `nome_fundo`).
-- Modificar `cessao/api/produto/schema.py:33-96` (`schema_produto_config`: campos que faltam).
+- Modificar `cessao/api/cadastro/schema.py:199-272` (`schema_config_prod`: 6 campos que faltam,
+  `attribute=".name"` nos enums), `:316-338` (`fundoProduto`: `fundo_id`, `nome_fundo`).
+- Modificar `cessao/api/produto/schema.py:33-98` (`schema_produto_config`: os mesmos 6 campos).
 - Modificar `cessao/api/produto/viewer.py` (rota `GET /produto/config/opcoes`), `sevice.py`
   (`ProdutoService.opcoes_config()`).
-- Criar `cessao/api/liquidacao/horario_fechamento.py` (serviço por cima do scheduler) e as rotas em
-  `cessao/api/liquidacao/viewer.py` (Tarefa 3, condicional à D2).
-- Testes: `test/cadastro/test_schema.py`, `test/api/produto/test_viewer.py`,
-  `test/api/liquidacao/test_horario_fechamento.py`, `test/api/liquidacao/test_viewer_horario_fechamento.py`.
+- Horários de fechamento: **nada a criar aqui**; é da TS-5570 (`cessao/api/liquidacao/fechamento_por_horario.py`
+  e as rotas em `viewer.py`). Este card só pede `horario_corte` na resposta (D2).
+- Testes: `test/cadastro/test_schema.py`, `test/api/produto/test_viewer.py`.
 
 **apl-credit-whitelabel-api** (`~/repos/apl-credit-whitelabel-api`)
 - Criar `src/modules/product_settings/{__init__.py,viewer.py,business.py,repository.py,schemas.py}`
   (`./create_module.sh`).
-- Modificar `src/services/platform_cessao/__init__.py` (`_patch`, 5 métodos novos),
+- Modificar `src/services/platform_cessao/__init__.py` (`_put`, `_patch` e 5 métodos novos; a lista de produtos reaproveita `get_funds`),
   `src/shared/utils/permissions.py:133-742` (2 escopos), `src/modules/access_control/business/pages.py:44-196`
-  (1 página), `src/shared/utils/constants.py:29-191` (1 tela), `src/delivery/api/__init__.py:38-64`
-  (router), `tests/test_arch_partner_scope.py:80` (`INTERNAL_ONLY_ROUTES`),
+  (1 página), `src/shared/utils/constants.py:29-191` (1 tela), `src/delivery/api/__init__.py:36-66`
+  (router; `_register_domain_routes`), `tests/test_arch_partner_scope.py:80` (`INTERNAL_ONLY_ROUTES`),
   `tests/snapshots/route_permissions.json` (foto), `local/upstreams/platform_cessao.py` e
   `local/seed/cessao.py` (fake), `.ai/rules/local.md:40-53` (tabela do fake).
 - Testes: `tests/unit/modules/product_settings/test_{schemas,business,viewer}.py`,
@@ -163,7 +202,7 @@ front `8e3699ad`.
   `assignment-settings/` (`app-assignment-settings`), `testing/product-settings.fake.ts`).
 - Criar `src/app/core/http/mock-api/mock-api.product-settings.{ts,spec.ts}`.
 - Modificar `src/app/app.routes.ts:62-69`, `src/app/layouts/app-shell/navigation.ts:61-71`,
-  `src/app/core/config/page.constants.ts`, `src/app/core/http/mock-api/mock-api.reply.ts:23-56` e
+  `src/app/core/config/page.constants.ts` (`PAGE_TITLES:9` e as descrições, `:42`), `src/app/core/http/mock-api/mock-api.reply.ts:23-56` e
   `:198-199`, `src/app/mock-api.fake-data.ts:35-80`.
 
 ---
@@ -171,31 +210,31 @@ front `8e3699ad`.
 ### Tarefa 1: apresentar e aprovar a arquitetura
 
 **Arquivos:** nenhum (proposta no chat, a partir deste plano)
-**Interfaces:** Produz: as decisões que as Tarefas 2–12 assumem (D30, D1–D6) e os contratos abaixo.
+**Interfaces:** Produz: as decisões que as Tarefas 2–12 assumem (D30 decidida; D1, D3–D6 e os itens de "Para
+decisão do Pietro") e os contratos abaixo.
 
 Levar ao Pietro, em uma mensagem:
-1. D30 (b) e o que muda em (a); D1–D6 com a recomendação de cada uma.
+1. D1, D3–D6 e os itens de "Para decisão do Pietro" (Revisão de 10/11), com a recomendação de cada um.
 2. Contrato BFF ↔ front (uma tabela):
 
    | Rota do BFF | Escopo/ação | Cessão por trás |
    |---|---|---|
-   | `GET /product-settings/products` | `read` de qualquer um dos dois escopos | `GET /cadastro/produto` |
-   | `GET /product-settings/{product_id}/liquidation` | `product-settings-liquidation:read` | `GET /cadastro/produto?id=` + `GET /liquidacao/produto/<id>/horarios-fechamento` |
+   | `GET /product-settings/products` | `read` de qualquer um dos dois escopos | `GET /fundo/produtos` (D4) |
+   | `GET /product-settings/{product_id}/liquidation` | `product-settings-liquidation:read` | `GET /cadastro/produto?id=` + `GET /liquidacao/fechamento-por-horario/<id>` |
    | `PUT /product-settings/{product_id}/liquidation/closing` | `product-settings-liquidation:update` | `PATCH /produto/<id>/` (`produto_config` com o par) e releitura |
-   | `PUT /product-settings/{product_id}/liquidation/closing-schedules` | `product-settings-liquidation:update` | `PUT /liquidacao/produto/<id>/horarios-fechamento` |
+   | `PUT /product-settings/{product_id}/liquidation/closing-schedules` | `product-settings-liquidation:update` | `PUT /liquidacao/fechamento-por-horario/<id>` (corpo `horarios`, `ativo`, `solicitado_por`) |
    | `PUT /product-settings/{product_id}/liquidation/funds/{fund_id}` | `product-settings-liquidation:update` | `PATCH /produto/<id>/` (`produto_fundo`) e releitura |
    | `GET /product-settings/{product_id}/assignment` | `product-settings-assignment:read` | `GET /cadastro/produto?id=` + `GET /produto/config/opcoes` |
    | `PUT /product-settings/{product_id}/assignment` | `product-settings-assignment:update` | `PATCH /produto/<id>/` (`produto_config`) e releitura |
 
    Todas internas (`internal_only`), sem `get_partner_scope`.
-3. Contrato cessão de horários (Tarefa 3) para alinhar com a TS-5570.
+3. Contrato de horários da TS-5570 (Tarefa 3, só conferência) e o pedido do `horario_corte`.
 4. Camadas do BFF (viewer → business → repository → `PlatformCessaoManager`), escopos e página.
 
 - [ ] Passo 1: enviar a proposta; registrar as respostas na seção "Decisões em aberto" deste
       arquivo (riscar a decisão e escrever a escolha).
-- [ ] Passo 2: se a TS-5570 for a dona da rota de horários (D2), mandar o contrato da Tarefa 3 para o
-      plano dela (`~/repos/.artemis_v2/agentes/ts13-plans/TS-5570.md`, seção Interfaces) e marcar a
-      Tarefa 3 aqui como "só conferir".
+- [ ] Passo 2: levar o pedido do `horario_corte` (D2) para o plano da TS-5570
+      (`tasks/13-plan-ts-5570.md`, Tarefas 3 e 4) e conferir o resto do contrato na Tarefa 3 daqui.
 - [ ] Passo 3: só então começar a Tarefa 2.
 
 ---
@@ -204,39 +243,51 @@ Levar ao Pietro, em uma mensagem:
 
 ### Tarefa 2: schemas do produto completos para a tela e opções dos enums
 
-**Arquivos:** Modificar `cessao/api/cadastro/schema.py:199-270` e `:312-338`,
-`cessao/api/produto/schema.py:33-96`, `cessao/api/produto/viewer.py` (rota nova),
-`cessao/api/produto/sevice.py` (método novo) / Teste `test/cadastro/test_schema.py`,
+**Arquivos:** Modificar `cessao/api/cadastro/schema.py:199-272` e `:316-338`,
+`cessao/api/produto/schema.py:33-98`, `cessao/api/fields.py` (campo novo), `cessao/api/produto/viewer.py`
+(rota nova), `cessao/api/produto/sevice.py` (método novo) / Teste `test/cadastro/test_schema.py`,
 `test/api/produto/test_viewer.py`
-**Interfaces:** Consome: TS-5583 Tarefa 4 (par já nos dois schemas). Produz:
-- `GET /cadastro/produto?id=<id>` devolve, em `produto_config`, também `compra_npl`,
-  `calcular_taxa_operacao`, `endosso_contrato`, `lote_contrato_individual`,
-  `tipo_processamento_externo_cessao`, `tipo_acao_fim_esteira`, `limite_contratos_por_envio`,
-  `padrao_estorno`, `tipo_calculo`, `padrao_escrituracao`; **todo campo enum sai pelo `.value`**
-  (`fields.String(enum=E.to_values(), attribute="<coluna>.value")`), inclusive `tipo_registro`,
-  `tipo_lastro`, `tipo_cobranca`, `tipo_juros_vp`, `certificadora` (hoje `to_names()` sem
-  `attribute`); em `fundos[]`, `fundo_id` (`fields.Integer(attribute="fundo.id", readonly=True)`) e
-  `nome_fundo` (`fields.String(attribute="fundo.nome", readonly=True)`).
-- `PATCH /produto/<id>/` aceita, em `produto_config`, os mesmos 10 campos (`fields.Boolean`/
-  `fields.Integer`/`fields.String(enum=E.to_names(), required=False)`); `limite_contratos_por_envio`
-  aceita `null` (sem limite, `models.py:1535`).
-- `GET /produto/config/opcoes` → `{"<campo>": ["valor", ...]}` para os campos enum do
-  `produto_config` (os 10 acima que são enum mais `padrao_originador`, `certificadora`,
-  `tipo_registro`, `tipo_lastro`, `gatilho_fechamento_lote_liquidacao`, `agrupamento_lote_liquidacao`)
-  e `"conciliacao_liquidacao"` (`EnumConciliacaoLiquidacao`). `ProdutoService.opcoes_config() -> dict`
-  monta a partir de `ProdutoConfig.__table__.c[<campo>].type.enum_class.to_values()`.
+**Interfaces:** Consome: TS-5583 Tarefa 4 (par já nos dois schemas: `cadastro/schema.py` e
+`produto/schema.py` da branch). Produz:
+- `GET /cadastro/produto?id=<id>` devolve, em `produto_config`, também os **6** campos da tela que
+  hoje faltam: `compra_npl`, `endosso_contrato`, `lote_contrato_individual`,
+  `tipo_processamento_externo_cessao`, `tipo_acao_fim_esteira`, `limite_contratos_por_envio`
+  (`models.py:1379, 1489, 1524, 1530, 1535, 1548`). Os outros 4 que o plano antigo listava
+  (`calcular_taxa_operacao`, `padrao_estorno`, `tipo_calculo`, `padrao_escrituracao`) **não entram**:
+  não estão nos 20 campos da D1 e dois deles são de cálculo.
+- **Todo campo enum dos 20 sai pelo nome** (`fields.String(enum=E.to_names(), attribute="<coluna>.name")`):
+  os 5 novos enums, `tipo_registro`, `tipo_lastro` (hoje sem `attribute`: sai `"EnumTipoRegistro.x"`),
+  e, se o Pietro aprovar ("Para decisão" 1), `certificadora` e `padrao_originador` (hoje `.value`,
+  que não volta no PATCH). `tipo_cobranca` e `tipo_juros_vp` **não mudam** (cobrança e cálculo,
+  fora da D1: não alterar contrato sem consumidor na tela). Em `fundos[]`: `fundo_id`
+  (`fields.Integer(attribute="fundo.id", readonly=True)`) e `nome_fundo`
+  (`fields.String(attribute="fundo.nome", readonly=True)`); `conciliacao_liquidacao` já sai
+  (`cadastro/schema.py:329-332`).
+- `PATCH /produto/<id>/` aceita, em `produto_config`, os mesmos 6 campos (`fields.Boolean`,
+  `fields.String(enum=E.to_names(), required=False)`); `limite_contratos_por_envio` aceita `null`
+  (sem limite) com um campo novo `NullableInteger` (`__schema_type__ = ["integer", "null"]`) em
+  `cessao/api/fields.py`, no molde do `NullableString` que já existe lá: o `fields.Integer` puro
+  recusa `null` em `validate=True` [H: conferir no Passo 2].
+- `GET /produto/config/opcoes` → `{"<campo>": ["nome", ...]}` (**nomes**, `to_names()`) para os campos
+  enum da tela (`endosso_contrato`, `tipo_processamento_externo_cessao`, `tipo_acao_fim_esteira`,
+  `padrao_originador`, `certificadora`, `tipo_registro`, `tipo_lastro`) e para
+  `gatilho_fechamento_lote_liquidacao`, `agrupamento_lote_liquidacao` e `conciliacao_liquidacao`
+  (`EnumConciliacaoLiquidacao`). `ProdutoService.opcoes_config() -> dict` monta a partir de
+  `ProdutoConfig.__table__.c[<campo>].type.enum_class.to_names()`; `conciliacao_liquidacao` vem de
+  `ProdutoFundo.__table__`.
 
 - [ ] Passo 1: testes que falham:
   ```python
   # test/cadastro/test_schema.py (helper marshal como em :15-19)
-  def test_campos_enum_da_config_saem_pelo_valor():
+  def test_campos_enum_da_config_saem_pelo_nome():
       config = ProdutoConfig(tipo_registro=EnumTipoRegistro.nao_aplica,
                              endosso_contrato=EnumEndossoContrato.nao_aplica,
-                             tipo_acao_fim_esteira=EnumTipoAcaoFimEsteiraCessao.nao_aplica)
+                             tipo_acao_fim_esteira=EnumTipoAcaoFimEsteiraCessao.nao_aplica,
+                             tipo_lastro=EnumLastroValidacao.nao_aplica)
       response = marshal(config, schema_config_prod)
       assert response["tipo_registro"] == "nao_aplica"          # hoje "EnumTipoRegistro.nao_aplica"
       assert response["endosso_contrato"] == "nao_aplica"       # hoje ausente
-      assert response["tipo_acao_fim_esteira"] == "nao_aplica"
+      assert response["tipo_lastro"] == "nao_aplica"            # o valor seria "NAO_APLICA", que o PATCH recusa
       assert response["limite_contratos_por_envio"] is None
   def test_fundo_do_produto_sai_com_id_e_nome():
       fundo = Fundo(nome="FIDC TESTE", _cnpj="35820740000159"); fundo.id = 9
@@ -247,90 +298,51 @@ Levar ao Pietro, em uma mensagem:
       # PATCH /produto/1/ {"produto_config": {"endosso_contrato": "nao_aplica",
       #   "limite_contratos_por_envio": None, "lote_contrato_individual": True}} → 200;
       # update_dados_produto chamado com o mesmo produto_config
-  def test_get_opcoes_config_lista_valores_dos_enums(test_client):
+  def test_patch_produto_recusa_enum_fora_dos_nomes(test_client):
+      # {"produto_config": {"tipo_lastro": "NAO_APLICA"}} → 400 (o valor do enum não é nome)
+  def test_get_opcoes_config_lista_nomes_dos_enums(test_client):
       res = test_client.get("/produto/config/opcoes", headers={"Authorization": FAKE_AUTH_UUID})
       assert res.status_code == 200
       assert res.json["gatilho_fechamento_lote_liquidacao"] == ["manual", "agendado", "automatico"]
       assert res.json["conciliacao_liquidacao"] == ["nao_aplica", "automatica", "manual"]
-      assert "nao_aplica" in res.json["tipo_registro"]
+      assert "nao_aplica" in res.json["tipo_registro"] and "NAO_APLICA" not in res.json["tipo_lastro"]
   ```
 - [ ] Passo 2: rodar (comando do BRIEF) `test/cadastro/test_schema.py test/api/produto/test_viewer.py`
-      e ver falhar (`KeyError`, valor `"EnumTipoRegistro.nao_aplica"`, 404 na rota).
-- [ ] Passo 3: implementar. Rota `@ns.route("/config/opcoes")` **antes** de qualquer rota com
-      `<int:produto_id>` no mesmo caminho (não há conflito: `/<int:produto_id>/` exige inteiro).
-      `readonly=True` nos campos novos de `fundos[]` para o `POST /cadastro/produto` (validate=True)
-      não exigi-los.
+      e ver falhar (`KeyError`, valor `"EnumTipoRegistro.nao_aplica"`, 404 na rota). Conferir também
+      se `validate=True` recusa campo desconhecido dentro de `produto_config` (o restx não fecha
+      `additionalProperties`; sem o schema novo o campo passaria sem validar o enum).
+- [ ] Passo 3: implementar. Rota `@ns.route("/config/opcoes")` no mesmo `ns` (não há conflito com
+      `/<int:produto_id>/`, que exige inteiro). `readonly=True` nos campos novos de `fundos[]` para o
+      `POST /cadastro/produto` (validate=True) não exigi-los.
 - [ ] Passo 4: rodar e ver passar; rodar também `test/cadastro/` e `test/api/produto/` inteiros.
-- [ ] Passo 5: preparar os commits `feat(TS-XXXX): schemas do produto expõem campos de cessão pelo valor`
+- [ ] Passo 5: preparar os commits `feat(TS-XXXX): schemas do produto expõem campos de cessão pelo nome`
       e `feat(TS-XXXX): rota de opções dos enums do produto_config` (saem depois da revisão do
       usuário do card).
 
-### Tarefa 3: rotas de horário de fechamento por produto (condicional à D2)
+### Tarefa 3: conferir as rotas de horário de fechamento da TS-5570 (sem código novo aqui)
 
-> Executar só se a TS-5570 não entregar esta rota; se entregar, conferir o contrato abaixo contra o
-> código dela e pular para a Tarefa 4.
+> A TS-5570 entrega a rota (D2). Esta tarefa só confere o contrato abaixo contra o código dela e leva
+> o pedido do `horario_corte`; se divergir, o BFF (Tarefas 4 e 5) e o front (Tarefa 8) se ajustam, a
+> cessão não ganha rota paralela.
 
-**Arquivos:** Criar `cessao/api/liquidacao/horario_fechamento.py` / Modificar
-`cessao/api/liquidacao/viewer.py` (rotas no fim), `cessao/api/liquidacao/schema.py` (models) /
-Teste `test/api/liquidacao/test_horario_fechamento.py`, `test/api/liquidacao/test_viewer_horario_fechamento.py`
-**Interfaces:** Consome: `ServicoAgendamento.{listar, criar, alterar}` (TS-5569 Tarefas 6 e 9;
-`listar(modulo, tarefa, payload_contem)`), `horario_corte()` (`corte.py:58`),
-`ProdutoFundo.conciliacao_liquidacao`. Produz:
+**Arquivos:** nenhum (leitura de `cessao/api/liquidacao/fechamento_por_horario.py` e do `viewer.py`
+da branch da TS-5570)
+**Interfaces:** Consome (contrato da TS-5570, Tarefas 3 e 4 do plano dela):
+- `GET /liquidacao/fechamento-por-horario/<int:produto_id>` → 200
+  `{"produto_id", "gatilho", "agrupamento", "ativo", "chave", "expressoes_cron", "horarios": ["HH:MM"],
+  "proxima_execucao_em", "ultima_execucao"}`; produto sem agendamento: `ativo false`, listas vazias,
+  `chave null`; 404 produto inexistente.
+- `PUT` mesma rota, corpo `{"horarios": ["HH:MM"], "ativo": bool, "solicitado_por": "<oid>"}` → 200
+  com o mesmo formato mais `"avisos": [texto]`; 400 horário inválido, repetido, lista vazia ou
+  `ativo` sem gatilho `agendado`; 404 produto; 409 conflito do agendador.
+- **Pedido à TS-5570 (D2):** `horario_corte: "HH:MM"` (de `horario_corte()`) em `GET` e `PUT`. O
+  `GET`/`PUT` só tem `horarios` (um conjunto por produto, `ativo` único): a tela mostra a lista e um
+  switch, não "ativo por linha".
 
-```python
-# cessao/api/liquidacao/horario_fechamento.py
-NOME_TAREFA_FECHAMENTO_POR_HORARIO = "liquidacao.fechar_lotes_do_produto_por_horario"
-CODIGO_AVISO_HORARIO_APOS_CORTE = "horario_apos_corte"
-
-class ServicoHorarioFechamentoProduto:
-    @staticmethod
-    def nome_job(produto_id: int, horario: time) -> str  # "liquidacao.fechamento_produto_713_1330"
-    @classmethod
-    def listar(cls, produto_id: int) -> dict
-    # {"produto_id", "horario_corte": "14:00",
-    #  "horarios": [{"chave", "horario": "13:30", "ativo", "somente_dia_util", "ultima_execucao"}]}
-    # ordenado por horario; inclui inativos
-    @classmethod
-    def substituir(cls, produto_id: int, horarios: List[dict], solicitado_por: str) -> dict
-    # horarios = [{"horario": "HH:MM", "ativo": bool}]; conjunto-alvo: cria o que falta,
-    # altera `ativo` do que existe, desativa o que não veio; devolve listar() + "avisos"
-    @classmethod
-    def avisos_horario_apos_corte(cls, produto: Produto, horarios_ativos: List[time]) -> List[dict]
-    # [] se nenhum produto_fundo do produto está em `automatica`; senão um aviso por horário
-    # >= horario_corte(): {"codigo": "horario_apos_corte", "horario": "16:00",
-    #   "horario_corte": "14:00", "fundos": ["<cnpj>", ...]}
-```
-Rotas (`ns` de `cessao/api/liquidacao/viewer.py`, parser com `Authorization`):
-- `GET /liquidacao/produto/<int:produto_id>/horarios-fechamento` → `listar`; 404 se produto não existe.
-- `PUT /liquidacao/produto/<int:produto_id>/horarios-fechamento`, corpo
-  `{"horarios": [{"horario": "HH:MM", "ativo": true}], "solicitado_por": "<e-mail>"}` →
-  `substituir`; 200 com `avisos` (lista vazia quando não há aviso); 422 horário fora de `HH:MM` ou
-  repetido; 404 produto.
-
-- [ ] Passo 1: testes que falham:
-  ```python
-  # test/api/liquidacao/test_horario_fechamento.py (ServicoAgendamento e Produto mockados)
-  def test_nome_do_job_tem_produto_e_horario():
-      assert ServicoHorarioFechamentoProduto.nome_job(713, time(13, 30)) == "liquidacao.fechamento_produto_713_1330"
-  def test_substituir_cria_altera_e_desativa():
-      # existentes: 13:30 ativo, 16:00 ativo; alvo: 13:30 ativo, 17:00 ativo
-      # → criar(17:00, payload={"produto_id": 713}, somente_dia_util=True, dias_semana=[0,1,2,3,4]);
-      #   alterar(chave_16, {"ativo": False, "solicitado_por": ...}); 13:30 intocado
-  def test_aviso_so_com_fundo_em_automatica_e_horario_no_corte_ou_depois(mocker):
-      mocker.patch("cessao.api.liquidacao.horario_fechamento.horario_corte", return_value=time(14, 0))
-      # fundos: um automatica, um nao_aplica; horários 13:30 e 14:00
-      # → um aviso: horario "14:00", horario_corte "14:00", fundos == [cnpj do automatica]
-  def test_sem_fundo_em_automatica_nao_avisa(): ...
-  # test/api/liquidacao/test_viewer_horario_fechamento.py (padrão de test_viewer_conciliacao_rotina.py)
-  def test_put_horarios_devolve_200_com_avisos(test_client, mocker): ...
-  def test_put_horario_invalido_devolve_422(test_client): # {"horarios": [{"horario": "25:00"}]}
-  def test_put_horario_repetido_devolve_422(test_client): ...
-  ```
-- [ ] Passo 2: rodar e ver falhar (`ImportError`, 404).
-- [ ] Passo 3: implementar. `substituir` chama `avisos_horario_apos_corte` **depois** de gravar
-      (salva e avisa). Um `log.info("Horarios de fechamento do produto substituidos", extra={"produto_id", "criados", "desativados", "avisos"})`.
-- [ ] Passo 4: rodar e ver passar; `test/api/liquidacao/` inteiro continua verde.
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): rotas de horário de fechamento por produto`.
+- [ ] Passo 1: abrir os dois arquivos da branch da TS-5570 (quando existir) e comparar campo a campo
+      com a lista acima; registrar a divergência na seção "Revisão" e nos schemas da Tarefa 5.
+- [ ] Passo 2: sem a TS-5570 mergeada, as Tarefas 4 a 11 seguem contra o fake (Tarefa 7), que copia
+      este contrato; a Tarefa 12 só fecha depois da conferência com a rota real.
 
 ---
 
@@ -354,23 +366,24 @@ Rotas (`ns` de `cessao/api/liquidacao/viewer.py`, parser com `Authorization`):
   ("product-settings-assignment", "product-settings-liquidation"), prefix="product-settings")`.
 - `_page("Configuração do produto", "/product-settings", "product-settings-assignment",
   "product-settings-liquidation")` em `FRONTEND_ROUTE_PERMISSIONS`.
-- `PlatformCessaoManager._patch(endpoint, body=None) -> dict | str` (2xx; a cessão devolve texto no
-  PATCH do produto: devolver `resp.json()` se `Content-Type` JSON, senão `resp.text`) e:
+- `PlatformCessaoManager._patch(endpoint, body=None)` e `_put(endpoint, body=None)`, iguais ao
+  `_post` (`src/services/platform_cessao/__init__.py:67-92`: qualquer 2xx é sucesso e `resp.json()`;
+  o PATCH do produto devolve uma string JSON, `"Dados atualizados com sucesso"`, que o `resp.json()`
+  já lê) e:
   ```python
-  async def list_products(self) -> list[dict]                       # GET /cadastro/produto
   async def get_product(self, product_id: int) -> dict | None        # GET /cadastro/produto?id=; lista vazia → None (o business levanta NotFoundError)
   async def get_product_config_options(self) -> dict                 # GET /produto/config/opcoes
   async def update_product(self, product_id: int, body: dict) -> None  # PATCH /produto/{id}/
-  async def list_product_closing_schedules(self, product_id: int) -> dict        # GET /liquidacao/produto/{id}/horarios-fechamento
+  async def get_product_closing_schedules(self, product_id: int) -> dict         # GET /liquidacao/fechamento-por-horario/{id}
   async def replace_product_closing_schedules(self, product_id: int, body: dict) -> dict  # PUT ...
   ```
-  (`_put(endpoint, body)` igual ao `_patch`.)
+  A lista de produtos usa o `get_funds()` que já existe (`GET /fundo/produtos`, D4).
 
 - [ ] Passo 1: testes que falham (`httpx.MockTransport`, como `tests/unit/services/test_platform_cessao_fake_batches.py`):
   ```python
   async def test_get_product_filters_by_id_and_unwraps_the_single_item()   # GET /cadastro/produto?id=713 → [ {...} ] → dict
   async def test_get_product_returns_none_when_the_list_is_empty()
-  async def test_update_product_accepts_a_text_body()                      # PATCH → 200 "Dados atualizados com sucesso"
+  async def test_update_product_accepts_a_json_string_body()               # PATCH → 200 "Dados atualizados com sucesso"
   async def test_replace_closing_schedules_sends_the_put_body()
   ```
   E em `test_pages.py`/`test_permissions.py`: o catálogo e a página novos já são cobertos pelos
@@ -388,7 +401,8 @@ Rotas (`ns` de `cessao/api/liquidacao/viewer.py`, parser com `Authorization`):
 `business.py`, `repository.py` / Teste `tests/unit/modules/product_settings/test_schemas.py`,
 `test_business.py`
 **Interfaces:** Consome: Tarefa 4. Produz (`schemas.py`, pydantic v2, atributo em inglês, `alias`
-com o nome da cessão, `populate_by_name=True`, resposta com `model_dump(by_alias=False)`):
+com o nome da cessão, `populate_by_name=True`, resposta com `model_dump(by_alias=False)`; o enum `LabeledEnum` só nos
+pedidos, `str` nas respostas):
 
 ```python
 class ClosingTrigger(LabeledEnum):      # valores da cessão (D3)
@@ -404,23 +418,26 @@ class ReconciliationMode(LabeledEnum):
     AUTOMATIC = "automatica", "Automática (corte)"
     MANUAL = "manual", "Manual"
 
-class ProductOption(BaseModel): id: int; name: str = Field(alias="nome")
-class ClosingSettings(BaseModel):
-    trigger: ClosingTrigger = Field(alias="gatilho_fechamento_lote_liquidacao")
-    grouping: ClosingGrouping = Field(alias="agrupamento_lote_liquidacao")
-class ClosingSchedule(BaseModel):
-    key: UUID | None = Field(default=None, alias="chave"); time: str = Field(alias="horario")
-    active: bool = Field(alias="ativo"); last_execution: dict | None = Field(default=None, alias="ultima_execucao")
+class ProductOption(BaseModel): id: int; name: str = Field(alias="nome")   # de /fundo/produtos (D4)
+class ClosingSettings(BaseModel):       # `str` na resposta (D3: valor novo da cessão não derruba a tela)
+    trigger: str = Field(alias="gatilho_fechamento_lote_liquidacao")
+    grouping: str = Field(alias="agrupamento_lote_liquidacao")
+class ClosingSchedules(BaseModel):      # um agendamento por produto (TS-5570): vários horários, um `ativo`
+    key: UUID | None = Field(default=None, alias="chave")
+    times: list[str] = Field(default_factory=list, alias="horarios")
+    active: bool = Field(default=False, alias="ativo")
+    next_run_at: str | None = Field(default=None, alias="proxima_execucao_em")
+    last_execution: dict | None = Field(default=None, alias="ultima_execucao")
 class FundReconciliation(BaseModel):
-    fund_id: int; cnpj: str = Field(alias="cnpj_fundo"); name: str = Field(alias="nome_fundo")
-    reconciliation_mode: ReconciliationMode = Field(alias="conciliacao_liquidacao")
-class CutoffWarning(BaseModel):
-    code: Literal["after_reconciliation_cutoff"] = "after_reconciliation_cutoff"
-    time: str; cutoff_time: str; funds: list[str]
+    fund_id: int = Field(alias="fundo_id"); cnpj: str = Field(alias="cnpj_fundo"); name: str = Field(alias="nome_fundo")
+    reconciliation_mode: str = Field(alias="conciliacao_liquidacao")
 class LiquidationSettings(BaseModel):
-    product: ProductOption; closing: ClosingSettings; schedules: list[ClosingSchedule]
-    cutoff_time: str; funds: list[FundReconciliation]
-class ClosingSchedulesResponse(BaseModel): schedules: list[ClosingSchedule]; cutoff_time: str; warnings: list[CutoffWarning]
+    product: ProductOption; closing: ClosingSettings; schedules: ClosingSchedules
+    cutoff_time: str | None = Field(default=None, alias="horario_corte")   # None até a TS-5570 entregar (D2)
+    funds: list[FundReconciliation]
+class ClosingSchedulesResponse(BaseModel):
+    schedules: ClosingSchedules; cutoff_time: str | None = Field(default=None, alias="horario_corte")
+    warnings: list[str] = Field(default_factory=list, alias="avisos")   # texto pronto da cessão
 class AssignmentSettings(BaseModel):    # D1 (i): 20 campos; atributo → alias
     product: ProductOption
     assignment_batch_auto_close: bool = Field(alias="lote_cessao")
@@ -446,8 +463,8 @@ class AssignmentSettings(BaseModel):    # D1 (i): 20 campos; atributo → alias
     options: dict[str, list[str]]       # só os campos enum acima, chave = atributo em inglês
 # requests
 class ClosingSettingsRequest(BaseModel): trigger: ClosingTrigger; grouping: ClosingGrouping
-class ScheduleInput(BaseModel): time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$"); active: bool = True
-class ClosingSchedulesRequest(BaseModel): schedules: list[ScheduleInput] = Field(max_length=12)
+ClockTime = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
+class ClosingSchedulesRequest(BaseModel): times: list[ClockTime] = Field(min_length=1, max_length=12); active: bool
 class FundReconciliationRequest(BaseModel): reconciliation_mode: ReconciliationMode
 class AssignmentSettingsRequest(BaseModel): # os 20 campos, todos Optional = None; model_config extra="forbid"
 ```
@@ -466,21 +483,25 @@ ASSIGNMENT_FIELD_ALIASES: dict[str, str]  # atributo → nome da cessão, deriva
 ```
 Erros de domínio (`src/shared/utils/domain_errors.py`): `NotFoundError("Produto não encontrado.")`
 quando `get_product` devolve `None`; `NotFoundError("Fundo não vinculado ao produto.")` quando o
-`fund_id` não está em `fundos[]`; `InvalidInputError("Horários repetidos.")` em `ScheduleInput`
-duplicado. `repository.py`: um método por chamada do manager, `@require_attr("_platform_cessao_manager")`.
+`fund_id` não está em `fundos[]`. Horário repetido, lista vazia e `ativo` sem gatilho `agendado` são
+da cessão (400 repassado, sem regra duplicada no BFF; o `min_length=1` do pedido só poupa a ida).
+`repository.py`: um método por chamada do manager, `@require_attr("_platform_cessao_manager")`;
+`list_products` do business monta a lista de `get_funds()` achatando `fundos[].produtos` por `id`.
 
 - [ ] Passo 1: testes que falham:
   ```python
   # test_schemas.py
   def test_liquidation_settings_is_built_from_the_cessao_names()   # dict com alias → atributos em inglês; dump sem alias
   def test_closing_trigger_keeps_the_cessao_values_and_labels()     # ClosingTrigger("agendado").label == "Agendado (horários do produto)"
-  def test_schedule_input_rejects_a_bad_clock_time()                # "25:00" → ValidationError
+  def test_schedules_request_rejects_a_bad_clock_time()             # ["25:00"] → ValidationError
+  def test_schedules_request_refuses_an_empty_list()
   def test_assignment_request_refuses_unknown_fields()
   # test_business.py (repository AsyncMock; GET do produto com fixture `cessao_product()` que copia a forma real da Tarefa 2)
   async def test_update_closing_sends_only_the_pair_and_rereads()   # update_product(713, {"produto_config": {"gatilho_fechamento_lote_liquidacao": "agendado", "agrupamento_lote_liquidacao": "por_chave_sem_origem"}}); depois get_product
   async def test_reconciliation_update_refuses_a_fund_not_linked_to_the_product()  # NotFoundError; update_product não chamado
   async def test_reconciliation_update_sends_the_fund_cnpj()        # {"produto_fundo": [{"cnpj_fundo": "...", "conciliacao_liquidacao": "automatica"}]}
-  async def test_replace_schedules_maps_the_cutoff_warning()        # avisos[0].codigo "horario_apos_corte" → warnings[0].code "after_reconciliation_cutoff", requested_by vira solicitado_por
+  async def test_replace_schedules_passes_the_warning_texts()       # avisos ["Horário 16:00 fica ..."] → warnings igual; corpo da cessão {"horarios", "ativo", "solicitado_por"}
+  async def test_replace_schedules_sends_the_oid_as_requester()     # requested_by (oid) vira solicitado_por
   async def test_assignment_update_translates_names_and_drops_unset_fields()  # {"max_contracts_per_send": None, "buys_npl_contracts": True} → {"produto_config": {"limite_contratos_por_envio": None, "compra_npl": True}}
   async def test_missing_product_raises_not_found()
   ```
@@ -494,23 +515,27 @@ duplicado. `repository.py`: um método por chamada do manager, `@require_attr("_
 ### Tarefa 6: viewer, rotas internas e foto de permissões
 
 **Arquivos:** Criar `src/modules/product_settings/viewer.py` / Modificar
-`src/delivery/api/__init__.py:38-64`, `tests/test_arch_partner_scope.py:80` (`INTERNAL_ONLY_ROUTES`),
+`src/delivery/api/__init__.py:36-66`, `tests/test_arch_partner_scope.py:80` (`INTERNAL_ONLY_ROUTES`),
 `tests/snapshots/route_permissions.json` / Teste `tests/unit/modules/product_settings/test_viewer.py`
 **Interfaces:** Consome: Tarefa 5. Produz: `router = APIRouter(prefix="/product-settings",
 tags=[Tags.OPERATIONS], dependencies=[Depends(internal_only)])`;
-`@contextmanager def get_product_settings_business()`; as 7 rotas da Tarefa 1 (tabela), com
+`@contextmanager def get_product_settings_business()`; `internal_only(request)` e `INTERNAL_ONLY_DETAIL`
+próprios do viewer (usam `require_internal_organization`, ver "Restrições globais"); as 7 rotas da
+Tarefa 1 (tabela), com
 `require("product-settings-liquidation", Policies.READ|UPDATE)`, `require("product-settings-assignment", ...)`
 e `require_any(("product-settings-assignment", READ), ("product-settings-liquidation", READ))` em
 `GET /products`. `INTERNAL_ONLY_DETAIL = "A configuração do produto é só da organização interna."`
-`requested_by` = e-mail da sessão (`request.state.user`; conferir o nome do campo em
-`src/shared/schemas/users.py:55-62`).
+`requested_by` = `request.state.user.azure_id` (oid; `src/shared/schemas/users.py:44-53`, opcional),
+como o fechar lote (`liquidation_batches/viewer.py:397`); sem `azure_id`, a rota de horários levanta
+`HTTPException(403)` no viewer com o motivo (sessão antiga: entrar de novo).
 
 - [ ] Passo 1: testes que falham (app próprio por teste e `route_access`, como
       `tests/unit/modules/operations/liquidation_batches/test_viewer_close.py:51-105`):
   ```python
   def test_each_route_requires_its_role()        # parametrizado: 7 rotas × role certa abre, role da outra aba nega, admin abre
   def test_partner_session_is_refused()          # OrgType parceiro com admin:update → 403
-  def test_closing_update_passes_cessao_400_message_through()   # business levanta RemoteServiceError(400, "acumula_liquidacoes só combina com gatilho manual") → 400 com o detail
+  def test_closing_update_passes_cessao_400_message_through()   # business levanta RemoteServiceError(400, "gatilho_fechamento_lote_liquidacao inválido, use um de [...]") → 400 com o detail
+  def test_schedules_without_azure_id_are_refused()              # sessão sem azure_id → 403, cessão não chamada
   def test_schedules_response_carries_warnings()
   def test_products_list_opens_with_either_read()
   ```
@@ -527,18 +552,20 @@ e `require_any(("product-settings-assignment", READ), ("product-settings-liquida
 ### Tarefa 7: fake da cessão e contratos
 
 **Arquivos:** Modificar `local/upstreams/platform_cessao.py` (rotas `GET /cadastro/produto`,
-`PATCH /produto/{id}/`, `GET /produto/config/opcoes`, `GET|PUT /liquidacao/produto/{id}/horarios-fechamento`),
+`PATCH /produto/{id}/`, `GET /produto/config/opcoes`, `GET|PUT /liquidacao/fechamento-por-horario/{id}`, `GET /fundo/produtos`),
 `local/seed/cessao.py` (produto_config completo e `fundos` com `conciliacao_liquidacao`),
 `.ai/rules/local.md:40-53` / Criar `tests/contract/test_product_settings.py`
 **Interfaces:** Consome: Tarefas 2, 3 (forma real da cessão), 6. Produz: o fake responde **com a
-forma real** (enum pelo valor, PATCH devolvendo texto, aviso quando horário ≥ `14:00` e algum fundo
-`automatica`).
+forma real** (enum pelo nome, PATCH devolvendo uma string JSON, horários como um conjunto por produto
+com `ativo` único, 400 ao ligar sem gatilho `agendado`, `avisos` em texto quando algum horário ≥ `14:00`
+e algum fundo `automatica`, `horario_corte` na resposta).
 
 - [ ] Passo 1: testes que falham (`bff`, `login("admin")`, como `tests/contract/test_cessao.py`):
   ```python
   def test_liquidation_settings_round_trip()                 # GET → PUT closing (agendado/por_chave) → GET reflete
-  def test_schedules_after_the_cutoff_are_saved_with_a_warning()   # PUT 16:00 → 200, warnings[0].code, GET lista 16:00 ativo
-  def test_assignment_settings_enum_fields_are_plain_values()      # registration_type in options["registration_type"]
+  def test_schedules_after_the_cutoff_are_saved_with_a_warning()   # PUT ["16:00"] ativo → 200, warnings[0] texto, GET lista 16:00 ativo
+  def test_schedules_refuse_active_without_the_scheduled_trigger() # produto em manual + active=true → 400 com a mensagem da cessão
+  def test_assignment_settings_enum_fields_round_trip()            # registration_type e collateral_validation em options[...], e o valor lido volta no PUT
   def test_partner_login_gets_403()                           # login("parceiro-dots")
   def test_read_only_role_cannot_update()                    # login("x", roles="product-settings-liquidation:read") → 403 no PUT
   ```
@@ -558,8 +585,8 @@ forma real** (enum pelo valor, PATCH devolvendo texto, aviso quando horário ≥
 `data-access/product-settings.interface.ts`, `data-access/product-settings.service.ts` (+`.spec.ts`),
 `testing/product-settings.fake.ts`, `src/app/core/http/mock-api/mock-api.product-settings.ts`
 (+`.spec.ts`), `product-settings.routes.ts` / Modificar `src/app/app.routes.ts:62-69`,
-`src/app/layouts/app-shell/navigation.ts:61-71`, `src/app/core/config/page.constants.ts`,
-`src/app/core/http/mock-api/mock-api.reply.ts:23-56` e `:198-199`, `src/app/mock-api.fake-data.ts:35-80`
+`src/app/layouts/app-shell/navigation.ts:61-71`, `src/app/core/config/page.constants.ts` (`PAGE_TITLES` e a
+descrição da página), `src/app/core/http/mock-api/mock-api.reply.ts:23-56` e `:198-199`, `src/app/mock-api.fake-data.ts:35-80`
 **Interfaces:** Produz:
 ```ts
 // product-settings.permissions.ts
@@ -567,37 +594,37 @@ export const PRODUCT_SETTINGS_ASSIGNMENT_SCOPE = 'product-settings-assignment';
 export const PRODUCT_SETTINGS_LIQUIDATION_SCOPE = 'product-settings-liquidation';
 // product-settings.interface.ts — snake_case igual ao BFF (Tarefa 5)
 export interface ProductOption { id: number; name: string }
-export interface ClosingSettings { trigger: ClosingTrigger; grouping: ClosingGrouping }
+export interface ClosingSettings { trigger: ClosingTrigger; grouping: ClosingGrouping }  // o BFF manda `string`; o front estreita
 export type ClosingTrigger = 'manual' | 'agendado' | 'automatico';
 export type ClosingGrouping = 'por_chave' | 'por_chave_sem_origem' | 'por_remessa';
 export type ReconciliationMode = 'nao_aplica' | 'automatica' | 'manual';
-export interface ClosingSchedule { key: string | null; time: string; active: boolean; last_execution: unknown | null }
+export interface ClosingSchedules { key: string | null; times: string[]; active: boolean; next_run_at: string | null; last_execution: unknown | null }
 export interface FundReconciliation { fund_id: number; cnpj: string; name: string; reconciliation_mode: ReconciliationMode }
-export interface CutoffWarning { code: 'after_reconciliation_cutoff'; time: string; cutoff_time: string; funds: string[] }
-export interface LiquidationSettings { product: ProductOption; closing: ClosingSettings; schedules: ClosingSchedule[]; cutoff_time: string; funds: FundReconciliation[] }
-export interface ClosingSchedulesResponse { schedules: ClosingSchedule[]; cutoff_time: string; warnings: CutoffWarning[] }
+export interface LiquidationSettings { product: ProductOption; closing: ClosingSettings; schedules: ClosingSchedules; cutoff_time: string | null; funds: FundReconciliation[] }
+export interface ClosingSchedulesResponse { schedules: ClosingSchedules; cutoff_time: string | null; warnings: string[] }
 export interface AssignmentSettings { product: ProductOption; /* 20 campos da Tarefa 5 */ options: Record<string, string[]> }
 export type AssignmentSettingsPatch = Partial<Omit<AssignmentSettings, 'product' | 'options'>>;
 // product-settings.service.ts (BaseApiService; BASE = 'product-settings')
 listProducts(): Observable<ProductOption[]>
 getLiquidationSettings(productId: number): Observable<LiquidationSettings>
 updateClosing(productId: number, body: ClosingSettings): Observable<LiquidationSettings>
-replaceClosingSchedules(productId: number, body: { schedules: { time: string; active: boolean }[] }): Observable<ClosingSchedulesResponse>
+replaceClosingSchedules(productId: number, body: { times: string[]; active: boolean }): Observable<ClosingSchedulesResponse>
 updateFundReconciliation(productId: number, fundId: number, body: { reconciliation_mode: ReconciliationMode }): Observable<LiquidationSettings>
 getAssignmentSettings(productId: number): Observable<AssignmentSettings>
 updateAssignment(productId: number, body: AssignmentSettingsPatch): Observable<AssignmentSettings>
 ```
 Mock: `productSettingsFakeRoutes(fake): MockApiData` com `product-settings/products`,
-`product-settings/<id>/liquidation` e `.../assignment` (3 produtos, um com fundo `automatica`);
+`product-settings/<id>/liquidation` e `.../assignment` (3 produtos, um com fundo `automatica`, um com gatilho `manual`);
 `productSettingsWrite` em `mock-api.product-settings.ts` responde os `PUT` (o de horários devolve
-`warnings` quando `time >= '14:00'` e há fundo `automatica`), chamado em `mock-api.reply.ts:198-199`
+`warnings` em texto quando algum horário é `>= '14:00'` e há fundo `automatica`, e responde 400 ao
+ligar `active` com o gatilho gravado diferente de `agendado`), chamado em `mock-api.reply.ts:198-199`
 antes do genérico. Rota: `{ path: 'product-settings', canActivate: [iamGuard], loadChildren: ... }`;
 `PAGE_TITLES.PRODUCT_SETTINGS = 'Configuração do produto'`; item `{ name: PAGE_TITLES.PRODUCT_SETTINGS,
 icon: 'sliders', route: '/product-settings' }` no grupo "Operações" (D6); `/product-settings` em
 `MOCK_API_PATHS`.
 
 - [ ] Passo 1: specs que falham: `product-settings.service.spec.ts` (`HttpTestingController`, como
-      `batches.service.spec.ts:7-31`): `calls PUT product-settings/713/liquidation/closing-schedules with the schedules`,
+      `batches.service.spec.ts:7-31`): `calls PUT product-settings/713/liquidation/closing-schedules with the times and the active flag`,
       `calls PUT .../funds/9 with the reconciliation mode`; `mock-api.product-settings.spec.ts`:
       `answers a schedule after the cutoff with a warning`, `answers a schedule before the cutoff without warnings`;
       `src/app/app.routes.spec.ts` e `navigation-mock-api.spec.ts` já existentes passam a exigir a rota.
@@ -655,17 +682,23 @@ Template: `app-page-header` (título, descrição) → `app-toggle-group aria-la
 `liquidation-settings/closing-schedules-editor/closing-schedules-editor.{ts,html,scss,spec.ts}`
 **Interfaces:** Consome: Tarefas 8 e 9. Produz: `app-liquidation-settings`
 (`productId = input.required<number>()`, `canUpdate = input.required<boolean>()`) com três cartões
-(`app-card`): **Fechamento** (dois `app-select` — gatilho e agrupamento — com rótulos fixos no
-front: `CLOSING_TRIGGER_LABELS`, `CLOSING_GROUPING_LABELS`; botão "Salvar fechamento"), **Horários de
-fechamento** (`app-closing-schedules-editor`: `schedules = model<ScheduleDraft[]>`, `cutoffTime = input<string>()`,
-`disabled`; linha = `input[appInput] type="time" step="60"` + `app-switch` "Ativo" + `app-icon-action`
-remover; botão "Adicionar horário"; `app-notice tone="warning"` na linha quando `time >= cutoffTime`
-**antes** de salvar, com o texto "Depois do corte da conciliação (HH:MM): o lote vai para a fila
-manual"; botão "Salvar horários"), **Conciliação por fundo** (tabela `app-pill` por modo + `app-select`
-por linha; grava por linha ao mudar, `updateFundReconciliation`). Depois de cada gravação o componente
-**substitui** o estado pelo retorno (sem otimismo); `warnings` do retorno viram um `app-notice
-tone="warning"` persistente acima do editor, um item por aviso (`"16:00 fica depois do corte (14:00);
-lotes dos fundos X, Y vão para a fila manual"`), e `toast.success('Horários salvos')`.
+(`app-card`, empilhados em largura total): **Fechamento** (dois `app-select` — gatilho e agrupamento —
+com rótulos fixos no front: `CLOSING_TRIGGER_LABELS`, `CLOSING_GROUPING_LABELS`; **nenhum controle de
+acúmulo**, D36; botão "Salvar fechamento"), **Horários de fechamento**
+(`app-closing-schedules-editor`: `times = model<string[]>`, `active = model<boolean>`,
+`cutoffTime = input<string | null>()`, `triggerIsScheduled = input<boolean>()`, `disabled`; linha =
+`input[appInput] type="time" step="60"` + `app-icon-action` remover; botão "Adicionar horário"; **um**
+`app-switch` "Ativo" para o produto todo, desabilitado e com a dica "Salve o gatilho Agendado
+antes de ligar os horários" enquanto o gatilho **gravado** não for `agendado`; sem horário na lista,
+"Salvar horários" fica desabilitado e o switch desligado (a cessão recusa lista vazia);
+`app-notice tone="warning"` na linha quando `time >= cutoffTime` **antes** de salvar, só se
+`cutoffTime` veio na resposta (D2), com o texto "Depois do corte da conciliação (HH:MM): o lote vai
+para a fila manual"; botão "Salvar horários"), **Conciliação por fundo** (tabela `app-pill` por modo +
+`app-select` por linha; grava por linha ao mudar, `updateFundReconciliation`; mais de 10 fundos:
+10 primeiros e "ver mais"). Depois de cada gravação o componente **substitui** o estado pelo
+retorno (sem otimismo); os `warnings` do retorno (textos prontos da cessão) viram um
+`app-notice tone="warning"` persistente acima do editor, um item por texto, e
+`toast.success('Horários salvos')`. Em 600 px o editor empilha linha a linha.
 
 - [ ] Passo 1: specs que falham (`provideHttpClient(), provideHttpClientTesting()`; serviço dublado):
   ```ts
@@ -673,10 +706,14 @@ lotes dos fundos X, Y vão para a fila manual"`), e `toast.success('Horários sa
   it('saves the closing pair and replaces the state with the response')
   it('shows the cutoff warning after a successful save')       // resposta com warnings → app-notice[tone=warning] visível e toast.success chamado, toast.error não
   it('flags a schedule at or after the cutoff before saving')  // 14:00 com cutoff 14:00 → notice na linha
+  it('does not flag before saving when the response has no cutoff')  // cutoff_time null → sem notice por linha
+  it('locks the active switch while the saved trigger is not scheduled')
+  it('keeps save schedules disabled with an empty list')
   it('refuses a duplicated time before calling the api')
   it('disables every control without update')                  // canUpdate=false → selects/inputs disabled, sem botões Salvar
   it('saves the fund reconciliation mode per row')
-  it('shows the api message when the save fails')              // 400 "acumula_liquidacoes só combina com gatilho manual" → toast.error com o texto
+  it('shows the api message when the save fails')              // 400 "Produto não está no gatilho agendado" → toast.error com o texto
+  it('offers no accumulation control')                          // nenhum texto/controle de acúmulo (D36)
   ```
 - [ ] Passo 2: rodar e ver falhar.
 - [ ] Passo 3: implementar; `prefers-reduced-motion` no `.scss` de qualquer transição; em 600 px a
@@ -700,7 +737,10 @@ agrupados em três cartões: "Lote e envio" (`assignment_batch_auto_close`, `ass
 `manual_assignor_registration`). Um botão "Salvar" que manda **só os campos alterados**
 (`diffAssignmentSettings(original, draft): AssignmentSettingsPatch` em `product-settings.view.ts`).
 Rótulos PT-BR dos 20 campos em `ASSIGNMENT_FIELD_LABELS` no `.view.ts` (texto do `comment` da
-coluna, `models.py:1277-1540`, encurtado).
+coluna, `models.py:1283-1560`, encurtado). `accumulate_contracts_in_remittance` (`acumula_contratos`)
+é "Acumular contratos na mesma remessa" e **não** é o acúmulo de lote de liquidação (D34/D36), que
+não aparece na tela. Opções de nome técnico (`idtrust`, `qidtvm`, `mpmerchant`) têm rótulo no mapa
+`OPTION_LABELS`; `humanizeOption` é só o fallback.
 
 - [ ] Passo 1: specs que falham:
   ```ts
@@ -736,36 +776,141 @@ coluna, `models.py:1277-1540`, encurtado).
 - Horários globais (corte da conciliação, verificação D0): área administrativa.
 - E-mail do aviso de horário depois do corte (4.6 + 4.8, D27): TS-5585.
 - Campos de cálculo, renegociação e cobrança do `produto_config` (D1).
+- **Acúmulo do lote de liquidação (D34/D36):** vale em qualquer caso e não é escolha do usuário; a
+  tela não o mostra. Na Fase 1 da TS-5567 o `acumula_liquidacoes` é só o portão de transição; a
+  TS-5612 o apaga.
 - Modalidade antiga e flags legadas (`modalidade_fechamento_lote`, `lote_liquidacao`,
   `fechar_lote_por_proc_id`, `acumula_liquidacoes`, `baixa_por_agendamento`): derivadas pela cessão
-  (`apply_closing_modality`), nunca exibidas nem gravadas pela tela.
+  (`apply_closing_modality`, `closing_modality.py` da TS-5583), nunca exibidas nem gravadas pela tela.
 - Disparar "fechar agora" pela tela (`POST /agendamento/<chave>/executar`): depois da TS-5570.
 - Cache de permissões no front (`authorizeActions` sem cache): comportamento atual do portal.
 
 ## Não confirmado
 
-- Se `GET /cadastro/produto?id=` com id inexistente devolve `[]` (inferido de `Consulta.filter`,
-  `cadastro/service.py:226-236`) e se `ns.doc(validate=True)` recusa campo desconhecido no nested
-  `produto_config` (o plano da TS-5583 supõe que sim; se não recusar, a Tarefa 2 continua necessária
-  para a leitura).
-- Se o campo do e-mail do usuário na sessão do BFF se chama `email` (`src/shared/schemas/users.py:55-62`).
-- Se o `test_arch_route_scopes` aceita `/product-settings` sem entrada em `URL_PREFIXES_OF_PAGES`
-  só por ser `/{prefix}` da página (o agente leu que sim; conferir no Passo 4 da Tarefa 6).
-- Interface final da TS-5569 (`ServicoAgendamento.listar(modulo, tarefa, payload_contem)` e o 409
-  do `DELETE`): o plano dela está em revisão; a Tarefa 3 lê o que for aprovado.
+- Se `ns.doc(validate=True)` recusa campo desconhecido dentro de `produto_config`: pelo código o
+  flask-restx não fecha `additionalProperties`, então provavelmente não recusa (o plano da TS-5583
+  supõe que recusa). Conferir no Passo 2 da Tarefa 2; sem o schema novo o campo passaria sem validar
+  o enum.
+- Se `NullableInteger` (`__schema_type__ = ["integer", "null"]`) é aceito pelo `validate=True` do
+  flask-restx 1.1.0 como o `NullableString` já é (`cessao/api/fields.py`): conferir na Tarefa 2.
+- Quais outros consumidores leem `certificadora` e `padrao_originador` do `GET /cadastro/produto`
+  (BFF e front não leem; Atlas e scripts não foram verificados): "Para decisão" 1.
+- Contrato final das rotas da TS-5570 (a branch ainda não existe; vale o plano dela, `13-plan-ts-5570.md`,
+  Tarefas 3 e 4) e se ela aceita o `horario_corte` ("Para decisão" 2).
 - Aparência do `input type="time"` nativo nos três navegadores com o tema escuro (D5).
+- Quantos produtos o `/fundo/produtos` devolve (tamanho do seletor, D4) e se há produto sem fundo.
 - Linhas do front citadas valem para `origin/master` `8e3699ad`; a working tree local pode diferir.
 
-## Revisão de 08/11
+## Revisão de 10/11
+
+Revisão linha a linha contra `origin/master` das três bases (cessão `c041122eb`, BFF `6472fb1`, front
+`8e3699ad`), contra as branches `feature/TS-5583-gatilho-agrupamento-lote-liquidacao` e
+`feature/TS-5569-scheduler-em-tabela`, contra o plano da TS-5570 e contra as decisões D30, D34 e D36
+de 10/11. Nada foi executado; só leitura.
 
 ### Corrigido
-(a preencher na revisão linha a linha contra o código)
+
+- **D30 decidida:** virou "(b) página nova"; a alternativa (a) e tudo que dependia dela saíram.
+- **Acúmulo (D34/D36):** a tela não oferece "acumula sim/não". Regra escrita em "Arquitetura",
+  "Restrições globais", Tarefa 10 (teste `offers no accumulation control`) e "Fora do escopo". Apagadas
+  a "regra de combinação gatilho × agrupamento" e a mensagem de exemplo "acumula_liquidacoes só
+  combina com gatilho manual" (Tarefas 6 e 10): na TS-5583 o par é aceito em qualquer combinação
+  (`closing_modality.py:68-100`) e só a `modalidade_fechamento_lote` divergente é recusada.
+- **Horários vs TS-5570 (D2):** o contrato do plano (um job por horário, `ativo` por horário, aviso
+  estruturado com código, `PUT /liquidacao/produto/<id>/horarios-fechamento`) não era o da TS-5570
+  (um agendamento por produto, `horarios` em `"HH:MM"`, um `ativo`, `avisos` em texto, rota
+  `/liquidacao/fechamento-por-horario/<id>`, `solicitado_por` obrigatório). A Tarefa 3 virou
+  conferência; BFF (Tarefas 4 a 7), fake e front (Tarefas 8 e 10) seguem o contrato dela. Saíram o
+  nome de job por horário, o "horário removido vira job inativo" e o 409 do `DELETE`.
+- **Ordem gatilho antes dos horários:** ligar horários exige o gatilho `agendado` já gravado (400 da
+  TS-5570); a tela desabilita o switch e explica.
+- **Corte para o front:** a resposta da TS-5570 não traz o corte; pedido de `horario_corte` (D2) e
+  o pré-aviso na linha só aparece quando ele vier. O texto do aviso pós-gravação já vem pronto.
+- **Solicitante:** `azure_id` (oid), não e-mail (`liquidation_batches/viewer.py:397`; o e-mail iria
+  para o histórico e os logs da cessão); o campo da sessão não era "a confirmar", é `azure_id`
+  (`schemas/users.py:44-53`, opcional).
+- **Enum nome × valor (Foco 1, Tarefa 2):** o plano mandava `.value` e `options` por `to_values()`,
+  mas o PATCH valida por `to_names()` (`produto/schema.py:33-98`) e `certificadora`,
+  `tipo_lastro` (enum definido duas vezes, vale a de `enum.py:717`) e `padrao_originador` têm valor
+  diferente do nome: o dado lido não voltaria. Agora tudo pelo nome. `certificadora` não "saía sem
+  `attribute`" (já saía `.value`).
+- **Tarefa 2 enxuta:** faltam **6** campos no schema, não 10 (os outros 4 eram de cálculo, fora da D1);
+  `tipo_cobranca` e `tipo_juros_vp` saíram da correção (fora da D1, não alterar contrato sem uso);
+  `limite_contratos_por_envio` nulo precisa de campo próprio (`NullableInteger`, molde do
+  `NullableString`).
+- **Lista de produtos (D4):** `GET /cadastro/produto` sem `id` devolve todos os produtos com config e
+  aninhados; recomendado `GET /fundo/produtos` (já usado pelos lotes, ids da cessão).
+- **BFF:** `_patch`/`_put` não existem (só `_get`, `_post`, `_delete`) e o PATCH do produto devolve
+  string JSON, o que o `resp.json()` já lê (sem ramo para texto); 5 métodos novos (não 5+6);
+  `internal_only` é função própria de cada viewer (não há compartilhada); respostas com `str` e rótulo
+  no front (a D3 e a Tarefa 5 se contradiziam: enum tipado na resposta derruba a tela com valor novo);
+  `fund_id` vem de `fundo_id`; `FundReconciliation`, `ClosingSchedules` e `warnings` ajustados.
+- **Linhas e hashes:** cessão `6c152445d` para `c041122eb`, BFF `f0511cb` para `6472fb1`;
+  `models.py` 52 colunas e `:1277-1540` para 54 e `:1283-1560`; `produto/sevice.py:111-131` para
+  `:92-112`; `produto/viewer.py:109-119` para `:103-114`; `cadastro/schema.py:312-338` para
+  `:316-338`; `delivery/api/__init__.py:38-64` para `:36-66`; caminho do plano da TS-5570.
+- **Front:** `page.constants.ts` tem também as descrições; `app-switch` leva o rótulo como conteúdo
+  projetado (`<ng-content>`), conforme a Tarefa 10 já supunha; regras de desenho acrescentadas (sem dado digitado na URL, cartões em largura
+  total, "ver mais" nos fundos, combobox para muitos produtos).
 
 ### Conferido sem mudança
-(a preencher)
+
+- Escopos `product-settings-assignment` e `product-settings-liquidation`, ações `read` e `update`
+  (`Policies.UPDATE` existe; `write` não entra em escopo novo, `.ai/rules/permissions.md:22-25`);
+  `Page(..., prefix="product-settings")` e `_page(descrição, caminho, *escopos)`
+  (`pages.py:22-33`, `constants.py:17`).
+- `/product-settings` não precisa de `URL_PREFIXES_OF_PAGES` (`test_arch_route_scopes.py:27`: página
+  com URL `/{prefix}` não entra) e `INTERNAL_ONLY_ROUTES` existe em `test_arch_partner_scope.py:80`.
+- `require`/`require_any` (`shared/business/users.py:55-67`); 400 repassado
+  (`STATUSES_PASSED_TO_CLIENT`, `errors.py:88`); "ver como" só leitura (`users.py:337`); `create_module.sh`.
+- Cessão: `GET /cadastro/produto?id=` devolve lista (`Consulta` com `filter_by`, id inexistente vira
+  `[]`); `PATCH /produto/<id>/` cria o vínculo `produto_fundo` se faltar (Foco 5) e `val2enum` aceita
+  nome ou valor (o problema é só a validação do schema); `conciliacao_liquidacao` já sai em `fundos[]`;
+  `horario_corte()` em `corte.py:58`; `ServicoAgendamento.listar(modulo, ativo, tarefa, payload_contem)`
+  na branch da TS-5569.
+- O par `gatilho`/`agrupamento` já está nos dois schemas da branch da TS-5583 e o produto novo nasce
+  `manual`/`por_chave`; valores aceitos conferem com os enums.
+- `acumula_contratos` é campo de cessão, distinto do acúmulo de liquidação: fica na aba Cessão.
+- Front: `app-toggle-group`, `app-select` (`clearable`), `app-notice` (`tone`), `app-switch`,
+  `app-card`, `app-pill`, `app-icon-action`, `app-field-grid`, `app-empty-state`, `app-skeleton`,
+  `app-no-access`, `app-page-header`, `input[appInput]`, `ToastService.success/error`, ícone `sliders`,
+  `BaseApiService`, `iamGuard`, `IAMService.authorizeActions`, `bindFiltersToUrl`,
+  `expectNoAccessLock`/`expectActionButtonsLocked`/`writesOnlyFor`, as regras do `check-patterns.mjs`,
+  `npm run start:mock`; linhas de `app.routes.ts:63`, `navigation.ts:62-71` e `:119`,
+  `mock-api.reply.ts:198`, `mock-api.fake-data.ts`; D5 e D6.
+- Sem Angular Material, URL só com ids, tela responsiva a 390 px, testes de componente: mantidos.
 
 ### Para decisão do Pietro
-- D30 (a)/(b), D1–D6 (acima, com recomendação).
+
+1. **Enum pelo nome em `certificadora` e `padrao_originador` (muda um contrato da cessão).** Hoje o
+   `GET /cadastro/produto` os devolve pelo valor (`"ID Trust Certificadora Digital"`), que o PATCH
+   recusa. Opções: (a) trocar para o nome (`idtrust`), como os campos novos; (b) deixar esses dois
+   fora da tela agora; (c) fazer o PATCH aceitar o valor também. **Recomendação: (a)**, depois de
+   confirmar que Atlas e scripts não os leem (BFF e front não leem).
+2. **Corte da conciliação na resposta da TS-5570.** Opções: (a) a TS-5570 devolve `horario_corte` em
+   `GET` e `PUT`; (b) o BFF busca o corte em outra rota (não existe hoje); (c) sem pré-aviso na tela,
+   só o texto depois de salvar. **Recomendação: (a)**: uma linha na TS-5570, e o aviso na linha antes
+   de salvar é o que a opção C pede.
+3. **Trocar o gatilho para fora de `agendado` com horários ativos.** A TS-5570 mantém o agendamento
+   ativo e a task só confere o gatilho antes de fechar (não fecha). Opções: (a) a tela deixa e avisa
+   "horários ativos não disparam com este gatilho"; (b) o BFF desativa o agendamento ao salvar o
+   gatilho (regra nova no BFF, duas chamadas); (c) a cessão desativa ao receber o PATCH do gatilho.
+   **Recomendação: (a)** agora; (c) se a operação estranhar.
+4. **Sessão sem `azure_id`** (gravada antes do campo existir): (a) recusar gravar horários com 403 e
+   pedir novo login; (b) gravar com um solicitante genérico. **Recomendação: (a)**: o histórico do
+   agendador exige quem alterou.
+5. **Arquitetura do BFF (aprovação, Tarefa 1):** módulo novo `product_settings` (viewer, business,
+   repository, schemas) no molde de `collateral_checks`, dois escopos, uma página, rotas internas com
+   `internal_only` próprio do viewer, lista de produtos reaproveitando `get_funds`. Nada fora do
+   molde existente. **Recomendação: aprovar como está.**
+6. D1, D3, D4 (recomendação mudou para `/fundo/produtos`), D5 e D6 seguem em "Decisões em aberto",
+   cada uma com a sua recomendação.
 
 ### Ainda não confirmado
-- Ver "Não confirmado".
+
+- Ver "Não confirmado" acima: validação do `produto_config` com campo desconhecido, `NullableInteger`,
+  outros consumidores de `certificadora`/`padrao_originador`, contrato final da TS-5570, tamanho da
+  lista de produtos e o `input type="time"` no tema escuro.
+- **O que impede executar:** (1) a aprovação da arquitetura e das decisões acima (Tarefa 1); (2) a
+  TS-5570, que ainda não tem código (só o plano) e precisa devolver o `horario_corte`; (3) as TS-5583
+  e TS-5569 mergeadas na master; (4) o número do card (`TS-XXXX`).
