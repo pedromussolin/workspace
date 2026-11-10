@@ -286,6 +286,8 @@ repositório no `RefactLiquidacaoRepository`), chamado por `EstadoCadastrado` no
 
 ## 7. Decisões para o Pietro
 
+**D36 (10/11, depois das respostas abaixo):** o lote aberto vale em qualquer caso. As decisões 3 (`por_remessa` fora) e 4 (`automatico` fora até a TS-5572) caem: remessa ganha lote aberto pela chave `proc:` e o automático também usa lote aberto. O que muda de plano está nas TS-5567 e TS-5572.
+
 **Respostas de 10/11 (Pietro):** todas aprovadas como recomendado (a 10 em 10/11, à
 tarde). Na 3, a remessa continua fora do lote aberto, mas vem para o fluxo novo: o fechamento manual
 pela linha `proc:` já é do fluxo novo (`_close_remittance_fake_batch`), e o automático no fim da
