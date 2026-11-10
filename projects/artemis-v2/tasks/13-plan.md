@@ -38,7 +38,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | TS-5584 Excel na shared | `13-plan-ts-5584.md` | revisado (10/11); 2 decisões (teto do arquivo, compressão) | 20/11 |
 | TS-5570 horário por produto | `13-plan-ts-5570.md` | escrito; revisão pausada (alinhar a `horarios`, lista) | 20/11 |
 | TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | escrito; revisão pausada | 27/11 |
-| TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | escrito; revisão pausada | 27/11 |
+| TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | revisado (10/11); 2 decisões (corrida com a rotina, `estado_anterior`) | 27/11 |
 | Tela de configuração do produto | `13-plan-tela-config-produto.md` | escrito; revisão pausada | card a criar |
 | TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | escrito; revisão pausada | 18/11 |
 | TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | escrito; revisão pausada | 04/12 |
