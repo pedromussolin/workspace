@@ -59,6 +59,7 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia; núcleo da 13 desde 04/11 | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
 | 13 | [Absorver a liquidação do Mercato Libero](tasks/13-mercato-libero-settlement.md) | cessão (do sistema em diante; a chegada dos dados fica com o time) | 11, D25 | recorte definido (04/11); a mapear | a definir |
+| 14 | [Esteira de baixa que não aguenta lote gigante](tasks/14-giant-batch-pipeline.md) | cessão, argocd | pré-requisito da migração da 13 | mapeada (11/11); desenho a aprovar | a definir |
 
 ## Fases propostas
 
