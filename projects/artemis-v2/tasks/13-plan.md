@@ -31,18 +31,18 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
 | TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | branches enviadas (10/11), falta abrir as PRs; D26 = `descartado` | 10/11 |
-| TS-5620 omnis e lemans_2 sem o Atlas (upload, liquidar e data do lote no portal) | mapeamento em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo) | card criado (10/11); perguntas à operação antes do desenho da data | a definir |
-| TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | implementada (10/11), sem commit: script, simulação, blocos, runbook; aguarda revisão | 18/11 |
+| TS-5620 omnis e lemans_2 sem o Atlas (upload, liquidar e data do lote no portal) | mapeamento em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo) | Liquidar no portal pronto, sem commit; 3 decisões abertas (segurança, upload, data do lote) | a definir |
+| TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | publicada (11/11): script, simulação, blocos e runbook; falta a revisão da DBA | 18/11 |
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | branch enviada (10/11), 8 commits; acúmulo em qualquer combinação (D36) | 18/11 |
-| TS-5567 acúmulo natural | `13-plan-ts-5567.md` | Fase 1 implementada (10/11, 13 commits planejados, sem commit): aguarda revisão | 18/11 (Fase 1) |
+| TS-5567 acúmulo natural | `13-plan-ts-5567.md` | publicada (11/11): Fase 1, Fase 2 sem migration e remessa (cessão, BFF, front); falta só a Tarefa 24 (automático), na TS-5612 | 18/11 (Fase 1) |
 | TS-5569 agendamentos em tabela | `13-plan-ts-5569.md` | branch enviada (10/11), 9 commits sobre a TS-5583 (migration encadeada; PR depois da 5583) | 18/11 |
 | TS-5584 Excel na shared | `13-plan-ts-5584.md` | branch enviada (10/11), 8 commits; falta o snapshot OpenAPI no BFF depois da PR | 20/11 |
-| TS-5570 horário por produto | `13-plan-ts-5570.md` | parte 1 publicada (10/11: horários, rotas, migration); tarefas 1 e 2 esperam o núcleo da TS-5567 | 20/11 |
-| TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | shared (templates) e cessão (tarefas 1, 4, 5, 8) implementadas, sem commit; tarefas 2, 6, 7 esperam a ordem das branches | 27/11 |
+| TS-5570 horário por produto | `13-plan-ts-5570.md` | publicada (11/11): completa | 20/11 |
+| TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | publicada (11/11): shared e cessão completas; o job nasce desligado (horário a definir) | 27/11 |
 | TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | publicada (10/11): cessão e front | 27/11 |
-| Tela de configuração do produto | `13-plan-tela-config-produto.md` | revisado (10/11); card TS-5624; decisões tomadas em 11/11; em desenvolvimento | card a criar |
-| TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | encolhida (11/11): só o BFF perde o `/fake-batches/consolidate`; a rota legada sai na TS-5612 | 18/11 |
-| TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | revisado (10/11); decisões tomadas em 11/11 | 04/12 |
+| Tela de configuração do produto | `13-plan-tela-config-produto.md` | TS-5624 publicada (11/11) na cessão, no BFF e no front; falta validar a tela no navegador | card a criar |
+| TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | publicada (11/11), encolhida: BFF sem o consolidate; a rota legada sai na TS-5612 | 18/11 |
+| TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | publicada (11/11): tabela de remessas, fechamento automático no fluxo novo, backstop a cada 30 min, legado removido | 04/12 |
 
 Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documentação), TS-5573
 (investigação), mensagens E1 (ETL; perdeu prioridade com a D34) e E2 (negócio; respondida em 10/11: omnis e lemans_2 não enviam à administradora, B25 sem impacto).
