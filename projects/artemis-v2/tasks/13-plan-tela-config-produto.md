@@ -882,7 +882,7 @@ de 10/11. Nada foi executado; só leitura.
 
 ### Para decisão do Pietro
 
-**Respostas de 11/11 (Pietro):** card **TS-5624**. 1 = sim, certificadora e padrão do originador pelo nome, depois de conferir que nada externo lê o formato atual; 2 = sim, a TS-5570 devolve o horário do corte; 3 = em esclarecimento (ideia dele: desativar a execução e manter as configurações salvas); 4 = 403 sem `azure_id`; 5 = módulo `product_settings` do BFF aprovado.
+**Respostas de 11/11 (Pietro):** card **TS-5624**. 1 = sim, certificadora e padrão do originador pelo nome, depois de conferir que nada externo lê o formato atual; 2 = sim, a TS-5570 devolve o horário do corte; 3 = (b), ao sair de `agendado` a cessão desliga o agendamento do produto e mantém os horários gravados; ao voltar para `agendado`, a tela oferece religar com os mesmos horários (regra na cessão); 4 = 403 sem `azure_id`; 5 = módulo `product_settings` do BFF aprovado.
 
 1. **Enum pelo nome em `certificadora` e `padrao_originador` (muda um contrato da cessão).** Hoje o
    `GET /cadastro/produto` os devolve pelo valor (`"ID Trust Certificadora Digital"`), que o PATCH
