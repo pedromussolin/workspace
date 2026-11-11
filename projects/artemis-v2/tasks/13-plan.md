@@ -41,7 +41,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | shared (templates) e cessão (tarefas 1, 4, 5, 8) implementadas, sem commit; tarefas 2, 6, 7 esperam a ordem das branches | 27/11 |
 | TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | publicada (10/11): cessão e front | 27/11 |
 | Tela de configuração do produto | `13-plan-tela-config-produto.md` | revisado (10/11); 5 decisões; card a criar | card a criar |
-| TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | revisado (10/11): encolhe com a D35; 3 decisões | 18/11 |
+| TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | encolhida (11/11): só o BFF perde o `/fake-batches/consolidate`; a rota legada sai na TS-5612 | 18/11 |
 | TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | revisado (10/11); 5 decisões | 04/12 |
 
 Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documentação), TS-5573
@@ -86,6 +86,7 @@ O que entra provisório na tarefa 13 e tem de sair depois que o novo estiver est
 - **Rotinas do beat fixo** (TS-5569, "Fora do escopo"): migrar as 6 para o agendador, inclusive a
   task legada do 1604, e apagar o `beat_schedule` fixo, as leituras do Parameter Store e as rotas
   legadas `/liquidacao/conciliacao/rotina/corte` e `/d0`.
+- **Rota legada `POST /liquidacao/`** (TS-5568 encolhida): apagar quando a VM e o Atlas saírem.
 - **Linhas antigas do lote aberto** (`liquidacao_lote_vigente`): limpeza periódica das linhas de lotes
   abertos já fechados há meses (uma linha por chave e, com a remessa, uma por remessa).
 
