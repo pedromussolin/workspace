@@ -15,6 +15,7 @@ Em "Quem", quem decide.
 | D1 | Nome definitivo do projeto (hoje provisório) | Pietro Nett | 04/11/2026 | o nome depende do que o inventário mostrar |
 | D2 | Para onde vai cada item: repo existente, app novo, outra ferramenta ou desligar | Pietro Nett | 04/11/2026 | só dá para decidir depois do inventário (tarefa 01) |
 | D3 | O que acontece com a EC2 de automações e com os acessos do Rafael Frankl na saída dele | a definir | 04/11/2026 | define o prazo: tudo o que roda ali para quando a máquina ou o acesso pararem |
+| D4 | Processamento do Service Report no apl-shared-service: **provisório**, só o `openpyxl` como dependência nova (para os `.xlsx`) e os CSVs lidos uma vez, em partes, somando só os agregados, em vez de pandas + openpyxl copiando o código antigo. Validar com outros desenvolvedores antes do PR | Heitor, com outros desenvolvedores | 11/11/2026 | o shared-service não tem pandas nem openpyxl [C]; ler em partes evita carregar os 2,6 GB do consumer na memória do worker, mas o código é reescrito, e a comparação com a tela antiga na fase em paralelo é o que garante que os números batem |
 
 ## Tomadas
 
