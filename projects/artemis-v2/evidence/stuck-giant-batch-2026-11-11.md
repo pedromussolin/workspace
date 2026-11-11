@@ -21,6 +21,21 @@ Base da [tarefa 14](../tasks/14-giant-batch-pipeline.md).
 O evento do Kubernetes traz a recriação, não o motivo: falta de memória é a hipótese mais forte **[H]**.
 Um lote de 1.039.324 pagamentos do mesmo produto (30/10) concluiu.
 
+## Reenvio manual em 11/11 [C]
+
+| UTC | O quê |
+|---|---|
+| 17:49:25 | `POST /liquidacao/reenviar` com o identificador do lote: 200 em 11 ms |
+| 17:49–17:53 | `reenviar_lote_liquidacao_task` roda (1 execução, sem erro) e dispara a `esteira_baixar` |
+| 17:54:13 | o worker carrega o lote (~4,5 min) e repete o aviso do compromisso de saldo |
+| 17:54:27 | lote em `concluido` |
+| 17:54:28 | começa a `atualiza_status_contrato_task` do lote |
+
+- Memória do pod que processou: 4,41 GB antes, 9,06 GB no pico (amostra de 10 s), 3,47 GB depois, sem
+  reinício. O lote de 1 milhão pediu **pelo menos +4,7 GB**. Em 09/11 o pod partiu de ~7,5 GB: com o
+  limite de 12 GiB (~12,9 GB), não havia espaço. Isso reforça a falta de memória como causa **[H forte]**.
+- Os 15 pods do worker estavam entre 3,4 e 4,8 GB antes do reenvio.
+
 ## Varredura, `POST /liquidacao/` vindo da EC2 de automações [C]
 
 | Dia | 200 | 400 | 429 | 500 | Duração máxima |

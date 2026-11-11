@@ -59,7 +59,8 @@ Código em `c041122` (= produção `prod-c041122`).
 
 ## Contingência até a correção
 
-- **Reenvio manual:** `POST /liquidacao/reenviar` com `{"liquidacao_id": "<identificador do lote>"}`
+- **Reenvio manual (validado em 11/11: o 1841860 concluiu em ~5 min, pico de +4,7 GB no pod):**
+  `POST /liquidacao/reenviar` com `{"liquidacao_id": "<identificador do lote>"}`
   (`cessao/api/liquidacao/viewer.py:540`). A task `reenviar_lote_liquidacao_task`
   (`cessao/tasks/liquidacao_lote.py:50`) põe o lote em `pendente` (a máquina de estados aceita
   `pendente` → `pendente`) e dispara a `esteira_baixar`.
