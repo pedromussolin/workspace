@@ -40,9 +40,9 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | TS-5570 horário por produto | `13-plan-ts-5570.md` | parte 1 publicada (10/11: horários, rotas, migration); tarefas 1 e 2 esperam o núcleo da TS-5567 | 20/11 |
 | TS-5585 resumo diário e aviso | `13-plan-ts-5585.md` | shared (templates) e cessão (tarefas 1, 4, 5, 8) implementadas, sem commit; tarefas 2, 6, 7 esperam a ordem das branches | 27/11 |
 | TS-5571 aprovação antes do corte | `13-plan-ts-5571.md` | publicada (10/11): cessão e front | 27/11 |
-| Tela de configuração do produto | `13-plan-tela-config-produto.md` | revisado (10/11); 5 decisões; card a criar | card a criar |
+| Tela de configuração do produto | `13-plan-tela-config-produto.md` | revisado (10/11); card TS-5624; decisões tomadas em 11/11 (falta o item 3) | card a criar |
 | TS-5568 `POST /liquidacao/` no fluxo novo | `13-plan-ts-5568.md` | encolhida (11/11): só o BFF perde o `/fake-batches/consolidate`; a rota legada sai na TS-5612 | 18/11 |
-| TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | revisado (10/11); 5 decisões | 04/12 |
+| TS-5572 automático no fluxo novo | `13-plan-ts-5572.md` | revisado (10/11); decisões tomadas em 11/11 | 04/12 |
 
 Fora de código: TS-5565 (passagem com o Rafael até 13/11), TS-5566 (documentação), TS-5573
 (investigação), mensagens E1 (ETL; perdeu prioridade com a D34) e E2 (negócio; respondida em 10/11: omnis e lemans_2 não enviam à administradora, B25 sem impacto).

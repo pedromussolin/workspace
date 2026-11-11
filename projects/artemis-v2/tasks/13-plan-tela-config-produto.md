@@ -1,8 +1,8 @@
-# TS-XXXX: tela de configuração do produto (Cessão e Liquidação) — plano de implementação
+# TS-5624: tela de configuração do produto (Cessão e Liquidação) — plano de implementação
 
 > Para quem executa: usar superpowers:subagent-driven-development (recomendado) ou
 > superpowers:executing-plans, tarefa por tarefa. Passos com checkbox (`- [ ]`).
-> Card ainda sem número: trocar `TS-XXXX` pelo ID quando o card existir (branches, commits, listas
+> Card ainda sem número: trocar `TS-5624` pelo ID quando o card existir (branches, commits, listas
 > `PENDING`/`INTERNAL_ONLY` do BFF).
 
 **Objetivo:** uma página nova do portal, "Configuração do produto", com as abas Cessão e Liquidação
@@ -27,8 +27,8 @@ inglês).
 **Desenho:** ~/repos/.artemis_v2/agentes/ts13-spec/spec-fechamento-lotes.md (seção 4.14; também
 4.3, 4.5, 4.6)
 **Branches** (uma por repo, da master, `git switch --no-track -c ...`):
-`feature/TS-XXXX-config-produto-api` (cessão), `feature/TS-XXXX-product-settings-bff` (BFF),
-`feature/TS-XXXX-product-settings-page` (front). Uma PR por repo.
+`feature/TS-5624-config-produto-api` (cessão), `feature/TS-5624-product-settings-bff` (BFF),
+`feature/TS-5624-product-settings-page` (front). Uma PR por repo.
 **Depende de:** TS-5583 (colunas `gatilho_fechamento_lote_liquidacao` e `agrupamento_lote_liquidacao`
 nos schemas, branch `feature/TS-5583-gatilho-agrupamento-lote-liquidacao`) e TS-5569 (scheduler em
 tabela, branch `feature/TS-5569-scheduler-em-tabela`) mergeadas; **TS-5570** (rotas
@@ -134,7 +134,7 @@ TS-5583, TS-5569 e TS-5570 tocam mudam de linha: localizar pelo nome.
   token; `data-scheme` para o escuro; cabe em 390 px sem rolagem lateral; `aria-label` no
   `app-toggle-group`; `.page.spec.ts` com `expectNoAccessLock`/`expectActionButtonsLocked` e
   `writesOnlyFor(...)` (check `pagina-sem-trava-de-permissao`).
-- Commits `feat|fix|test|chore(TS-XXXX): ...` (PT-BR, até 72 caracteres, sem Co-Authored-By);
+- Commits `feat|fix|test|chore(TS-5624): ...` (PT-BR, até 72 caracteres, sem Co-Authored-By);
   **todo commit sai só depois da revisão do usuário do card** (os passos dizem "Preparar o commit").
 - Roles no Azure (`product-settings-assignment:read|update`, `product-settings-liquidation:read|update`)
   criadas antes do deploy do BFF (`.ai/rules/permissions.md:158-169` do BFF).
@@ -315,8 +315,8 @@ Levar ao Pietro, em uma mensagem:
       `/<int:produto_id>/`, que exige inteiro). `readonly=True` nos campos novos de `fundos[]` para o
       `POST /cadastro/produto` (validate=True) não exigi-los.
 - [ ] Passo 4: rodar e ver passar; rodar também `test/cadastro/` e `test/api/produto/` inteiros.
-- [ ] Passo 5: preparar os commits `feat(TS-XXXX): schemas do produto expõem campos de cessão pelo nome`
-      e `feat(TS-XXXX): rota de opções dos enums do produto_config` (saem depois da revisão do
+- [ ] Passo 5: preparar os commits `feat(TS-5624): schemas do produto expõem campos de cessão pelo nome`
+      e `feat(TS-5624): rota de opções dos enums do produto_config` (saem depois da revisão do
       usuário do card).
 
 ### Tarefa 3: conferir as rotas de horário de fechamento da TS-5570 (sem código novo aqui)
@@ -392,8 +392,8 @@ da branch da TS-5570)
 - [ ] Passo 3: implementar; `__all__` do serviço inalterado (classe e fábrica já exportadas).
 - [ ] Passo 4: rodar e ver passar; `PYTHONPATH=. pytest -q tests/test_arch*.py` (o
       `test_arch_route_permissions` ainda não muda: sem rotas).
-- [ ] Passo 5: preparar os commits `feat(TS-XXXX): escopos e página da configuração do produto` e
-      `feat(TS-XXXX): cliente da cessão lê e grava a configuração do produto`.
+- [ ] Passo 5: preparar os commits `feat(TS-5624): escopos e página da configuração do produto` e
+      `feat(TS-5624): cliente da cessão lê e grava a configuração do produto`.
 
 ### Tarefa 5: schemas e business do módulo `product_settings`
 
@@ -510,7 +510,7 @@ da cessão (400 repassado, sem regra duplicada no BFF; o `min_length=1` do pedid
       `get_product_config_options()` filtrado pelos campos enum do schema e renomeado pelo alias.
 - [ ] Passo 4: rodar e ver passar; `PYTHONPATH=. pytest -q tests/test_arch.py` (camadas, nomes em
       inglês, sem divisores).
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): schemas e regras do módulo product_settings`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): schemas e regras do módulo product_settings`.
 
 ### Tarefa 6: viewer, rotas internas e foto de permissões
 
@@ -542,12 +542,12 @@ como o fechar lote (`liquidation_batches/viewer.py:397`); sem `azure_id`, a rota
 - [ ] Passo 2: rodar e ver falhar (404/`ImportError`).
 - [ ] Passo 3: implementar; incluir `router.include_router(product_settings_router)` no delivery;
       acrescentar as 7 rotas em `INTERNAL_ONLY_ROUTES` com a razão
-      `"configuração do produto: só a organização interna (TS-XXXX)"`;
+      `"configuração do produto: só a organização interna (TS-5624)"`;
       `UPDATE_ROUTE_PERMISSIONS=1 PYTHONPATH=. pytest tests/test_arch_route_permissions.py`.
 - [ ] Passo 4: `PYTHONPATH=. pytest -q tests/unit/modules/product_settings tests/test_arch*.py`
       verde (inclui `test_arch_internal_routes`, que chama cada rota interna como parceiro e exige
       403, e `test_arch_route_scopes`: URL `/product-settings` é o `/{prefix}` da página).
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): rotas internas da configuração do produto`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): rotas internas da configuração do produto`.
 
 ### Tarefa 7: fake da cessão e contratos
 
@@ -573,7 +573,7 @@ e algum fundo `automatica`, `horario_corte` na resposta).
 - [ ] Passo 3: implementar o fake copiando a cessão em `origin/master` (depois da Tarefa 2/3).
 - [ ] Passo 4: `PYTHONPATH=. pytest -q tests/unit/local tests/contract tests/test_arch_local.py` verde;
       atualizar a tabela do `local.md`.
-- [ ] Passo 5: preparar o commit `test(TS-XXXX): fake da cessão e contratos da configuração do produto`.
+- [ ] Passo 5: preparar o commit `test(TS-5624): fake da cessão e contratos da configuração do produto`.
 
 ---
 
@@ -633,7 +633,7 @@ icon: 'sliders', route: '/product-settings' }` no grupo "Operações" (D6); `/pr
       `http-fora-do-data-access`, `leitura-sem-mock`.
 - [ ] Passo 4: rodar e ver passar (incluir `src/app/app.routes.spec.ts` e
       `src/app/layouts/app-shell/**/*.spec.ts`).
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): rota, data-access e mock da configuração do produto`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): rota, data-access e mock da configuração do produto`.
 
 ### Tarefa 9: página com seletor de produto, abas e trava de permissão
 
@@ -674,7 +674,7 @@ Template: `app-page-header` (título, descrição) → `app-toggle-group aria-la
       cor; em `max-width: 600px` o `app-toggle-group` já vira folha sozinho.
 - [ ] Passo 4: rodar e ver passar; `check-patterns.mjs` sem `pagina-sem-trava-de-permissao` nem
       `visao-na-barra`.
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): página de configuração do produto com abas`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): página de configuração do produto com abas`.
 
 ### Tarefa 10: aba Liquidação
 
@@ -719,7 +719,7 @@ retorno (sem otimismo); os `warnings` do retorno (textos prontos da cessão) vir
 - [ ] Passo 3: implementar; `prefers-reduced-motion` no `.scss` de qualquer transição; em 600 px a
       tabela de fundos vira lista de cartões (`.ai/rules/responsive.md`).
 - [ ] Passo 4: rodar e ver passar; `npm run start:mock` e conferir em 390 px sem rolagem lateral.
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): aba Liquidação da configuração do produto`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): aba Liquidação da configuração do produto`.
 
 ### Tarefa 11: aba Cessão
 
@@ -754,7 +754,7 @@ não aparece na tela. Opções de nome técnico (`idtrust`, `qidtvm`, `mpmerchan
 - [ ] Passo 3: implementar.
 - [ ] Passo 4: rodar e ver passar; feature inteira verde:
       `npx ng test --watch=false --browsers=ChromeHeadless --include='src/app/features/product-settings/**/*.spec.ts'`.
-- [ ] Passo 5: preparar o commit `feat(TS-XXXX): aba Cessão da configuração do produto`.
+- [ ] Passo 5: preparar o commit `feat(TS-5624): aba Cessão da configuração do produto`.
 
 ### Tarefa 12: varredura final dos três repositórios
 
@@ -882,6 +882,8 @@ de 10/11. Nada foi executado; só leitura.
 
 ### Para decisão do Pietro
 
+**Respostas de 11/11 (Pietro):** card **TS-5624**. 1 = sim, certificadora e padrão do originador pelo nome, depois de conferir que nada externo lê o formato atual; 2 = sim, a TS-5570 devolve o horário do corte; 3 = em esclarecimento (ideia dele: desativar a execução e manter as configurações salvas); 4 = 403 sem `azure_id`; 5 = módulo `product_settings` do BFF aprovado.
+
 1. **Enum pelo nome em `certificadora` e `padrao_originador` (muda um contrato da cessão).** Hoje o
    `GET /cadastro/produto` os devolve pelo valor (`"ID Trust Certificadora Digital"`), que o PATCH
    recusa. Opções: (a) trocar para o nome (`idtrust`), como os campos novos; (b) deixar esses dois
@@ -913,4 +915,4 @@ de 10/11. Nada foi executado; só leitura.
   lista de produtos e o `input type="time"` no tema escuro.
 - **O que impede executar:** (1) a aprovação da arquitetura e das decisões acima (Tarefa 1); (2) a
   TS-5570, que ainda não tem código (só o plano) e precisa devolver o `horario_corte`; (3) as TS-5583
-  e TS-5569 mergeadas na master; (4) o número do card (`TS-XXXX`).
+  e TS-5569 mergeadas na master; (4) o número do card (`TS-5624`).
