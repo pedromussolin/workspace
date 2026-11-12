@@ -1,6 +1,6 @@
 # 14 — Esteira de baixa que não aguenta lote gigante
 
-- **Status:** mapeada (11/11/2026); o desenho da correção precisa de aprovação antes de implementar.
+- **Status:** mapeada (11/11/2026). Em 12/11 o escopo da Fase 0 foi decidido (reentrega segura e arquivo em blocos; ver `decisions.md`); desenho em andamento, para aprovação antes de implementar.
 - **Repos:** platform-cessao, platform-cessao-argocd.
 - **Relacionadas:** [13](13-mercato-libero-settlement.md) (todo fechamento da rota nova cai na mesma
   esteira) e [03](03-async-closing-and-429.md) (fila própria do fechamento, modelo para isolar a esteira).
