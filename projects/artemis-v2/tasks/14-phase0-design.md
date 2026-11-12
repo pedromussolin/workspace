@@ -18,7 +18,8 @@ código, na imagem do worker (Celery 5.2.2, kombu 5.5.4) ou na réplica de leitu
    duplicado e callback em dobro. O desenho fecha cada um (seções 2 e 3).
 3. **O broker é RabbitMQ**, não Redis nem SQS: não existe `visibility_timeout`. O equivalente é o `consumer_timeout` do
    RabbitMQ (30 min por padrão desde a 3.8.15). A versão de produção está fora do repo **[H]**.
-4. **Teto de tentativas:** contador em Redis por lote e estado, teto de 2 inícios, estourou vira `errado` com log de evento.
+4. **Teto de tentativas:** contador em Redis por lote e estado, teto de 2 inícios. Estourou, a esteira reagenda o lote em
+   3 rodadas (15 min, 1 h, 4 h; da 2ª em diante numa fila isolada) e só depois vira `errado` com log de evento (3.1).
 5. **Código:** na própria task e em módulo novo `cessao/shared/baixa_liquidacao/`, não no `refact.py`. Parte da master,
    sai antes da pilha TS-5583 a TS-5572, e depende da TS-5582 em produção. Decisões na seção final.
 
@@ -105,8 +106,31 @@ tasks junto.
 mensagem nova, outro contador). Chave por estado de entrada: avançou de estado, é outra chave. `MAXIMO_DE_INICIOS_DA_BAIXA =
 2` (original + 1 reentrega; igual a `FAKE_BATCH_CLOSING_MAX_ATTEMPTS`, `refact.py:84`). Ao estourar: `inserir_log` +
 `to_errado()` + `save()` + log de evento `Esteira de baixa excedeu o teto de inícios` (extra: lote, estado, inícios, limite,
-`redelivered`), **sem** reenvio automático e sem callback de falha ao parceiro (decisão 5). `reenviar_lote_liquidacao_task`
-apaga a chave; o fim em `concluido` ou `errado` também.
+`redelivered`) e **rodada automática** (3.1); `errado` só depois da 3ª rodada, sem callback de falha ao parceiro (decisão 5).
+`reenviar_lote_liquidacao_task` apaga a chave; o fim em `concluido` ou `errado` também.
+
+**3.1 Rodadas automáticas (decisão de 12/11).** Ninguém precisa olhar o lote que estoura o teto. Causa passageira (deploy,
+troca de máquina, queda do broker) se resolve esperando; lote que não cabe na memória precisa de um worker só para ele.
+
+| Rodada | Quando | Onde roda |
+|---|---|---|
+| 1 | 15 min depois do estouro | a mesma fila |
+| 2 | 1 h depois | fila isolada `liquidacao_baixa_isolada_celery`, worker com 1 tarefa por vez (`CONCORRENCIA_POR_FILA`, `13-workers-proposal.md`) |
+| 3 | 4 h depois | fila isolada |
+| fim | ~5 h 15 depois do 1º estouro | `errado` + log de evento `Esteira de baixa esgotou as rodadas` (extra: lote, estado, rodada); monitor no Datadog sobre o evento (configuração, sem código) |
+
+- **Contador:** campo `rodada` no mesmo hash Redis, por lote (não por estado), com o `EXPIRE` renovado a cada rodada. Ao
+  reagendar, apaga os campos de início. `reenviar` e o fim em `concluido` ou `errado` apagam o hash. Redis fora: falha
+  aberta, como o teto.
+- **Mesmas proteções:** a mensagem da rodada é nova (`redelivered` falso), então leva o argumento `rodada=n` (padrão 0) e a
+  esteira trata `rodada > 0` como reentrega: guarda 2.1 e regra 2.2 valem. Pod antigo não recebe mensagem com `rodada`
+  na prática: o atraso mínimo (15 min) é maior que a troca de pods do deploy.
+- **Atraso:** `apply_async(countdown=..., queue=...)`. **Cuidado [C, documentação do Celery]:** a mensagem com `countdown`
+  fica no worker sem confirmação até a hora. Se o `consumer_timeout` do RabbitMQ (seção 4) for menor que 4 h, o broker
+  fecha o canal e devolve tudo que estava sem confirmação, inclusive baixas em andamento. A versão e o `consumer_timeout`
+  passam a ser pré-requisito. Se o limite valer: (a) subir o `consumer_timeout` no broker (operação) **[recomendo]**;
+  (b) fila de espera sem consumidor, com TTL por rodada e `x-dead-letter-exchange` para a fila de destino, declarada pelo
+  kombu.
 
 ## 4. Interação com o que existe
 
@@ -179,7 +203,8 @@ westworld novo (os comunicadores recebem `str`): **fora desta fase**. Nenhum for
 | flags | `test/tasks/test_worker_perdido.py`: incluir `esteira_baixar` (`acks_late` e `reject_on_worker_lost` verdadeiros) |
 | guarda por estado | parametrizar todos os estados de `ManagerBaixa.ESTADOS` + `errado`, `rejeitado`, `descartado` com `redelivered` verdadeiro e falso; `liquidando` com `liquidacao_lote_adm` em `liquidando` e `liquidado`; mensagem nova segue avançando |
 | morte e reentrega | banco real do teste (Postgres 13), lote de 3 pagamentos, comunicador falso que conta chamadas; injetar `BaseException` "worker morto" antes do envio, depois do envio e antes do `append_raw`, depois do `append_raw`, no POST do callback; reexecutar com `esteira_baixar.push_request(delivery_info={"redelivered": True})`; afirmar envios por administradora (seguro reenvia, outras param em `errado` com log) |
-| teto | 1º e 2º início passam, 3º vira `errado` com log; estado novo é chave nova; `reenviar` zera; Redis fora falha aberto com aviso |
+| teto | 1º e 2º início passam, o 3º reagenda a rodada 1 na mesma fila com 15 min; estado novo é chave nova; `reenviar` zera; Redis fora falha aberto com aviso |
+| rodadas | rodada 1 na mesma fila, 2 e 3 na isolada com 1 h e 4 h; estouro na 3ª vira `errado` com o evento; `rodada > 0` aplica a guarda 2.1 com `redelivered` falso |
 | trava | duas execuções com conexões diferentes: a 2ª sai; conexão fechada libera |
 | reentrega de verdade | **sandbox**: `kill -9` no filho e depois no pod durante um lote sintético; ver a mensagem voltar (`redelivered`), o contador e o estado final. Automático opcional: `celery.contrib.testing.worker` com `memory://` e uma task que faz `os._exit` na 1ª entrega (risco de teste instável) |
 | blocos | capturar SQL com `before_cursor_execute`: nenhuma consulta traz todos os pagamentos do lote; N=25, bloco=10 gera 1 consulta de ids + 3 de bloco |
@@ -194,6 +219,9 @@ westworld novo (os comunicadores recebem `str`): **fora desta fase**. Nenhum for
 - **Trava no banco:** advisory lock exige 1 conexão dedicada por baixa e não funciona atrás de pooler em modo transação.
   Conferir `db_pool_size` e o pooler **[H]**. Alternativa: trava Redis com dono (decisão 3).
 - **Redis** do contador e da trava: falha aberta com aviso; o teto fica sem proteção enquanto ele estiver fora.
+- **Fila isolada:** deploy novo no argocd (na hora do deploy) e `liquidacao_baixa_isolada_celery=1` no `CONCORRENCIA_POR_FILA`
+  (Parameter Store). Limite de memória do pod pela conta do maior lote (`13-workers-proposal.md`) **[H]**. Sem o worker, a
+  rodada 2 fica parada na fila: subir o worker antes da imagem nova.
 - **Consulta de ids** em tabela de 347 GB: `EXPLAIN (ANALYZE, BUFFERS)` do lote 1841860 na réplica e revisão da DBA antes do merge.
 - **Ordem do arquivo** muda para `id`; **sessão separada** por bloco; arquivo Genius `/tmp/cnab_liquidacao.REM` fixo continua um risco de dados (auditoria #9), fora do escopo.
 - **Mensagens em voo na troca de versão:** sem mudança de assinatura da task; compatível. Web e worker não precisam subir juntos.
@@ -205,6 +233,8 @@ westworld novo (os comunicadores recebem `str`): **fora desta fase**. Nenhum for
   é disparada antes do commit de `concluido` (`estados_baixa.py:86-87`), **[H]** corrida que a idempotência dela esconde.
 
 ## Para decisão do usuário
+
+Decidido em 12/11: o teto reagenda em rodadas com fila isolada (3.1), em vez de parar em `errado`.
 
 1. **Onde mora o código** (regra: correção da liquidação vai no `refact.py`). (a) Task + `shared/baixa_liquidacao/` + método
    no modelo, sem `refact.py` **[recomendo: a esteira é compartilhada, a task já é a versão final e o ciclo de imports
@@ -231,8 +261,8 @@ westworld novo (os comunicadores recebem `str`): **fora desta fase**. Nenhum for
 Branch `fix/TS-<id>-reentrega-segura-baixa` da master, `--no-track`. Commits atômicos `fix(TS-<id>)`. Sem migration.
 
 1. **Guarda por estado em reentrega** (`baixar.py`, `base.py` intacto). Teste: tabela de estados da seção 7.
-2. **Contador de inícios + teto** (`shared/baixa_liquidacao/inicios.py`, `liquidacao_lote.py`, `reenviar_lote_liquidacao_task`
-   apaga a chave). Testes: teto, reinício, Redis fora.
+2. **Contador de inícios + teto + rodadas** (`shared/baixa_liquidacao/inicios.py`, `liquidacao_lote.py` com o argumento
+   `rodada`, `reenviar_lote_liquidacao_task` apaga a chave). Testes: teto, rodadas, reinício, Redis fora.
 3. **Trava por lote** (`shared/baixa_liquidacao/trava.py`). Testes: duas conexões, liberação.
 4. **Marca de envio e regra de reentrega** (`emissores/liquidacao.py`, `emissores/callback.py`, `baixa_convoy.py`:
    `event_id` determinístico; marca por callback). Testes: morte em cada ponto.
@@ -246,6 +276,6 @@ Branch `fix/TS-<id>-reentrega-segura-baixa` da master, `--no-track`. Commits at�
 
 ## Ainda por validar [H]
 
-Versão e `consumer_timeout` do RabbitMQ de produção; pooler entre o worker e o Postgres; idempotência de BGT, adm. V, adm. B,
+Versão e `consumer_timeout` do RabbitMQ de produção (agora também pelo atraso de 4 h da rodada 3); pooler entre o worker e o Postgres; idempotência de BGT, adm. V, adm. B,
 adm. S e adm. Q; nome remoto estável na Genius; `idempotency_key` no Convoy v23.11.1; maior lote por administradora (Genius,
 Dayvale, FYDD); `terminationGracePeriodSeconds` efetivo dos pods; estado das PRs da TS-5582 e TS-5583.
