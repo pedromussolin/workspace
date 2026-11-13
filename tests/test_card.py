@@ -1356,8 +1356,17 @@ def test_epics_lists_open_epics_of_my_open_cards(world, capsys):
                 "title": "[FRONT] Épico de exemplo",
                 "prefix": "[FRONT]",
                 "status": "In Progress",
+                "level": 1,
+                "parent": None,
             },
-            {"key": "TS-110", "title": "Sem prefixo", "prefix": None, "status": "To Do"},
+            {
+                "key": "TS-110",
+                "title": "Sem prefixo",
+                "prefix": None,
+                "status": "To Do",
+                "level": 1,
+                "parent": None,
+            },
         ]
     }
     search = world.requests_to("GET", "/rest/api/3/search/jql")[0]["query"]
