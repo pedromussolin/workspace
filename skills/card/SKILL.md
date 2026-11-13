@@ -90,7 +90,7 @@ written by `ws item` commands, never by hand here; the tracker is written only b
 4. Where the item's side is right, and for `pending` entries: `ws item drafts [--only REFS]`
    (`REFS`: commas, card refs or item paths as `check` printed them). It prints `{"folder",
    "count", "need_text", "waiting", "by_hand"}`. For each path in `need_text` write the `# <title>`
-   and the sections (the real names, in a draft outside the repo) and run `ws card check` on each.
+   and the sections (the real names, in a draft under `~/.local/share/workspace/cards/drafts/`, outside the repo) and run `ws card check` on each.
 5. One preview of the `folder` and one approval (steps 3 and 4 above).
 6. Tell the user, in PT-BR, what is in `waiting` (links whose other card is not created yet: run
    `ws item drafts` again after this apply, a second batch) and in `by_hand` (what only the user

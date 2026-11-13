@@ -28,7 +28,7 @@ the AI or the conversation. These instructions are in English.
      an epic (`ws item check` reports it pending with `"needs": "epic"`) and the epic is set later.
    - **Size:** fits one sprint with one checkable "Pronto quando"? If not, propose the split by
      deliveries that can be validated alone, not by layer.
-   - **People:** `assignee` develops, `reporter` writes and follows. Items hold dev ids
+   - **People:** `assignee` develops, `reporter` writes the card and answers for it. Items hold dev ids
      (`dev-` plus 10 hex), never `me`. `ws people me` prints the user's id; for a colleague,
      `ws people add EMAIL [--account ID]` prints the config block to paste (and the id).
    - **Links:** `blocks`, `blocked_by`, `relates`, each to a card ref or to another item's
