@@ -289,6 +289,25 @@ def _print_verdict(verdict: Verdict) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def _epic_entry(issue: dict, level: int, parent: str | None) -> dict:
+    fields = issue.get("fields") or {}
+    title = fields.get("summary") or ""
+    prefix = re.match(r"^\[[^\]]+\]", title)
+    return {
+        "key": issue["key"],
+        "title": title,
+        "prefix": prefix.group(0) if prefix else None,
+        "status": (fields.get("status") or {}).get("name"),
+        "level": level,
+        "parent": parent,
+    }
+
+
+def _owned_levels(types: dict[str, str]) -> dict[str, int]:
+    levels = {"epic": 1, "initiative": 2}
+    return {types[name]: level for name, level in levels.items() if types.get(name)}
+
+
 def run_epics() -> int:
     def action() -> int:
         settings, client = _session({"project"})
@@ -304,17 +323,33 @@ def run_epics() -> int:
             done = (status.get("statusCategory") or {}).get("key") == "done"
             if (fields.get("issuetype") or {}).get("hierarchyLevel") != 1 or done:
                 continue
-            title = fields.get("summary") or ""
-            prefix = re.match(r"^\[[^\]]+\]", title)
-            epics.setdefault(
-                parent["key"],
-                {
-                    "key": parent["key"],
-                    "title": title,
-                    "prefix": prefix.group(0) if prefix else None,
-                    "status": status.get("name"),
-                },
+            epics.setdefault(parent["key"], _epic_entry(parent, 1, None))
+        levels = _owned_levels(settings.types)
+        if levels:
+            wanted = ", ".join(levels)
+            owned = (
+                f"issuetype in ({wanted}) AND (assignee = currentUser() "
+                "OR reporter = currentUser()) AND statusCategory != Done "
+                f'AND project = "{settings.project}"'
             )
+            fields = ["summary", "status", "issuetype", "parent"]
+            found = client.search(owned, fields)
+            initiatives = []
+            for issue in found:
+                issue_fields = issue.get("fields") or {}
+                level = levels.get((issue_fields.get("issuetype") or {}).get("id"))
+                if level is None:
+                    continue
+                parent = (issue_fields.get("parent") or {}).get("key")
+                entry = _epic_entry(issue, level, parent)
+                epics[issue["key"]] = {**epics.get(issue["key"], {}), **entry}
+                if level == 2:
+                    initiatives.append(issue["key"])
+            if initiatives:
+                children = f"parent in ({', '.join(initiatives)}) AND statusCategory != Done"
+                for issue in client.search(children, fields):
+                    parent = ((issue.get("fields") or {}).get("parent") or {}).get("key")
+                    epics.setdefault(issue["key"], _epic_entry(issue, 1, parent))
         print(json.dumps({"epics": list(epics.values())}, ensure_ascii=False, indent=2))
         return 0
 
