@@ -722,13 +722,17 @@ def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
     link = f" {site}/browse/{key}" if key else ""
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
     if creating and key:
-        _log_created(item.path.name, key)
+        _log_created(item.path.name, key, verdict.resolved.get("today"))
 
 
-def _log_created(name: str, key: str) -> None:
-    today = _now().date().isoformat()
-    with _store("created.tsv").open("a", encoding="utf-8") as log:
-        log.write(f"{name}\t{key}\t{today}\n")
+def _log_created(name: str, key: str, today: str | None) -> None:
+    """`today` is the day in the user's Jira time zone, the one the rules used. The card is
+    already created, so a log that cannot be written never stops the rest of the batch."""
+    try:
+        with _store("created.tsv").open("a", encoding="utf-8") as log:
+            log.write(f"{name}\t{key}\t{today}\n")
+    except OSError as error:
+        print(f"{name} {key} (não registrado em created.tsv: {error})")
 
 
 def _report_failure(
