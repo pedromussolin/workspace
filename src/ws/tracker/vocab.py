@@ -40,3 +40,15 @@ _SECTIONS = {
 
 def required_sections(type_: str) -> tuple[str, ...]:
     return _SECTIONS[type_]
+
+
+STATUS_LABELS = {
+    "todo": "a fazer",
+    "in_progress": "em andamento",
+    "review": "em code review",
+    "validation": "em validação",
+    "ready_deploy": "pronto para deploy",
+    "blocked": "bloqueado",
+    "done": "concluída",
+    "cancelled": "cancelada",
+}

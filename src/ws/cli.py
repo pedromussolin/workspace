@@ -20,6 +20,7 @@ from ws import (
     gatecatalog,
     gittools,
     handoff_cli,
+    item_cli,
     jira,
     names,
     newwords,
@@ -1109,6 +1110,7 @@ def build_parser() -> argparse.ArgumentParser:
     board_cli.register(subparsers)
     envcheck_cli.register(subparsers)
     deploycheck_cli.register(subparsers)
+    item_cli.register(subparsers)
     return parser
 
 
