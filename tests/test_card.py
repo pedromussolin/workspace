@@ -57,6 +57,7 @@ def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate",
 class World:
     def __init__(self, fake):
         self.fake = fake
+        self.fake.honour_fields = True
         self.set_issue("TS-100", _fields("[FRONT] Épico de exemplo", level=1))
         self.set_issue("TS-110", _fields("Épico sem prefixo", level=1))
         self.set_issue("TS-111", _fields("[BACK] Outro épico", level=1))
@@ -1249,6 +1250,32 @@ def test_a_folder_is_one_preview_and_one_approval_in_name_order(world, capsys):
         "3-worklog.md",
     ]
     assert list(drafts.iterdir()) == []
+
+
+def test_an_epic_read_for_a_create_is_still_judged_whole_when_edited(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    create_draft("1-create.md")
+    make_draft("2-edit.md", "edit", key="TS-100", title="[FRONT] Épico renomeado")
+
+    out, _ = preview(drafts, capsys)
+
+    assert "Requisição: PUT /rest/api/3/issue/TS-100" in out
+    issue_reads = world.requests_to("GET", "/rest/api/3/issue/TS-100")
+    assert len(issue_reads) == 1
+    assert "assignee" in issue_reads[0]["query"]["fields"].split(",")
+
+
+def test_a_link_from_an_epic_read_for_a_create_sees_its_existing_links(world, capsys):
+    existing = {"type": {"name": "Blocks"}, "outwardIssue": {"key": "TS-120"}}
+    world.set_issue("TS-100", _fields("[FRONT] Épico de exemplo", level=1, issuelinks=[existing]))
+    drafts = data_dir() / "cards" / "drafts"
+    create_draft("1-create.md")
+    make_draft("2-link.md", "link", key="TS-100", blocks=["TS-120", "TS-101"])
+
+    out, _ = preview(drafts, capsys)
+
+    assert "  TS-100 bloqueia TS-120: já existe\n  TS-100 bloqueia TS-101\n" in out
+    assert out.count("Requisição: POST /rest/api/3/issueLink") == 1
 
 
 def test_a_batch_stops_at_the_first_failure_and_reports_what_was_applied(world, capsys):

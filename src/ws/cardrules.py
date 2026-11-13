@@ -108,12 +108,18 @@ class Context:
     def key_in_project(self, key: str) -> bool:
         return re.fullmatch(rf"{re.escape(self.project)}-[1-9]\d*", key) is not None
 
-    def _issue(self, key: str, fields: list[str]) -> dict | None:
+    def _issue(self, key: str) -> dict | None:
+        """Every rule reads the card from one fetch with all the fields any rule needs, so a
+        card first read as an epic is not later judged by the few fields an epic needs."""
         cached = self._issues.get(key, False)
         if cached is not False:
             return cached
+        names = ["summary", "status", "assignee", "description", "parent", "project"]
+        names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
+        if self.settings.start_date_field:
+            names.append(self.settings.start_date_field)
         try:
-            issue = self.client.issue(key, fields)
+            issue = self.client.issue(key, names)
         except JiraError as error:
             if error.status != 404:
                 raise
@@ -126,11 +132,7 @@ class Context:
         if not self.key_in_project(key):
             verdict.problems.append(f"{key} is not a card of project {self.project}")
             return None
-        names = ["summary", "status", "assignee", "description", "parent", "project"]
-        names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
-        if self.settings.start_date_field:
-            names.append(self.settings.start_date_field)
-        issue = self._issue(key, names)
+        issue = self._issue(key)
         if issue is None:
             verdict.problems.append(f"card {key} was not found")
             return None
@@ -165,7 +167,7 @@ class Context:
         if not self.key_in_project(key):
             verdict.problems.append(f"epic {key} is not a card of project {self.project}")
             return None
-        issue = self._issue(key, ["summary", "status", "issuetype", "project"])
+        issue = self._issue(key)
         if issue is None:
             verdict.problems.append(f"epic {key} was not found")
             return None
@@ -216,7 +218,7 @@ class Context:
         if not self.key_in_project(key):
             verdict.problems.append(f"initiative {key} is not a card of project {self.project}")
             return None
-        issue = self._issue(key, ["summary", "status", "issuetype", "project"])
+        issue = self._issue(key)
         if issue is None:
             verdict.problems.append(f"initiative {key} was not found")
             return None
@@ -516,7 +518,7 @@ def _initiative_problems(ctx: Context, parent: str) -> list[str]:
     """Why `parent` cannot be the parent of an epic: not in the project or not a level-2 card."""
     if not ctx.key_in_project(parent):
         return [f"parent {parent} is not a card of project {ctx.project}"]
-    issue = ctx._issue(parent, ["summary", "status", "issuetype", "project"])
+    issue = ctx._issue(parent)
     if issue is None:
         return [f"parent {parent} was not found"]
     fields = issue.get("fields") or {}
