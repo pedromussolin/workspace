@@ -1,4 +1,10 @@
-"""Pure planner of the items conversion: what moves, what becomes an item, what stays a document."""
+"""Pure planner of the items conversion: what moves, what becomes an item, what stays a document.
+
+`Item.path` is the repo-relative final path (`projects/<project>/tasks/NN-x.md`): known for items
+made from a file, predicted for new ones. Link paths written at plan time rely on that prediction,
+so the executor must create new items in `plan.items` order and assert that the path `ws item new`
+prints equals `Item.path`, refusing to continue otherwise.
+"""
 
 import posixpath
 import re
@@ -16,6 +22,7 @@ from .maprows import (
     check_rows,
     neutral_status,
 )
+from .relink import new_path
 
 OLD_PROJECT = "operations-screens-migration"
 NEW_PROJECT = "vm-migration"
@@ -57,15 +64,6 @@ class Plan:
     skipped: list[tuple[Row, str]] = field(default_factory=list)
     project_tomls: dict[str, dict] = field(default_factory=dict)
     pending_epics: list[tuple[Item, str]] = field(default_factory=list)
-
-
-def new_path(path: str, moved: dict[str, str]) -> str:  # replaced by relink.new_path at merge
-    parts = path.split("/")
-    for size in range(len(parts), 0, -1):
-        head = "/".join(parts[:size])
-        if head in moved:
-            return "/".join([moved[head], *parts[size:]])
-    return path
 
 
 def _slugify(text: str) -> str:
@@ -172,10 +170,11 @@ class _Planner:
         src = self.after_rename(self.rel(origin, name))
         dst = self.rel(dest, name)
         target = self.physical(dest) / "tasks" / name
-        clashes = target.exists() or any(d == dst for _, d in self.plan.moves)
-        if clashes:
+        if (src, dst) in self.plan.moves:
+            return
+        if target.exists() or any(d == dst for _, d in self.plan.moves):
             self.problems.append(f"cannot move {src}: {dst} already exists")
-        elif (src, dst) not in self.plan.moves:
+        else:
             self.plan.moves.append((src, dst))
 
     def rowless(self, r: Row):
@@ -201,12 +200,13 @@ class _Planner:
             self.source_of[id(r)] = origin
             if origin != self.final(r.project):
                 self.add_move(origin, r.project, name)
-            self.add_item(r, "file", f"tasks/{name}")
+            self.add_item(r, "file", self.rel(r.project, name))
             return
         dest = group[0].project
         self.register_doc(origin, dest, file)
         for r in group:
             if r.action == "sem-card":
+                self.plan.skipped.append((r, "sem-card row of a file that became a document"))
                 continue
             item = self.add_item(r, "new", None)
             item.docs.append(name)
@@ -307,13 +307,12 @@ class _Planner:
             project, name = dst.split("/")[1], dst.rsplit("/", 1)[1]
             if (n := _number(name)) is not None:
                 highest[project] = max(highest.get(project, 0), n)
-        self.predicted: dict[int, str] = {}
         for i in self.plan.items:
             if i.origin != "new":
                 continue
             i.slug = self.slug_for(i, used.setdefault(i.project, set()))
             highest[i.project] += 1
-            self.predicted[id(i)] = f"tasks/{highest[i.project]:02d}-{i.slug}.md"
+            i.path = f"projects/{i.project}/tasks/{highest[i.project]:02d}-{i.slug}.md"
 
     def slug_for(self, item: Item, used: set[str]) -> str:
         r = item.row
@@ -336,7 +335,7 @@ class _Planner:
         return slug
 
     def target_path(self, target: Item, from_project: str) -> str:
-        path = target.path or self.predicted[id(target)]
+        path = target.path.removeprefix(f"projects/{target.project}/")
         if target.project == from_project:
             return path
         return posixpath.join("..", target.project, path)
@@ -375,12 +374,12 @@ def render_plan(plan: Plan) -> str:
         lines.append(f"rename {plan.rename[0]} -> {plan.rename[1]}")
     lines += [f"move {old} -> {new}" for old, new in plan.moves]
     for i in plan.items:
-        where = i.path or f"(new) {i.slug}"
+        where = i.path
         card = i.fields.get("card", "-")
         kind = "item" if i.fields.get("tracker") is not False else "item (tracker = false)"
         lines.append(f"{kind} {i.project}/{where} card={card} source={i.row.source}:{i.row.line}")
     for item, placeholder in plan.pending_epics:
-        lines.append(f"pending epic {item.project}/{item.path or item.slug} -> {placeholder}")
+        lines.append(f"pending epic {item.path} -> {placeholder}")
     for project, names in sorted(plan.documents.items()):
         lines += [f"document {project}/{name}" for name in names]
     lines += [f"unattached document {name}" for name in plan.unattached]

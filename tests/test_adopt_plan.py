@@ -32,7 +32,12 @@ def test_single_row_file_becomes_an_item_of_that_card(tmp_path):
     rows = [row(file="tasks/01-a.md", epic="TS-9")]
     plan = build_plan(rows, repo, PEOPLE, [])
     (item,) = plan.items
-    assert (item.origin, item.path, item.project, item.slug) == ("file", "tasks/01-a.md", "p", None)
+    assert (item.origin, item.path, item.project, item.slug) == (
+        "file",
+        "projects/p/tasks/01-a.md",
+        "p",
+        None,
+    )
     assert item.fields == {
         "card": "TS-1", "type": "task", "epic": "TS-9",
         "assignee": "dev-aaaaaaaaaa", "reporter": "dev-bbbbbbbbbb",
@@ -119,7 +124,7 @@ def test_move_goes_to_the_row_project_and_takes_attached_docs(tmp_path):
     (item,) = plan.items
     assert (item.project, item.path, item.docs) == (
         "vm-migration",
-        "tasks/13-m.md",
+        "projects/vm-migration/tasks/13-m.md",
         ["13-m-notes.md"],
     )
     assert plan.documents == {"vm-migration": ["13-m-notes.md"]}
@@ -207,7 +212,7 @@ def test_status_documento_de_apoio_is_a_document_not_an_item(tmp_path):
         row(file="tasks/02-s.md", card="TS-2", status="documento de apoio", line=3),
     ]
     plan = build_plan(rows, repo, PEOPLE, [])
-    assert [i.path for i in plan.items] == ["tasks/01-a.md"]
+    assert [i.path for i in plan.items] == ["projects/p/tasks/01-a.md"]
     assert "02-s.md" in plan.documents["p"]
 
 
@@ -253,3 +258,41 @@ def test_render_plan_mentions_every_move_item_and_skip(tmp_path):
     assert "tasks/13-m.md" in text and "TS-9" in text
     assert "TS-8" in text and "closed card, no file" in text
     assert text.rstrip().splitlines()[-1].startswith("total")
+
+
+def test_new_items_get_consecutive_predicted_paths_in_plan_order(tmp_path):
+    repo = make_repo(tmp_path, p=["04-a.md", "09-b.md"])
+    rows = [
+        row(card="novo-a-2", action="criar"),
+        row(card="TS-5", line=3),
+        row(card="novo-a-4", action="criar", line=4),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert [i.path for i in plan.items] == [
+        "projects/p/tasks/10-new-a-2.md",
+        "projects/p/tasks/11-ts-5.md",
+        "projects/p/tasks/12-new-a-4.md",
+    ]
+
+
+def test_the_same_move_registered_twice_is_not_a_clash(tmp_path):
+    repo = make_repo(tmp_path, **{"vm-migration": [], "artemis-v2": ["13-m.md"]})
+    rows = [
+        row(project="vm-migration", file="tasks/13-m.md", origin_project="artemis-v2"),
+        row(project="vm-migration", file="tasks/13-m.md", origin_project="artemis-v2",
+            status="documento de apoio", line=3),
+    ]  # fmt: skip
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert len(plan.moves) == 1
+
+
+def test_sem_card_row_of_a_multi_row_file_is_skipped_with_a_reason(tmp_path):
+    repo = make_repo(tmp_path, p=["41-x.md"])
+    rows = [
+        row(file="tasks/41-x.md", card="TS-1"),
+        row(file="tasks/41-x.md", card="TS-2", line=3),
+        row(file="tasks/41-x.md", card="-", action="sem-card", line=4),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert len(plan.items) == 2
+    assert [why for _, why in plan.skipped] == ["sem-card row of a file that became a document"]
