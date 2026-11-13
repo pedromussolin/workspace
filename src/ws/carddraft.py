@@ -127,6 +127,8 @@ def _cross_rules(op: str, values: dict) -> list[str]:
         problems.append(f"type must be one of {', '.join(ALL_TYPES)}")
     elif op == "create":
         problems += _create_rules(kind, values)
+    elif op == "edit":
+        problems += _edit_rules(kind, values)
     if "sprint" in values and values["sprint"] != "active":
         problems.append('sprint must be "active"')
     if op == "link":
@@ -145,6 +147,18 @@ def _create_rules(kind: str, values: dict) -> list[str]:
     elif kind in UPPER_TYPES and kind != "epic" and "parent" in values:
         return ["an initiative has no parent"]
     return []
+
+
+def _edit_rules(kind: str | None, values: dict) -> list[str]:
+    problems = []
+    if kind in UPPER_TYPES:
+        problems.append(
+            f"type {kind} is not a card type: changing a card's level is done by hand in the "
+            "tracker"
+        )
+    if "epic" in values and "parent" in values:
+        problems.append("use epic for a card or parent for an epic, not both")
+    return problems
 
 
 def _link_rules(values: dict) -> list[str]:

@@ -519,33 +519,35 @@ def _create_issue(
     ]
 
 
-def _card_type(ctx: Context, fields: dict) -> str:
-    """The neutral type of an existing card, from its issue type id; a task when unknown."""
-    found = (fields.get("issuetype") or {}).get("id")
-    for neutral, type_id in ctx.settings.types.items():
-        if type_id == found:
-            return neutral
-    return "task"
-
-
-def _card_type_or_none(ctx: Context, fields: dict) -> str | None:
+def _card_type(ctx: Context, fields: dict) -> str | None:
+    """The neutral type of an existing card, from its issue type id; None when unknown."""
     found = (fields.get("issuetype") or {}).get("id")
     return next((name for name, type_id in ctx.settings.types.items() if type_id == found), None)
 
 
-def _initiative_problems(ctx: Context, parent: str) -> list[str]:
-    """Why `parent` cannot be the parent of an epic: not in the project or not a level-2 card."""
-    if not ctx.key_in_project(parent):
-        return [f"parent {parent} is not a card of project {ctx.project}"]
-    issue = ctx._issue(parent)
-    if issue is None:
-        return [f"parent {parent} was not found"]
-    fields = issue.get("fields") or {}
-    if (fields.get("project") or {}).get("key") != ctx.project:
-        return [f"parent {parent} does not belong to project {ctx.project}"]
-    if (fields.get("issuetype") or {}).get("hierarchyLevel") != 2:
-        return [f"{parent} is not an initiative"]
-    return []
+_LEVELS = {-1: "a subtask", 0: "a card", 1: "an epic", 2: "an initiative"}
+
+
+def _level_problems(key: str, level, values: dict) -> list[str]:
+    """`type` and `epic` belong to a card (level 0), `parent` to an epic (level 1); moving a
+    card between levels is not an edit."""
+    what = _LEVELS.get(level, "of an unknown level")
+    problems = []
+    if "type" in values and level != 0:
+        problems.append(f"{key} is {what}: changing a card's level is done by hand in the tracker")
+    if "epic" in values and level != 0:
+        problems.append(
+            "an epic has no epic; use parent for its initiative"
+            if level == 1
+            else f"{key} is {what}; only a card has an epic"
+        )
+    if "parent" in values and level != 1:
+        problems.append(
+            "parent is only for an epic; a card uses epic"
+            if level == 0
+            else f"{key} is {what}; only an epic has a parent"
+        )
+    return problems
 
 
 def _parse_day(value) -> date | None:
@@ -565,10 +567,13 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     changes: dict = {}
     before: dict = {}
     lines = [f"Editar o card {key}"]
+    level = (current.get("issuetype") or {}).get("hierarchyLevel")
+    verdict.problems.extend(_level_problems(key, level, values))
+    meta = ctx.client.edit_meta(key)
 
-    new_epic = ctx.epic(values["epic"], verdict) if "epic" in values else None
+    new_epic = ctx.epic(values["epic"], verdict) if "epic" in values and level == 0 else None
     current_parent = current.get("parent") or {}
-    if "epic" in values and new_epic and current_parent.get("key") != new_epic["key"]:
+    if new_epic and current_parent.get("key") != new_epic["key"]:
         changes["parent"] = {"key": new_epic["key"]}
         before["parent"] = current_parent.get("key")
         lines.append(f"Épico: {current_parent.get('key') or '(nenhum)'} -> {new_epic['key']}")
@@ -592,8 +597,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["summary"] = current.get("summary")
         lines.append(f"Título: {current.get('summary')} -> {values['title']}")
 
-    meta = ctx.client.edit_meta(key) if "type" in values or "parent" in values else {}
-    if "type" in values:
+    if "type" in values and level == 0:
         target = ctx.type_id(values["type"], verdict)
         old_type = current.get("issuetype") or {}
         if target and target != old_type.get("id"):
@@ -608,9 +612,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             else:
                 changes["issuetype"] = {"id": target}
                 before["issuetype"] = old_type.get("id")
-                old_label = vocab.TYPE_LABELS.get(_card_type_or_none(ctx, current)) or old_type.get(
-                    "name"
-                )
+                old_label = vocab.TYPE_LABELS.get(_card_type(ctx, current)) or old_type.get("name")
                 lines.append(
                     f"Tipo: {old_label or '(nenhum)'} -> {vocab.TYPE_LABELS[values['type']]}"
                 )
@@ -625,26 +627,22 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             old_name = old_person.get("displayName") or old_person.get("accountId")
             new_name = ctx.person_name(values[person_field], account_id)
             lines.append(f"{label}: {old_name or '(ninguém)'} -> {new_name}")
-    if "parent" in values:
+    if "parent" in values and level == 1:
+        initiative = ctx.initiative(values["parent"], verdict)
         if "parent" not in meta:
             verdict.problems.append(
                 f"the edit screen has no parent: link {key} to {values['parent']} by hand "
                 "in the tracker"
             )
-        elif not (problem := _initiative_problems(ctx, values["parent"])):
-            if values["parent"] != current_parent.get("key"):
-                changes["parent"] = {"key": values["parent"]}
-                before["parent"] = current_parent.get("key")
-                lines.append(
-                    f"Pai: {current_parent.get('key') or '(nenhum)'} -> {values['parent']}"
-                )
-        else:
-            verdict.problems.extend(problem)
+        elif initiative and values["parent"] != current_parent.get("key"):
+            changes["parent"] = {"key": values["parent"]}
+            before["parent"] = current_parent.get("key")
+            lines.append(f"Pai: {current_parent.get('key') or '(nenhum)'} -> {values['parent']}")
 
     if "priority" in values:
-        card_type = _card_type(ctx, current)
-        allowed = ctx.priorities(ctx.type_id(card_type, verdict) or "")
-        if values["priority"] not in allowed:
+        type_id = (current.get("issuetype") or {}).get("id")
+        allowed = ctx.priorities(type_id) if type_id else None
+        if allowed is not None and values["priority"] not in allowed:
             verdict.problems.append(
                 f"priority {values['priority']!r} is not allowed; the project accepts "
                 f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
@@ -671,7 +669,8 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
     if draft.body.strip():
-        verdict.problems.extend(_section_problems(draft.body, _card_type(ctx, current)))
+        sections = _card_type(ctx, current) or "task"
+        verdict.problems.extend(_section_problems(draft.body, sections))
         old_doc = current.get("description")
         if old_doc:
             try:
@@ -694,6 +693,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             lines.append("Descrição, depois:")
             lines.extend(f"  {line}" for line in adf_text(new_doc).splitlines())
 
+    for name in changes:
+        if name not in meta:
+            verdict.problems.append(f"the edit screen of {key} has no {name}")
     if not changes and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
     if verdict.problems:

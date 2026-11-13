@@ -87,6 +87,16 @@ def test_draft_edit_type_must_be_neutral():
         draft('op = "edit"\nkey = "TS-1"\ntype = "Bug"', "")
 
 
+def test_draft_edit_refuses_an_upper_type():
+    with pytest.raises(DraftError, match="type initiative is not a card type"):
+        draft('op = "edit"\nkey = "TS-1"\ntype = "initiative"', "")
+
+
+def test_draft_edit_refuses_epic_and_parent_together():
+    with pytest.raises(DraftError, match="use epic for a card or parent for an epic, not both"):
+        draft('op = "edit"\nkey = "TS-1"\nepic = "TS-2"\nparent = "TS-3"', "")
+
+
 def test_draft_link_lists():
     parsed = link('blocks = ["TS-2"]')
 
