@@ -12,7 +12,9 @@ differences into `ws card` drafts, and `ws card apply` writes the new card's ref
 who the user is, cards by ref and by query, capabilities), whose only adapter wraps today's
 `JiraClient`. Writes keep going through `ws card` drafts, preview and approval; the port gains
 plan/send only when a second adapter needs them. Plan 3 (`scripts/adopt-items.py`) calls
-`ws item new` and expects `ws item check` (offline) to pass.
+`ws item new` and expects `ws item check` (offline) to pass on what it writes: items with no `card`
+and no `epic` yet, links to `../<other-project>/tasks/…`, and an empty `<!-- ws:items -->` block
+that `ws item table` fills.
 
 **Tech Stack:** Python 3.12+, standard library only at runtime; `uv`, `pytest`, `ruff`.
 
@@ -63,6 +65,7 @@ Starts from `feat/tracker-neutral-card` with plan 1 merged (Tasks 5–7 included
 - Wave 2: Task 3 (projects offline: `new`, `check`, `table`) and Task 4 (`item` key, write-back).
 - Wave 3: Task 5 (`check --tracker`, `drafts`) and Task 7 (skills, README).
 - Wave 4: Task 6 (`pull`, `sync`, `set-card`); it shares `item_cli.py` with Tasks 3 and 5.
+- Plan 3 (`scripts/adopt-items.py`) starts only after this plan is merged.
 
 ---
 
@@ -78,6 +81,8 @@ Starts from `feat/tracker-neutral-card` with plan 1 merged (Tasks 5–7 included
 - Produces, in `ws.itemfile`:
   - `CONTRACT_KEYS`, `CACHE_KEYS` (the Global Constraints lists, in that order);
     `ITEM_PATH = re.compile(r"projects/[a-z0-9]+(?:-[a-z0-9]+)*/tasks/[A-Za-z0-9._-]+\.md")`;
+    `LINK_PATH = re.compile(r"(?:\.\./[a-z0-9]+(?:-[a-z0-9]+)*/)?tasks/[A-Za-z0-9._-]+\.md")` (an
+    item path inside a link: of the same project, or of another as `../<project>/tasks/<file>.md`);
   - `class ItemError(Exception)`;
   - `@dataclass(frozen=True) class Item: path: Path; front: dict; heading: str` (absolute path, the
     parsed front matter, the text of the first `# ` line of the body or `""`), with properties
@@ -87,13 +92,17 @@ Starts from `feat/tracker-neutral-card` with plan 1 merged (Tasks 5–7 included
   - `read_item(path: Path) -> Item | None` (None: no front matter, a document; `ItemError`: not
     UTF-8, front matter not closed, invalid TOML);
   - `schema_problems(item: Item) -> list[str]` (one item, no project context; a tracked item
-    needs `type`, `epic`, `assignee`, `reporter`; with `tracker = false`, `status` is required,
+    needs `type`, `assignee`, `reporter`, and `epic` once it has a `card`: an item with no `card`
+    and no `epic` is valid, a pending create that waits for its epic; with `tracker = false`, `status` is required,
     `card` refused and the other contract keys optional);
   - `set_keys(text: str, values: dict[str, object]) -> str` and
     `set_cache(text: str, table: dict) -> str` (raise `ItemError` when the front matter does not
     parse, before or after);
   - `item_path(root: Path, rel: str) -> Path` (`rel` must fullmatch `ITEM_PATH`; the resolved path
     stays under `root/projects`, is not a symlink; else `ItemError`);
+  - `link_path(root: Path, slug: str, target: str) -> Path` (`target` must fullmatch `LINK_PATH`;
+    resolved from `root/projects/<slug>`; the result must stay under `root/projects` and not be a
+    symlink, so `../<other>/tasks/<file>.md` works and nothing leaves `projects/`; else `ItemError`);
   - `write_text(path: Path, text: str) -> None` (temp file in the same folder, `os.replace`, mode
     kept).
 - Consumes: `vocab.CARD_TYPES`, `vocab.LINK_KINDS`, `identity.DEV_ID`, `taskmodel.Status`,
@@ -111,9 +120,12 @@ Starts from `feat/tracker-neutral-card` with plan 1 merged (Tasks 5–7 included
     malformed id (`dev-XYZ` → `assignee must be a dev id (dev- and 10 hex digits)`);
   - `test_schema_type_is_a_card_type` (`type = "epic"` →
     `type must be one of task, bug, hotfix, improvement, feature`);
-  - `test_schema_requires_type_epic_and_people` (missing `epic` → `missing key 'epic'`);
+  - `test_schema_requires_type_and_people` (missing `type` → `missing key 'type'`; `assignee`
+    likewise) and `test_schema_epic_is_required_only_with_a_card` (`card = "TS-5"` without `epic` →
+    `missing key 'epic'`; no `card` and no `epic` → `[]`);
   - `test_schema_card_and_links_are_refs_or_paths` (`card = "ts 1"` → `card must be a card ref`;
-    `blocks = ["x.md"]` → `blocks: 'x.md' is neither a card ref nor tasks/<file>.md`);
+    `blocks = ["x.md"]` → `blocks: 'x.md' is neither a card ref nor tasks/<file>.md nor
+    ../<project>/tasks/<file>.md`; `blocks = ["../other/tasks/02-x.md"]` → `[]`);
   - `test_tracker_false_needs_a_status_and_no_card` (`tracker = false` without `status` →
     `tracker = false needs a status`; with `card` → `tracker = false has no card`;
     `status = "doing"` → `status must be one of todo, in_progress, ...`; `tracker = true` →
@@ -127,7 +139,11 @@ Starts from `feat/tracker-neutral-card` with plan 1 merged (Tasks 5–7 included
   - `test_set_cache_rewrites_only_the_table` (contract lines and body identical; the table lists
     the keys in `CACHE_KEYS` order) and `test_set_cache_appends_a_missing_table`;
   - `test_item_path_refuses_what_is_not_an_item_path` (`../x.md`, `projects/a/notes/x.md`,
-    `/abs/x.md`, `projects/a/tasks/sub/x.md`, a symlink).
+    `/abs/x.md`, `projects/a/tasks/sub/x.md`, a symlink);
+  - `test_link_path_resolves_across_projects_and_stays_in_projects` (`link_path(root, "demo",
+    "../other/tasks/02-x.md") == root/projects/other/tasks/02-x.md`; `tasks/01-a.md` stays in
+    `demo`; `../../x/tasks/a.md`, `../../../etc/passwd`, `../other/notes/a.md`,
+    `../other/tasks/sub/a.md` and a symlinked file → `ItemError`).
 - [ ] **Step 2: Run** `uv run pytest tests/test_itemfile.py -q` — expected: FAIL (no module).
 - [ ] **Step 3: Implement.** Work on `text.splitlines(keepends=True)`. A key's entry starts at its
   top-level `key =` line (before the first `[` header) and ends at the first line where
@@ -248,14 +264,18 @@ last entry's `name`, else None; links as plan 1 reads them (`_existing_link`): t
   - `project_slugs(root: Path) -> list[str]` (every `projects/<slug>` with a `project.toml`);
   - `load_project(root: Path, slug: str) -> Project` (`ProjectMissing` without `project.toml`);
   - `rel(root: Path, path: Path) -> str` (repo-relative, `/`-separated);
-  - `link_ref(project: Project, target: str) -> str | None` (a ref returns itself; `tasks/<f>.md`
-    returns that item's `card`, None when it has none yet; `ItemError` when not an item of the
-    project or `tracker = false`);
+  - `link_ref(root: Path, project: Project, target: str) -> str | None` (a ref returns itself; a
+    path (`LINK_PATH`, resolved with `link_path` from the item's project, so `../<other>/tasks/<f>.md`
+    reaches an item of another project) returns that item's `card`, None when it has none yet;
+    `ItemError` when the file is not an item, has `tracker = false`, or its project folder does not
+    exist);
   - `check_offline(projects: list[Project], root: Path, people: People) -> list[dict]`
     (`{"path": rel, "problem": text}`);
   - `new_item(root: Path, slug: str, *, type_: str, epic: str, assignee: str, reporter: str,
     heading: str, name: str | None = None) -> Path`;
-  - `table_block(project: Project) -> str`, `write_table(project: Project) -> bool` (changed).
+  - `table_block(project: Project) -> str`, `write_table(project: Project) -> bool` (changed;
+  `ItemError` when `TABLE_START` or `TABLE_END` is missing or the end comes first: it never adds the
+  markers; everything outside them, hand tables included, stays byte for byte).
 - Produces, in `ws.tracker.vocab`: `STATUS_LABELS` (`todo` a fazer, `in_progress` em andamento,
   `review` em code review, `validation` em validação, `ready_deploy` pronto para deploy, `blocked`
   bloqueado, `done` concluída, `cancelled` cancelada).
@@ -279,14 +299,18 @@ last entry's `name`, else None; links as plan 1 reads them (`_existing_link`): t
   `vocab.REF`), Task 2 (`People`).
 
 `project.toml`: `epics` (list of refs, required), `initiative` (ref, optional), `prefixes`
-(table epic → prefix, keys among `epics`); other keys are problems. `check_offline` adds to each
-item's `schema_problems`: the `epic` is in `epics` (`epic TS-9 is not in project.toml`); each dev
+(table epic → prefix without brackets, e.g. `"FRONT"`, keys among `epics`); other keys are
+problems. `check_offline` adds to each item's `schema_problems`: the `epic`, when set, is in
+`epics` (`epic TS-9 is not in project.toml`; an item with no `card` and no `epic` is no problem:
+`ws item check` reports it as pending, see Task 5); each dev
 id passes `people.problem`; each `docs` entry exists under `tasks/` with no `..`; each link
-target resolves with `link_ref`; an item does not link to itself, nor name one target in two
+target resolves with `link_ref` (a link into another project's `tasks/` is valid when that file
+is an item); an item does not link to itself, nor name one target in two
 lists; one `card` in two items is a problem on both (`TS-5 is also the card of <path>`).
 
 `new_item`: the project folder must exist (not `project.toml`: plan 3 may write it later; the
-epic's membership is `check`'s job); `type_` in `CARD_TYPES`, `epic` matches `REF`, people match
+epic's membership is `check`'s job; `--epic` stays required: a caller that does not know the epic
+yet passes any valid ref and rewrites the front matter itself); `type_` in `CARD_TYPES`, `epic` matches `REF`, people match
 `DEV_ID`; `NN` = highest `^\d+` prefix in `tasks/` plus one, two digits; file
 `tasks/NN-<name>.md`, `name` validated by `project.SLUG_PATTERN`, else the heading folded (accents
 off, lowercase, non-alphanumerics to `-`, first six words). Content: `+++`, the four keys in the
@@ -304,6 +328,13 @@ label; the assignee dev id; `STATUS_LABELS` of `[tracker] status`, or of `status
   - `test_check_unknown_dev_id_names_ws_people_add`;
   - `test_check_docs_must_exist`;
   - `test_check_link_paths_resolve` (to a document → problem; to an item with no card → no problem);
+  - `test_check_link_to_another_projects_item_resolves` (`projects/other/` with `project.toml` and
+    an item with card `TS-7`; `blocked_by = ["../other/tasks/02-x.md"]` → no problem and
+    `link_ref` returns `"TS-7"`; `../ghost/tasks/02-x.md`, `../other/tasks/99-none.md` and
+    `../../etc/x.md` → one problem each naming the path);
+  - `test_check_cardless_item_without_epic_is_pending_not_a_problem` (type, assignee, reporter set,
+    no `card`, no `epic` → exit 0, `problems == []`; the same item with `epic = "TS-9"` not in
+    `project.toml` → a problem);
   - `test_check_refuses_one_card_in_two_items` (both paths in `problems`);
   - `test_check_refuses_a_self_link_and_one_target_twice`;
   - `test_check_reports_a_broken_project_toml` (`epics = "TS-1"`, `colour = 1`);
@@ -318,7 +349,11 @@ label; the assignee dev id; `STATUS_LABELS` of `[tracker] status`, or of `status
     headings `== required_sections(type)`);
   - `test_table_rewrites_only_between_the_markers` (text before and after byte-identical; a row
     `| 14 | [Fechamento automático](tasks/14-closing-by-time.md) | TS-5 | Bug | <ME> | em andamento |`);
-  - `test_table_without_markers_exits_1`.
+  - `test_table_fills_an_empty_marker_block_and_keeps_a_hand_table` (a README with a hand-written
+    table and, after it, `<!-- ws:items -->\n<!-- /ws:items -->` → the block holds the header and
+    one row per item, every other byte identical; a second run → `changed == false`);
+  - `test_table_without_markers_exits_1` (README untouched, no markers appended; also with only
+    one of the two markers).
 - [ ] **Step 2: Run** `uv run pytest tests/test_items.py -q` — expected: FAIL.
 - [ ] **Step 3: Implement** `ws.items`, `ws.item_cli`, the templates (PT-BR, the required
   sections only, each heading followed by a blank line) and the project template.
@@ -403,16 +438,16 @@ Jira failure). `_report_failure` of an uncertain create with `item` calls `recor
   each a card ref or a repo-relative item path as `check` prints them). Tracker commands build
   `People.from_config(config, tracker.me())`.
 - Consumes: Task 2 (`port.open_tracker`, `Tracker`, `CardQuery`, `People`, `Link`), Task 3
-  (`Project`, `check_offline`, `link_ref`, `rel`), Task 4 (`itemrecord.recorded`),
+  (`Project`, `check_offline`, `link_ref(root, project, target)`, `rel`), Task 4 (`itemrecord.recorded`),
   `card.drafts_folder`, `vocab.required_sections`.
 
 JSON entries: problem `{"path", "problem"}`; drift `{"path", "card", "field", "item", "tracker"}`
 (people as dev ids, plus `"names": {"item", "tracker"}` from `display_name`); pending
-`{"path", "card": null, "op": "create"}` or `{"path", "card", "op": "link", "kind", "to",
+`{"path", "card": null, "op": "create"}` (plus `"needs": "epic"` without an epic) or `{"path", "card", "op": "link", "kind", "to",
 "waits"}`; orphan `{"card", "title", "epic"}`.
 
 `compare`: offline problems first; an item with offline problems or `tracker = false` is not
-compared. An item with no card → pending create. Else `tracker.card(ref)`: None →
+compared. An item with no card → pending create (with `"needs": "epic"` when it has no `epic`). Else `tracker.card(ref)`: None →
 `card TS-5 was not found in the tracker's project`; `level != 0` → `TS-5 is not a card (level 1)`;
 drift when `type`, `epic` (vs `parent`), `assignee`, `reporter` (via `people.account`) differ. Each
 link target: a ref the tracker lacks → problem; a path whose item has no card → pending with
@@ -425,7 +460,9 @@ whose ref no item holds.
 `write_drafts` refuses on any problem, and on a create for an item `recorded` (the Task 4
 message). Selected (all, or `only`): one `edit-<ref>.md` per card with drift in
 `type`/`epic`/`assignee`/`reporter` (the item's values); one `link-<ref>.md` per card with pending
-links not waiting; one `create-<slug>-<file stem>.md` per item with no card: `type`, `epic`,
+links not waiting; one `create-<slug>-<file stem>.md` per item with no card and an `epic` (an item with no `epic` is
+not drafted: `by_hand` says `item <path> has no epic: set it in the item, then run ws item drafts
+again`): `type`, `epic`,
 `priority = "Medium"`, `assignee`, `reporter`, `item = "<rel>"`, body `# ` and the empty
 `## <section>` headings of `required_sections(type)`; its path goes to `need_text`. A drift field
 whose capability is missing (`type` → `change_type`, `reporter` → `set_reporter`, links →
@@ -447,6 +484,9 @@ ws item pull <path> --fields blocks`); waiting links go to `waiting`. Folder
   - `test_drafts_writes_edit_link_and_create` (count 3; `parse_draft` accepts the edit and the
     link; the create fails to parse on the `# ` title; `need_text` lists it);
   - `test_drafts_only_selects_refs_and_paths`;
+  - `test_drafts_cardless_item_without_epic_is_not_drafted` (exit 0, no create draft for it, its
+    path and the reason in `by_hand`; after `epic` is set, a second run drafts it) and
+    `test_check_tracker_cardless_item_without_epic_is_pending_with_needs_epic`;
   - `test_drafts_refuses_an_item_recorded_uncertain` (exit 1, no folder under `cards/drafts/`);
   - `test_drafts_refuses_when_check_has_problems`;
   - `test_drafts_missing_capability_goes_to_by_hand` (no `change_type` → no edit draft for the

@@ -10,8 +10,9 @@ the converted `projects/` passes `ws item check`.
 module per responsibility (map rows, planner, front matter, link rewriting, executor). The planner
 is pure: rows plus the repo tree in, a `Plan` out; the dry run prints the plan, `--apply` runs it.
 Everything that touches the world (`git mv`, `ws item new`, `ws mask`, `ws item check`) goes through
-a `Runner` so tests use a fake. Plan 1 (neutral `/card`, config, dev ids) is merged. Plan 2 (items
-and `ws item ...`) must be merged before Task 5; Tasks 1 to 4 do not call it.
+a `Runner` so tests use a fake. Plan 1 (neutral `/card`, config, dev ids) is merged. **This plan runs
+after plan 2 (items and `ws item ...`) is merged**: start it from the branch that has plan 2; Tasks
+1 to 4 do not call plan 2, Tasks 5 to 7 do.
 
 **Tech Stack:** Python 3.12+, standard library only (`tomllib`, `csv`, `subprocess`); `uv`, `pytest`,
 `ruff`.
@@ -37,9 +38,15 @@ dev ids, "Converting the workspace", "Applying to the tracker").
   `task`, `bug`, `hotfix`, `improvement`, `feature` (map names `Tarefa`, `Bug`, `HotFix`, `Melhoria`,
   `Nova função`). Dev id = `ws.identity.dev_id(email)`; `me` never appears in an item.
 - Plan 2 commands this plan calls, and nothing else of plan 2: `ws item new <project> --type T
-  --epic K [--assignee A] [--reporter R] --heading "..."`, `ws item check [projects]` (offline), and
-  `ws item table <project>` (markers `<!-- ws:items -->` / `<!-- /ws:items -->`). Plan 2's
-  `project.toml` keys: `epics`, `initiative`, `prefixes`.
+  --epic K [--assignee A] [--reporter R] --heading "..." --slug S` (`--epic` is required; prints the
+  repo-relative path `projects/<project>/tasks/NN-<slug>.md`; exit 1 on a bad value), `ws item check
+  [projects]` (offline; JSON `problems`; exit 1 on problems, 2 on setup) and `ws item table
+  <project>` (fills the text between `<!-- ws:items -->` and `<!-- /ws:items -->`; exit 1 when a
+  marker is missing, it never adds them). Plan 2's `project.toml` keys: `epics`, `initiative`,
+  `prefixes` (epic → prefix without brackets). Plan 2 accepts what this script writes: a tracked
+  item with no `card` and no `epic` (pending, not a problem), `tracker = false` plus `status` with
+  no other key, and links to `../<project>/tasks/NN-x.md`. A tracked item needs `type`,
+  `assignee` and `reporter`, and `epic` once it has a `card`.
 - Commits: prefix `feat:`, `fix:`, `test:`, `docs:` or `chore:`, PT-BR, at most 72 characters, no task
   ID, no `Co-Authored-By`; `git diff --cached` before each message. Pull before starting. The
   conversion commit (Task 7) waits for the user's review of the diff; the code commits do not.
@@ -73,22 +80,35 @@ dev ids, "Converting the workspace", "Applying to the tracker").
 6. **Epics that do not exist yet** (`novo-E1`, `novo-E3`, the name `VM TELAS`, alias of `novo-E1`):
    the item gets no `epic` line now; the script records `item path<TAB>placeholder` in
    `board-map/adopt-pending.tsv`, and `--resolve-epics` (Task 6) fills the key and adds it to
-   `project.toml` after `/card` created the epics. Assumption to confirm against merged plan 2: an
-   item with no `card` and no `epic` passes `ws item check`; if not, the fix is in plan 2's schema.
+   `project.toml` after `/card` created the epics. Plan 2 accepts it: an item with no `card` and no
+   `epic` passes `ws item check` (pending), and `ws item drafts` skips it until `epic` is set. Only
+   an item that already has a `card` and no `epic` is a problem, so a pending-epic row whose card
+   exists refuses in `check_rows`. `ws item new` requires `--epic`, so for these items the script
+   passes the throwaway ref `TS-1` and the front matter is rewritten right after (Task 5, step 5).
 7. **Links.** The map's `links` (canonical `blocks:X;relates:Y`, and the legacy `Blocks TS-1, TS-2
    (note)` of `others.tsv`; refs taken by `TS-\d+`) are written as given. A `novo*` ref becomes the
    path of that row's item (`tasks/NN-x.md`, or `../<project>/tasks/NN-x.md` across projects);
-   a ref to a skipped or unknown row refuses. Assumption to confirm against plan 2: the link
-   resolver accepts `../<project>/…`.
+   a ref to a skipped or unknown row, or to a `tracker = false` item, refuses (plan 2 refuses a link
+   to it). Plan 2 resolves item paths from the item's own project and accepts
+   `../<project>/tasks/NN-x.md` when that file is an item; nothing leaving `projects/`.
 8. **People** come from `board-map/people.toml` (`name = "e-mail"` or `name = "dev-xxxxxxxxxx"`),
-   mapped with `ws.identity.dev_id`; `-` omits the field; a used name missing from the file refuses.
+   mapped with `ws.identity.dev_id`; `-` omits the field only on a `tracker = false` item (plan 2
+   requires `assignee` and `reporter` on a tracked one, so `check_rows` lists a tracked row with `-`
+   as a problem); a used name missing from the file refuses.
 9. **Project names** in the map differ from the folders: `whitelabel` is `whitelabel-restructure`,
    `operations-screens-migration` is `vm-migration` after the rename (Task 4). Map `file` may be
    `tasks/x.md (artemis-v2)`: a move from that project into the row's project.
 10. **README tables are kept.** The hand tables hold Branch and Depende de, which items do not.
-    The script appends the empty marker block after each project's task table; `ws item table`
-    fills it; dropping the hand table is a later decision.
-11. **One-off and re-runnable only by refusal**: the script refuses to apply when a target project
+    The script appends the empty marker block (`<!-- ws:items -->` and `<!-- /ws:items -->` on two
+    lines) after each project's task table; `ws item table` fills it and refuses when the markers are
+    missing; dropping the hand table is a later decision.
+11. **Every created item gets an explicit `--slug`** (English, so file names do not carry the
+    Portuguese heading): the map file's stem without its `NN-` prefix when the row has a file
+    (`41-x.md` → `x`), prefixed by the lowercased card key when the row has a card
+    (`ts-5465-x`); a row with a card and no file → `ts-5570`; a `novo-<tsv>-<line>` id with no file →
+    `new-<tsv>-<line>`. It always satisfies `project.SLUG_PATTERN`; two items of a project with one
+    slug get `-2`, `-3` suffixes.
+12. **One-off and re-runnable only by refusal**: the script refuses to apply when a target project
     already has `project.toml` or the git tree is dirty. It stays in the repo until Task 6 has run
     after the tracker step.
 
@@ -107,12 +127,13 @@ dev ids, "Converting the workspace", "Applying to the tracker").
    hash identical; the apply prints the one command that reverts it (`git restore` and `git clean`
    on `projects/`) before it starts (Task 5).
 5. A new item whose heading, scope or done-when carries a real name: the text in the file is masked
-   and `ws mask --check` over every added line reports nothing; a heading that slugs to a file
-   name already taken, or a moved file whose name exists in the destination, refuses (Tasks 2 and 5).
+   and `ws mask --check` over every added line reports nothing; a slug that is already a file name
+   in the project, or a moved file whose name exists in the destination, refuses (Tasks 2 and 5).
 
 ## Parallel waves
 
 Files are split by module so worktrees do not collide.
+Plan 3 starts after plan 2 is merged (see the header).
 - **Wave 1 (parallel):** Task 1 (`maprows.py`), Task 3 (`frontmatter.py`), Task 4 (`relink.py`):
   no shared files, no calls to each other.
 - **Wave 2:** Task 2 (`plan.py`), needs the `Row` and `Link` types of Task 1 (merge Task 1 first).
@@ -174,6 +195,10 @@ Files are split by module so worktrees do not collide.
   - `test_check_rows_lists_every_problem` (one `perguntar` row, an unknown assignee, type
     `História` on a non-`epico` row, a `sem-card` row with unknown status text, a link to
     `novo-99` that no row has → five lines, one per problem, each with source file and line);
+  - `test_check_rows_requires_people_on_tracked_rows_only` (a tracked row with assignee `-` → a
+    problem; a `sem-card` row with `-` → none) and `test_check_rows_refuses_a_pending_epic_with_an_existing_card`
+    (`epic = novo-E3` on a row of card `TS-5` → a problem; on a `novo*` card or a card-less row →
+    none);
   - `test_check_rows_ignores_epico_rows` (an `epico` row with unknown people and type `História` →
     no problem).
 - [ ] **Step 2: Run** `uv run pytest tests/test_adopt_maprows.py -q` — expected: FAIL (module missing).
@@ -192,7 +217,8 @@ Files are split by module so worktrees do not collide.
 - Consumes: `maprows.Row`, `Link`, `TYPE_NEUTRAL`, `neutral_status`; the repo tree.
 - Produces, in `adopt_items.plan`:
   - `@dataclass Item: project: str; path: str | None` (`tasks/NN-x.md` once known; `None` for new
-    items until created); `origin: Literal["file", "new"]`; `heading: str | None`; `fields: dict`
+    items until created); `slug: str | None` (the `--slug` of a new item, Ruling 11; `None` for an
+    item from a file); `origin: Literal["file", "new"]`; `heading: str | None`; `fields: dict`
     (contract fields in the spec's shape: strings, lists, `tracker = False` plus `status`);
     `row: Row`; `scope: str | None`; `done_when: str | None`; `docs: list[str]`;
     `link_rows: list[tuple[str, str]]` (kind, `novo-` id still to resolve);
@@ -229,8 +255,11 @@ Files are split by module so worktrees do not collide.
   - `test_documents_attach_by_ts_number_then_by_unique_prefix_else_unattached`;
   - `test_novo_links_become_item_paths` (`blocks:novo-5` with an item for `novo-5` at a known path;
     within the project `tasks/..`, across projects `../vm-migration/tasks/..`; at plan time the path
-    of a new item is its predicted `NN-<slug>` where `NN` counts from the project's highest number,
-    in map order; the heading slug is lowercase ASCII with `-`, as `ws item new` produces);
+    of a new item is its predicted `NN-<slug>.md` where `NN` counts from the project's highest
+    number, two digits, in map order, and the slug is the item's own `slug`);
+  - `test_new_item_slugs_follow_ruling_11` (file `tasks/41-x.md` with `TS-5465` → `ts-5465-x`; card
+    `TS-5570` and no file → `ts-5570`; `novo-others-3` and no file → `new-others-3`; two equal slugs
+    in one project → `-2`; every slug matches `[a-z0-9]+(-[a-z0-9]+)*`);
   - `test_status_documento_de_apoio_is_a_document_not_an_item`;
   - `test_rename_is_planned_when_the_old_folder_exists` (`("projects/operations-screens-migration",
     "projects/vm-migration")`, and every row of that project is planned under `vm-migration`);
@@ -337,8 +366,10 @@ Files are split by module so worktrees do not collide.
 - Consumes: Tasks 1 to 4; plan 2's `ws item new`, `ws item check`, and project config keys.
 - Produces:
   - `class Runner(Protocol)`: `git_mv(src: str, dst: str) -> None`; `item_new(project: str, type_: str,
-    epic: str | None, assignee: str | None, reporter: str | None, heading: str) -> str` (returns the
-    created path, repo-relative to the project: `tasks/NN-<slug>.md`); `mask(text: str) -> str`
+    epic: str, assignee: str | None, reporter: str | None, heading: str, slug: str) -> str`
+    (`epic` is `TS-1` for a pending epic, Ruling 6; the real one runs `ws item new ... --slug S`
+    with `WS_REPO_ROOT` set to the repo, parses its stdout (`projects/<project>/tasks/NN-<slug>.md`)
+    and returns the path relative to the project, `tasks/NN-<slug>.md`); `mask(text: str) -> str`
     (`ws mask` over stdin); `item_check(projects: list[str]) -> tuple[int, str]`; `is_clean() -> bool`;
     `SubprocessRunner` is the real one (`git mv`, `ws item new …`, `ws mask`, `ws item check`);
   - `apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]` (the order below;
@@ -353,10 +384,11 @@ Files are split by module so worktrees do not collide.
   print the revert command; (2) `git mv` of the folder rename, then the moves (files, attached
   documents); (3) rewrite links and the slug in `affected_files`; (4) front matter inserted into
   each `origin == "file"` item (`docs` filled); (5) each `origin == "new"` item: `item_new` with the
-  masked heading, then `replace_front_matter` (adds `card`, links, `docs`), then `fill_sections` with
+  masked heading and the item's `slug`, then `replace_front_matter` (adds `card`, links, `docs`), then `fill_sections` with
   masked `scope` and `done_when`; (6) item paths of `link_rows` resolved and written; (7)
   `project.toml` per project (`epics`, `initiative`, `prefixes` only for an epic whose map title
-  has no `[…]` prefix: the most common bracket prefix of its cards' titles) and the README marker
+  has no `[…]` prefix: the most common bracket prefix of its cards' titles, written without the
+  brackets, `FRONT`) and the README marker
   block after the task table (the first table under `## Tarefas`; a project with no such heading is
   reported, not edited); (8) `adopt-pending.tsv` for `pending_epics`; (9) `item_check` on every
   touched project; a non-zero result prints the output and exits 1.
@@ -370,6 +402,9 @@ Files are split by module so worktrees do not collide.
   - `test_apply_inserts_front_matter_and_keeps_bodies` (every original file is a suffix of its new
     content);
   - `test_apply_moves_with_git_mv_then_rewrites_links` (calls order: `git_mv` before any write);
+  - `test_apply_passes_a_slug_for_every_new_item_and_a_throwaway_epic_when_pending` (every
+    `item_new` call has `slug == Item.slug`; a pending-epic item is created with `epic == "TS-1"`
+    and its final file has no `epic` line);
   - `test_apply_creates_new_items_with_masked_text` (`FakeRunner.mask` upper-cases a marker word →
     the heading and the filled sections hold the masked text, never the original);
   - `test_apply_resolves_novo_links_to_paths` (two new items linking each other → `blocks =
@@ -385,8 +420,8 @@ Files are split by module so worktrees do not collide.
 - [ ] **Step 2: Run** `uv run pytest tests/test_adopt_apply.py tests/test_adopt_integration.py -q` — expected: FAIL.
 - [ ] **Step 3: Implement** `apply.py` and the entry point; the entry point inserts its own folder
   in `sys.path`, reads `--people` (default `<map>/people.toml`) and `<map>/docs.tsv` when present.
-  `ws item new` flag names follow plan 2; if merged plan 2 spells one differently, change only
-  `SubprocessRunner.item_new`.
+  `ws item new` flag names are plan 2's (`--type --epic --assignee --reporter --heading --slug`);
+  if merged plan 2 spells one differently, change only `SubprocessRunner.item_new`.
 - [ ] **Step 4: Run** the two test files plus `uv run pytest -q`, `uv run ruff check`,
   `uv run ruff format --check` — expected: all pass and clean.
 - [ ] **Step 5: Commit** `feat: scripts/adopt-items.py converte projects/ em itens`.
@@ -476,7 +511,7 @@ Files are split by module so worktrees do not collide.
   (`test_dry_run_exit_1_lists_every_problem`), 4 in Task 5, 5 in Tasks 2 and 5.
 - **Proportion:** the plan is about as long as plan 1 for a spec section a tenth the size, because
   five rulings the spec leaves open are decided here; function bodies are not written.
-- **Open assumptions to confirm when plan 2 is merged:** an item with neither `card` nor `epic`
-  passes `ws item check`; `../<project>/tasks/…` is a valid link path; `ws item table` can fill a
-  marker block that exists but is empty; `ws item new` writes `## Contexto` and `## Pronto quando`
-  in every type's template.
+- **Agreed with plan 2 (written in its Interfaces and tests):** an item with neither `card` nor
+  `epic` passes `ws item check` (pending); `../<project>/tasks/…` is a valid link path;
+  `ws item table` fills an empty marker block and refuses without markers; `ws item new` takes
+  `--slug`, requires `--epic`, and every type's template holds `## Contexto` and `## Pronto quando`.
