@@ -19,6 +19,8 @@ core speak a neutral vocabulary; Jira is one adapter.
   Choosing the sprint is out of this work.
 - The epic TS-5278 (Artemis V2) holds cards that exist only because a VM of automations is being
   switched off (its owner left the company). The scope of each epic is blurred.
+- The workspace repo is shared with another developer: nothing in the repo or in the rules may
+  depend on who runs `ws`.
 - The user now writes and follows another developer's cards (reporter = the user, assignee = the
   other developer). `ws card` only writes cards assigned to the user, always creates the type
   Tarefa, always assigns the user and always needs a sprint. It cannot create links or epics.
@@ -64,7 +66,8 @@ Facts of the Jira site, read on 2026-11-13 (REST, read only):
    the user works in; each tracker is an adapter. Only the Jira adapter is built now.
 9. **Scope of the reorganization.** Only cards in the current work: the old epics in the backlog
    (and their cards) stay as they are for now. The type changes only on open cards; done cards
-   keep their type. Cards the other developer reported get the user as reporter.
+   keep their type. Cards the other developer reported get the user as reporter, by hand in the tracker (four
+   cards).
 
 ## Approaches considered
 
@@ -119,8 +122,9 @@ Neutral words only. What can be checked in code is also in `ws card check` and `
    **[code: only these]**.
 5. **Findings during a task** become a proposed card for the next sprint, not scope of the current
    card, unless the user says to include it.
-6. **People.** Assignee = who develops. Reporter = who writes and follows. Default both = the user
-   **[code: aliases from the config]**.
+6. **People.** Assignee = who develops. Reporter = who writes and follows. Because the repo is shared with another developer,
+   items name people by explicit alias, never `me`; only a local card draft may say `me` (the
+   user who runs `ws`) **[code]**.
 7. **Text.** Title `[PREFIX] text` with the epic's prefix **[code]**. Card text talks only about the
    task, never about the user, the AI or the conversation. Sections by type **[code]**:
 
@@ -164,7 +168,8 @@ synced = 2026-11-13
 
 - **Contract fields** (top level), written by people and the model, sent to the tracker by `/card`:
   `card` (absent until the card exists; written back by `ws card apply`); `type`; `epic` (one of
-  the project's epics); `assignee` and `reporter` (aliases, default `me`); `blocks`, `blocked_by`,
+  the project's epics); `assignee` and `reporter` (explicit aliases; `me` is refused in an item, since it would mean
+  whoever runs `ws`); `blocks`, `blocked_by`,
   `relates` (card refs or item paths relative to the project; a path resolves to that item's
   `card`; a link to an item with no card yet waits); `docs` (paths relative to `tasks/`, each must
   exist); `tracker = false` for a task that never has a card (personal tooling, a done task kept as
@@ -211,10 +216,10 @@ relates = "Relates"
 
 [people.ana]                  # alias used in items: pick the person's analog (secret check)
 jira = "712020:..."           # this person's id in each tracker
-follow = true                 # the user follows this person's cards
 ```
 
-`me` is built in. An alias missing from the config, or without an id for the configured tracker,
+`me` is built in for card drafts (local) and refused in items. Every developer who shares the
+repo uses the same aliases, each config with that developer's own ids. An alias missing from the config, or without an id for the configured tracker,
 fails the check. Without `[jira.types]`, `ws card` exits 2 and prints the block to paste.
 `ws tracker discover` (read only) prints the types and link types of the configured project in this
 format, so nothing is typed by hand.
@@ -239,9 +244,11 @@ sprint, links).
 
 ## Whose cards `ws` writes
 
-A card is writable when the user is its assignee or its reporter, or its assignee is a person with
-`follow = true`. One rule for every op; the reporter is fetched for every op. Anyone else's card is
-refused, in code. `ws task list` keeps `mine` = assignee only (the daily does not change).
+A card is writable when the user is its assignee or its reporter. One rule for every op; the
+reporter is fetched for every op. Anyone else's card is refused, in code. The rule depends only on
+the card, never on a local list of people, so it is the same for every developer sharing the repo.
+Cards the other developer reported before 2026-11-13 get the user as reporter by hand, once, in
+the tracker. `ws task list` keeps `mine` = assignee only (the daily does not change).
 
 ## `ws card` changes
 
@@ -290,8 +297,8 @@ All read the items of the given projects (default: every project with a `project
 - **`ws item table <project>`**: rewrites the `README.md` task table between `<!-- ws:items -->` and
   `<!-- /ws:items -->`: number, heading (link), card, type, assignee alias, cached status.
 
-`ws task list` gains `--role mine|following|all`; `following` = writable cards the user does not
-develop, each with its assignee alias.
+`ws task list` gains `--role mine|following|all`; `following` = cards where the user is the reporter
+and someone else the assignee, each with its assignee alias.
 
 ## Skills
 
@@ -350,7 +357,7 @@ sync`, `ws item table`, and `ws item check --tracker` must report no problems.
 - Port: the core runs against the fake adapter; refusals for missing capabilities.
 - Jira adapter: types by id; sprint absent and `"active"`; due optional only without sprint; epic
   and initiative creation, with the epic parent refused by capability; the writable rule (assignee,
-  reporter, followed, anyone else refused); `link` adds only missing links; a refused type change
+  reporter, anyone else refused); `link` adds only missing links; a refused type change
   gives the "Mover" message; the write-back failure path and `set-card`.
 - `ws item check --tracker`: each drift kind, orphans, pending links. `ws item table`: text outside
   the markers unchanged. `adopt-items.py`: a small fake project, a move with link rewrites.

@@ -34,8 +34,8 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
 - Required sections: all card types `## Contexto` and `## Pronto quando`; `bug` and `hotfix` also
   `## Como reproduzir` and `## Evidência`; `hotfix` also `## Por que não espera a release`; `epic`
   and `initiative` only `## Contexto`.
-- A card is writable when the user is its assignee or its reporter, or its assignee has
-  `follow = true` in `[people.*]`. Anyone else's card is refused, for every op.
+- A card is writable when the user is its assignee or its reporter. Anyone else's card is
+  refused, for every op. The rule never depends on a local list of people: the repo is shared with another developer.
 - No real names in tests or fixtures: fake accounts (`acc-me`, `acc-other`, `acc-ana`) and fake
   titles, as today.
 - Commits: prefix `feat:`, `fix:`, `test:`, `docs:` or `chore:`, PT-BR, at most 72 characters, no
@@ -76,7 +76,7 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
   `def require_kind(kind: str) -> None` (raises `UnknownTracker` with
   `"tracker {kind!r} has no adapter yet; known: jira"`).
 - Produces, in `ws.userconfig`:
-  - `@dataclass(frozen=True) class Person: alias: str; ids: dict[str, str]; follow: bool`;
+  - `@dataclass(frozen=True) class Person: alias: str; ids: dict[str, str]`;
   - `JiraConfig` loses `issue_type`, gains `types: dict[str, str]` (neutral type → issue type id)
     and `links: dict[str, str]` (`blocks`, `relates` → link type name), both default `{}`;
   - `UserConfig` gains `tracker_kind: str` (from `[tracker] kind`; absent = `"jira"`) and
@@ -91,8 +91,8 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
     `links == {"blocks": "Blocks"}`);
   - `test_jira_types_refuse_unknown_neutral_names` (`[jira.types] story = "1"` →
     `ConfigInvalid` naming `story`); same for `[jira.links] duplicates = "Duplicate"`;
-  - `test_people_are_read` (`[people.ana] jira = "acc-ana"`, `follow = true` →
-    `Person("ana", {"jira": "acc-ana"}, True)`; `follow` absent → `False`);
+  - `test_people_are_read` (`[people.ana] jira = "acc-ana"` →
+    `Person("ana", {"jira": "acc-ana"})`; any key other than tracker kinds → `ConfigInvalid`);
   - `test_people_refuse_me_and_bad_alias` (`[people.me]` → `ConfigInvalid`; alias `"Ana"` or
     `"a b"` → `ConfigInvalid`; aliases match `^[a-z][a-z0-9-]*$`);
   - `test_issue_type_key_is_refused_with_the_new_block` (`[jira] issue_type = "Tarefa"` →
@@ -106,7 +106,7 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
   error is a `SetupNeeded` (exit 2). The `world` fixture in `tests/test_card.py` writes
   `[jira.types]` (`task = "3"`, `bug = "4"`, `hotfix = "5"`, `improvement = "6"`, `feature = "7"`,
   `epic = "8"`, `initiative = "9"`), `[jira.links]` (`blocks = "Blocks"`, `relates = "Relates"`)
-  and `[people.ana] jira = "acc-ana"`, `follow = true`, and drops `issue_type`.
+  and `[people.ana] jira = "acc-ana"`, and drops `issue_type`.
 - [ ] **Step 5: Update `README.md`** "Local config": the new tables, with the example of the spec's
   "The config" section (fake ids are fine), and the line on `[tracker] kind`.
 - [ ] **Step 6: Run** `uv run pytest -q` — expected: every test passes except the create tests
@@ -195,7 +195,7 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
 - Produces:
   - `Context.writable_card(key: str, verdict: Verdict) -> dict | None` (fields fetched:
     today's plus `reporter`, `issuetype`, `issuelinks`; problem
-    `card {key} is not yours: you are neither its assignee nor its reporter, and you do not follow its assignee`);
+    `card {key} is not yours: you are neither its assignee nor its reporter`);
     used by `_edit`, `_move`, `_comment`, `_worklog`, `_link`;
   - `Context.person(alias: str, verdict: Verdict) -> str | None` (accountId; `me` → the user;
     problems `unknown person {alias!r}: add [people.{alias}] to config.toml` and
@@ -208,9 +208,8 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
 
 - [ ] **Step 1: Write the failing tests**:
   - writable rule: `test_edit_card_where_i_am_reporter_passes` (assignee `acc-other`, reporter
-    `acc-me`), `test_edit_card_of_a_followed_assignee_passes` (assignee `acc-ana`, reporter
-    `acc-other`), `test_edit_card_of_anyone_else_is_refused` (assignee and reporter `acc-other`;
-    the problem text above), the same three for `move` and `comment` (parametrize);
+    `acc-me`), `test_edit_card_of_anyone_else_is_refused` (assignee and reporter `acc-other`;
+    the problem text above), the same two for `move` and `comment` (parametrize);
   - create: `test_create_sends_the_type_id` (`type = "improvement"` → request body
     `"issuetype": {"id": "6"}`; preview line `Tipo: Melhoria`);
     `test_create_assignee_and_reporter_from_aliases` (`assignee = "ana"` → `{"accountId": "acc-ana"}`,
@@ -384,7 +383,9 @@ Direction (Jira): for `A blocks B` send
 Before Monday's planning, with plan 1 in `main`:
 
 1. `ws tracker discover >> ~/.config/workspace/config.toml` after reading it (the user runs it, or
-   reviews the diff); add `[people.<alias>]` for the other developer with `follow = true`.
+   reviews the diff); add `[people.<alias>]` for the other developer (the same alias in both
+   developers' configs). Change by hand, in Jira, the reporter of the four cards the other
+   developer reported (TS-5379, TS-5466, TS-5467, TS-5468).
 2. A one-off script in the session's scratchpad turns the reviewed map
    (`~/.local/share/workspace/projects/workspace/board-map/*.tsv`) into drafts, one folder per
    step: epics; edits (epic, type of open cards, reporter); creates (the user's, then the other
