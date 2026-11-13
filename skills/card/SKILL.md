@@ -12,9 +12,16 @@ Nothing is written through the Atlassian MCP, ever.
 
 ## Steps
 
-1. **Understand the request.** Ask only what is missing. For `create`: the epic (run
-   `ws card epics` and offer the list; empty, ask for an epic key), the priority and the due date
-   (a create has no start date: it is set when the task starts). Write the title and sections in the user's style (below).
+1. **Understand the request.** Read `references/card-rules.md` (next to this file) to choose the
+   type, the epic, the links and the sections. Ask only what is missing. For `create`: the type
+   (propose one from the rules' ordered questions, with a one-line reason), the epic (run
+   `ws card epics` and offer the list; empty, ask for an epic key; an epic or an initiative takes no
+   epic), the priority and, only when there is a sprint, the due date (a create has no start date:
+   it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
+   The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
+   (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
+   colleague; when an id is unknown, `ws card check` says which). Write the title and sections in
+   the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
@@ -73,8 +80,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due` (no `start`: an unknown key) | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional new description |
+| `create` | `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type`, `priority`, `start`, `due`, `epic`, `parent`, `assignee`, `reporter` | optional new description |
+| `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
 | `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`), optional `day` | optional comment |
@@ -82,9 +90,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 ```text
 +++
 op = "create"
+type = "task"
 epic = "TS-101"
 priority = "High"
-due = 2026-10-31
 +++
 # [FRONT] Título curto do card
 
@@ -93,6 +101,62 @@ Por que existe e o que muda, em texto simples.
 
 ## Pronto quando
 - O que precisa estar valendo para fechar o card.
+```
+
+A `bug` for another developer (a dev id; `reporter` stays the user), in the active sprint, so with a
+`due`:
+
+```text
++++
+op = "create"
+type = "bug"
+epic = "TS-101"
+priority = "High"
+assignee = "dev-0123456789"
+sprint = "active"
+due = 2026-11-20
++++
+# [FRONT] Tela fecha sem salvar o filtro
+
+## Contexto
+O filtro some ao trocar de aba.
+
+## Como reproduzir
+1. Aplicar um filtro e trocar de aba.
+
+## Evidência
+Trecho do log do erro, sem dado de cliente.
+
+## Pronto quando
+- O filtro continua aplicado ao voltar para a aba.
+```
+
+An epic: the title starts with its prefix, only `## Contexto` is required, and `parent` is its
+initiative:
+
+```text
++++
+op = "create"
+type = "epic"
+parent = "TS-100"
+priority = "Medium"
++++
+# [FRONT] Nome do épico
+
+## Contexto
+O sistema ou objetivo que o épico cobre.
+```
+
+A link: `TS-102` blocks `TS-103` and relates to `TS-104`. Both cards must exist, so a card created
+in the same batch is linked in a later run.
+
+```text
++++
+op = "link"
+key = "TS-102"
+blocks = ["TS-103"]
+relates = ["TS-104"]
++++
 ```
 
 ```text
@@ -139,7 +203,10 @@ day = 2026-10-28
   description. An epic with no prefix takes any title. One line, up to 255 characters.
 - Description sections, level-2 headings exactly: `## Contexto`, `## Desenho combinado`,
   `## A fazer antes de implementar`, `## Pronto quando`. `## Contexto` and `## Pronto quando` are
-  required and not empty; the other two only when there is something to say.
+  required and not empty; the other two only when there is something to say. A `bug` and a
+  `hotfix` also need `## Como reproduzir` and `## Evidência`, a `hotfix` also
+  `## Por que não espera a release`, and an `epic` or `initiative` only `## Contexto`
+  (`references/card-rules.md`).
 - Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
   conversation or agreements between them. Bad: "Validar a estrutura do documento com <o usuário>."
   Good: "Validar a estrutura do documento." Valid for create, edit (title and description) and
@@ -161,5 +228,7 @@ day = 2026-10-28
   result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
   for the title.
 
-Only the user's own cards, in the configured project, are written; a refusal for another person's
-card or another project is final: tell the user to do it by hand.
+Only cards where the user is the assignee or the reporter, in the configured project, are written;
+a refusal for another person's card or another project is final: tell the user to do it by hand.
+When the tracker refuses a type change or an epic's `parent`, the message says to do it by hand
+in the tracker.
