@@ -1,6 +1,7 @@
 """The item file: a Markdown file under `projects/<slug>/tasks/` with a TOML front matter."""
 
 import os
+import posixpath
 import re
 import stat
 import tempfile
@@ -31,7 +32,6 @@ CACHE_KEYS = ("status", "priority", "due", "sprint", "synced")
 ITEM_PATH = re.compile(r"projects/[a-z0-9]+(?:-[a-z0-9]+)*/tasks/[A-Za-z0-9._-]+\.md")
 LINK_PATH = re.compile(r"(?:\.\./[a-z0-9]+(?:-[a-z0-9]+)*/)?tasks/[A-Za-z0-9._-]+\.md")
 _SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-_DOC_PATH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*")
 _KEY_LINE = re.compile(r"\s*([A-Za-z0-9_-]+)\s*=")
 _FENCE = "+++"
 _CACHE_TEXT = ("status", "priority", "sprint")
@@ -111,6 +111,14 @@ def _is_link(value: object) -> bool:
     return isinstance(value, str) and bool(REF.fullmatch(value) or LINK_PATH.fullmatch(value))
 
 
+def _is_doc(doc: object) -> bool:
+    """A non-empty relative path from `tasks/` that stays inside the project folder."""
+    if not isinstance(doc, str) or not doc or doc.startswith("/") or "\\" in doc or "\0" in doc:
+        return False
+    resolved = posixpath.normpath(posixpath.join("tasks", doc))
+    return resolved != "." and resolved != ".." and not resolved.startswith("../")
+
+
 def _person_problem(key: str, value: object) -> str | None:
     if value == "me":
         return f"{key} must be a dev id, not me: the repo is shared; ws people me prints yours"
@@ -143,7 +151,9 @@ def schema_problems(item: Item) -> list[str]:
     if untracked:
         if "status" not in front:
             out.append("tracker = false needs a status")
-        elif front["status"] not in {s.value for s in Status}:
+        elif not isinstance(front["status"], str) or front["status"] not in {
+            s.value for s in Status
+        }:
             out.append("status must be one of " + ", ".join(s.value for s in Status))
         if "card" in front:
             out.append("tracker = false has no card")
@@ -184,7 +194,7 @@ def schema_problems(item: Item) -> list[str]:
             out += [
                 f"docs: {doc!r} must be a path relative to tasks/"
                 for doc in docs
-                if not (isinstance(doc, str) and _DOC_PATH.fullmatch(doc) and ".." not in doc)
+                if not _is_doc(doc)
             ]
     return out
 

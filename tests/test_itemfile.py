@@ -279,3 +279,16 @@ def test_write_text_replaces_atomically_and_keeps_the_mode(tmp_path):
     assert path.read_text(encoding="utf-8") == "new — ü\n"
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o640
     assert [p.name for p in tmp_path.iterdir()] == ["01-a.md"]
+
+
+def test_docs_are_relative_paths_inside_the_project(tmp_path):
+    ok = valid('docs = ["../decisions.md", ".plan.md", "sub/a.md"]\n')
+    assert problems(tmp_path, ok) == []
+    for bad in ("../../other/x.md", "/abs.md", "a\\\\b.md", ""):
+        out = problems(tmp_path, valid(f'docs = ["{bad}"]\n'))
+        assert any(p.startswith("docs:") for p in out), bad
+
+
+def test_a_non_string_status_is_a_problem_not_a_crash(tmp_path):
+    out = problems(tmp_path, 'tracker = false\nstatus = ["done"]\n')
+    assert any(p.startswith("status must be one of") for p in out)
