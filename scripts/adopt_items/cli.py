@@ -44,7 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", type=Path, default=REPO)
     parser.add_argument("--apply", action="store_true", help="perform the plan")
     parser.add_argument(
-        "--outside", action="store_true", help="with --apply, also run the moves outside the repo"
+        "--outside",
+        action="store_true",
+        help="run the moves outside the repo: alone, only them; with --apply, after the plan",
     )
     return parser
 
@@ -75,9 +77,16 @@ def _toml_problems(rows, repo: Path) -> list[str]:
 
 def main(argv: list[str] | None = None, runner: Runner | None = None) -> int:
     args = _parser().parse_args(argv)
+    say = print
+    if args.outside and not args.apply:
+        try:
+            _outside(True, say)
+        except OSError as error:
+            say(f"stopped: {error}")
+            return 1
+        return 0
     repo = args.repo.resolve()
     runner = runner or SubprocessRunner(repo)
-    say = print
     try:
         rows = load_rows(args.map)
         people = load_people(args.people or args.map / "people.toml")

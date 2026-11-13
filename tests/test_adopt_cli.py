@@ -110,3 +110,21 @@ def test_dirty_tree_is_a_warning_in_a_dry_run_and_fatal_with_apply(tmp_path, hom
     assert cli.main(args, runner=FakeRunner(repo, clean=False)) == 0
     assert "warn: the git tree is not clean" in capsys.readouterr().out
     assert cli.main([*args, "--apply"], runner=FakeRunner(repo, clean=False)) == 1
+
+
+def test_outside_alone_only_moves_outside_the_repo(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path)
+    private = home / ".config/workspace/private"
+    private.mkdir(parents=True)
+    (private / "operations-screens-migration.md").write_text("x")
+    data = home / ".local/share/workspace/projects/operations-screens-migration"
+    data.mkdir(parents=True)
+    runner = FakeRunner(repo)
+    before = tree_hash(repo)
+    args = ["--repo", str(repo), "--map", str(tmp_path / "no-map"), "--outside"]
+    assert cli.main(args, runner=runner) == 0
+    out = capsys.readouterr().out
+    assert (private / "vm-migration.md").read_text() == "x"
+    assert not data.exists() and data.with_name("vm-migration").is_dir()
+    assert "outside: mv" in out and "total:" not in out and "item " not in out
+    assert tree_hash(repo) == before and runner.calls == []
