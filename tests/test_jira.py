@@ -50,6 +50,7 @@ CARD = {
     "reporter_is_me": True,
     "updated": "2026-10-26T12:15:36.854000-03:00",
     "is_epic": False,
+    "assignee_name": None,
 }
 
 
@@ -230,7 +231,11 @@ def test_task_list_prints_cards_as_json(jira_config, fake_jira, capsys):
     code = main(["task", "list", "--since", "2026-10-23"])
 
     assert code == 0
-    assert json.loads(capsys.readouterr().out) == {"platform": "jira", "cards": [CARD]}
+    assert json.loads(capsys.readouterr().out) == {
+        "platform": "jira",
+        "role": "mine",
+        "cards": [CARD],
+    }
     search = fake_jira.requests[-1]["query"]
     assert search["jql"] == my_tasks_jql(date(2026, 10, 23))
     assert search["fields"] == ",".join(FIELDS)
@@ -581,3 +586,40 @@ def test_create_meta_stops_on_an_empty_page(fake_jira):
 
     assert _client(fake_jira).create_meta("TS", "2")["fields"] == []
     assert len([r for r in fake_jira.requests if r["path"] == f"{base}/2"]) == 1
+
+
+def test_task_list_role_following(jira_config, fake_jira, capsys):
+    fake_jira.pages = {None: {"issues": [REST_ISSUE], "isLast": True}}
+
+    code = main(["task", "list", "--role", "following", "--since", "2026-10-23"])
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["role"] == "following"
+    jql = fake_jira.requests[-1]["query"]["jql"]
+    assert jql.startswith("reporter = currentUser() AND assignee != currentUser() AND (")
+
+
+def test_task_list_cards_carry_the_assignee_name(jira_config, fake_jira, capsys):
+    issue = deepcopy(REST_ISSUE)
+    issue["fields"]["assignee"] = {"accountId": "acc-ana", "displayName": "Ana Example"}
+    fake_jira.pages = {None: {"issues": [issue], "isLast": True}}
+
+    assert main(["task", "list", "--since", "2026-10-23"]) == 0
+
+    assert json.loads(capsys.readouterr().out)["cards"][0]["assignee_name"] == "Ana Example"
+    assert "assignee" in fake_jira.requests[-1]["query"]["fields"].split(",")
+
+
+def test_task_list_default_role_keeps_the_jql(jira_config, fake_jira):
+    fake_jira.pages = {None: {"issues": [], "isLast": True}}
+
+    assert main(["task", "list", "--since", "2026-10-23"]) == 0
+
+    assert fake_jira.requests[-1]["query"]["jql"] == my_tasks_jql(date(2026, 10, 23))
+
+
+def test_task_list_unknown_role_exits_2(jira_config, capsys):
+    with pytest.raises(SystemExit) as stop:
+        main(["task", "list", "--role", "boss"])
+
+    assert stop.value.code == 2

@@ -175,3 +175,13 @@ def test_edit_priority_of_a_card_without_a_type_id_reads_no_screen(world, capsys
 
     passing(path, capsys)
     assert not [r for r in world.fake.requests if "createmeta" in r["path"]]
+
+
+def test_edit_title_of_an_epic_needs_its_own_prefix_not_the_initiatives(world, capsys):  # noqa: F811
+    initiative = {"key": "TS-140", "fields": {"summary": "[DESLIGA] Iniciativa"}}
+    world.set_card("TS-101", issuetype=EPIC, parent=initiative)
+
+    passing(make_draft("t.md", "edit", key="TS-101", title="[BACK] Épico renomeado"), capsys)
+    assert "an epic title starts with [PREFIX]" in problems(
+        make_draft("u.md", "edit", key="TS-101", title="Sem prefixo"), capsys
+    )
