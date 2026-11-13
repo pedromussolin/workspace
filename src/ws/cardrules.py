@@ -579,7 +579,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         lines.append(f"Épico: {current_parent.get('key') or '(nenhum)'} -> {new_epic['key']}")
     if "title" in values:
         verdict.problems.extend(_summary_problems(values["title"]))
-    if "title" in values or "epic" in values:
+    if "title" in values and level in (1, 2) and not _UPPER_TITLE.match(values["title"]):
+        verdict.problems.append(f"{_LEVELS[level]} title starts with [PREFIX]")
+    if level == 0 and ("title" in values or "epic" in values):
         title = values.get("title", current.get("summary") or "")
         if "epic" in values:
             epic_title = new_epic["title"] if new_epic else None
