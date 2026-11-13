@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -20,7 +20,9 @@ Nothing is written through the Atlassian MCP, ever.
    it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
    The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
    (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
-   colleague; when an id is unknown, `ws card check` says which). Write the title and sections in
+   colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is
+   the user: the tracker makes the creator the reporter, and a `reporter` key is sent only when
+   written (the type's create screen must have the field). Write the title and sections in
    the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
@@ -80,8 +82,8 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `type`, `priority`, `start`, `due`, `epic`, `parent`, `assignee`, `reporter` | optional new description |
+| `create` | `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter` | optional new description |
 | `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
@@ -131,14 +133,14 @@ Trecho do log do erro, sem dado de cliente.
 - O filtro continua aplicado ao voltar para a aba.
 ```
 
-An epic: the title starts with its prefix, only `## Contexto` is required, and `parent` is its
-initiative:
+An epic: the title starts with its prefix and a space, and only `## Contexto` is required. This
+Jira's epic create and edit screens have no `parent`, so leave it out: after the epic is created,
+the user links it to its initiative by hand in the tracker (say so in the answer).
 
 ```text
 +++
 op = "create"
 type = "epic"
-parent = "TS-100"
 priority = "Medium"
 +++
 # [FRONT] Nome do épico
@@ -148,7 +150,9 @@ O sistema ou objetivo que o épico cobre.
 ```
 
 A link: `TS-102` blocks `TS-103` and relates to `TS-104`. Both cards must exist, so a card created
-in the same batch is linked in a later run.
+in the same batch is linked in a later run, and at least one of the two must be writable. A link
+already in Jira is skipped; its opposite, or the same link twice (or both ways) in one batch, is
+refused.
 
 ```text
 +++
@@ -228,7 +232,9 @@ day = 2026-10-28
   result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
   for the title.
 
-Only cards where the user is the assignee or the reporter, in the configured project, are written;
-a refusal for another person's card or another project is final: tell the user to do it by hand.
-When the tracker refuses a type change or an epic's `parent`, the message says to do it by hand
-in the tracker.
+Only cards where the user is the assignee or the reporter, in the configured project, are written
+(a link needs one of its two cards to be writable); a refusal for another person's card or another
+project is final: tell the user to do it by hand. A type change only goes between the five card
+types; changing a card's level (to or from epic or initiative) is done by hand in the tracker. When
+a field is not on the type's create screen or the card's edit screen, the check names it: drop it
+from the draft, or the user sets it by hand in the tracker.

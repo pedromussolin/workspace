@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
 
-FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype"]
+FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype", "assignee"]
 
 PAGE_SIZE = 100
 META_PAGE_SIZE = 200
@@ -62,12 +62,30 @@ class JiraError(Exception):
         self.uncertain = uncertain
 
 
-def my_tasks_jql(since: date) -> str:
+ROLES = ("mine", "following", "all")
+
+_ROLE_JQL = {
+    "mine": "assignee = currentUser()",
+    "following": "reporter = currentUser() AND assignee != currentUser()",
+    "all": "(assignee = currentUser() OR reporter = currentUser())",
+}
+
+
+def role_jql(role: str) -> str:
+    """`mine`: assigned to me; `following`: I asked for it and someone else does it."""
+    return _ROLE_JQL[role]
+
+
+def tasks_jql(since: date, role: str = "mine") -> str:
     return (
-        "assignee = currentUser() AND "
+        f"{role_jql(role)} AND "
         f'(statusCategory != Done OR updated >= "{since.isoformat()}") '
         "ORDER BY updated DESC"
     )
+
+
+def my_tasks_jql(since: date) -> str:
+    return tasks_jql(since, "mine")
 
 
 def _required(source: dict, name: str, where: str):
@@ -100,6 +118,7 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
         "reporter_is_me": reporter.get("accountId") == my_account_id,
         "updated": updated.isoformat(),
         "is_epic": is_epic,
+        "assignee_name": (fields.get("assignee") or {}).get("displayName"),
     }
 
 

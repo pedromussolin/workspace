@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from ws import bootstrap, cardrules, humans, userconfig
+from ws import bootstrap, cardrules, humans, itemrecord, userconfig
 from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
-from ws.config import claude_settings_path, data_dir
+from ws.config import claude_settings_path, data_dir, repo_root
+from ws.itemfile import ItemError
 from ws.jira import JiraClient, JiraError, SiteRefused
 from ws.tracker import UnknownTracker, require_kind
 
@@ -183,7 +184,7 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
     return needed
 
 
-def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
+def session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
     try:
         config = userconfig.load_config()
         require_kind(config.tracker_kind)
@@ -244,7 +245,27 @@ def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
         for item in loaded
     ]
     _batch_link_problems(settings, loaded, verdicts)
+    _item_problems(context.own_dev_id or "", loaded, verdicts)
     return Plan(loaded, verdicts)
+
+
+def _item_problems(own_dev_id: str, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
+    """A create naming an item must match it and be the only create for it: the card key goes
+    back into the item, and a second create would make a duplicate."""
+    creators: dict[str, list[int]] = {}
+    for index, item in enumerate(loaded):
+        values = item.draft.values if item.draft and item.draft.op == "create" else {}
+        if "item" in values:
+            creators.setdefault(values["item"], []).append(index)
+    for rel, indexes in creators.items():
+        for index in indexes:
+            values = loaded[index].draft.values
+            problems = itemrecord.create_problems(repo_root(), values, own_dev_id)
+            if len(indexes) > 1:
+                problems.append(f"two drafts create a card for item {rel}")
+            if problems:
+                verdicts[index].problems.extend(problems)
+                verdicts[index].requests = []
 
 
 def _batch_link_problems(settings, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
@@ -311,7 +332,7 @@ def run_check(argument: str) -> int:
         return 1
 
     def action() -> int:
-        settings, client = _session(_needed_keys([item]))
+        settings, client = session(_needed_keys([item]))
         _ensure_store()
         verdict = build_plan(client, settings, [item]).verdicts[0]
         _print_verdict(verdict)
@@ -352,7 +373,7 @@ def _owned_levels(types: dict[str, str]) -> dict[str, int]:
 
 def run_epics() -> int:
     def action() -> int:
-        settings, client = _session({"project"})
+        settings, client = session({"project"})
         jql = (
             f'assignee = currentUser() AND project = "{settings.project}" '
             "AND statusCategory != Done"
@@ -430,7 +451,7 @@ def _print_problems(plan: Plan) -> None:
 
 
 def _preview(argument: str, loaded: list[Loaded]) -> int:
-    settings, client = _session(_needed_keys(loaded))
+    settings, client = session(_needed_keys(loaded))
     _ensure_store()
     plan = build_plan(client, settings, loaded)
     if not plan.ok:
@@ -592,7 +613,7 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
             file=sys.stderr,
         )
         return 1
-    settings, client = _session(_needed_keys(loaded))
+    settings, client = session(_needed_keys(loaded))
     plan = build_plan(client, settings, loaded)
     if not plan.ok:
         _print_problems(plan)
@@ -668,6 +689,7 @@ def _send_all(settings, client: JiraClient, plan: Plan) -> int:
     site = settings.site.rstrip("/")
     applied: list[str] = []
     applied_paths: list[Path] = []
+    write_back_failed = False
     for index, (item, verdict) in enumerate(zip(plan.loaded, plan.verdicts, strict=True)):
         answer = None
         for sent, request in enumerate(verdict.requests):
@@ -686,13 +708,15 @@ def _send_all(settings, client: JiraClient, plan: Plan) -> int:
                 answer = reply
         applied_paths.append(item.path)
         applied.append(item.path.name)
-        _report_applied(site, item, verdict, answer)
+        created = _report_applied(site, item, verdict, answer)
+        if not _write_back_item(item, created):
+            write_back_failed = True
         try:
             _move_to_done(item.path)
         except OSError as error:
             print(f"Aplicado, mas não consegui mover {item.path.name} para done/: {error}")
     _drop_records_for(applied_paths)
-    return 0
+    return 1 if write_back_failed else 0
 
 
 def _drop_records_for(paths: list[Path]) -> None:
@@ -710,25 +734,61 @@ def _drop_records_for(paths: list[Path]) -> None:
             record.unlink(missing_ok=True)
 
 
-def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
+def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> str | None:
+    """Prints the line of the applied draft; returns the key of the card it created, if any."""
     if item.draft and item.draft.op == "link":
         for line in verdict.preview:
             if not line.endswith(": já existe"):
                 print(f"Vinculado: {line}")
-        return
+        return None
     creating = verdict.request["path"] == "/rest/api/3/issue"
     key = answer.get("key") if creating and isinstance(answer, dict) else None
     key = key or verdict.resolved.get("card", {}).get("key")
     link = f" {site}/browse/{key}" if key else ""
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
     if creating and key:
-        _log_created(item.path.name, key)
+        _log_created(item.path.name, key, verdict.resolved.get("today"))
+    return key if creating else None
 
 
-def _log_created(name: str, key: str) -> None:
-    today = _now().date().isoformat()
-    with _store("created.tsv").open("a", encoding="utf-8") as log:
-        log.write(f"{name}\t{key}\t{today}\n")
+def _write_back_item(item: Loaded, key: str | None) -> bool:
+    """The card is already created: a write-back that fails is reported and recorded, and the
+    rest of the batch goes on. True when there was nothing to write or it was written."""
+    rel = item.draft.values.get("item") if item.draft else None
+    if not rel:
+        return True
+    if not key:
+        print(f"O Jira não devolveu a chave do card; o item {rel} ficou registrado como incerto")
+        _record_item(rel, None)
+        return False
+    try:
+        itemrecord.write_back(repo_root(), rel, key)
+    except (ItemError, OSError) as error:
+        print(
+            f"Card {key} criado, mas o item {rel} não foi atualizado ({error}); "
+            f"rode ws item set-card {rel} {key}"
+        )
+        _record_item(rel, key)
+        return False
+    print(f'Item atualizado: {rel} (card = "{key}")')
+    return True
+
+
+def _record_item(rel: str, ref: str | None) -> None:
+    try:
+        itemrecord.record(rel, ref)
+    except OSError as error:
+        print(f"Não consegui registrar o item {rel} ({error}); confira antes de criar de novo")
+
+
+def _log_created(name: str, key: str, today: str | None) -> None:
+    """`today` is the day in the user's Jira time zone, the one the rules used. The card is
+    already created, so a log that cannot be written never stops the rest of the batch."""
+    try:
+        with _store("created.tsv").open("a", encoding="utf-8") as log:
+            log.write(f"{name}\t{key}\t{today}\n")
+    except OSError as error:
+        print(f"{name} {key} (não registrado em created.tsv: {error})")
 
 
 def _report_failure(
@@ -750,6 +810,10 @@ def _report_failure(
         if verdict.request["path"] == "/rest/api/3/issue":
             title = verdict.request["body"]["fields"]["summary"]
             print(f"Para procurar o card, use esta JQL: {_jql_for(settings.project, title)}")
+            rel = item.draft.values.get("item") if item.draft else None
+            if rel:
+                _record_item(rel, None)
+                print(f"O item {rel} ficou registrado como incerto; veja ws item set-card")
     else:
         print(f"{item.path.name}: o Jira recusou: {error}")
     print(

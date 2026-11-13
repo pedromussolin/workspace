@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from test_card import (
@@ -15,6 +15,7 @@ from test_card import (
     world,  # noqa: F401
 )
 
+from ws import card
 from ws.config import data_dir
 from ws.identity import dev_id
 
@@ -208,6 +209,34 @@ def test_created_cards_are_logged(world, capsys):  # noqa: F811
 
     log = data_dir() / "cards" / "created.tsv"
     assert log.read_text(encoding="utf-8") == "create.md\tTS-200\t2026-10-27\n"
+
+
+def test_created_log_uses_the_day_in_the_jira_time_zone(world, capsys, monkeypatch):  # noqa: F811
+    late_night = datetime(2026, 10, 28, 1, 30, tzinfo=UTC)
+    monkeypatch.setattr(card, "_now", lambda: late_night)
+    path = create_draft()
+    _, code = preview(path, capsys)
+
+    assert approve(path, code) == 0
+
+    log = data_dir() / "cards" / "created.tsv"
+    assert log.read_text(encoding="utf-8") == "create.md\tTS-200\t2026-10-27\n"
+
+
+def test_a_created_log_that_cannot_be_written_does_not_stop_the_batch(world, capsys):  # noqa: F811
+    drafts = data_dir() / "cards" / "drafts"
+    create_draft("1-create.md")
+    make_draft("2-comment.md", "comment", "Oi.\n", key="TS-101")
+    (data_dir() / "cards" / "created.tsv").mkdir(parents=True)
+    _, code = preview(drafts, capsys)
+
+    assert approve(drafts, code) == 0
+
+    out = capsys.readouterr().out
+    assert "1-create.md TS-200 (não registrado em created.tsv: " in out
+    assert world.requests_to("POST", "/rest/api/3/issue/TS-101/comment")
+    done = data_dir() / "cards" / "done"
+    assert sorted(item.name for item in done.iterdir()) == ["1-create.md", "2-comment.md"]
 
 
 def test_create_reporter_missing_from_the_screen_is_refused(world, capsys):  # noqa: F811

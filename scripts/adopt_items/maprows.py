@@ -17,6 +17,7 @@ TYPE_NEUTRAL = {
     "Epic": "epic",
     "Iniciativa": "initiative",
 }
+SUPPORT_FILES = ("docs.tsv", "adopt-pending.tsv")
 PROJECT_DIR = {"whitelabel": "whitelabel-restructure"}
 EPIC_ALIAS = {"VM TELAS": "novo-E1"}
 
@@ -64,6 +65,7 @@ class Row:
     scope: str
     heading: str
     done_when: str
+    title: str = ""
 
 
 def parse_links(text: str) -> tuple[Link, ...]:
@@ -126,12 +128,15 @@ def _row(stem: str, number: int, cells: dict[str, str | None]) -> Row:
         scope=_cell(cells.get("scope")) or "",
         heading=_PREFIX.sub("", (cells.get("title") or "").strip()),
         done_when=_cell(cells.get("done_when")) or "",
+        title=(cells.get("title") or "").strip(),
     )
 
 
 def load_rows(map_dir: Path) -> list[Row]:
     rows = []
     for path in sorted(map_dir.glob("*.tsv")):
+        if path.name in SUPPORT_FILES:
+            continue
         with path.open(encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle, delimiter="\t", quoting=csv.QUOTE_NONE)
             for record in reader:

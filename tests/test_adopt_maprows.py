@@ -179,3 +179,18 @@ def test_check_rows_ignores_epico_rows():
 def test_epic_and_initiative_rows_are_not_checked_as_items(kind, tmp_path):
     write(tmp_path, "a.tsv", line(type=kind, assignee="-"))
     assert maprows.check_rows(maprows.load_rows(tmp_path), {}) == []
+
+
+def test_row_keeps_the_raw_title_for_the_prefix_rule(tmp_path):
+    write(tmp_path, "a.tsv", line(title="[FRONT] Estrutura base"))
+    (only,) = maprows.load_rows(tmp_path)
+    assert only.title == "[FRONT] Estrutura base"
+
+
+def test_load_rows_skips_the_docs_and_pending_files(tmp_path):
+    write(tmp_path, "a.tsv", line())
+    (tmp_path / "docs.tsv").write_text("project\tfile\tcard\np\t01-a.md\tTS-1\n")
+    (tmp_path / "adopt-pending.tsv").write_text(
+        "item\tplaceholder\nprojects/p/tasks/01-a.md\tnovo-E1\n"
+    )
+    assert [r.source for r in maprows.load_rows(tmp_path)] == ["a.tsv"]
