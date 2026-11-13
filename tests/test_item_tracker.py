@@ -419,3 +419,27 @@ def test_check_one_project_knows_the_items_of_the_others(item_repo, tracker, cap
 
     assert code == 0
     assert report["drift"] == [] and report["orphans"] == []
+
+
+@pytest.mark.parametrize("status", [Status.DONE, Status.CANCELLED])
+def test_closed_card_keeps_its_type(item_repo, tracker, capsys, status):  # noqa: F811
+    write_item(item_repo, "01-a.md", FRONT)
+    tracker(make_card("TS-5", type="bug", parent="TS-111", status=status))
+
+    code, report, _ = check(capsys)
+
+    assert code == 0
+    assert [d["field"] for d in report["drift"]] == ["epic"]
+    _, result, _ = run(capsys, "drafts")
+    edit = parse_draft((Path(result["folder"]) / "edit-TS-5.md").read_bytes())
+    assert edit.values == {"key": "TS-5", "epic": "TS-100"}
+
+
+def test_closed_card_of_another_type_alone_gives_no_draft(item_repo, tracker, capsys):  # noqa: F811
+    write_item(item_repo, "01-a.md", FRONT)
+    tracker(make_card("TS-5", type="bug", status=Status.DONE))
+
+    code, report, _ = check(capsys)
+    assert (code, report["drift"]) == (0, [])
+    _, result, _ = run(capsys, "drafts")
+    assert result["count"] == 0 and draft_files() == []

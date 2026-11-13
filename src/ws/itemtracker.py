@@ -20,10 +20,12 @@ from ws.items import (
     project_slugs,
     rel,
 )
+from ws.taskmodel import Status
 from ws.tracker.port import Card, CardQuery, People, Tracker
 from ws.tracker.vocab import LINK_KINDS, required_sections
 
 DEFAULT_PRIORITY = "Medium"
+_CLOSED = (Status.DONE, Status.CANCELLED)
 _INVERSE = {"blocks": "blocked_by", "blocked_by": "blocks", "relates": "relates"}
 _FIELDS = ("type", "epic", "assignee", "reporter")
 _CAPABILITY = {"type": "change_type", "reporter": "set_reporter"}
@@ -82,9 +84,10 @@ def _person_value(people: People, account: str | None) -> str | None:
 
 
 def _drift(path: str, item: Item, card: Card, tracker: Tracker, people: People) -> list[dict]:
+    """A closed card keeps its type (spec decision 9), so its type is never drift."""
     found = []
     for name in _FIELDS:
-        if name not in item.front:
+        if name not in item.front or (name == "type" and card.status in _CLOSED):
             continue
         wanted = item.front[name]
         if name in ("assignee", "reporter"):
