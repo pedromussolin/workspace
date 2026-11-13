@@ -1,4 +1,7 @@
-"""`ws item`: the offline commands on the items of the planning projects."""
+"""`ws item`: the commands on the items of the planning projects.
+
+`new`, `check`, `table` and `set-card` work offline; `check --tracker`, `drafts`, `pull` and
+`sync` read the tracker, and none of them writes to it."""
 
 import argparse
 import json
@@ -35,7 +38,9 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     new.add_argument("--slug", help="file name after the number (default: the folded heading)")
     new.set_defaults(handler=_cmd_new)
 
-    check = commands.add_parser("check", help="Check the items of the projects offline.")
+    check = commands.add_parser(
+        "check", help="Check the items of the projects (offline unless --tracker)."
+    )
     check.add_argument("projects", nargs="*")
     check.add_argument("--tracker", action="store_true", help="also compare with the tracker")
     check.set_defaults(handler=_cmd_check)

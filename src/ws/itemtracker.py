@@ -12,7 +12,6 @@ from ws import itemrecord
 from ws.card import drafts_folder
 from ws.itemfile import Item, ItemError
 from ws.items import (
-    PeopleDirectory,
     Project,
     check_offline,
     link_ref,
@@ -191,8 +190,7 @@ def _undeclared(reader: _Reader, project: Project, item: Item, path: str, card: 
 
 
 def compare(projects: list[Project], root: Path, tracker: Tracker, people: People) -> Report:
-    directory: PeopleDirectory = people
-    report = Report(problems=check_offline(projects, root, directory))
+    report = Report(problems=check_offline(projects, root, people))
     bad = {p["path"] for p in report.problems}
     chosen = {project.slug for project in projects}
     everyone = projects + [
