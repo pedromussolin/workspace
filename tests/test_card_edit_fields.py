@@ -1,6 +1,7 @@
 import json
 
 from test_card import (
+    SPRINT_FIELD,
     _fields,
     approve,
     claude_settings,  # noqa: F401
@@ -185,3 +186,49 @@ def test_edit_title_of_an_epic_needs_its_own_prefix_not_the_initiatives(world, c
     assert "an epic title starts with [PREFIX]" in problems(
         make_draft("u.md", "edit", key="TS-101", title="Sem prefixo"), capsys
     )
+
+
+def test_edit_sprint_active_sends_the_id_and_shows_the_change(world, capsys):  # noqa: F811
+    world.set_card("TS-101", fields={SPRINT_FIELD: [{"id": 50, "name": "Sprint 50"}]})
+    path = make_draft("t.md", "edit", key="TS-101", sprint="active")
+
+    out, code = preview(path, capsys)
+    assert "Sprint: Sprint 50 -> Sprint 55" in out
+    assert approve(path, code) == 0
+    body = world.requests_to("PUT", "/rest/api/3/issue/TS-101")[-1]["body"]
+    assert body["fields"] == {SPRINT_FIELD: 55}
+
+
+def test_edit_sprint_of_a_card_without_one_shows_none(world, capsys):  # noqa: F811
+    world.set_card("TS-101")
+    out, _ = preview(make_draft("t.md", "edit", key="TS-101", sprint="active"), capsys)
+    assert "Sprint: (nenhuma) -> Sprint 55" in out
+
+
+def test_edit_sprint_already_in_the_active_sprint_changes_nothing(world, capsys):  # noqa: F811
+    world.set_card("TS-101", fields={SPRINT_FIELD: [{"id": 55, "name": "Sprint 55"}]})
+    path = make_draft("t.md", "edit", key="TS-101", sprint="active")
+
+    assert "the draft changes nothing on the card" in problems(path, capsys)
+
+
+def test_edit_sprint_needs_exactly_one_active_sprint(world, capsys):  # noqa: F811
+    world.set_card("TS-101")
+    path = make_draft("t.md", "edit", key="TS-101", sprint="active")
+    world.set_sprints([])
+    assert "exactly one active sprint, found 0" in problems(path, capsys)
+    world.set_sprints([{"id": 1, "name": "A"}, {"id": 2, "name": "B"}])
+    assert "exactly one active sprint, found 2" in problems(path, capsys)
+
+
+def test_edit_sprint_other_than_active_is_refused(world, capsys):  # noqa: F811
+    path = make_draft("t.md", "edit", key="TS-101", sprint="Sprint 55")
+    assert 'sprint must be "active"' in problems(path, capsys)
+
+
+def test_edit_sprint_missing_from_the_edit_screen_is_refused(world, capsys):  # noqa: F811
+    world.set_card("TS-101")
+    world.set_edit_screen("TS-101", without=(SPRINT_FIELD,))
+    path = make_draft("t.md", "edit", key="TS-101", sprint="active")
+
+    assert f"the edit screen of TS-101 has no {SPRINT_FIELD}" in problems(path, capsys)

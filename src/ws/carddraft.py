@@ -31,6 +31,7 @@ OPTIONAL = {
         "assignee",
         "reporter",
         "parent",
+        "sprint",
     },
     "move": set(),
     "comment": set(),

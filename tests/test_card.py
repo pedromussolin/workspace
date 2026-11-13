@@ -43,7 +43,7 @@ TYPE_IDS = ("3", "4", "5", "6", "7", "8", "9")
 CREATE_FIELDS = ("summary", "description", "assignee", "reporter", "parent", "duedate")
 CREATE_FIELDS += (SPRINT_FIELD,)
 EDIT_FIELDS = ("summary", "description", "priority", "duedate", START_FIELD, "assignee")
-EDIT_FIELDS += ("reporter", "parent")
+EDIT_FIELDS += ("reporter", "parent", SPRINT_FIELD)
 
 
 def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate", **extra):
