@@ -86,7 +86,7 @@ Facts of the Jira site, read on 2026-11-13 (REST, read only):
 | `initiative`, `epic`, `card` (levels 2, 1, 0) | iniciativa, épico, card | hierarchy levels |
 | `task`, `bug`, `hotfix`, `improvement`, `feature` | Tarefa, Bug, HotFix, Melhoria, Nova função | issue type ids from `[jira.types]` |
 | `blocks`, `blocked_by`, `relates` | bloqueia, é bloqueado por, relaciona | link type names from `[jira.links]` |
-| `assignee`, `reporter` | responsável, relator | accountIds from `[people.<alias>]` |
+| `assignee`, `reporter` | responsável, relator | accountIds from `[people."dev-…"]` |
 | statuses of `ws.taskmodel.Status` | a fazer, em andamento... | `status_overrides`, as today |
 | `card` (an item field) | card | the issue key |
 
@@ -122,9 +122,9 @@ Neutral words only. What can be checked in code is also in `ws card check` and `
    **[code: only these]**.
 5. **Findings during a task** become a proposed card for the next sprint, not scope of the current
    card, unless the user says to include it.
-6. **People.** Assignee = who develops. Reporter = who writes and follows. Because the repo is shared with another developer,
-   items name people by explicit alias, never `me`; only a local card draft may say `me` (the
-   user who runs `ws`) **[code]**.
+6. **People.** Assignee = who develops. Reporter = who writes and follows. Because the repo is
+   shared with another developer, items name people by dev id (below), never `me`; only a local
+   card draft may say `me` (the user who runs `ws`) **[code]**.
 7. **Text.** Title `[PREFIX] text` with the epic's prefix **[code]**. Card text talks only about the
    task, never about the user, the AI or the conversation. Sections by type **[code]**:
 
@@ -168,8 +168,8 @@ synced = 2026-11-13
 
 - **Contract fields** (top level), written by people and the model, sent to the tracker by `/card`:
   `card` (absent until the card exists; written back by `ws card apply`); `type`; `epic` (one of
-  the project's epics); `assignee` and `reporter` (explicit aliases; `me` is refused in an item, since it would mean
-  whoever runs `ws`); `blocks`, `blocked_by`,
+  the project's epics); `assignee` and `reporter` (dev ids; `me` is refused in an item, since it
+  would mean whoever runs `ws`); `blocks`, `blocked_by`,
   `relates` (card refs or item paths relative to the project; a path resolves to that item's
   `card`; a link to an item with no card yet waits); `docs` (paths relative to `tasks/`, each must
   exist); `tracker = false` for a task that never has a card (personal tooling, a done task kept as
@@ -214,13 +214,27 @@ initiative = "10136"
 blocks = "Blocks"
 relates = "Relates"
 
-[people.ana]                  # alias used in items: pick the person's analog (secret check)
+[identity]
+email = "..."                 # the user's work e-mail; absent = [jira] email
+
+[people."dev-3f9a2c7b1e"]     # another developer, by dev id
 jira = "712020:..."           # this person's id in each tracker
+label = "ana"                 # optional, shown only in the terminal; never written to the repo
 ```
 
-`me` is built in for card drafts (local) and refused in items. Every developer who shares the
-repo uses the same aliases, each config with that developer's own ids. An alias missing from the config, or without an id for the configured tracker,
-fails the check. Without `[jira.types]`, `ws card` exits 2 and prints the block to paste.
+**Dev ids.** A person is represented in the repo by a dev id: `dev-` followed by the first 10 hex
+characters of the SHA-256 of the work e-mail, trimmed and lowercased. Every developer computes the
+same id for the same person with nothing to agree on; the repo holds no name, no analog and no
+e-mail. `ws people me` prints the user's own id (from `[identity] email`). `ws people add EMAIL
+[--account ID]` computes the id, finds the person's account in the tracker by e-mail (`--account`
+when the tracker hides e-mails) and prints the `[people."dev-…"]` block to paste; the e-mail is not
+stored. The user's own id needs no `[people]` entry: the tracker says who the user is. In the
+terminal, `ws` shows the tracker's display name (or `label`) next to a dev id; in the repo, only
+the id.
+
+`me` is accepted in card drafts (local) and refused in items. A dev id missing from the config,
+or without an id for the configured tracker, fails the check with the `ws people add` hint.
+Without `[jira.types]`, `ws card` exits 2 and prints the block to paste.
 `ws tracker discover` (read only) prints the types and link types of the configured project in this
 format, so nothing is typed by hand.
 
@@ -253,7 +267,7 @@ the tracker. `ws task list` keeps `mine` = assignee only (the daily does not cha
 ## `ws card` changes
 
 - **`create`** gains `type` (required; the five types plus `epic` and `initiative`), `assignee` and
-  `reporter` (aliases, default `me`), `sprint` (optional: absent = none; `"active"` = the board's
+  `reporter` (`me` or dev ids, default `me`), `sprint` (optional: absent = none; `"active"` = the board's
   active sprint with today's checks; replaces the 2026-10-27 "every card is born with a sprint"),
   `due` optional when there is no sprint, and `item` (the item's path in the repo). An epic:
   title must start with `[PREFIX] `, only `## Contexto` required; its initiative is set by hand
@@ -280,7 +294,7 @@ All read the items of the given projects (default: every project with a `project
 - **`ws item new <project> --type T --epic K [--assignee A] [--reporter R] --heading "..."`**: writes
   `tasks/NN-<slug>.md` (next free `NN`) with the front matter and the sections of
   `templates/item/<type>.md`.
-- **`ws item check [projects] [--tracker]`**: offline, the schema (unknown keys, types, aliases,
+- **`ws item check [projects] [--tracker]`**: offline, the schema (unknown keys, types, dev ids,
   epic in `project.toml`, documents exist, link paths resolve, `tracker = false` has a status). With
   `--tracker`: the card exists and is in the project; type, parent, assignee and reporter match;
   every link exists; and `orphans`, the writable cards of the project's epics that no item points
@@ -295,10 +309,10 @@ All read the items of the given projects (default: every project with a `project
   into the item.
 - **`ws item sync [projects]`**: rewrites only the `[tracker]` table of each item with a card.
 - **`ws item table <project>`**: rewrites the `README.md` task table between `<!-- ws:items -->` and
-  `<!-- /ws:items -->`: number, heading (link), card, type, assignee alias, cached status.
+  `<!-- /ws:items -->`: number, heading (link), card, type, assignee dev id, cached status.
 
 `ws task list` gains `--role mine|following|all`; `following` = cards where the user is the reporter
-and someone else the assignee, each with its assignee alias.
+and someone else the assignee, each with its assignee's display name.
 
 ## Skills
 
@@ -352,7 +366,7 @@ sync`, `ws item table`, and `ws item check --tracker` must report no problems.
 
 ## Tests (pytest, fake tracker and fake Jira server, no real Jira)
 
-- Items: the fields, unknown keys, aliases, link paths, `tracker = false`, a broken `[tracker]`
+- Items: the fields, unknown keys, dev ids, link paths, `tracker = false`, a broken `[tracker]`
   table; `sync`, `pull` and the write-back keep every other byte.
 - Port: the core runs against the fake adapter; refusals for missing capabilities.
 - Jira adapter: types by id; sprint absent and `"active"`; due optional only without sprint; epic

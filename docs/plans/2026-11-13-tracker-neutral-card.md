@@ -6,7 +6,7 @@
 or without a sprint, creates epics and initiatives, and adds links, from drafts written in a
 tracker-neutral vocabulary, with the tracker chosen in the config.
 
-**Architecture:** The draft format and the config become neutral (`type = "improvement"`, aliases
+**Architecture:** The draft format and the config become neutral (`type = "improvement"`, dev ids
 for people, `blocks`/`relates`). `[tracker] kind` picks the adapter; today only `jira`, whose
 engine stays in `card.py`, `cardrules.py` and `jira.py` (they are the Jira adapter; their module
 docstrings say so). A new package `ws.tracker` holds the neutral vocabulary and the kind check.
@@ -49,8 +49,9 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
    by check, not sent.
 2. A link whose opposite already exists (draft "TS-1 blocks TS-2", Jira has "TS-1 is blocked by
    TS-2"): refused as contradictory, not created and not reported as "já existe".
-3. An alias in a draft that is missing from `[people]`, or present without a `jira` id: a clear
-   problem naming the alias; `me` cannot be redefined in `[people]`.
+3. A dev id in a draft that is missing from `[people]`, or present without a `jira` id: a clear
+   problem naming the id and the `ws people add` hint; an e-mail with spaces or capitals gives
+   the same id as its trimmed lowercase form.
 4. A type change to a type the card's edit screen does not allow, or an epic `parent` the screen
    does not accept: refused at check with the "à mão" instruction, never a Jira 400 at apply.
 5. `sprint` with any value other than `"active"`: refused; a draft with `sprint = "active"` and no
@@ -61,7 +62,9 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
 ### Task 1: Tracker config: kind, types, links and people
 
 **Files:**
-- Create: `src/ws/tracker/__init__.py`, `src/ws/tracker/vocab.py`
+- Create: `src/ws/tracker/__init__.py`, `src/ws/tracker/vocab.py`, `src/ws/identity.py`
+  (`def dev_id(email: str) -> str`: `"dev-"` + the first 10 hex characters of the SHA-256 of the
+  trimmed, lowercased e-mail)
 - Modify: `src/ws/userconfig.py` (`JiraConfig`, `UserConfig`, `load_config`), `src/ws/card.py:166-207`
   (`_needed_keys`, `_session`), `README.md` (section "Local config", the `[jira]` block)
 - Test: `tests/test_userconfig.py`, `tests/test_card.py` (fixture `world`)
@@ -76,7 +79,8 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
   `def require_kind(kind: str) -> None` (raises `UnknownTracker` with
   `"tracker {kind!r} has no adapter yet; known: jira"`).
 - Produces, in `ws.userconfig`:
-  - `@dataclass(frozen=True) class Person: alias: str; ids: dict[str, str]`;
+  - `@dataclass(frozen=True) class Person: dev_id: str; ids: dict[str, str]; label: str | None`;
+  - `UserConfig` gains `identity_email: str` (`[identity] email`; absent = `[jira] email`);
   - `JiraConfig` loses `issue_type`, gains `types: dict[str, str]` (neutral type → issue type id)
     and `links: dict[str, str]` (`blocks`, `relates` → link type name), both default `{}`;
   - `UserConfig` gains `tracker_kind: str` (from `[tracker] kind`; absent = `"jira"`) and
@@ -91,10 +95,14 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
     `links == {"blocks": "Blocks"}`);
   - `test_jira_types_refuse_unknown_neutral_names` (`[jira.types] story = "1"` →
     `ConfigInvalid` naming `story`); same for `[jira.links] duplicates = "Duplicate"`;
-  - `test_people_are_read` (`[people.ana] jira = "acc-ana"` →
-    `Person("ana", {"jira": "acc-ana"})`; any key other than tracker kinds → `ConfigInvalid`);
-  - `test_people_refuse_me_and_bad_alias` (`[people.me]` → `ConfigInvalid`; alias `"Ana"` or
-    `"a b"` → `ConfigInvalid`; aliases match `^[a-z][a-z0-9-]*$`);
+  - `test_people_are_read` (`[people."dev-0123456789"] jira = "acc-ana"`, `label = "ana"` →
+    `Person("dev-0123456789", {"jira": "acc-ana"}, "ana")`; a key other than tracker kinds
+    and `label` → `ConfigInvalid`);
+  - `test_dev_id_is_the_hash_of_the_trimmed_lowercase_email` (`dev_id(" Ana@Example.com ")`
+    `== dev_id("ana@example.com") == "dev-" + sha256(b"ana@example.com").hexdigest()[:10]`);
+  - `test_identity_email_falls_back_to_jira_email`;
+  - `test_people_refuse_keys_that_are_not_dev_ids` (`[people.ana]`, `[people.me]`,
+    `[people."dev-XYZ"]` → `ConfigInvalid`; keys match `^dev-[0-9a-f]{10}$`);
   - `test_issue_type_key_is_refused_with_the_new_block` (`[jira] issue_type = "Tarefa"` →
     `ConfigInvalid` whose message contains `[jira.types]`).
 - [ ] **Step 2: Run** `uv run pytest tests/test_userconfig.py -q` — expected: the new tests FAIL.
@@ -106,25 +114,37 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
   error is a `SetupNeeded` (exit 2). The `world` fixture in `tests/test_card.py` writes
   `[jira.types]` (`task = "3"`, `bug = "4"`, `hotfix = "5"`, `improvement = "6"`, `feature = "7"`,
   `epic = "8"`, `initiative = "9"`), `[jira.links]` (`blocks = "Blocks"`, `relates = "Relates"`)
-  and `[people.ana] jira = "acc-ana"`, and drops `issue_type`.
+  and `[people."<dev_id('ana@example.com')>"] jira = "acc-ana"`, and drops `issue_type`.
 - [ ] **Step 5: Update `README.md`** "Local config": the new tables, with the example of the spec's
   "The config" section (fake ids are fine), and the line on `[tracker] kind`.
 - [ ] **Step 6: Run** `uv run pytest -q` — expected: every test passes except the create tests
   that send `"issuetype": {"name": ...}` (fixed in Task 4); note which ones fail.
 - [ ] **Step 7: Commit** `feat: config do tracker com tipos, vínculos e pessoas`.
 
-### Task 2: `ws tracker discover`
+### Task 2: Config helpers: `ws tracker discover` and `ws people`
 
 **Files:**
 - Create: `src/ws/tracker/jira_discover.py`
-- Modify: `src/ws/cli.py` (new `tracker` command group with `discover`), `src/ws/jira.py`
-  (`JiraClient.issue_types(project) -> list[dict]`, `JiraClient.link_types() -> list[dict]`)
-- Test: `tests/test_tracker_discover.py`
+- Modify: `src/ws/cli.py` (new `tracker` group with `discover`; new `people` group with `me` and
+  `add`), `src/ws/jira.py` (`JiraClient.issue_types(project) -> list[dict]`,
+  `JiraClient.link_types() -> list[dict]`, `JiraClient.user_search(query: str) -> list[dict]`,
+  `GET /rest/api/3/user/search?query=`)
+- Test: `tests/test_tracker_discover.py`, `tests/test_people_cli.py`
 
 **Interfaces:**
 - Produces: `def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str`; CLI
-  `ws tracker discover` (read only, exit 0; 2 on setup; 3 when Jira refuses).
-- Consumes: `ws.tracker.vocab`, `userconfig.load_config`.
+  `ws tracker discover` (read only, exit 0; 2 on setup; 3 when Jira refuses);
+  `def people_block(dev_id: str, kind: str, account: str) -> str` (the `[people."dev-…"]` TOML,
+  never the e-mail); CLI `ws people me` (prints the user's dev id) and
+  `ws people add EMAIL [--account ID]` (read only; prints the block; exit 1 when the search finds
+  zero or several accounts, naming `--account`).
+- Consumes: `ws.tracker.vocab`, `ws.identity.dev_id`, `userconfig.load_config`.
+
+Tests for `ws people` (in `tests/test_people_cli.py`): `test_people_me_prints_the_users_dev_id`;
+`test_people_add_finds_the_account_by_email` (fake search returns one user `acc-ana` → stdout is
+`[people."<dev_id('ana@example.com')>"]` and `jira = "acc-ana"`, and does not contain the e-mail);
+`test_people_add_with_account_skips_the_search` (no request to `/rest/api/3/user/search`);
+`test_people_add_refuses_zero_or_several_matches`.
 
 - [ ] **Step 1: Write the failing tests**:
   - `test_discover_maps_known_names` — types `[{"id": "10002", "name": "Tarefa"}, {"id": "10010", "name": "Melhoria"}, {"id": "10136", "name": "Iniciativa"}, {"id": "10001", "name": "História"}]`
@@ -135,13 +155,15 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
   - `test_discover_cli_reads_the_project` (fake Jira routes
     `GET /rest/api/3/issue/createmeta/TS/issuetypes` and `GET /rest/api/3/issueLinkType`; exit 0;
     stdout starts with `[jira.types]`).
-- [ ] **Step 2: Run** `uv run pytest tests/test_tracker_discover.py -q` — expected: FAIL.
+  - the four `ws people` tests above.
+- [ ] **Step 2: Run** `uv run pytest tests/test_tracker_discover.py tests/test_people_cli.py -q` —
+  expected: FAIL.
 - [ ] **Step 3: Implement.** Name → neutral table (case and accents folded with
   `cardrules.fold`): Tarefa/Task → task, Bug → bug, HotFix → hotfix, Melhoria/Improvement →
   improvement, Nova função/New Feature → feature, Epic/Épico → epic, Iniciativa/Initiative →
   initiative; link names Blocks → blocks, Relates → relates.
 - [ ] **Step 4: Run** the tests — expected: PASS.
-- [ ] **Step 5: Commit** `feat: ws tracker discover imprime tipos e vínculos`.
+- [ ] **Step 5: Commit** `feat: ws tracker discover e ws people para a config`.
 
 ### Task 3: Draft format: neutral keys and the `link` op
 
@@ -197,9 +219,11 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
     today's plus `reporter`, `issuetype`, `issuelinks`; problem
     `card {key} is not yours: you are neither its assignee nor its reporter`);
     used by `_edit`, `_move`, `_comment`, `_worklog`, `_link`;
-  - `Context.person(alias: str, verdict: Verdict) -> str | None` (accountId; `me` → the user;
-    problems `unknown person {alias!r}: add [people.{alias}] to config.toml` and
-    `person {alias!r} has no jira id`);
+  - `Context.person(ref: str, verdict: Verdict) -> str | None` (accountId; `me` → the user, and
+    so is the user's own dev id; problems
+    `unknown person {ref!r}: run ws people add <e-mail> and paste the block into config.toml` and
+    `person {ref!r} has no jira id`); the preview shows the tracker's display name
+    (`GET /rest/api/3/user?accountId=`), or `label`, or the id;
   - `_section_problems(text: str, type_: str) -> list[str]` using `vocab.required_sections`;
   - `~/.local/share/workspace/cards/created.tsv`: one line per created card,
     `<draft file name>\t<key>\t<YYYY-MM-DD>`, appended by `_report_applied` (plan 3 and the links
@@ -212,10 +236,11 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
     the problem text above), the same two for `move` and `comment` (parametrize);
   - create: `test_create_sends_the_type_id` (`type = "improvement"` → request body
     `"issuetype": {"id": "6"}`; preview line `Tipo: Melhoria`);
-    `test_create_assignee_and_reporter_from_aliases` (`assignee = "ana"` → `{"accountId": "acc-ana"}`,
+    `test_create_assignee_and_reporter_from_dev_ids` (`assignee = "<ana's dev id>"` →
+    `{"accountId": "acc-ana"}`,
     reporter default → `acc-me`; preview `Responsável: ana` and `Relator: Dev Example`);
-    `test_create_unknown_alias_is_a_problem`; `test_create_alias_without_jira_id_is_a_problem`
-    (`[people.bia]` with only `github = "bia"` → `person 'bia' has no jira id`);
+    `test_create_unknown_dev_id_is_a_problem`; `test_create_dev_id_without_jira_id_is_a_problem`
+    (a `[people."dev-…"]` with only `github = "bia"` → `has no jira id`);
     `test_create_without_sprint_sends_no_sprint_and_reads_no_board` (no request to
     `/rest/agile/1.0/board/7/sprint`; no `customfield_10020` in the body; preview
     `Sprint: (nenhuma)`); `test_create_with_sprint_active_keeps_todays_rules` (the existing sprint
@@ -279,7 +304,7 @@ of a card", "The config", "Whose cards `ws` writes", "`ws card` changes").
     `Tipo: Tarefa -> Melhoria`);
   - `test_edit_type_not_allowed_by_the_screen_is_refused` (editmeta without id `6` → problem
     `the card's edit screen does not allow type improvement: change it with the tracker's move, by hand`);
-  - `test_edit_assignee_and_reporter` (aliases → accountIds; `before` keeps the old accountIds;
+  - `test_edit_assignee_and_reporter` (dev ids → accountIds; `before` keeps the old accountIds;
     preview `Responsável: Dev Example -> ana`);
   - `test_edit_parent_of_an_epic_refused_when_editmeta_lacks_it` (the "à mão" message);
   - `test_edit_same_type_changes_nothing` (the existing "changes nothing" problem).
@@ -366,7 +391,7 @@ Direction (Jira): for `A blocks B` send
   the draft table gains `type`, `assignee`, `reporter`, `sprint`, `parent` and the `link` op, with
   one example each for a `bug` create for another person, an epic create and a `link`; Step 1
   ("Understand the request") reads `references/card-rules.md` to choose the type and the sections;
-  no sprint unless the user asks (`sprint = "active"`); people by alias (`ws` says which aliases
+  no sprint unless the user asks (`sprint = "active"`); people by `me` or dev id (`ws` says which ids
   exist when one is unknown); the tracker's name is never written in the skill's text except in
   the Jira-only notes that exist today. Keep it under 500 lines.
 - [ ] **Step 3: Fix the spec** in the same commit: the rules file lives in
@@ -383,8 +408,8 @@ Direction (Jira): for `A blocks B` send
 Before Monday's planning, with plan 1 in `main`:
 
 1. `ws tracker discover >> ~/.config/workspace/config.toml` after reading it (the user runs it, or
-   reviews the diff); add `[people.<alias>]` for the other developer (the same alias in both
-   developers' configs). Change by hand, in Jira, the reporter of the four cards the other
+   reviews the diff); run `ws people add <the other developer's e-mail>` and paste the block (both
+   developers get the same dev id). Change by hand, in Jira, the reporter of the four cards the other
    developer reported (TS-5379, TS-5466, TS-5467, TS-5468).
 2. A one-off script in the session's scratchpad turns the reviewed map
    (`~/.local/share/workspace/projects/workspace/board-map/*.tsv`) into drafts, one folder per
