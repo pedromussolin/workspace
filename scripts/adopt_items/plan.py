@@ -31,6 +31,7 @@ _CLOSED = ("done", "cancelled")
 _BRACKET = re.compile(r"^\[([^\]]+)\]")
 _NN = re.compile(r"^(\d+)-")
 _TS_IN_NAME = re.compile(r"ts-(\d+)")
+_TS_PART = re.compile(r"(?:^|-)ts-\d+(?=-|$)")
 _REAL_CARD = re.compile(r"TS-\d+")
 _LINK_KINDS = ("blocks", "blocked_by", "relates")
 
@@ -351,7 +352,8 @@ class _Planner:
             stem = _NN.sub("", r.file.removeprefix("tasks/").removesuffix(".md"))
             base = _slugify(stem)
             if _REAL_CARD.fullmatch(r.card):
-                base = f"{r.card.lower()}-{base}"
+                base = _TS_PART.sub("", base).strip("-")
+                base = f"{r.card.lower()}-{base}" if base else r.card.lower()
         elif _REAL_CARD.fullmatch(r.card):
             base = r.card.lower()
         else:

@@ -345,3 +345,21 @@ def test_one_card_row_and_sem_card_rows_on_a_file_make_that_cards_item(tmp_path)
     reason = "sem-card row of a file that is another card's item"
     assert [(r.line, why) for r, why in plan.skipped] == [(2, reason), (4, reason)]
     assert plan.documents == {}
+
+
+def test_a_ts_token_of_the_file_name_is_not_repeated_in_the_slug(tmp_path):
+    repo = make_repo(tmp_path, p=["50-plan-ts-5582.md", "51-ts-5600.md", "52-ts-5600-a-ts-5601.md"])
+    rows = [
+        row(card="TS-5582", file="tasks/50-plan-ts-5582.md"),
+        row(card="TS-5596", file="tasks/50-plan-ts-5582.md", line=3),
+        row(card="TS-5600", file="tasks/51-ts-5600.md", line=4),
+        row(card="TS-5601", file="tasks/51-ts-5600.md", line=5),
+        row(card="TS-5602", file="tasks/52-ts-5600-a-ts-5601.md", line=6),
+        row(card="TS-5603", file="tasks/52-ts-5600-a-ts-5601.md", line=7),
+        row(card="novo-a-8", action="criar", file="tasks/50-plan-ts-5582.md", line=8),
+    ]
+    items = build_plan(rows, repo, PEOPLE, []).items
+    assert [i.slug for i in items] == [
+        "ts-5582-plan", "ts-5596-plan", "ts-5600", "ts-5601", "ts-5602-a", "ts-5603-a",
+        "plan-ts-5582",
+    ]  # fmt: skip
