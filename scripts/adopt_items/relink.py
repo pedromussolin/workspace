@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 
 OLD_SLUG = "operations-screens-migration"
 NEW_SLUG = "vm-migration"
+ROOT_FILES = ("README.md", "CLAUDE.md")
 
 _INLINE_LINK = re.compile(r'(!?\[[^\]]*\]\()(<[^>\n]*>|[^)\s]+)((?:\s+"[^"]*")?\s*\))')
 _REF_LINK = re.compile(r"^(\s{0,3}\[[^\]]+\]:\s*)(\S+)")
@@ -118,7 +119,7 @@ def markdown_files(repo: Path) -> list[Path]:
         if not name:
             continue
         in_projects = name.startswith("projects/") and name.endswith((".md", ".toml", ".tsv"))
-        if in_projects or name in ("README.md", "CLAUDE.md"):
+        if in_projects or name in ROOT_FILES:
             files.append(repo / name)
     return sorted(files)
 

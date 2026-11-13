@@ -1,6 +1,7 @@
 """Executor of the items conversion: runs a `Plan` against a repo, step by step."""
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -14,7 +15,7 @@ from .frontmatter import (
     replace_front_matter,
 )
 from .plan import NEW_PROJECT, OLD_PROJECT, Item, Plan, dropped_lines
-from .relink import affected_files, new_path, rename_slug, rewrite_links
+from .relink import ROOT_FILES, affected_files, new_path, rename_slug, rewrite_links
 
 MARKER_START = "<!-- ws:items -->"
 MARKER_END = "<!-- /ws:items -->"
@@ -93,9 +94,15 @@ class SubprocessRunner:
 
 
 def revert_command(repo: Path) -> str:
+    """Undoes an apply: `projects/` and the tracked root files a link rewrite may change."""
+    listed = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "--", *ROOT_FILES], capture_output=True, text=True
+    ).stdout.splitlines()
+    paths = " ".join(["projects", *(name for name in ROOT_FILES if name in listed)])
+    where = shlex.quote(str(repo))
     return (
-        f"git -C {repo} restore --source=HEAD --staged --worktree projects"
-        f" && git -C {repo} clean -fd projects"
+        f"git -C {where} restore --source=HEAD --staged --worktree {paths}"
+        f" && git -C {where} clean -fd projects"
     )
 
 

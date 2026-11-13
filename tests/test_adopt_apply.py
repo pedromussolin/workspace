@@ -1,9 +1,10 @@
+import subprocess
 from pathlib import Path
 
 import pytest
 from adopt_helpers import PEOPLE, FakeRunner, git, make_repo, row, tree_hash
 from adopt_items import apply as apply_mod
-from adopt_items.apply import ApplyError, apply
+from adopt_items.apply import ApplyError, apply, revert_command
 from adopt_items.plan import build_plan
 
 
@@ -237,3 +238,34 @@ def test_a_stale_pending_file_is_removed_when_nothing_is_pending(tmp_path):
     (tmp_path / "map/adopt-pending.tsv").write_text("old\tnovo-E1\n")
     run(tmp_path, repo, [row(file="tasks/01-a.md")])
     assert not (tmp_path / "map/adopt-pending.tsv").exists()
+
+
+class GitRunner(FakeRunner):
+    """FakeRunner that moves with a real `git mv`, as the apply does."""
+
+    def git_mv(self, src: str, dst: str) -> None:
+        self.calls.append(("git_mv", src, dst))
+        (self.repo / dst).parent.mkdir(parents=True, exist_ok=True)
+        git(self.repo, "mv", src, dst)
+
+
+@pytest.mark.parametrize("with_claude_md", [True, False])
+def test_the_revert_command_restores_root_files_the_relink_rewrote(tmp_path, with_claude_md):
+    repo = repo_of(tmp_path, **{"operations-screens-migration": {"01-a.md": "# A\n"}})
+    link = "[a](projects/operations-screens-migration/tasks/01-a.md)\n"
+    (repo / "README.md").write_text(link)
+    if with_claude_md:
+        (repo / "CLAUDE.md").write_text(link)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "root")
+    rows = [row(project="operations-screens-migration", file="tasks/01-a.md")]
+    _, _, lines = run(tmp_path, repo, rows, runner=GitRunner(repo))
+    assert "rewrite README.md" in lines
+    assert (repo / "README.md").read_text() == "[a](projects/vm-migration/tasks/01-a.md)\n"
+    assert ("rewrite CLAUDE.md" in lines) is with_claude_md
+    subprocess.run(revert_command(repo), shell=True, check=True, capture_output=True)
+    status = subprocess.run(
+        ["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True
+    )
+    assert status.stdout == ""
+    assert (repo / "README.md").read_text() == link
