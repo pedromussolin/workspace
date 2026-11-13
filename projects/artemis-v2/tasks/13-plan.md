@@ -31,7 +31,7 @@ Tela de configuração do produto (D30; depois de 5583 e 5569)
 | Card | Plano | Situação | Prazo do card |
 |---|---|---|---|
 | TS-5582 lotes vazios (guardas, BFF e front) | `13-plan-ts-5582.md` | branches enviadas (10/11), falta abrir as PRs; D26 = `descartado` | 10/11 |
-| TS-5620 omnis e lemans_2 sem o Atlas (upload, liquidar e data do lote no portal) | mapeamento em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo) | Liquidar no portal pronto (a cessão confere produto e estado), sem commit. Upload: pipeline do CSV padrão no parser-script, branch enviada (12/11, 4 commits); o shared grava o arquivo no S3 (decisão de 12/11), desenho da rota a aprovar. Data do lote em aberto | a definir |
+| TS-5620 omnis e lemans_2 sem o Atlas (upload, liquidar e data do lote no portal) | mapeamento em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo) | Liquidar no portal pronto (a cessão confere produto e estado), sem commit. Upload: pipeline do CSV padrão no parser-script, branch enviada (12/11, 4 commits); o shared grava o arquivo no S3 (decisão de 12/11), desenho da rota a aprovar (D37). Duplo clique no liquidar: D38. Data do lote em aberto | a definir |
 | TS-5596 limpeza dos vazios antigos | Tarefas 6 a 8 de `13-plan-ts-5582.md` | publicada (11/11): script, simulação, blocos e runbook; falta a revisão da DBA | 18/11 |
 | TS-5583 duas colunas | `13-plan-ts-5583.md` | branch enviada (10/11), 8 commits; acúmulo em qualquer combinação (D36) | 18/11 |
 | TS-5567 acúmulo natural | `13-plan-ts-5567.md` | publicada (11/11): Fase 1, Fase 2 sem migration e remessa (cessão, BFF, front); falta só a Tarefa 24 (automático), na TS-5612 | 18/11 (Fase 1) |

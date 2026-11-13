@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 10/11/2026
+Data: 13/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -10,7 +10,63 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ## Onde parei
 
-### 10/11/2026
+### 11 a 13/11/2026
+
+**Pausa para reorganizar o board (13/11).** A gestão pediu sprints definidas, com escopo fechado. O
+Pietro vai reorganizar o board do Jira a partir da tabela abaixo; até lá, nada novo começa.
+
+**Estado por card da tarefa 13 (13/11).** Detalhe e prazos em `tasks/13-plan.md`. Release única,
+montada só com todos prontos, na ordem das migrations: 5583 → 5569 → 5570 → 5585 → 5567 → 5572.
+
+| Card | Pronto | Falta |
+|---|---|---|
+| TS-5582 lotes vazios | cessão, BFF e front; branches enviadas | PRs na release |
+| TS-5596 limpeza dos vazios antigos | script, simulação, blocos e runbook | revisão da DBA; execução em produção |
+| TS-5583 duas colunas | branch enviada (8 commits) | PR na release |
+| TS-5567 acúmulo natural | Fase 1, Fase 2 sem migration e remessa (cessão, BFF, front) | Tarefa 24 (automático) foi para a TS-5612 |
+| TS-5569 agendamentos em tabela | branch enviada (9 commits, sobre a 5583) | PR depois da 5583 |
+| TS-5584 Excel na shared | branch enviada (8 commits) | snapshot OpenAPI no BFF depois da PR |
+| TS-5570 horário por produto | completa | PR na release |
+| TS-5585 resumo diário e aviso | shared e cessão | horário do job (nasce desligado) |
+| TS-5571 aprovação antes do corte | cessão e front | PR na release |
+| TS-5624 tela de configuração do produto | cessão, BFF e front | validar a tela no navegador |
+| TS-5568 `POST /liquidacao/` no fluxo novo | BFF sem o consolidate | PR; a rota legada sai na TS-5612 |
+| TS-5572 automático no fluxo novo | completa | PR na release |
+| TS-5620 omnis e lemans_2 sem o Atlas | pipeline do CSV no parser-script (enviado); liquidar no portal (cessão, BFF, front, **sem commit**) | ver abaixo |
+| TS-5612 limpeza pós-deploy | lista em `tasks/13-plan.md` | sem sprint até o fluxo novo estabilizar |
+
+**TS-5620 em detalhe.**
+- **Liquidar no portal:** a cessão confere produto e estado em rota nova do `refact.py`; BFF e front
+  usam. Worktrees `ts5620-cessao`, `ts5620-bff` e `ts5620-front`, **sem commit, esperando a revisão
+  do Pietro**. Aberta: trava no Redis contra o duplo clique.
+- **Upload de 1109 e 1373:** o arquivo vai do portal ao S3 de dois clientes novos do parser-script,
+  que publica uma mensagem por linha no RabbitMQ da cessão com o contrato do datawall (a cessão não
+  muda). Parser-script pronto: `feature/TS-5620-liquidacao-csv-padrao`, 4 commits, enviada em 12/11,
+  82 testes. A ordem dos campos do JSON foi provada rodando as mesmas versões do datawall (1.10.1
+  da linguagem e cheshire 5.8.1), para a deduplicação da cessão casar com a do datawall.
+- **Quem grava no S3:** o apl-shared-service (decisão de 12/11). Proposta de 12/11, **a aprovar**:
+  (a) origem nova "arquivo enviado" nos fluxos do `report_transfer` do shared, rota
+  `POST /flows/upload`, BFF repassa pelo `_post_file` do cliente do shared, botão "Subir arquivo" na
+  tela **[recomendo: produto novo vira configuração e o histórico de execuções vem pronto]**; ou
+  (b) módulo novo e simples, destinos fixos em variável de ambiente. **[H]** o histórico de execuções
+  se prende ao id da tarefa agendada; conferir se o upload cabe sem migration. As linhas recusadas
+  pelo parser-script só aparecem no log, não na tela.
+- **No deploy:** dois clientes no argocd do parser-script (bucket, SQS e app); variáveis da conexão
+  S3 do shared no Parameter Store; `CELERY_BROKER_URL` do parser-script apontando para o RabbitMQ da
+  cessão; teste na sandbox com arquivo real de 1109 ou 1373.
+- **Data do lote** no portal: em aberto.
+
+**Tarefa 14 (esteira de baixa que não aguenta lote gigante), sem card.** Desenho da Fase 0 em
+`tasks/14-phase0-design.md` (12/11; só leitura, nada implementado).
+- Decidido: Fase 0 = reentrega segura + arquivo em blocos; teto com 3 rodadas automáticas (15 min,
+  1 h, 4 h; da 2ª em diante numa fila isolada) antes de `errado` (seção 3.1).
+- Abertas: código fora do `refact.py` (decisão 1 do desenho); envio interrompido, com a proposta de
+  consultar a administradora antes de reenviar (decisão 4); ordem do arquivo por `id` (decisão 8).
+- **Achado de 12/11:** a rodada de 4 h usa `countdown`, e o Celery segura a mensagem sem confirmação
+  até a hora. Se o `consumer_timeout` do RabbitMQ de produção estiver ligado (30 min por padrão a
+  partir da 3.8.15), o broker fecha o canal e devolve também as baixas em andamento. Conferir versão e
+  limite antes de implementar; recomendo pedir à operação para aumentar o limite.
+
 
 **TS-5582 em execução (Em andamento no Jira desde 10/11).** D26 = `descartado`; a limpeza dos vazios
 antigos saiu para a **TS-5596** (prazo 18/11); BFF e front entraram no card (aviso de descartado na
@@ -140,7 +196,19 @@ Worktrees em `~/repos/.artemis_v2/worktrees/`. Cópia do trabalho de 03/11 antes
 (patch e árvore final de cada worktree) em `~/repos/.artemis_v2/agentes/backup-20261103/`
 (`arvores.txt` tem a árvore aprovada de cada uma).
 
-| Repo | Branch | Worktree | Situação em 03/11 |
+**Situação em 13/11** (conferida com `git status` em cada worktree):
+- **Enviadas, sem nada local:** `ts5567-{cessao,bff,front}`, `ts5568-bff`, `ts5569-cessao`,
+  `ts5570-cessao`, `ts5571-{cessao,front}`, `ts5572-cessao`, `ts5582-{cessao,bff,front}`,
+  `ts5583-cessao`, `ts5584-shared`, `ts5585-{cessao,shared}`, `ts5596-cessao`,
+  `ts5624-{cessao,bff,front}`, `ts5620-parser` (apl-cessao-parser-script). Estado das PRs não
+  conferido.
+- **Sem commit:** `ts5620-cessao` (`feature/TS-5620-liquidar-lote-real`), `ts5620-bff` e
+  `ts5620-front` (`feature/TS-5620-liquidate-batch`), esperando a revisão do Pietro.
+- `preview-front` (`preview/artemis-v2-front`) tem 1 arquivo alterado, fora dos cards.
+- Rascunhos dos agentes da tarefa 14 em `~/repos/.artemis_v2/agentes/ts14/`; mapeamento da TS-5620
+  em `~/repos/.artemis_v2/agentes/ts13-exec/atlas-omnis/` (fora do repo).
+
+| Repo | Branch | Worktree | Situação em 03/11 (em produção desde 04/11) |
 |---|---|---|---|
 | cessão | `fix/TS-5537-callbacks-nulos-na-liberacao` | `ts5537` | 1 commit, no remoto |
 | cessão | `chore/TS-5536-worker-fechamento` | `ts5536-worker` | 2 commits, no remoto |
@@ -155,10 +223,14 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Revisão dos planos:** retomar os 7 pausados, primeiro TS-5584 e TS-5570 (os que começam
-   antes); depois conciliar os nomes entre os planos e montar a lista única de decisões.
-2. **Decisões:** D26 a D30 e as decisões de cada plano.
-3. **TS-5582:** revisão do Pietro, commits atômicos nas três branches, PRs para a release.
-4. **Até 13/11:** passagem com o Rafael Frankl (TS-5565) e as mensagens E1 (ETL) e E2 (negócio).
-5. **Pendências de antes:** `viva-production` (validar a modalidade e decidir o worker); S1 a S14
-   de `tasks/02-03-sandbox-tests.md`; tradução do `refact.py`; TS-5537 (B18).
+1. **Board:** o Pietro reorganiza o Jira em sprints a partir da tabela "Estado por card (13/11)".
+   Faltam cards para a Fase 0 da tarefa 14 e, se ficar separado, para o upload da TS-5620.
+2. **Decisões do Pietro:** desenho do upload no shared ((a) fluxos do `report_transfer` ou (b)
+   módulo simples); trava do duplo clique (TS-5620); decisões 1, 4 e 8 da Fase 0 da tarefa 14.
+3. **TS-5620:** revisão e commits do liquidar (`ts5620-cessao`, `ts5620-bff`, `ts5620-front`);
+   depois da aprovação, upload no shared, BFF e front; data do lote.
+4. **Antes da release:** TS-5624 no navegador, revisão da DBA na TS-5596, snapshot OpenAPI da
+   TS-5584; depois montar a release única na ordem das migrations.
+5. **Tarefa 14:** conferir versão e `consumer_timeout` do RabbitMQ de produção.
+6. **Antigas, sem data:** `viva-production`, S1 a S14 de `tasks/02-03-sandbox-tests.md`, tradução
+   do `refact.py`, TS-5537 (B18), TS-5565 (confirmar se a passagem com o Rafael aconteceu).
