@@ -169,3 +169,50 @@ def test_set_card_none_clears_only_a_recorded_item(item_repo, capsys):
 
     assert run(capsys, "set-card", REL, "--none")[0] == 0
     assert itemrecord.recorded(REL) is None
+
+
+def test_sync_a_failing_fetch_is_a_problem_and_the_rest_goes_on(item_repo, monkeypatch, capsys):
+    from ws.tracker.port import TrackerError
+
+    first = write_item(item_repo, "01-a.md", FRONT)
+    second = write_item(item_repo, "02-b.md", FRONT.replace("TS-5", "TS-6"))
+    before = first.read_text(encoding="utf-8")
+    tracker = FakeTracker([make_card("TS-6")])
+    real = tracker.card
+
+    def card(ref):
+        if ref == "TS-5":
+            raise TrackerError("boom")
+        return real(ref)
+
+    tracker.card = card
+    monkeypatch.setattr(port, "open_tracker", lambda: tracker)
+
+    code, report, _ = run(capsys, "sync")
+
+    assert code == 1
+    assert report["updated"] == ["projects/demo/tasks/02-b.md"]
+    assert [p["path"] for p in report["problems"]] == [REL]
+    assert first.read_text(encoding="utf-8") == before
+    assert "[tracker]" in second.read_text(encoding="utf-8")
+
+
+def test_sync_reports_an_item_that_failed_to_parse(item_repo, serve, capsys):
+    write_item(item_repo, "01-a.md", "card = ")
+    serve()
+
+    code, report, _ = run(capsys, "sync")
+
+    assert code == 1
+    assert [p["path"] for p in report["problems"]] == [REL]
+
+
+def test_pull_an_empty_link_list_writes_nothing(item_repo, serve, capsys):
+    path = write_item(item_repo, "01-a.md", FRONT)
+    before = path.read_text(encoding="utf-8")
+    serve(make_card("TS-5"))
+
+    code, report, _ = run(capsys, "pull", REL, "--fields", "blocks")
+
+    assert (code, report["changed"]) == (0, {})
+    assert path.read_text(encoding="utf-8") == before

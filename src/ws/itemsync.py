@@ -5,7 +5,8 @@ from pathlib import Path
 
 from ws.itemfile import ItemError, item_path, read_item, set_cache, set_keys, write_text
 from ws.items import Project, rel
-from ws.tracker.port import Card, People, Tracker
+from ws.tracker.port import Card, People, Tracker, TrackerError
+from ws.tracker.vocab import LINK_KINDS
 
 PULL_FIELDS = ("type", "epic", "assignee", "reporter", "blocks", "blocked_by", "relates")
 
@@ -57,7 +58,7 @@ def pull(root: Path, rel_path: str, fields: list[str], tracker: Tracker, people:
     changed = {
         name: {"item": item.front.get(name), "tracker": value}
         for name, value in values.items()
-        if item.front.get(name) != value
+        if item.front.get(name, [] if name in LINK_KINDS else None) != value
     }
     if changed:
         text = path.read_bytes().decode("utf-8")
@@ -80,11 +81,16 @@ def sync(projects: list[Project], root: Path, tracker: Tracker, today: date) -> 
     updated: list[str] = []
     problems: list[dict] = []
     for project in projects:
+        problems.extend(project.problems)
         for item in project.items:
             if not item.tracked or not item.card:
                 continue
             name = rel(root, item.path)
-            card = tracker.card(item.card)
+            try:
+                card = tracker.card(item.card)
+            except TrackerError as error:
+                problems.append({"path": name, "problem": f"tracker error: {error}"})
+                continue
             if card is None:
                 problems.append(
                     {"path": name, "problem": f"card {item.card} is not in the tracker"}
@@ -97,6 +103,10 @@ def sync(projects: list[Project], root: Path, tracker: Tracker, today: date) -> 
                 problems.append({"path": name, "problem": str(error)})
                 continue
             if new != text:
-                write_text(item.path, new)
+                try:
+                    write_text(item.path, new)
+                except OSError as error:
+                    problems.append({"path": name, "problem": f"cannot write: {error}"})
+                    continue
                 updated.append(name)
     return {"updated": updated, "problems": problems}
