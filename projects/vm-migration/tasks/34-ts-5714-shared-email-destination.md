@@ -11,7 +11,7 @@ docs = ["08-shared-email-destination.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 34 — Shared: conexão do tipo E-mail e cadastro de contatos

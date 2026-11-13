@@ -9,7 +9,7 @@ blocks = ["TS-5726", "TS-5707", "TS-5709", "TS-5711", "TS-5714", "TS-5718"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 02 — Envio de relatórios pela tela Envio de Relatórios

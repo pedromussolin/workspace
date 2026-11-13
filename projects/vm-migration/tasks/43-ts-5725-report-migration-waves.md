@@ -10,7 +10,7 @@ docs = ["12-report-migration-waves.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 43 — Onda 2: migrar e desligar Relação de baixas (Vektor), Valores processados e Liquidações rejeitadas (Mercato Pago)

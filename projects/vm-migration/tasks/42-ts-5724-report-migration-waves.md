@@ -11,7 +11,7 @@ docs = ["12-report-migration-waves.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 42 — Onda 1: migrar e desligar Cessões diárias e mensais, Pendura a acrescer e Vencimentos atualizados

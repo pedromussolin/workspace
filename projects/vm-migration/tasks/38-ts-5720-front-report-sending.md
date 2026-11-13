@@ -11,7 +11,7 @@ docs = ["11-front-report-sending.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 38 — Front: Origem com consulta, filtros e prévias

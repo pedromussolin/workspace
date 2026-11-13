@@ -11,7 +11,7 @@ docs = ["09-shared-calendar-schedule-alerts.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 29 — Shared: calendário de dias úteis e datas relativas nos filtros

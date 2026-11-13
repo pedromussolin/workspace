@@ -10,7 +10,7 @@ docs = ["12-report-migration-waves.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 46 — Migrar e desligar Valor conciliado e Resultado do processamento (Mercato Pago), bloqueado

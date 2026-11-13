@@ -11,7 +11,7 @@ docs = ["07-shared-query-source-and-file.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 32 — Shared: regras nomeadas em código no catálogo

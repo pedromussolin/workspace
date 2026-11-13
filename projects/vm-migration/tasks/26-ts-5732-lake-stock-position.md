@@ -11,7 +11,7 @@ docs = ["05-lake-stock-position.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 26 — Validar a posição de ativos contra os relatórios de estoque

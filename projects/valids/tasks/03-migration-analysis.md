@@ -9,7 +9,7 @@ relates = ["TS-5442"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 03 — Análise de Migração

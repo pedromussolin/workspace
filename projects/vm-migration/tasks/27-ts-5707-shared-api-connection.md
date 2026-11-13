@@ -11,7 +11,7 @@ docs = ["06-shared-api-connection.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 27 — Shared: conexão do tipo API e cliente HTTP dos microsserviços

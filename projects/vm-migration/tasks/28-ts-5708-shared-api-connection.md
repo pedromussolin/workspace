@@ -11,7 +11,7 @@ docs = ["06-shared-api-connection.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 28 — Shared: catálogo fixo de consultas e prévias de dados e SQL

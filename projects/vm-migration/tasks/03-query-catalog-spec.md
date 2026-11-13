@@ -10,7 +10,7 @@ blocked_by = ["TS-5717"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # 03 — Especificação do catálogo de consultas

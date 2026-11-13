@@ -8,7 +8,7 @@ reporter = "dev-ae95329f82"
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = ""
+sprint = "TETRIS - Sprint 16.6.40"
 synced = 2026-11-13
 +++
 # TS-5624: tela de configuração do produto (Cessão e Liquidação) — plano de implementação
