@@ -4,7 +4,8 @@ Primeira versão (13/11/2026), para a entrega planejada para 24/11/2026. Conta a
 **faltam** nos dois épicos da VM (a EC2 de automações) e nos cards da Artemis V2 que travam o épico
 da liquidação.
 
-- **Horas com IA.** Os documentos de tarefa dão dias "com IA"; converto a 6 h produtivas por dia.
+- **Horas com IA.** Os documentos de tarefa dão dias "com IA"; converto a 6 h produtivas por dia (só a conversão da estimativa; a capacidade real de
+  cada pessoa está em "Capacidade e calendário").
   Card sem número: estimado pelo escopo, com a base na linha.
 - **Pessoas:** o Pietro (dev-ae95329f82) e o outro dev (dev-a0893bc9a2).
 - **Fica de fora:** a espera pela aprovação da GMUD (o registro de mudança exigido para subir em
@@ -19,8 +20,8 @@ da liquidação.
 | TS-5705 VM LIQUIDAÇÃO ML (desligar os jobs) | 34 | 0 | 34 |
 | TS-5278 Artemis V2 (cards que travam a TS-5705) | 154 | 14 | 168 |
 | **Total** | **188** | **440** | **628** |
-| Capacidade de 16 a 24/11 | 36 | 36 | 72 |
-| **Falta** | **152** | **404** | **556** |
+| Capacidade de 16 a 24/11 | 52,8 | 36 | 88,8 |
+| **Falta** | **135,2** | **404** | **539,2** |
 
 ## TS-5705 — VM LIQUIDAÇÃO ML (8 cards, Pietro)
 
@@ -133,10 +134,13 @@ de palpite para o inventário: 71 dias, 426 h. A coluna "Itens" aponta os itens 
 
 - **Dias úteis de 16 a 24/11:** 16, 17, 18, 19, 23 e 24/11, seis dias. 20/11 é sexta-feira, feriado
   nacional da Consciência Negra.
-- **Capacidade:** 6 h/dia × 6 dias = 36 h por pessoa, 72 h na dupla.
+- **Capacidade por semana:** Pietro, 44 h (segunda a sexta, 8,8 h por dia útil); o outro dev,
+  estagiário, 6 h por dia útil (30 h); 74 h na dupla.
+- **Capacidade de 16 a 24/11:** Pietro 8,8 h × 6 dias = 52,8 h; outro dev 6 h × 6 dias = 36 h;
+  88,8 h na dupla.
 - **Premissa:** nada reservado fora da migração, porque os documentos não reservam. Ficam fora
   cards abertos do Pietro sem ligação com a VM (TS-5620, TS-5566, TS-5573, TS-5733 a TS-5736) e a
-  reorganização do board; se algum entrar na sprint, sai dessas 36 h. Para o outro dev também não
+  reorganização do board; se algum entrar na sprint, sai dessas 52,8 h. Para o outro dev também não
   há nada reservado nos documentos.
 - **Depois de 24/11:** feriados de 25/12 e 01/01; sem recesso, férias nem Carnaval.
 
@@ -154,23 +158,25 @@ entram quando o bloqueio chega à produção.
 | Marco | Mais cedo | Por quê |
 |---|---|---|
 | TS-5565 | 16/11 | primeiro da fila |
-| Release 1 em produção | 27/11 | 46,5 h antes (6 + 40,5) |
-| TS-5750 | 30/11 | TS-5624 em produção |
-| 6 produtos do ML ligados | 07/12 | um por dia útil a partir de 30/11 (581, 15, 4, 81, 1406, 80); o 15 depende da TS-5537 |
-| Auditoria do último produto | 10/12 | 3 dias úteis |
-| TS-5737 em produção (release 2a) | 15/12 | 44 h com ~3,8 h/dia livres durante a ligação |
-| TS-5738 e TS-5753 | 23/12 | job fora em 16/12 + 5 dias úteis de observação |
-| Release 2b (TS-5748, TS-5749, TS-5151) | 24/12 | |
-| TS-5752, TS-5754 e TS-5755 | 28/12 | job fora no dia útil seguinte |
-| TS-5751 | 29/12 | sem bloqueio; último da fila |
+| Release 1 em produção | 25/11 | 46,5 h antes (6 + 40,5), prontas em 24/11 (5,3 dias a 8,8 h); deploy no dia útil seguinte |
+| TS-5750 | 26/11 | TS-5624 em produção |
+| 6 produtos do ML ligados | 03/12 | um por dia útil a partir de 26/11 (581, 15, 4, 81, 1406, 80); o 15 depende da TS-5537 |
+| Auditoria do último produto | 08/12 | 3 dias úteis |
+| TS-5737 em produção (release 2a) | 07/12 | TS-5750 (4 h), TS-5737 (44 h) e release 2a (4 h) com 6,8 h/dia livres durante a ligação (8,8 − 2) |
+| TS-5753 | 15/12 | job fora em 08/12 + 5 dias úteis de observação |
+| TS-5738 | 16/12 | job fora em 09/12 (depois da auditoria) + 5 dias úteis de observação |
+| Release 2b (TS-5748, TS-5749, TS-5151) | 14/12 | 40 h depois da 2a |
+| TS-5752, TS-5754 e TS-5755 | 15/12 | job fora no dia útil seguinte |
+| TS-5751 | 15/12 | sem bloqueio; último da fila |
 
 Li "um produto por vez" (Tarefa 7 da TS-5570) como um por dia útil, com as auditorias sobrepostas. Se
-for esperar a auditoria de cada produto antes do próximo, a ligação leva 18 dias úteis (até 23/12) e
-a TS-5738 termina em 04/01/2027.
+for esperar a auditoria de cada produto antes do próximo, a ligação leva 18 dias úteis (até 21/12) e
+a TS-5738 termina em 30/12.
 
 ### Relatórios (TS-5704)
 
-O outro dev sozinho, com a TS-5151 primeiro (ela trava a TS-5752). O trecho do shared-service até a
+O outro dev sozinho, a 6 h/dia (as datas não mudam com a correção de capacidade), com a TS-5151
+primeiro (ela trava a TS-5752). O trecho do shared-service até a
 Onda 1 é o caminho crítico, como na tarefa 02.
 
 | Marco | Horas acumuladas | Mais cedo |
@@ -189,20 +195,23 @@ antes, tudo anda 3 dias.
 
 ## Cabe até 24/11?
 
-Não. A demanda é de 628 h e a capacidade, de 72 h: faltam 556 h (cabe ~11%).
+Não. A demanda é de 628 h e a capacidade, de 88,8 h: faltam 539,2 h (cabe ~14%).
 
-- **Pietro:** 188 h para 36 h, faltam 152 h. Até 24/11 entram a TS-5565 e 30 das 40,5 h de
-  pré-produção da release 1. A release 1 chega à produção em 27/11, no mais cedo, então nenhum job
-  da liquidação sai da VM até 24/11. O primeiro é a TS-5750, em 30/11; o fechamento (TS-5738), em
-  23/12; os 8 cards da TS-5705, em 29/12.
-- **Outro dev:** 440 h para 36 h, faltam 404 h. Até 24/11 entram a TS-5151, a TS-5717 (decisões D5
-  a D8) e a TS-5726 (catálogo). Nenhuma onda chega à produção: a Onda 1 desliga a partir de
-  09/02/2027 e o épico termina por volta de 02/03/2027.
+- **Pietro:** 188 h para 52,8 h, faltam 135,2 h (cabe ~28%). Até 24/11 entram a TS-5565 e as 40,5 h
+  de pré-produção da release 1 (46,5 h); sobram 6,3 h, sem uso porque os cards seguintes dependem
+  da release em produção. A release 1 chega à produção em 25/11, no mais cedo, então nenhum job da
+  liquidação sai da VM até 24/11. O primeiro é a TS-5750, em 26/11; o fechamento (TS-5738), em
+  16/12; os 8 cards da TS-5705, em 16/12.
+- **Outro dev:** 440 h para 36 h, faltam 404 h (cabe ~8%). Até 24/11 entram a TS-5151, a TS-5717
+  (decisões D5 a D8) e a TS-5726 (catálogo). Nenhuma onda chega à produção: a Onda 1 desliga a
+  partir de 09/02/2027 e o épico termina por volta de 02/03/2027.
 - **Prazos que não dependem de horas:** a TS-5738 precisa de pelo menos 15 dias úteis depois da
   release 1 em produção (ligação, auditoria e 5 dias de observação). Com a release em produção já
-  em 16/11, o job sairia em 01/12 e o card fecharia em 08/12. Cada onda de relatórios precisa de
-  pelo menos 1 semana de paralelo com o script.
+  em 16/11, o job sairia em 01/12 e o card fecharia em 08/12. Com a capacidade corrigida, o prazo
+  da TS-5738 (16/12) passa a ser definido por essa janela, não pelas horas. Cada onda de relatórios
+  precisa de pelo menos 1 semana de paralelo com o script.
 
 ## O que mudou
 
 - 13/11/2026: primeira versão.
+- 13/11/2026: capacidade corrigida (usuário 44 h/semana; outro dev 6 h/dia, estagiário).
