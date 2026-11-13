@@ -208,8 +208,9 @@ def check_offline(projects: list[Project], root: Path, people: PeopleDirectory) 
 
 
 def pending_offline(projects: list[Project], root: Path) -> list[dict]:
+    """The creates that wait for an epic, in the shape of `ws item check --tracker`'s pending."""
     return [
-        {"path": rel(root, item.path), "needs": "epic"}
+        {"path": rel(root, item.path), "card": None, "op": "create", "needs": "epic"}
         for project in projects
         for item in project.items
         if item.tracked and not item.card and "epic" not in item.front

@@ -126,7 +126,9 @@ def test_check_cardless_item_without_epic_is_pending_not_a_problem(item_repo, ca
 
     assert code == 0
     assert report["problems"] == []
-    assert report["pending"] == [{"path": "projects/demo/tasks/01-a.md", "needs": "epic"}]
+    assert report["pending"] == [
+        {"path": "projects/demo/tasks/01-a.md", "card": None, "op": "create", "needs": "epic"}
+    ]
 
     write_item(item_repo, "01-a.md", front + '\nepic = "TS-9"')
     code, report, _ = check(capsys)
@@ -269,7 +271,7 @@ def test_new_without_epic_leaves_the_key_out_and_check_reports_pending(item_repo
     assert "epic" not in text.split("+++")[1]
     code, report, _ = check(capsys)
     assert code == 0
-    assert report["pending"] == [{"path": out, "needs": "epic"}]
+    assert report["pending"] == [{"path": out, "card": None, "op": "create", "needs": "epic"}]
 
 
 @pytest.mark.parametrize(
