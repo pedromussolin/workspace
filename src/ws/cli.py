@@ -719,6 +719,13 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
         metavar="YYYY-MM-DD",
         help="Include tasks finished since this day (default: the previous workday).",
     )
+    listing.add_argument(
+        "--role",
+        choices=jira.ROLES,
+        default="mine",
+        help="mine: assigned to me (default); following: I asked for it and someone else does "
+        "it; all: both.",
+    )
     listing.set_defaults(handler=_cmd_task_list)
     status = commands.add_parser(
         "status",
@@ -747,12 +754,16 @@ def _cmd_task_list(args: argparse.Namespace) -> int:
         return 2
     try:
         account_id = client.myself()["accountId"]
-        issues = client.search(jira.my_tasks_jql(since), jira.FIELDS)
+        issues = client.search(jira.tasks_jql(since, args.role), jira.FIELDS)
         cards = [jira.card_from_issue(issue, account_id) for issue in issues]
     except (jira.JiraError, KeyError, ValueError) as error:
         print(f"ws task list: {error}", file=sys.stderr)
         return 1
-    print(json.dumps({"platform": "jira", "cards": cards}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"platform": "jira", "role": args.role, "cards": cards}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 
