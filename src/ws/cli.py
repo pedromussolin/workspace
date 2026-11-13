@@ -35,6 +35,8 @@ from ws import (
     workdays,
 )
 from ws.config import claude_skills_dir, config_dir, repo_root
+from ws.identity import dev_id
+from ws.tracker import UnknownTracker, jira_discover, require_kind
 
 
 def _add_setup(subparsers) -> None:
@@ -803,6 +805,101 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.approve))
 
 
+def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("tracker", help="Tracker config helpers.")
+    commands = parser.add_subparsers(dest="tracker_command", required=True)
+    discover = commands.add_parser(
+        "discover",
+        help="Print the [jira.types] and [jira.links] blocks for config.toml (read only).",
+    )
+    discover.set_defaults(handler=_cmd_tracker_discover)
+
+
+def _cmd_tracker_discover(args: argparse.Namespace) -> int:
+    try:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+        settings = config.jira
+        if not settings.project:
+            raise userconfig.ConfigInvalid("[jira] project is not set")
+        client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
+    except (
+        userconfig.ConfigMissing,
+        userconfig.ConfigInvalid,
+        jira.SiteRefused,
+        UnknownTracker,
+    ) as error:
+        print(f"ws tracker discover: {error}", file=sys.stderr)
+        return 2
+    try:
+        text = jira_discover.discover_toml(
+            client.issue_types(settings.project), client.link_types()
+        )
+    except jira.JiraError as error:
+        print(f"ws tracker discover: {error}", file=sys.stderr)
+        return 3
+    print(text, end="")
+    return 0
+
+
+def _add_people(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("people", help="Dev ids and the [people] config.")
+    commands = parser.add_subparsers(dest="people_command", required=True)
+    me = commands.add_parser("me", help="Print your dev id (no network).")
+    me.set_defaults(handler=_cmd_people_me)
+    add = commands.add_parser(
+        "add", help="Print the [people] block of a colleague for config.toml (read only)."
+    )
+    add.add_argument("email", help="The colleague's e-mail (never printed).")
+    add.add_argument("--account", help="The tracker account id, to skip the search.")
+    add.set_defaults(handler=_cmd_people_add)
+
+
+def _cmd_people_me(args: argparse.Namespace) -> int:
+    try:
+        email = userconfig.load_config().identity_email
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws people me: {error}", file=sys.stderr)
+        return 2
+    print(dev_id(email))
+    return 0
+
+
+def _cmd_people_add(args: argparse.Namespace) -> int:
+    try:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+        account = args.account
+        client = None
+        if not account:
+            settings = config.jira
+            client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
+    except (
+        userconfig.ConfigMissing,
+        userconfig.ConfigInvalid,
+        jira.SiteRefused,
+        UnknownTracker,
+    ) as error:
+        print(f"ws people add: {error}", file=sys.stderr)
+        return 2
+    if client is not None:
+        try:
+            users = [u for u in client.user_search(args.email.strip()) if u.get("accountId")]
+        except jira.JiraError as error:
+            print(f"ws people add: {error}", file=sys.stderr)
+            return 3
+        if len(users) != 1:
+            print(
+                f"ws people add: the search found {len(users)} accounts, not exactly one; "
+                "pass --account ID",
+                file=sys.stderr,
+            )
+            return 1
+        account = users[0]["accountId"]
+    print(jira_discover.people_block(dev_id(args.email), config.tracker_kind, account), end="")
+    return 0
+
+
 def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     parser = subparsers.add_parser("standup", help="Daily standup helpers.")
     commands = parser.add_subparsers(dest="standup_command", required=True)
@@ -1004,6 +1101,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_gate(subparsers)
     _add_task(subparsers)
     _add_card(subparsers)
+    _add_tracker(subparsers)
+    _add_people(subparsers)
     _add_standup(subparsers)
     _add_checkpoint(subparsers)
     handoff_cli.register(subparsers)
