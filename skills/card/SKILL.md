@@ -40,6 +40,10 @@ Nothing is written through the Atlassian MCP, ever.
    shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
    `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
+   Exit 1 after a line `Card <ref> criado, mas o item <path> não foi atualizado (...); rode ws
+   item set-card <path> <ref>`: the card exists and only the item's `card` line is missing. Run
+   that printed `ws item set-card` command as printed (it writes only that line and clears the
+   record), tell the user, and never draft or apply that create again.
 5. **Several changes**: one draft per change in one folder, one preview, one approval.
 6. **Sync** (`/card sincronizar`, the daily's "para aplicar /card sincronizar"): moves the cards
    to the status the code proves. Work in `~/.local/share/workspace/board/` (`mkdir -p` first).
@@ -87,15 +91,25 @@ written by `ws item` commands, never by hand here; the tracker is written only b
    `names`, not ids. Ask, per field, which side is right.
 3. Where the tracker's side is right: `ws item pull <path> --fields f1,f2` (it changes only those
    keys of the item).
-4. Where the item's side is right, and for `pending` entries: `ws item drafts [--only REFS]`
+4. Show each `orphans` entry (`card`, `title`, `type`, `epic`) in PT-BR: open cards under the
+   project's epics that no item holds. Before drafting any create, compare each pending create
+   (`"op": "create"`, `card` null) with the orphans: when an orphan is the same task (same `type`,
+   same `epic` when the item has one, and a title that means the same as the item's heading), say
+   so and offer `ws item set-card <path> <ref>` instead of a create, which would duplicate the
+   card. Only on the user's yes run it (it writes only the item's `card` line); when that pending
+   entry had `"needs": "epic"`, run `ws item pull <path> --fields epic` right after (an item with
+   a card needs its epic). Then go back to step 1: the adopted card shows its drift like any other.
+   An orphan the user does not adopt is only reported; nothing is drafted for it.
+5. Where the item's side is right, and for the remaining `pending` entries: `ws item drafts [--only REFS]`
    (`REFS`: commas, card refs or item paths as `check` printed them). It prints `{"folder",
    "count", "need_text", "waiting", "by_hand"}`. For each path in `need_text` write the `# <title>`
    and the sections (the real names, in a draft under `~/.local/share/workspace/cards/drafts/`, outside the repo) and run `ws card check` on each.
-5. One preview of the `folder` and one approval (steps 3 and 4 above).
-6. Tell the user, in PT-BR, what is in `waiting` (links whose other card is not created yet: run
+6. One preview of the `folder` and one approval (steps 3 and 4 of the main Steps, including what
+   step 4 says about an exit 1 with `ws item set-card`).
+7. Tell the user, in PT-BR, what is in `waiting` (links whose other card is not created yet: run
    `ws item drafts` again after this apply, a second batch) and in `by_hand` (what only the user
    can do in the tracker).
-7. After the apply: `ws item sync [projects...]` (refreshes each item's `[tracker]` table) and
+8. After the apply: `ws item sync [projects...]` (refreshes each item's `[tracker]` table) and
    `ws item table <slug>` (the README table).
 
 A write-back failure after a create, or an uncertain create, leaves the item recorded as pending:

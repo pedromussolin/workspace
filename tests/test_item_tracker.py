@@ -198,7 +198,9 @@ def test_check_tracker_orphans(item_repo, tracker, capsys):  # noqa: F811
 
     _, report, _ = check(capsys)
 
-    assert report["orphans"] == [{"card": "TS-20", "title": "Loose", "epic": "TS-100"}]
+    assert report["orphans"] == [
+        {"card": "TS-20", "title": "Loose", "type": "task", "epic": "TS-100"}
+    ]
 
 
 def test_check_tracker_cardless_item_without_epic_is_pending_with_needs_epic(

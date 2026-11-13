@@ -238,7 +238,9 @@ def compare(projects: list[Project], root: Path, tracker: Tracker, people: Peopl
         for card in tracker.cards(CardQuery(project.epics)):
             if card.ref not in held and card.ref not in listed:
                 listed.add(card.ref)
-                report.orphans.append({"card": card.ref, "title": card.title, "epic": card.parent})
+                report.orphans.append(
+                    {"card": card.ref, "title": card.title, "type": card.type, "epic": card.parent}
+                )
     return report
 
 
