@@ -1,3 +1,4 @@
+import pytest
 from test_card import (
     approve,
     claude_settings,  # noqa: F401
@@ -9,6 +10,8 @@ from test_card import (
 )
 
 from ws import card
+from ws.cli import main
+from ws.config import data_dir
 from ws.jira import JiraError
 
 ISSUE_LINK = ("POST", "/rest/api/3/issueLink")
@@ -174,3 +177,42 @@ def test_link_kind_without_a_link_type_is_a_problem(world, ws_config, capsys):  
     assert message == (
         "link kind 'relates' has no link type: add it to [jira.links] (ws tracker discover)"
     )
+
+
+def batch_problems(capsys, *drafts):
+    for name, key, kind, target in drafts:
+        make_draft(name, "link", key=key, **{kind: [target]})
+    assert main(["card", "preview", str(data_dir() / "cards" / "drafts")]) == 1
+    return capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "second",
+    [("TS-120", "blocked_by", "TS-101"), ("TS-101", "blocks", "TS-120")],
+)
+def test_the_same_link_in_two_drafts_of_a_batch_is_refused(world, capsys, second):  # noqa: F811
+    out = batch_problems(capsys, ("1-a.md", "TS-101", "blocks", "TS-120"), ("2-b.md", *second))
+
+    assert "  2-b.md: the Blocks link between TS-101 and TS-120 is also asked by 1-a.md" in out
+    assert "1-a.md:" not in out
+    assert world.writes() == []
+
+
+def test_a_link_both_ways_in_a_batch_is_refused(world, capsys):  # noqa: F811
+    out = batch_problems(
+        capsys, ("1-a.md", "TS-101", "blocks", "TS-120"), ("2-b.md", "TS-120", "blocks", "TS-101")
+    )
+
+    assert (
+        "  2-b.md: TS-120 and TS-101 are linked by Blocks in both directions: here and in "
+        "1-a.md; keep one"
+    ) in out
+    assert world.writes() == []
+
+
+def test_relates_in_both_orders_in_a_batch_is_the_same_link(world, capsys):  # noqa: F811
+    out = batch_problems(
+        capsys, ("1-a.md", "TS-101", "relates", "TS-120"), ("2-b.md", "TS-120", "relates", "TS-101")
+    )
+
+    assert "  2-b.md: the Relates link between TS-120 and TS-101 is also asked by 1-a.md" in out

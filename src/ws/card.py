@@ -243,7 +243,44 @@ def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
         cardrules.check(context, item.draft) if item.draft else Verdict(problems=item.problems)
         for item in loaded
     ]
+    _batch_link_problems(settings, loaded, verdicts)
     return Plan(loaded, verdicts)
+
+
+def _batch_link_problems(settings, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
+    """Each draft checks its links against Jira alone; across the drafts of one batch, a link
+    asked twice, or asked both ways, is refused on the later draft."""
+    symmetric = settings.links.get("relates")
+    seen: dict[tuple[str, str, str], Path] = {}
+    for item, verdict in zip(loaded, verdicts, strict=True):
+        mine = []
+        for request in verdict.requests:
+            if request["path"] != "/rest/api/3/issueLink":
+                continue
+            body = request["body"]
+            link = (
+                body["type"]["name"],
+                body["inwardIssue"]["key"],
+                body["outwardIssue"]["key"],
+            )
+            type_name, inward, outward = link
+            reverse = (type_name, outward, inward)
+            if link in seen or (type_name == symmetric and reverse in seen):
+                earlier = seen.get(link) or seen[reverse]
+                verdict.problems.append(
+                    f"the {type_name} link between {inward} and {outward} is also asked by "
+                    f"{earlier.name}"
+                )
+            elif reverse in seen:
+                verdict.problems.append(
+                    f"{inward} and {outward} are linked by {type_name} in both directions: here "
+                    f"and in {seen[reverse].name}; keep one"
+                )
+            mine.append(link)
+        for link in mine:
+            seen.setdefault(link, item.path)
+        if verdict.problems:
+            verdict.requests = []
 
 
 def approval_code(site: str, requests: list[dict], befores: list[dict], summary: list[str]) -> str:
