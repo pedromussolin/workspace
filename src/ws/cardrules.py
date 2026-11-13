@@ -246,7 +246,10 @@ class Context:
             return None
         account_id = found.ids.get("jira")
         if not account_id:
-            verdict.problems.append(f"person {ref!r} has no jira id")
+            verdict.problems.append(
+                f"person {ref!r} has no jira id; run ws people add <e-mail> and paste the block "
+                "into config.toml"
+            )
         return account_id
 
     def person_name(self, ref: str, account_id: str) -> str:

@@ -140,7 +140,10 @@ def test_create_dev_id_without_jira_id_is_a_problem(world, ws_config, capsys):  
     config = ws_config / "config.toml"
     config.write_text(config.read_text() + f'\n[people."{bia}"]\nlabel = "bia"\n', "utf-8")
 
-    assert f"person {bia!r} has no jira id" in problems(create_draft(assignee=bia), capsys)
+    assert (
+        f"person {bia!r} has no jira id; run ws people add <e-mail> and paste the block into "
+        "config.toml" in problems(create_draft(assignee=bia), capsys)
+    )
 
 
 def test_create_without_sprint_sends_no_sprint_and_reads_no_board(world, capsys):  # noqa: F811

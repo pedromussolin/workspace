@@ -193,10 +193,14 @@ def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
     missing = [name for name in sorted(needed) if not getattr(settings, name)]
     if missing:
         tables = {"types": "[jira.types]", "links": "[jira.links]"}
+        hints = []
+        if any(name not in tables for name in missing):
+            hints.append('see the README section "Local config"')
+        if any(name in tables for name in missing):
+            hints.append("run ws tracker discover and paste its output into config.toml")
         raise SetupNeeded(
             f"config.toml [jira] is missing "
-            f"{', '.join(tables.get(name, name) for name in missing)}; "
-            'see the README section "Local config"'
+            f"{', '.join(tables.get(name, name) for name in missing)}; {'; '.join(hints)}"
         )
     if not _PROJECT.fullmatch(settings.project):
         raise SetupNeeded("config.toml [jira] project is not a valid project key")

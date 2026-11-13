@@ -1402,6 +1402,21 @@ def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_confi
     assert world.fake.requests == []
 
 
+def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    text = config.read_text(encoding="utf-8")
+    config.write_text(text[: text.index("[jira.types]")], encoding="utf-8")
+
+    assert main(["card", "check", str(create_draft())]) == 2
+
+    err = capsys.readouterr().err
+    assert (
+        "config.toml [jira] is missing [jira.types]; run ws tracker discover and paste its "
+        "output into config.toml"
+    ) in err
+    assert "Local config" not in err
+
+
 def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
