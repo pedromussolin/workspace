@@ -23,6 +23,31 @@ da liquidação.
 | Capacidade de 16 a 24/11 | 52,8 | 36 | 88,8 |
 | **Falta** | **135,2** | **404** | **539,2** |
 
+## Alvo de 24/11 (decisão de 13/11)
+
+- **O que o prazo cobre.** O 24/11 vale só para a parte do Pietro: os cards da Artemis que travam
+  a TS-5705 e os cards da TS-5705. As telas e os scripts (TS-5704, outro dev) podem passar de
+  24/11; o outro dev avança em paralelo enquanto o Pietro trabalha sozinho na parte da Artemis.
+- **TS-5151 (reprocessamento)** passou para o Pietro (responsável trocado em 13/11).
+- **Meta até 24/11:** bloco 1 (TS-5565 passagem + release 1: TS-5582, 5583, 5569, 5567, 5570, 5568,
+  5624, 5584, 5585, 5571, 5572, 5596) **e** bloco 2 (TS-5737: reentrega segura e arquivo em
+  blocos). O bloco 3 (TS-5748, TS-5749, TS-5151) é meta esticada, não compromisso.
+- **"Pronto" para um job da VM:** o job está **pausado** no agendamento da VM (não apagado), o
+  fluxo novo está atrás de um feature toggle (chave que liga e desliga o recurso) na cessão, e o
+  caminho de volta (religar o job, desligar o toggle) está escrito no card antes da pausa. A VM
+  fica como plano B.
+- **Calibração.** Os blocos 1 + 2 somam 110,5 h estimadas contra 52,8 h de capacidade, e a meta
+  ainda é plausível: os números do documento vêm dos dias "com IA" dos documentos de tarefa, e o
+  ritmo real com o fluxo do workspace (planejar, agentes em paralelo, revisar) foi bem mais
+  rápido. Exemplo: os ~12 cards da tarefa 13 foram planejados em 09/11 e implementados entre 10 e
+  12/11.
+- **Risco.** O que a IA não encurta: a revisão da DBA (EXPLAIN dos blocos; limpeza dos vazios), o
+  teste de `kill -9` na sandbox, as janelas de release e GMUD e os dias de observação em produção.
+  Isso, e não as horas de código, pode quebrar o 24/11.
+- **Desligar os jobs segue as janelas de observação** que já estão neste documento. Mesmo com o
+  código pronto, o "job fora" do fechamento (TS-5738) continua depois de 24/11; com a VM como
+  plano B, cada desligamento acontece quando a janela correspondente fecha.
+
 ## TS-5705 — VM LIQUIDAÇÃO ML (8 cards, Pietro)
 
 Cada card tira um job da agenda da VM depois que a cessão passa a fazer o trabalho dele. O esforço é
@@ -195,7 +220,10 @@ antes, tudo anda 3 dias.
 
 ## Cabe até 24/11?
 
-Não. A demanda é de 628 h e a capacidade, de 88,8 h: faltam 539,2 h (cabe ~14%).
+Pelo alvo de 24/11 (seção "Alvo de 24/11"), que cobre só a parte do Pietro, a meta é plausível
+mas não garantida: depende da calibração do ritmo com IA e das janelas da DBA, da sandbox e da
+GMUD. Os números abaixo são a conta em horas do documento, sem essa calibração, e sobre os dois
+épicos juntos: não. A demanda é de 628 h e a capacidade, de 88,8 h: faltam 539,2 h (cabe ~14%).
 
 - **Pietro:** 188 h para 52,8 h, faltam 135,2 h (cabe ~28%). Até 24/11 entram a TS-5565 e as 40,5 h
   de pré-produção da release 1 (46,5 h); sobram 6,3 h, sem uso porque os cards seguintes dependem
@@ -215,3 +243,5 @@ Não. A demanda é de 628 h e a capacidade, de 88,8 h: faltam 539,2 h (cabe ~14%
 
 - 13/11/2026: primeira versão.
 - 13/11/2026: capacidade corrigida (usuário 44 h/semana; outro dev 6 h/dia, estagiário).
+- 13/11/2026: alvo de 24/11 só para a parte do Pietro (TS-5151 passou para ele), definição de
+  "pronto" com a VM pausada como plano B e calibração do ritmo; nenhuma estimativa de card mudou.
