@@ -35,6 +35,7 @@ TABLE_HEADER = "| # | Tarefa | Card | Tipo | Responsável | Status |"
 TABLE_RULE = "|---|---|---|---|---|---|"
 _PROJECT_KEYS = ("epics", "initiative", "prefixes")
 _NUMBER = re.compile(r"\d+")
+_PREFIX = re.compile(r"[^\[\]\s](?:[^\[\]\r\n]*[^\[\]\s])?")
 _TITLE_NUMBER = re.compile(r"^\d+\s+—\s+")
 _WORD = re.compile(r"[a-z0-9]+")
 _NAME_WORDS = 6
@@ -103,8 +104,11 @@ def _project_toml(root: Path, path: Path) -> tuple[tuple[str, ...], str | None, 
     for key, value in raw.items():
         if key not in epics:
             bad(f"prefixes: {key!r} is not in epics")
-        elif not isinstance(value, str) or not re.fullmatch(r"[^\[\]\s]+", value):
-            bad(f"prefixes: the prefix of {key} must be text without brackets")
+        elif not isinstance(value, str) or not _PREFIX.fullmatch(value):
+            bad(
+                f"prefixes: the prefix of {key} must be one line of text without brackets "
+                "nor spaces at the ends"
+            )
         else:
             prefixes[key] = value
     return tuple(epics), initiative, prefixes, problems

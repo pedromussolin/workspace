@@ -169,6 +169,32 @@ def test_check_refuses_a_self_link_and_one_target_twice(item_repo, capsys):
     assert "more than one" in texts(report)[0]
 
 
+@pytest.mark.parametrize("prefix", ["ARTEMIS V2", "VM TELAS", "FRONT", "A-B_C.2"])
+def test_check_accepts_a_prefix_with_inner_spaces(item_repo, capsys, prefix):
+    toml = f'epics = ["TS-100"]\n\n[prefixes]\nTS-100 = "{prefix}"\n'
+    (item_repo / "projects" / "demo" / "project.toml").write_text(toml, encoding="utf-8")
+
+    code, report, _ = check(capsys)
+
+    assert (code, report["problems"]) == (0, [])
+    assert items.load_project(item_repo, "demo").prefixes == {"TS-100": prefix}
+
+
+@pytest.mark.parametrize("prefix", ["[X]", "X]", " X", "X ", "", "A\\nB"])
+def test_check_refuses_a_prefix_with_brackets_or_end_spaces(item_repo, capsys, prefix):
+    toml = f'epics = ["TS-100"]\n\n[prefixes]\nTS-100 = "{prefix}"\n'
+    (item_repo / "projects" / "demo" / "project.toml").write_text(toml, encoding="utf-8")
+
+    code, report, _ = check(capsys)
+
+    assert code == 1
+    assert texts(report) == [
+        "prefixes: the prefix of TS-100 must be one line of text without brackets nor spaces "
+        "at the ends"
+    ]
+    assert items.load_project(item_repo, "demo").prefixes == {}
+
+
 def test_check_reports_a_broken_project_toml(item_repo, capsys):
     (item_repo / "projects" / "demo" / "project.toml").write_text('epics = "TS-1"\ncolour = 1\n')
 
