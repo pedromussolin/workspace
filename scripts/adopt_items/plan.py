@@ -8,6 +8,7 @@ prints equals `Item.path`, refusing to continue otherwise.
 
 import posixpath
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -27,6 +28,7 @@ from .relink import new_path
 OLD_PROJECT = "operations-screens-migration"
 NEW_PROJECT = "vm-migration"
 _CLOSED = ("done", "cancelled")
+_BRACKET = re.compile(r"^\[([^\]]+)\]")
 _NN = re.compile(r"^(\d+)-")
 _TS_IN_NAME = re.compile(r"ts-(\d+)")
 _REAL_CARD = re.compile(r"TS-\d+")
@@ -93,6 +95,7 @@ class _Planner:
             self.plan.rename = (f"projects/{OLD_PROJECT}", f"projects/{NEW_PROJECT}")
         self.source_of: dict[int, str] = {}
         self.consumed: dict[str, set[str]] = {}
+        self.prefix_counts: dict[tuple[str, str], Counter] = {}
 
     def final(self, project: str) -> str:
         name = PROJECT_DIR.get(project, project)
@@ -152,6 +155,27 @@ class _Planner:
         for (origin, file), group in by_file.items():
             self.file_group(origin, file, group)
         self.plan.items.sort(key=lambda i: (i.row.source, i.row.line))
+        self.prefixes()
+
+    def prefixes(self):
+        epic_title = {r.card: r.title for r in self.rows if r.type_ == "epic"}
+        for r in self.rows:
+            if r.project == "epico" or r.type_ in ("epic", "initiative") or not r.epic:
+                continue
+            toml = self.plan.project_tomls.get(self.final(r.project))
+            if (
+                toml is None
+                or r.epic not in toml["epics"]
+                or _BRACKET.match(epic_title.get(r.epic, ""))
+            ):
+                continue
+            if m := _BRACKET.match(r.title):
+                counts = self.prefix_counts.setdefault((self.final(r.project), r.epic), Counter())
+                counts[m.group(1)] += 1
+        for (project, epic), counts in self.prefix_counts.items():
+            self.plan.project_tomls[project].setdefault("prefixes", {})[epic] = counts.most_common(
+                1
+            )[0][0]
 
     def document_row(self, r: Row):
         self.register_doc(r.origin_project or r.project, r.project, r.file)

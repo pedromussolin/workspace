@@ -301,3 +301,28 @@ def test_sem_card_row_of_a_multi_row_file_is_skipped_with_a_reason(tmp_path):
     plan = build_plan(rows, repo, PEOPLE, [])
     assert len(plan.items) == 2
     assert [why for _, why in plan.skipped] == ["sem-card row of a file that became a document"]
+
+
+def test_prefix_of_an_epic_without_one_is_the_most_common_one_of_its_cards(tmp_path):
+    repo = make_repo(tmp_path, p=[])
+    rows = [
+        row(card="TS-51", type_="epic", title="Estrutura"),
+        row(card="TS-60", epic="TS-51", title="[FRONT] A", line=3),
+        row(card="TS-61", epic="TS-51", title="[FRONT] B", line=4),
+        row(card="TS-62", epic="TS-51", title="[BFF] C", line=5),
+        row(card="TS-63", epic="TS-51", title="Sem prefixo", line=6),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert plan.project_tomls["p"]["prefixes"] == {"TS-51": "FRONT"}
+
+
+def test_no_prefix_when_the_epic_title_has_one_or_no_card_does(tmp_path):
+    repo = make_repo(tmp_path, p=[])
+    rows = [
+        row(card="TS-51", type_="epic", title="[VM] Migração"),
+        row(card="TS-52", type_="epic", title="Outro", line=3),
+        row(card="TS-60", epic="TS-51", title="[FRONT] A", line=4),
+        row(card="TS-61", epic="TS-52", title="Sem prefixo", line=5),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert "prefixes" not in plan.project_tomls["p"]
