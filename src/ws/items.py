@@ -13,7 +13,7 @@ from ws.itemfile import (
     LINK_PATH,
     Item,
     ItemError,
-    _is_doc,
+    is_doc,
     link_path,
     read_item,
     schema_problems,
@@ -184,8 +184,8 @@ def _item_problems(root: Path, project: Project, item: Item, people: PeopleDirec
     docs = item.front.get("docs")
     if isinstance(docs, list):
         for doc in docs:
-            if _is_doc(doc) and not (project.folder / posixpath.normpath(f"tasks/{doc}")).is_file():
-                out.append(f"docs: {doc!r} does not exist under tasks/")
+            if is_doc(doc) and not (project.folder / posixpath.normpath(f"tasks/{doc}")).is_file():
+                out.append(f"docs: {doc!r} does not exist in the project")
     return out + _link_problems(root, project, item)
 
 

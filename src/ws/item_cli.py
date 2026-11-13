@@ -10,35 +10,11 @@ from ws.config import repo_root
 from ws.identity import dev_id
 from ws.itemfile import ItemError
 from ws.items import Project, ProjectMissing
+from ws.tracker.port import People
 from ws.tracker.vocab import CARD_TYPES
 from ws.userconfig import ConfigInvalid, ConfigMissing, UserConfig, load_config
 
 SETUP = 2
-
-
-class _Directory:
-    """The people of `config.toml` by dev id; the runner's own dev id is always known."""
-
-    def __init__(self, config: UserConfig):
-        self._people = config.people
-        self._kind = config.tracker_kind
-        self.own = dev_id(config.identity_email)
-
-    def problem(self, person: str) -> str | None:
-        if person == self.own:
-            return None
-        found = self._people.get(person)
-        if found is None:
-            return (
-                f"unknown person {person!r}: run ws people add <e-mail> and paste the block "
-                "into config.toml"
-            )
-        if not found.ids.get(self._kind):
-            return (
-                f"person {person!r} has no {self._kind} id; run ws people add <e-mail> and "
-                "paste the block into config.toml"
-            )
-        return None
 
 
 def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
@@ -80,8 +56,7 @@ def _fail(error: object, code: int) -> int:
 def _cmd_new(args) -> int:
     root = repo_root()
     try:
-        directory = _Directory(_config()) if "me" in (args.assignee, args.reporter) else None
-        own = directory.own if directory else ""
+        own = dev_id(_config().identity_email) if "me" in (args.assignee, args.reporter) else ""
         assignee = own if args.assignee == "me" else args.assignee
         reporter = own if args.reporter == "me" else args.reporter
         path = items.new_item(
@@ -105,11 +80,11 @@ def _cmd_new(args) -> int:
 def _cmd_check(args) -> int:
     root = repo_root()
     try:
-        directory = _Directory(_config())
+        people = People.from_config(_config(), own_account="")
         projects = _projects(args.projects, root)
     except (ConfigMissing, ConfigInvalid, ProjectMissing) as error:
         return _fail(error, SETUP)
-    problems = items.check_offline(projects, root, directory)
+    problems = items.check_offline(projects, root, people)
     report = {
         "problems": problems,
         "drift": [],
