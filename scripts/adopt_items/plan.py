@@ -219,13 +219,19 @@ class _Planner:
                 f"{self.where(group[0])} file projects/{origin}/{file} does not exist"
             )
             return
-        if len(group) == 1:
-            r = group[0]
+        carded = [r for r in group if r.action != "sem-card"]
+        if len(carded) == 1 or len(group) == 1:
+            r = carded[0] if carded else group[0]
             self.consumed.setdefault(origin, set()).add(name)
             self.source_of[id(r)] = origin
             if origin != self.final(r.project):
                 self.add_move(origin, r.project, name)
             self.add_item(r, "file", self.rel(r.project, name))
+            self.plan.skipped += [
+                (other, "sem-card row of a file that is another card's item")
+                for other in group
+                if other is not r
+            ]
             return
         dest = group[0].project
         self.register_doc(origin, dest, file)

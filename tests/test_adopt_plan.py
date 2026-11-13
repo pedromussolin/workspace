@@ -326,3 +326,22 @@ def test_no_prefix_when_the_epic_title_has_one_or_no_card_does(tmp_path):
     ]
     plan = build_plan(rows, repo, PEOPLE, [])
     assert "prefixes" not in plan.project_tomls["p"]
+
+
+def test_one_card_row_and_sem_card_rows_on_a_file_make_that_cards_item(tmp_path):
+    repo = make_repo(tmp_path, p=["41-x.md"])
+    rows = [
+        row(file="tasks/41-x.md", card="-", action="sem-card"),
+        row(file="tasks/41-x.md", card="TS-7", line=3),
+        row(file="tasks/41-x.md", card="-", action="sem-card", line=4),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    (item,) = plan.items
+    assert (item.origin, item.path, item.fields["card"]) == (
+        "file",
+        "projects/p/tasks/41-x.md",
+        "TS-7",
+    )
+    reason = "sem-card row of a file that is another card's item"
+    assert [(r.line, why) for r, why in plan.skipped] == [(2, reason), (4, reason)]
+    assert plan.documents == {}
