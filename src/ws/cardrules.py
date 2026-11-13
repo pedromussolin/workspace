@@ -18,6 +18,7 @@ MAX_SUMMARY = 255
 WORKLOG_HOUR = 9
 
 _PREFIX = re.compile(r"^\[[^\]]+\]")
+_UPPER_TITLE = re.compile(r"^\[[^\]]+\] ")
 _TIME = re.compile(r"^\d+[hm](\s+\d+[hm])*$")
 _TIME_PART = re.compile(r"(\d+)([hm])")
 
@@ -82,7 +83,7 @@ class Context:
         self.tz = tz
         self.today: date = today
         self._issues: dict[str, dict | None] = {}
-        self._priorities: dict[str, list[str]] = {}
+        self._meta: dict[str, list[dict]] = {}
         self._sprints: list[dict] | None = None
 
     @classmethod
@@ -181,18 +182,46 @@ class Context:
             )
         return found
 
-    def priorities(self, type_id: str) -> list[str]:
-        if type_id not in self._priorities:
+    def _entries(self, type_id: str) -> list[dict]:
+        if type_id not in self._meta:
             meta = self.client.create_meta(self.project, type_id) or {}
             entries = meta.get("fields") or []
             if isinstance(entries, dict):
                 entries = list(entries.values())
-            names: list[str] = []
-            for entry in entries:
-                if "priority" in (entry.get("fieldId"), entry.get("key")):
-                    names = [item["name"] for item in entry.get("allowedValues") or []]
-            self._priorities[type_id] = names
-        return self._priorities[type_id]
+            self._meta[type_id] = entries
+        return self._meta[type_id]
+
+    def priorities(self, type_id: str) -> list[str]:
+        names: list[str] = []
+        for entry in self._entries(type_id):
+            if "priority" in (entry.get("fieldId"), entry.get("key")):
+                names = [item["name"] for item in entry.get("allowedValues") or []]
+        return names
+
+    def create_screen_has(self, type_id: str, field_id: str) -> bool:
+        return any(field_id in (e.get("fieldId"), e.get("key")) for e in self._entries(type_id))
+
+    def initiative(self, key: str, verdict: Verdict) -> dict | None:
+        if not self.key_in_project(key):
+            verdict.problems.append(f"initiative {key} is not a card of project {self.project}")
+            return None
+        issue = self._issue(key, ["summary", "status", "issuetype", "project"])
+        if issue is None:
+            verdict.problems.append(f"initiative {key} was not found")
+            return None
+        fields = issue.get("fields") or {}
+        problems = []
+        if (fields.get("project") or {}).get("key") != self.project:
+            problems.append(f"initiative {key} does not belong to project {self.project}")
+        if (fields.get("issuetype") or {}).get("hierarchyLevel") != 2:
+            problems.append(f"{key} is not an initiative")
+        category = ((fields.get("status") or {}).get("statusCategory") or {}).get("key")
+        if category == "done":
+            problems.append(f"initiative {key} is done")
+        info = {"key": key, "title": fields.get("summary") or ""}
+        verdict.resolved["initiative"] = info
+        verdict.problems.extend(problems)
+        return None if problems else info
 
     def person(self, ref: str, verdict: Verdict) -> str | None:
         if ref == "me" or ref == self.own_dev_id:
@@ -342,16 +371,56 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
     type_ = values["type"]
     if type_ in vocab.UPPER_TYPES:
-        verdict.problems.append("creating an epic or an initiative is not supported yet")
+        _create_upper(ctx, draft, verdict)
         return
     type_id = ctx.type_id(type_, verdict)
     if type_id is None:
         return
     epic = ctx.epic(values["epic"], verdict)
+    if epic and (problem := _prefix_problem(draft.title, epic["title"])):
+        verdict.problems.append(problem)
+    link = {"epic": epic, "line": f"Épico: {epic['key']} {epic['title']}"} if epic else None
+    _create_issue(ctx, draft, verdict, type_id, link, link_required=True)
+
+
+def _create_upper(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    values = draft.values
+    type_ = values["type"]
+    type_id = ctx.type_id(type_, verdict)
+    if type_id is None:
+        return
+    if not _UPPER_TITLE.match(draft.title):
+        article = "an epic" if type_ == "epic" else "an initiative"
+        verdict.problems.append(f"{article} title starts with [PREFIX]")
+    link = None
+    if "parent" in values:
+        initiative = ctx.initiative(values["parent"], verdict)
+        if not ctx.create_screen_has(type_id, "parent"):
+            verdict.problems.append(
+                f"the epic create screen has no parent: create it without parent and link it to "
+                f"{values['parent']} by hand in the tracker"
+            )
+        elif initiative:
+            link = {
+                "epic": initiative,
+                "line": f"Iniciativa: {initiative['key']} {initiative['title']}",
+            }
+    _create_issue(ctx, draft, verdict, type_id, link, link_required="parent" in values)
+
+
+def _create_issue(
+    ctx: Context,
+    draft: Draft,
+    verdict: Verdict,
+    type_id: str,
+    link: dict | None,
+    *,
+    link_required: bool,
+) -> None:
+    values = draft.values
+    type_ = values["type"]
     title = draft.title
     verdict.problems.extend(_summary_problems(title))
-    if epic and (problem := _prefix_problem(title, epic["title"])):
-        verdict.problems.append(problem)
     verdict.problems.extend(_section_problems(draft.body, type_))
     description = _convert(draft.body, "description", verdict)
     allowed = ctx.priorities(type_id)
@@ -371,7 +440,9 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     if wants_sprint and due is None:
         verdict.problems.append('due is required with sprint = "active"')
     sprint = ctx.sprint(verdict) if wants_sprint else None
-    if verdict.problems or not (epic and assignee and reporter and description):
+    if verdict.problems or not (assignee and reporter and description):
+        return
+    if link_required and not link:
         return
     if wants_sprint and not sprint:
         return
@@ -380,11 +451,12 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         "issuetype": {"id": type_id},
         "summary": title,
         "description": description,
-        "parent": {"key": epic["key"]},
         "priority": {"name": values["priority"]},
         "assignee": {"accountId": assignee},
         "reporter": {"accountId": reporter},
     }
+    if link:
+        fields["parent"] = {"key": link["epic"]["key"]}
     if due:
         fields["duedate"] = due.isoformat()
     sprint_line = "Sprint: (nenhuma)"
@@ -395,11 +467,12 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             f" (termina em {sprint_end})" if sprint_end else ""
         )
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
+    heading = {"epic": "épico", "initiative": "iniciativa"}.get(type_, "card")
     verdict.preview = [
-        f"Criar card no projeto {ctx.project}",
+        f"Criar {heading} no projeto {ctx.project}",
         f"Tipo: {vocab.TYPE_LABELS[type_]}",
         f"Título: {title}",
-        f"Épico: {epic['key']} {epic['title']}",
+        *([link["line"]] if link else []),
         f"Prioridade: {values['priority']}",
         f"Responsável: {ctx.person_name(assignee_ref, assignee)}",
         f"Relator: {ctx.person_name(reporter_ref, reporter)}",

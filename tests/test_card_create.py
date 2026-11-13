@@ -80,13 +80,6 @@ def test_create_type_without_an_id_is_a_problem(world, ws_config, capsys):  # no
     )
 
 
-@pytest.mark.parametrize("type_", ["epic", "initiative"])
-def test_create_epic_or_initiative_is_not_supported_yet(world, capsys, type_):  # noqa: F811
-    path = create_draft(type=type_, epic=None)
-
-    assert "creating an epic or an initiative is not supported yet" in problems(path, capsys)
-
-
 def test_create_assignee_and_reporter_from_dev_ids(world, capsys):  # noqa: F811
     world.fake.routes[("GET", "/rest/api/3/user")] = (
         200,
