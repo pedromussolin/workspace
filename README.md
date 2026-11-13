@@ -114,7 +114,8 @@ stale_workdays = 3
 - `[tracker] kind` names the tracker adapter; absent means `jira`, the only one that exists.
 - `[jira.types]` maps each neutral card type to the id of the issue type in the project, and
   `[jira.links]` maps `blocks` and `relates` to the link type name. `[jira] issue_type` was
-  replaced by `[jira.types]` and is refused.
+  replaced by `[jira.types]` and is refused: delete the `issue_type` line from `[jira]`, then
+  run `ws tracker discover` and paste its output into `config.toml`.
 - `[identity] email` is yours (absent means `[jira] email`). `[people."<dev id>"]` maps a dev id
   (`dev-` and the first 10 hex digits of the SHA-256 of the trimmed, lowercased e-mail) to the
   person's id in each tracker; `label` is only a reminder.

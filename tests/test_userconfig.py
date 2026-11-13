@@ -596,5 +596,10 @@ def test_identity_email_is_read_from_identity(config_dir):
 def test_issue_type_key_is_refused_with_the_new_block(config_dir):
     _with(config_dir, "", 'issue_type = "Tarefa"\n')
 
-    with pytest.raises(ConfigInvalid, match=r"\[jira\.types\]"):
+    with pytest.raises(ConfigInvalid) as raised:
         load_config()
+
+    assert str(raised.value).endswith(
+        "[jira] issue_type was replaced by [jira.types]; delete the issue_type line from "
+        "[jira], then run `ws tracker discover` and paste its output into config.toml"
+    )

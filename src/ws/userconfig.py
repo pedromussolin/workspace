@@ -211,8 +211,9 @@ def load_config() -> UserConfig:
     standup = _standup_config(data, path)
     if "issue_type" in jira:
         raise ConfigInvalid(
-            f"{path}: [jira] issue_type was replaced by [jira.types]; "
-            "run `ws tracker discover` and paste its output"
+            f"{path}: [jira] issue_type was replaced by [jira.types]; delete the issue_type "
+            "line from [jira], then run `ws tracker discover` and paste its output into "
+            "config.toml"
         )
     tracker = _table(data, "tracker", path)
     identity = _table(data, "identity", path)

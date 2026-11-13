@@ -44,3 +44,17 @@ def test_discover_cli_reads_the_project(ws_config, fake_jira, capsys):
     )
     assert main(["tracker", "discover"]) == 0
     assert capsys.readouterr().out.startswith("[jira.types]")
+
+
+def test_discover_with_the_old_issue_type_says_to_delete_it_first(ws_config, fake_jira, capsys):
+    (ws_config / "config.toml").write_text(
+        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'
+        'issue_type = "Tarefa"\n',
+        encoding="utf-8",
+    )
+
+    assert main(["tracker", "discover"]) == 2
+
+    err = capsys.readouterr().err
+    assert "delete the issue_type line from [jira], then run `ws tracker discover`" in err
+    assert fake_jira.requests == []
