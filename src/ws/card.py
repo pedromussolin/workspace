@@ -31,6 +31,7 @@ _OPERATIONS = {
     "move": "Mover card",
     "comment": "Comentar no card",
     "worklog": "Lançar horas no card",
+    "link": "Vincular cards",
 }
 
 
@@ -587,7 +588,7 @@ def _why_it_differs(record: dict, plan: Plan, site: str) -> str:
 
 
 def guard(project: str, requests: list[dict]) -> str | None:
-    """The last line of defence: only the five request shapes, only on cards of the project."""
+    """The last line of defence: only the known request shapes, only on cards of the project."""
     key = rf"{re.escape(project)}-[1-9]\d*"
     allowed = {
         ("POST", re.compile(r"/rest/api/3/issue")),
@@ -595,6 +596,11 @@ def guard(project: str, requests: list[dict]) -> str | None:
         ("POST", re.compile(rf"/rest/api/3/issue/{key}/(transitions|comment|worklog)")),
     }
     for request in requests:
+        if request["method"] == "POST" and request["path"] == "/rest/api/3/issueLink":
+            body = request.get("body") or {}
+            sides = [(body.get(side) or {}).get("key") for side in ("inwardIssue", "outwardIssue")]
+            if all(isinstance(side, str) and re.fullmatch(key, side) for side in sides):
+                continue
         if not any(
             request["method"] == method and pattern.fullmatch(request["path"])
             for method, pattern in allowed
@@ -664,6 +670,11 @@ def _drop_records_for(paths: list[Path]) -> None:
 
 
 def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
+    if item.draft and item.draft.op == "link":
+        for line in verdict.preview:
+            if not line.endswith(": já existe"):
+                print(f"Vinculado: {line}")
+        return
     creating = verdict.request["path"] == "/rest/api/3/issue"
     key = answer.get("key") if creating and isinstance(answer, dict) else None
     key = key or verdict.resolved.get("card", {}).get("key")

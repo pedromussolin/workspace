@@ -20,6 +20,7 @@ WORKLOG_HOUR = 9
 _PREFIX = re.compile(r"^\[[^\]]+\]")
 _TIME = re.compile(r"^\d+[hm](\s+\d+[hm])*$")
 _TIME_PART = re.compile(r"(\d+)([hm])")
+_SAME_LINK = {("blocks", "out"), ("blocked_by", "in")}
 
 
 @dataclass
@@ -119,7 +120,8 @@ class Context:
         self._issues[key] = issue
         return issue
 
-    def writable_card(self, key: str, verdict: Verdict) -> dict | None:
+    def card_fields(self, key: str, verdict: Verdict) -> dict | None:
+        """The fields of a card of the project, whoever owns it; None with the problem."""
         if not self.key_in_project(key):
             verdict.problems.append(f"{key} is not a card of project {self.project}")
             return None
@@ -135,14 +137,23 @@ class Context:
         if (fields.get("project") or {}).get("key") != self.project:
             verdict.problems.append(f"{key} does not belong to project {self.project}")
             return None
+        return fields
+
+    def is_mine(self, fields: dict) -> bool:
+        people = (fields.get("assignee") or {}, fields.get("reporter") or {})
+        return self.account_id in (person.get("accountId") for person in people)
+
+    def writable_card(self, key: str, verdict: Verdict) -> dict | None:
+        fields = self.card_fields(key, verdict)
+        if fields is None:
+            return None
         assignee = fields.get("assignee") or {}
         verdict.resolved["card"] = {
             "key": key,
             "status": (fields.get("status") or {}).get("name"),
             "assignee": assignee.get("displayName") or assignee.get("accountId"),
         }
-        reporter = fields.get("reporter") or {}
-        if self.account_id not in (assignee.get("accountId"), reporter.get("accountId")):
+        if not self.is_mine(fields):
             verdict.problems.append(
                 f"card {key} is not yours: you are neither its assignee nor its reporter"
             )
@@ -263,6 +274,7 @@ def check(ctx: Context, draft: Draft) -> Verdict:
         "move": _move,
         "comment": _comment,
         "worklog": _worklog,
+        "link": _link,
     }[draft.op](ctx, draft, verdict)
     if verdict.problems:
         verdict.requests = []
@@ -667,3 +679,67 @@ def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     verdict.preview = [f"Lançar horas no card {key}", f"Tempo: {spent}", f"Início: {started}"]
     if comment:
         verdict.preview.extend(["Comentário:", *[f"  {x}" for x in adf_text(comment).splitlines()]])
+
+
+def _existing_link(links: list, type_name: str, other: str) -> str | None:
+    """How the card is already tied to `other` by this link type: "out" (it is the outward
+    side, so it blocks `other`), "in" (it is blocked by `other`) or None."""
+    for link in links:
+        if (link.get("type") or {}).get("name") != type_name:
+            continue
+        if (link.get("outwardIssue") or {}).get("key") == other:
+            return "out"
+        if (link.get("inwardIssue") or {}).get("key") == other:
+            return "in"
+    return None
+
+
+def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    key = draft.values["key"]
+    fields = ctx.card_fields(key, verdict)
+    verdict.resolved["card"] = {"key": key}
+    targets = [
+        (kind, target)
+        for kind in vocab.LINK_KINDS
+        for target in dict.fromkeys(draft.values.get(kind, []))
+    ]
+    target_fields = {target: ctx.card_fields(target, verdict) for _, target in targets}
+    if fields is None or verdict.problems:
+        return
+    if not ctx.is_mine(fields):
+        for _, target in targets:
+            if not ctx.is_mine(target_fields[target]):
+                verdict.problems.append(
+                    f"card {target} is not yours: you are neither its assignee nor its "
+                    f"reporter, and the same goes for {key}"
+                )
+    links = fields.get("issuelinks") or []
+    for kind, target in targets:
+        type_name = ctx.settings.links["relates" if kind == "relates" else "blocks"]
+        found = _existing_link(links, type_name, target)
+        line = f"{key} {vocab.LINK_LABELS[kind]} {target}"
+        if (kind, found) in _SAME_LINK or (kind == "relates" and found):
+            verdict.preview.append(f"{line}: já existe")
+            continue
+        if found:
+            verdict.problems.append(
+                f"{key} is already blocked by {target}"
+                if kind == "blocks"
+                else f"{key} already blocks {target}"
+            )
+            continue
+        inward, outward = (target, key) if kind == "blocked_by" else (key, target)
+        verdict.preview.append(line)
+        verdict.requests.append(
+            {
+                "method": "POST",
+                "path": "/rest/api/3/issueLink",
+                "body": {
+                    "type": {"name": type_name},
+                    "inwardIssue": {"key": inward},
+                    "outwardIssue": {"key": outward},
+                },
+            }
+        )
+    if not verdict.problems and not verdict.requests:
+        verdict.problems.append("the draft adds no link")
