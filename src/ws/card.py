@@ -17,6 +17,7 @@ from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
 from ws.config import claude_settings_path, data_dir
 from ws.jira import JiraClient, JiraError, SiteRefused
+from ws.tracker import UnknownTracker, require_kind
 
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = timedelta(minutes=30)
@@ -30,6 +31,7 @@ _OPERATIONS = {
     "move": "Mover card",
     "comment": "Comentar no card",
     "worklog": "Lançar horas no card",
+    "link": "Vincular cards",
 }
 
 
@@ -170,25 +172,35 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
             continue
         op, values = item.draft.op, item.draft.values
         if op == "create":
-            needed |= {"board_id", "issue_type", "sprint_field"}
+            needed |= {"board_id", "types", "sprint_field"}
         if op == "edit":
-            if "priority" in values:
-                needed.add("issue_type")
+            if "priority" in values or "type" in values:
+                needed.add("types")
             if "start" in values:
                 needed.add("start_date_field")
+        if op == "link":
+            needed.add("links")
     return needed
 
 
 def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
     try:
-        settings = userconfig.load_config().jira
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise SetupNeeded(str(error)) from None
-    missing = [name for name in sorted(needed) if getattr(settings, name) is None]
+    settings = config.jira
+    missing = [name for name in sorted(needed) if not getattr(settings, name)]
     if missing:
+        tables = {"types": "[jira.types]", "links": "[jira.links]"}
+        hints = []
+        if any(name not in tables for name in missing):
+            hints.append('see the README section "Local config"')
+        if any(name in tables for name in missing):
+            hints.append("run ws tracker discover and paste its output into config.toml")
         raise SetupNeeded(
-            f"config.toml [jira] is missing {', '.join(missing)}; see the README section "
-            '"Local config"'
+            f"config.toml [jira] is missing "
+            f"{', '.join(tables.get(name, name) for name in missing)}; {'; '.join(hints)}"
         )
     if not _PROJECT.fullmatch(settings.project):
         raise SetupNeeded("config.toml [jira] project is not a valid project key")
@@ -225,12 +237,50 @@ def _run(command: str, action) -> int:
 
 
 def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
-    context = cardrules.Context.load(client, settings, _now())
+    config = userconfig.load_config()
+    context = cardrules.Context.load(client, settings, _now(), config.people, config.identity_email)
     verdicts = [
         cardrules.check(context, item.draft) if item.draft else Verdict(problems=item.problems)
         for item in loaded
     ]
+    _batch_link_problems(settings, loaded, verdicts)
     return Plan(loaded, verdicts)
+
+
+def _batch_link_problems(settings, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
+    """Each draft checks its links against Jira alone; across the drafts of one batch, a link
+    asked twice, or asked both ways, is refused on the later draft."""
+    symmetric = settings.links.get("relates")
+    seen: dict[tuple[str, str, str], Path] = {}
+    for item, verdict in zip(loaded, verdicts, strict=True):
+        mine = []
+        for request in verdict.requests:
+            if request["path"] != "/rest/api/3/issueLink":
+                continue
+            body = request["body"]
+            link = (
+                body["type"]["name"],
+                body["inwardIssue"]["key"],
+                body["outwardIssue"]["key"],
+            )
+            type_name, inward, outward = link
+            reverse = (type_name, outward, inward)
+            if link in seen or (type_name == symmetric and reverse in seen):
+                earlier = seen.get(link) or seen[reverse]
+                verdict.problems.append(
+                    f"the {type_name} link between {inward} and {outward} is also asked by "
+                    f"{earlier.name}"
+                )
+            elif reverse in seen:
+                verdict.problems.append(
+                    f"{inward} and {outward} are linked by {type_name} in both directions: here "
+                    f"and in {seen[reverse].name}; keep one"
+                )
+            mine.append(link)
+        for link in mine:
+            seen.setdefault(link, item.path)
+        if verdict.problems:
+            verdict.requests = []
 
 
 def approval_code(site: str, requests: list[dict], befores: list[dict], summary: list[str]) -> str:
@@ -281,6 +331,25 @@ def _print_verdict(verdict: Verdict) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def _epic_entry(issue: dict, level: int, parent: str | None) -> dict:
+    fields = issue.get("fields") or {}
+    title = fields.get("summary") or ""
+    prefix = re.match(r"^\[[^\]]+\]", title)
+    return {
+        "key": issue["key"],
+        "title": title,
+        "prefix": prefix.group(0) if prefix else None,
+        "status": (fields.get("status") or {}).get("name"),
+        "level": level,
+        "parent": parent,
+    }
+
+
+def _owned_levels(types: dict[str, str]) -> dict[str, int]:
+    levels = {"epic": 1, "initiative": 2}
+    return {types[name]: level for name, level in levels.items() if types.get(name)}
+
+
 def run_epics() -> int:
     def action() -> int:
         settings, client = _session({"project"})
@@ -296,17 +365,33 @@ def run_epics() -> int:
             done = (status.get("statusCategory") or {}).get("key") == "done"
             if (fields.get("issuetype") or {}).get("hierarchyLevel") != 1 or done:
                 continue
-            title = fields.get("summary") or ""
-            prefix = re.match(r"^\[[^\]]+\]", title)
-            epics.setdefault(
-                parent["key"],
-                {
-                    "key": parent["key"],
-                    "title": title,
-                    "prefix": prefix.group(0) if prefix else None,
-                    "status": status.get("name"),
-                },
+            epics.setdefault(parent["key"], _epic_entry(parent, 1, None))
+        levels = _owned_levels(settings.types)
+        if levels:
+            wanted = ", ".join(levels)
+            owned = (
+                f"issuetype in ({wanted}) AND (assignee = currentUser() "
+                "OR reporter = currentUser()) AND statusCategory != Done "
+                f'AND project = "{settings.project}"'
             )
+            fields = ["summary", "status", "issuetype", "parent"]
+            found = client.search(owned, fields)
+            initiatives = []
+            for issue in found:
+                issue_fields = issue.get("fields") or {}
+                level = levels.get((issue_fields.get("issuetype") or {}).get("id"))
+                if level is None:
+                    continue
+                parent = (issue_fields.get("parent") or {}).get("key")
+                entry = _epic_entry(issue, level, parent)
+                epics[issue["key"]] = {**epics.get(issue["key"], {}), **entry}
+                if level == 2:
+                    initiatives.append(issue["key"])
+            if initiatives:
+                children = f"parent in ({', '.join(initiatives)}) AND statusCategory != Done"
+                for issue in client.search(children, fields):
+                    parent = ((issue.get("fields") or {}).get("parent") or {}).get("key")
+                    epics.setdefault(issue["key"], _epic_entry(issue, 1, parent))
         print(json.dumps({"epics": list(epics.values())}, ensure_ascii=False, indent=2))
         return 0
 
@@ -544,7 +629,7 @@ def _why_it_differs(record: dict, plan: Plan, site: str) -> str:
 
 
 def guard(project: str, requests: list[dict]) -> str | None:
-    """The last line of defence: only the five request shapes, only on cards of the project."""
+    """The last line of defence: only the known request shapes, only on cards of the project."""
     key = rf"{re.escape(project)}-[1-9]\d*"
     allowed = {
         ("POST", re.compile(r"/rest/api/3/issue")),
@@ -552,6 +637,11 @@ def guard(project: str, requests: list[dict]) -> str | None:
         ("POST", re.compile(rf"/rest/api/3/issue/{key}/(transitions|comment|worklog)")),
     }
     for request in requests:
+        if request["method"] == "POST" and request["path"] == "/rest/api/3/issueLink":
+            body = request.get("body") or {}
+            sides = [(body.get(side) or {}).get("key") for side in ("inwardIssue", "outwardIssue")]
+            if all(isinstance(side, str) and re.fullmatch(key, side) for side in sides):
+                continue
         if not any(
             request["method"] == method and pattern.fullmatch(request["path"])
             for method, pattern in allowed
@@ -621,11 +711,28 @@ def _drop_records_for(paths: list[Path]) -> None:
 
 
 def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
+    if item.draft and item.draft.op == "link":
+        for line in verdict.preview:
+            if not line.endswith(": já existe"):
+                print(f"Vinculado: {line}")
+        return
     creating = verdict.request["path"] == "/rest/api/3/issue"
     key = answer.get("key") if creating and isinstance(answer, dict) else None
     key = key or verdict.resolved.get("card", {}).get("key")
     link = f" {site}/browse/{key}" if key else ""
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
+    if creating and key:
+        _log_created(item.path.name, key, verdict.resolved.get("today"))
+
+
+def _log_created(name: str, key: str, today: str | None) -> None:
+    """`today` is the day in the user's Jira time zone, the one the rules used. The card is
+    already created, so a log that cannot be written never stops the rest of the batch."""
+    try:
+        with _store("created.tsv").open("a", encoding="utf-8") as log:
+            log.write(f"{name}\t{key}\t{today}\n")
+    except OSError as error:
+        print(f"{name} {key} (não registrado em created.tsv: {error})")
 
 
 def _report_failure(
@@ -636,7 +743,11 @@ def _report_failure(
     kept = _keep_aside(item.path)
     if applied:
         print(f"Já aplicados: {', '.join(applied)}")
-    if sent:
+    if sent and item.draft and item.draft.op == "link":
+        created = [line for line in verdict.preview if not line.endswith(": já existe")][:sent]
+        print(f"{item.path.name}: {sent} vínculo(s) já criado(s); o restante não foi enviado")
+        print(*[f"  Vinculado: {line}" for line in created], sep="\n")
+    elif sent:
         print(f"{item.path.name}: a transição foi aplicada, mas a data de início não")
     if error.uncertain:
         print(f"{item.path.name}: resultado incerto: confira no Jira ({error})")

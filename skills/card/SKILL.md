@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -12,9 +12,18 @@ Nothing is written through the Atlassian MCP, ever.
 
 ## Steps
 
-1. **Understand the request.** Ask only what is missing. For `create`: the epic (run
-   `ws card epics` and offer the list; empty, ask for an epic key), the priority and the due date
-   (a create has no start date: it is set when the task starts). Write the title and sections in the user's style (below).
+1. **Understand the request.** Read `references/card-rules.md` (next to this file) to choose the
+   type, the epic, the links and the sections. Ask only what is missing. For `create`: the type
+   (propose one from the rules' ordered questions, with a one-line reason), the epic (run
+   `ws card epics` and offer the list; empty, ask for an epic key; an epic or an initiative takes no
+   epic), the priority and, only when there is a sprint, the due date (a create has no start date:
+   it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
+   The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
+   (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
+   colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is
+   the user: the tracker makes the creator the reporter, and a `reporter` key is sent only when
+   written (the type's create screen must have the field). Write the title and sections in
+   the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
@@ -73,8 +82,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due` (no `start`: an unknown key) | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional new description |
+| `create` | `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter` | optional new description |
+| `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
 | `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`), optional `day` | optional comment |
@@ -82,9 +92,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 ```text
 +++
 op = "create"
+type = "task"
 epic = "TS-101"
 priority = "High"
-due = 2026-10-31
 +++
 # [FRONT] Título curto do card
 
@@ -93,6 +103,64 @@ Por que existe e o que muda, em texto simples.
 
 ## Pronto quando
 - O que precisa estar valendo para fechar o card.
+```
+
+A `bug` for another developer (a dev id; `reporter` stays the user), in the active sprint, so with a
+`due`:
+
+```text
++++
+op = "create"
+type = "bug"
+epic = "TS-101"
+priority = "High"
+assignee = "dev-0123456789"
+sprint = "active"
+due = 2026-11-20
++++
+# [FRONT] Tela fecha sem salvar o filtro
+
+## Contexto
+O filtro some ao trocar de aba.
+
+## Como reproduzir
+1. Aplicar um filtro e trocar de aba.
+
+## Evidência
+Trecho do log do erro, sem dado de cliente.
+
+## Pronto quando
+- O filtro continua aplicado ao voltar para a aba.
+```
+
+An epic: the title starts with its prefix and a space, and only `## Contexto` is required. This
+Jira's epic create and edit screens have no `parent`, so leave it out: after the epic is created,
+the user links it to its initiative by hand in the tracker (say so in the answer).
+
+```text
++++
+op = "create"
+type = "epic"
+priority = "Medium"
++++
+# [FRONT] Nome do épico
+
+## Contexto
+O sistema ou objetivo que o épico cobre.
+```
+
+A link: `TS-102` blocks `TS-103` and relates to `TS-104`. Both cards must exist, so a card created
+in the same batch is linked in a later run, and at least one of the two must be writable. A link
+already in Jira is skipped; its opposite, or the same link twice (or both ways) in one batch, is
+refused.
+
+```text
++++
+op = "link"
+key = "TS-102"
+blocks = ["TS-103"]
+relates = ["TS-104"]
++++
 ```
 
 ```text
@@ -139,7 +207,10 @@ day = 2026-10-28
   description. An epic with no prefix takes any title. One line, up to 255 characters.
 - Description sections, level-2 headings exactly: `## Contexto`, `## Desenho combinado`,
   `## A fazer antes de implementar`, `## Pronto quando`. `## Contexto` and `## Pronto quando` are
-  required and not empty; the other two only when there is something to say.
+  required and not empty; the other two only when there is something to say. A `bug` and a
+  `hotfix` also need `## Como reproduzir` and `## Evidência`, a `hotfix` also
+  `## Por que não espera a release`, and an `epic` or `initiative` only `## Contexto`
+  (`references/card-rules.md`).
 - Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
   conversation or agreements between them. Bad: "Validar a estrutura do documento com <o usuário>."
   Good: "Validar a estrutura do documento." Valid for create, edit (title and description) and
@@ -161,5 +232,9 @@ day = 2026-10-28
   result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
   for the title.
 
-Only the user's own cards, in the configured project, are written; a refusal for another person's
-card or another project is final: tell the user to do it by hand.
+Only cards where the user is the assignee or the reporter, in the configured project, are written
+(a link needs one of its two cards to be writable); a refusal for another person's card or another
+project is final: tell the user to do it by hand. A type change only goes between the five card
+types; changing a card's level (to or from epic or initiative) is done by hand in the tracker. When
+a field is not on the type's create screen or the card's edit screen, the check names it: drop it
+from the draft, or the user sets it by hand in the tracker.

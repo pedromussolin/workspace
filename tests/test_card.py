@@ -13,14 +13,37 @@ from ws.adf import to_adf
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
 from ws.config import data_dir
+from ws.identity import dev_id
 from ws.userconfig import save_jira_token
 
 EMAIL = "dev@example.com"
+TRACKER_TABLES = f"""
+[jira.types]
+task = "3"
+bug = "4"
+hotfix = "5"
+improvement = "6"
+feature = "7"
+epic = "8"
+initiative = "9"
+
+[jira.links]
+blocks = "Blocks"
+relates = "Relates"
+
+[people."{dev_id("ana@example.com")}"]
+jira = "acc-ana"
+"""
 START_FIELD = "customfield_10015"
 SPRINT_FIELD = "customfield_10020"
 NOW = datetime(2026, 10, 27, 15, 0, tzinfo=UTC)
 
 SECTIONS = "## Contexto\nAlgo a explicar.\n\n## Pronto quando\n- feito\n"
+TYPE_IDS = ("3", "4", "5", "6", "7", "8", "9")
+CREATE_FIELDS = ("summary", "description", "assignee", "reporter", "parent", "duedate")
+CREATE_FIELDS += (SPRINT_FIELD,)
+EDIT_FIELDS = ("summary", "description", "priority", "duedate", START_FIELD, "assignee")
+EDIT_FIELDS += ("reporter", "parent")
 
 
 def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate", **extra):
@@ -39,6 +62,7 @@ def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate",
 class World:
     def __init__(self, fake):
         self.fake = fake
+        self.fake.honour_fields = True
         self.set_issue("TS-100", _fields("[FRONT] Épico de exemplo", level=1))
         self.set_issue("TS-110", _fields("Épico sem prefixo", level=1))
         self.set_issue("TS-111", _fields("[BACK] Outro épico", level=1))
@@ -77,23 +101,8 @@ class World:
                 },
             ],
         )
-        self.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-            200,
-            json.dumps({"issueTypes": [{"id": "3", "name": "Tarefa"}]}),
-        )
-        self.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/3")] = (
-            200,
-            json.dumps(
-                {
-                    "fields": [
-                        {
-                            "fieldId": "priority",
-                            "allowedValues": [{"name": "High"}, {"name": "Medium"}],
-                        }
-                    ]
-                }
-            ),
-        )
+        for type_id in TYPE_IDS:
+            self.set_create_screen(type_id)
         self.fake.routes[("POST", "/rest/api/3/issue")] = (201, json.dumps({"key": "TS-200"}))
         self.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (204, "")
         self.fake.routes[("POST", "/rest/api/3/issue/TS-101/transitions")] = (204, "")
@@ -105,12 +114,34 @@ class World:
             200,
             json.dumps({"key": key, "fields": fields}),
         )
+        if ("GET", f"/rest/api/3/issue/{key}/editmeta") not in self.fake.routes:
+            self.set_edit_screen(key)
+
+    def set_create_screen(self, type_id, priorities=("High", "Medium"), without=()):
+        """The type's create screen: every field `ws card` sends, minus `without`."""
+        fields = [{"fieldId": "priority", "allowedValues": [{"name": n} for n in priorities]}]
+        fields += [{"fieldId": name} for name in CREATE_FIELDS if name not in without]
+        self.fake.routes[("GET", f"/rest/api/3/issue/createmeta/TS/issuetypes/{type_id}")] = (
+            200,
+            json.dumps({"fields": fields}),
+        )
+
+    def set_edit_screen(self, key, without=(), types=("3", "4", "5", "6", "7")):
+        """The card's edit screen: every field an edit sends, minus `without`."""
+        fields = {name: {"required": False} for name in EDIT_FIELDS if name not in without}
+        if "issuetype" not in without:
+            fields["issuetype"] = {"allowedValues": [{"id": item, "name": "x"} for item in types]}
+        self.fake.routes[("GET", f"/rest/api/3/issue/{key}/editmeta")] = (
+            200,
+            json.dumps({"fields": fields}),
+        )
 
     def set_card(self, key, assignee="acc-me", **overrides):
         fields = _fields(
             "[FRONT] Tela de exemplo",
             assignee=assignee,
             parent={"key": "TS-100", "fields": {"summary": "[FRONT] Épico de exemplo"}},
+            issuetype={"id": "3", "name": "Tarefa", "hierarchyLevel": 0},
             description=to_adf(SECTIONS),
             priority={"name": "Medium"},
             duedate="2026-11-05",
@@ -173,8 +204,8 @@ def claude_settings(tmp_path, monkeypatch):
 def world(ws_config, fake_jira, monkeypatch, claude_settings):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'
-        f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
-        f'sprint_field = "{SPRINT_FIELD}"\n',
+        f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
+        f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
     )
     save_jira_token("sample-value")
@@ -199,7 +230,8 @@ def make_draft(name, op, body="", **front):
 
 
 def create_draft(name="create.md", title="[FRONT] Título curto", body=SECTIONS, **front):
-    values = {"epic": "TS-100", "priority": "High", "due": date(2026, 10, 31)}
+    values = {"type": "task", "epic": "TS-100", "priority": "High", "due": date(2026, 10, 31)}
+    values["sprint"] = "active"
     values.update(front)
     values = {key: value for key, value in values.items() if value is not None}
     return make_draft(name, "create", f"# {title}\n\n{body}", **values)
@@ -225,7 +257,10 @@ def passing(path, capsys):
 
 
 def test_draft_accepts_toml_dates_and_strings():
-    raw = b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\ndue = 2026-10-31\n+++\n# T\n\nx\n'
+    raw = (
+        b'+++\nop = "create"\ntype = "task"\nepic = "TS-1"\npriority = "High"\n'
+        b"due = 2026-10-31\n+++\n# T\n\nx\n"
+    )
 
     draft = parse_draft(raw)
 
@@ -241,7 +276,7 @@ def test_draft_edit_still_accepts_a_start_date():
 
 def test_draft_create_refuses_a_start_key():
     raw = (
-        b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\n'
+        b'+++\nop = "create"\ntype = "task"\nepic = "TS-1"\npriority = "High"\n'
         b"due = 2026-10-31\nstart = 2026-10-28\n+++\n# T\n\nx\n"
     )
 
@@ -265,7 +300,8 @@ def test_draft_create_refuses_a_start_key():
         (b'+++\nop = "worklog"\nkey = "TS-1"\ntime = "1h"\nday = "ontem"\n+++\n', "day"),
         (b'+++\nop = "move"\nkey = ""\nto = "X"\n+++\n', "key must be"),
         (
-            b'+++\nop = "create"\nepic = "T"\npriority = "H"\ndue = 2026-10-31\n+++\ntext\n',
+            b'+++\nop = "create"\ntype = "task"\nepic = "T"\npriority = "H"\n'
+            b"due = 2026-10-31\n+++\ntext\n",
             "# title",
         ),
         (b"\xff\xfe", "UTF-8"),
@@ -295,7 +331,7 @@ def test_create_check_passes_and_builds_the_request(world, capsys):
     fields = request["body"]["fields"]
     assert fields == {
         "project": {"key": "TS"},
-        "issuetype": {"name": "Tarefa"},
+        "issuetype": {"id": "3"},
         "summary": "[FRONT] Título curto",
         "description": to_adf(SECTIONS),
         "parent": {"key": "TS-100"},
@@ -893,7 +929,7 @@ OPS = {
 def test_another_persons_or_unassigned_card_is_refused_for_every_op(world, capsys, op, key):
     world.set_transitions(key, [{"id": "31", "to": {"name": "Em Validação"}, "fields": {}}])
 
-    assert "not assigned to you" in problems(OPS[op](key), capsys)
+    assert "is not yours" in problems(OPS[op](key), capsys)
     assert world.writes() == []
 
 
@@ -1111,7 +1147,7 @@ def test_approve_reruns_the_checks_and_refuses_a_card_reassigned_since_the_previ
     assert approve(path, code) == 1
     assert world.writes() == []
     captured = capsys.readouterr()
-    assert "not assigned to you" in captured.out + captured.err
+    assert "is not yours" in captured.out + captured.err
 
 
 def test_approve_refuses_when_the_requests_now_differ(world, capsys):
@@ -1231,6 +1267,32 @@ def test_a_folder_is_one_preview_and_one_approval_in_name_order(world, capsys):
     assert list(drafts.iterdir()) == []
 
 
+def test_an_epic_read_for_a_create_is_still_judged_whole_when_edited(world, capsys):
+    drafts = data_dir() / "cards" / "drafts"
+    create_draft("1-create.md")
+    make_draft("2-edit.md", "edit", key="TS-100", title="[FRONT] Épico renomeado")
+
+    out, _ = preview(drafts, capsys)
+
+    assert "Requisição: PUT /rest/api/3/issue/TS-100" in out
+    issue_reads = world.requests_to("GET", "/rest/api/3/issue/TS-100")
+    assert len(issue_reads) == 1
+    assert "assignee" in issue_reads[0]["query"]["fields"].split(",")
+
+
+def test_a_link_from_an_epic_read_for_a_create_sees_its_existing_links(world, capsys):
+    existing = {"type": {"name": "Blocks"}, "outwardIssue": {"key": "TS-120"}}
+    world.set_issue("TS-100", _fields("[FRONT] Épico de exemplo", level=1, issuelinks=[existing]))
+    drafts = data_dir() / "cards" / "drafts"
+    create_draft("1-create.md")
+    make_draft("2-link.md", "link", key="TS-100", blocks=["TS-120", "TS-101"])
+
+    out, _ = preview(drafts, capsys)
+
+    assert "  TS-100 bloqueia TS-120: já existe\n  TS-100 bloqueia TS-101\n" in out
+    assert out.count("Requisição: POST /rest/api/3/issueLink") == 1
+
+
 def test_a_batch_stops_at_the_first_failure_and_reports_what_was_applied(world, capsys):
     drafts = folder_with_three()
     world.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (
@@ -1338,8 +1400,17 @@ def test_epics_lists_open_epics_of_my_open_cards(world, capsys):
                 "title": "[FRONT] Épico de exemplo",
                 "prefix": "[FRONT]",
                 "status": "In Progress",
+                "level": 1,
+                "parent": None,
             },
-            {"key": "TS-110", "title": "Sem prefixo", "prefix": None, "status": "To Do"},
+            {
+                "key": "TS-110",
+                "title": "Sem prefixo",
+                "prefix": None,
+                "status": "To Do",
+                "level": 1,
+                "parent": None,
+            },
         ]
     }
     search = world.requests_to("GET", "/rest/api/3/search/jql")[0]["query"]
@@ -1373,6 +1444,21 @@ def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_confi
     assert world.fake.requests == []
 
 
+def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    text = config.read_text(encoding="utf-8")
+    config.write_text(text[: text.index("[jira.types]")], encoding="utf-8")
+
+    assert main(["card", "check", str(create_draft())]) == 2
+
+    err = capsys.readouterr().err
+    assert (
+        "config.toml [jira] is missing [jira.types]; run ws tracker discover and paste its "
+        "output into config.toml"
+    ) in err
+    assert "Local config" not in err
+
+
 def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
@@ -1380,10 +1466,34 @@ def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsy
 
     assert main(["card", "check", str(create_draft())]) == 2
     err = capsys.readouterr().err
-    for name in ["board_id", "issue_type", "sprint_field"]:
+    for name in ["board_id", "[jira.types]", "sprint_field"]:
         assert name in err
     capsys.readouterr()
     assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 0
+
+
+def test_an_unknown_tracker_kind_exits_2(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    config.write_text('[tracker]\nkind = "linear"\n' + config.read_text(), encoding="utf-8")
+
+    assert main(["card", "check", str(create_draft())]) == 2
+    assert "no adapter" in capsys.readouterr().err
+    assert world.fake.requests == []
+
+
+def _keys(op, **values):
+    draft = card.Draft(op, values, None, "", "x")
+    return card._needed_keys([card.Loaded(Path("d.md"), draft, "x", [])])
+
+
+def test_a_type_change_needs_the_types_but_a_plain_edit_does_not():
+    assert "types" in _keys("edit", key="TS-1", type="bug")
+    assert "types" not in _keys("edit", key="TS-1", start=NOW.date())
+    assert "types" in _keys("create")
+
+
+def test_a_link_needs_the_links_table():
+    assert "links" in _keys("link")
 
 
 def test_no_token_exits_2(world, capsys, ws_config):
@@ -1828,8 +1938,8 @@ def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys
 def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'
-        f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
-        f'sprint_field = "{SPRINT_FIELD}"\n',
+        f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
+        f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
     )
 
@@ -1933,10 +2043,12 @@ def test_applying_a_draft_removes_the_other_pending_records_that_mention_it(worl
 def test_the_priority_on_a_later_page_of_the_create_screen_is_found(world, capsys):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes/3"
     del world.fake.routes[("GET", base)]
-    page = {"total": 2, "fields": [{"fieldId": "summary"}]}
+    total = len(CREATE_FIELDS) + 1
+    page = {"total": total, "fields": [{"fieldId": name} for name in CREATE_FIELDS]}
     world.fake.routes[("GET", base, "0")] = (200, json.dumps(page))
-    later = {"total": 2, "fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
-    world.fake.routes[("GET", base, "1")] = (200, json.dumps(later))
+    priority = [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]
+    later = {"total": total, "fields": priority}
+    world.fake.routes[("GET", base, str(len(CREATE_FIELDS)))] = (200, json.dumps(later))
 
     passing(create_draft(), capsys)
 

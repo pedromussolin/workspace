@@ -5,12 +5,14 @@ import re
 import stat
 import tempfile
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ws.config import config_dir
+from ws.identity import DEV_ID
 from ws.jira import SiteRefused, check_site
 from ws.taskmodel import Status
+from ws.tracker import KNOWN_KINDS, vocab
 
 DEFAULT_STALE_WORKDAYS = 3
 TOKEN_SERVICES = {"jira": "Jira", "github": "GitHub"}
@@ -35,9 +37,10 @@ class JiraConfig:
     status_overrides: dict[str, str]
     project: str | None = None
     board_id: int | None = None
-    issue_type: str | None = None
     start_date_field: str | None = None
     sprint_field: str | None = None
+    types: dict[str, str] = field(default_factory=dict)
+    links: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -47,9 +50,19 @@ class StandupConfig:
 
 
 @dataclass(frozen=True)
+class Person:
+    dev_id: str
+    ids: dict[str, str]
+    label: str | None = None
+
+
+@dataclass(frozen=True)
 class UserConfig:
     jira: JiraConfig
     standup: StandupConfig
+    identity_email: str
+    tracker_kind: str = "jira"
+    people: dict[str, Person] = field(default_factory=dict)
 
 
 def _read_toml(path: Path) -> dict:
@@ -123,6 +136,42 @@ def _site(jira: dict, path: Path) -> str:
         raise ConfigInvalid(f"{path}: jira.site: {error}") from None
 
 
+def _name_map(jira: dict, key: str, allowed: tuple[str, ...], path: Path) -> dict[str, str]:
+    table = jira.get(key, {})
+    if not isinstance(table, dict):
+        raise ConfigInvalid(f"{path}: jira.{key} must be a table")
+    for name in table:
+        if name not in allowed:
+            raise ConfigInvalid(
+                f"{path}: jira.{key}.{name} is not a neutral name; use one of {', '.join(allowed)}"
+            )
+        _string(table, name, path, f"jira.{key}")
+    return dict(table)
+
+
+def _people(data: dict, path: Path) -> dict[str, Person]:
+    people = _table(data, "people", path)
+    result = {}
+    for key, entry in people.items():
+        if not DEV_ID.fullmatch(key):
+            raise ConfigInvalid(f"{path}: people.{key} is not a dev id (dev- and 10 hex digits)")
+        if not isinstance(entry, dict):
+            raise ConfigInvalid(f"{path}: people.{key} must be a table")
+        for name in entry:
+            if name != "label" and name not in KNOWN_KINDS:
+                raise ConfigInvalid(
+                    f"{path}: people.{key}.{name} is not a tracker kind "
+                    f"({', '.join(KNOWN_KINDS)}) or label"
+                )
+        ids = {
+            kind: _string(entry, kind, path, f"people.{key}")
+            for kind in KNOWN_KINDS
+            if kind in entry
+        }
+        result[key] = Person(key, ids, _optional_string(entry, "label", path, f"people.{key}"))
+    return result
+
+
 def _standup_config(data: dict, path: Path) -> StandupConfig:
     standup = _table(data, "standup", path)
     stale = standup.get("stale_workdays", DEFAULT_STALE_WORKDAYS)
@@ -160,18 +209,31 @@ def load_config() -> UserConfig:
     data = _read_toml(path)
     jira = _table(data, "jira", path)
     standup = _standup_config(data, path)
+    if "issue_type" in jira:
+        raise ConfigInvalid(
+            f"{path}: [jira] issue_type was replaced by [jira.types]; delete the issue_type "
+            "line from [jira], then run `ws tracker discover` and paste its output into "
+            "config.toml"
+        )
+    tracker = _table(data, "tracker", path)
+    identity = _table(data, "identity", path)
+    email = _string(jira, "email", path, "jira")
     return UserConfig(
         jira=JiraConfig(
             site=_site(jira, path),
-            email=_string(jira, "email", path, "jira"),
+            email=email,
             status_overrides=_status_overrides(jira, path),
             project=_optional_string(jira, "project", path, "jira"),
             board_id=_optional_positive_int(jira, "board_id", path, "jira"),
-            issue_type=_optional_string(jira, "issue_type", path, "jira"),
             start_date_field=_optional_string(jira, "start_date_field", path, "jira"),
             sprint_field=_optional_string(jira, "sprint_field", path, "jira"),
+            types=_name_map(jira, "types", vocab.CARD_TYPES + vocab.UPPER_TYPES, path),
+            links=_name_map(jira, "links", vocab.LINK_NAMES, path),
         ),
         standup=standup,
+        identity_email=_optional_string(identity, "email", path, "identity") or email,
+        tracker_kind=_optional_string(tracker, "kind", path, "tracker") or "jira",
+        people=_people(data, path),
     )
 
 

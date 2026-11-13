@@ -8,17 +8,20 @@ from zoneinfo import ZoneInfo
 
 from ws.adf import AdfError, foreign_nodes, to_adf
 from ws.carddraft import Draft
+from ws.identity import dev_id
 from ws.jira import CATEGORY_STATUS, JiraClient, JiraError
 from ws.taskmodel import Status
-from ws.userconfig import JiraConfig
+from ws.tracker import vocab
+from ws.userconfig import JiraConfig, Person
 
 MAX_SUMMARY = 255
-REQUIRED_SECTIONS = ("Contexto", "Pronto quando")
 WORKLOG_HOUR = 9
 
 _PREFIX = re.compile(r"^\[[^\]]+\]")
+_UPPER_TITLE = re.compile(r"^\[[^\]]+\] ")
 _TIME = re.compile(r"^\d+[hm](\s+\d+[hm])*$")
 _TIME_PART = re.compile(r"(\d+)([hm])")
+_SAME_LINK = {("blocks", "out"), ("blocked_by", "in")}
 
 
 @dataclass
@@ -61,8 +64,19 @@ def adf_text(node: dict) -> str:
 class Context:
     """What the rules read from Jira, fetched once per run."""
 
-    def __init__(self, client: JiraClient, settings: JiraConfig, me: dict, tz: ZoneInfo, today):
+    def __init__(
+        self,
+        client: JiraClient,
+        settings: JiraConfig,
+        me: dict,
+        tz: ZoneInfo,
+        today,
+        people: dict[str, Person] | None = None,
+        identity_email: str | None = None,
+    ):
         self.client = client
+        self.people = people or {}
+        self.own_dev_id = dev_id(identity_email) if identity_email else None
         self.settings = settings
         self.project = settings.project
         self.account_id = me["accountId"]
@@ -70,11 +84,18 @@ class Context:
         self.tz = tz
         self.today: date = today
         self._issues: dict[str, dict | None] = {}
-        self._priorities: list[str] | None = None
+        self._meta: dict[str, list[dict]] = {}
         self._sprints: list[dict] | None = None
 
     @classmethod
-    def load(cls, client: JiraClient, settings: JiraConfig, now: datetime) -> "Context":
+    def load(
+        cls,
+        client: JiraClient,
+        settings: JiraConfig,
+        now: datetime,
+        people: dict[str, Person] | None = None,
+        identity_email: str | None = None,
+    ) -> "Context":
         me = client.myself() or {}
         if not me.get("accountId"):
             raise JiraError("Jira did not say who the user is (accountId)")
@@ -82,17 +103,23 @@ class Context:
             tz = ZoneInfo(me.get("timeZone"))
         except (ValueError, TypeError, OSError):
             raise JiraError("Jira did not give a valid time zone for the user") from None
-        return cls(client, settings, me, tz, now.astimezone(tz).date())
+        return cls(client, settings, me, tz, now.astimezone(tz).date(), people, identity_email)
 
     def key_in_project(self, key: str) -> bool:
         return re.fullmatch(rf"{re.escape(self.project)}-[1-9]\d*", key) is not None
 
-    def _issue(self, key: str, fields: list[str]) -> dict | None:
+    def _issue(self, key: str) -> dict | None:
+        """Every rule reads the card from one fetch with all the fields any rule needs, so a
+        card first read as an epic is not later judged by the few fields an epic needs."""
         cached = self._issues.get(key, False)
         if cached is not False:
             return cached
+        names = ["summary", "status", "assignee", "description", "parent", "project"]
+        names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
+        if self.settings.start_date_field:
+            names.append(self.settings.start_date_field)
         try:
-            issue = self.client.issue(key, fields)
+            issue = self.client.issue(key, names)
         except JiraError as error:
             if error.status != 404:
                 raise
@@ -100,15 +127,12 @@ class Context:
         self._issues[key] = issue
         return issue
 
-    def own_card(self, key: str, verdict: Verdict) -> dict | None:
+    def card_fields(self, key: str, verdict: Verdict) -> dict | None:
+        """The fields of a card of the project, whoever owns it; None with the problem."""
         if not self.key_in_project(key):
             verdict.problems.append(f"{key} is not a card of project {self.project}")
             return None
-        names = ["summary", "status", "assignee", "description", "parent", "project"]
-        names += ["priority", "duedate"]
-        if self.settings.start_date_field:
-            names.append(self.settings.start_date_field)
-        issue = self._issue(key, names)
+        issue = self._issue(key)
         if issue is None:
             verdict.problems.append(f"card {key} was not found")
             return None
@@ -116,15 +140,25 @@ class Context:
         if (fields.get("project") or {}).get("key") != self.project:
             verdict.problems.append(f"{key} does not belong to project {self.project}")
             return None
+        return fields
+
+    def is_mine(self, fields: dict) -> bool:
+        people = (fields.get("assignee") or {}, fields.get("reporter") or {})
+        return self.account_id in (person.get("accountId") for person in people)
+
+    def writable_card(self, key: str, verdict: Verdict) -> dict | None:
+        fields = self.card_fields(key, verdict)
+        if fields is None:
+            return None
         assignee = fields.get("assignee") or {}
         verdict.resolved["card"] = {
             "key": key,
             "status": (fields.get("status") or {}).get("name"),
             "assignee": assignee.get("displayName") or assignee.get("accountId"),
         }
-        if assignee.get("accountId") != self.account_id:
+        if not self.is_mine(fields):
             verdict.problems.append(
-                f"card {key} is not assigned to you; only your cards are written"
+                f"card {key} is not yours: you are neither its assignee nor its reporter"
             )
             return None
         return fields
@@ -133,7 +167,7 @@ class Context:
         if not self.key_in_project(key):
             verdict.problems.append(f"epic {key} is not a card of project {self.project}")
             return None
-        issue = self._issue(key, ["summary", "status", "issuetype", "project"])
+        issue = self._issue(key)
         if issue is None:
             verdict.problems.append(f"epic {key} was not found")
             return None
@@ -153,18 +187,91 @@ class Context:
         verdict.problems.extend(problems)
         return None if problems else info
 
-    def priorities(self) -> list[str]:
-        if self._priorities is None:
-            meta = self.client.create_meta(self.project, self.settings.issue_type) or {}
+    def type_id(self, type_: str, verdict: Verdict) -> str | None:
+        found = self.settings.types.get(type_)
+        if not found:
+            verdict.problems.append(
+                f"type {type_!r} has no issue type id: add it to [jira.types] (ws tracker discover)"
+            )
+        return found
+
+    def link_type(self, kind: str, verdict: Verdict) -> str | None:
+        found = self.settings.links.get(kind)
+        if not found:
+            verdict.problems.append(
+                f"link kind {kind!r} has no link type: add it to [jira.links] (ws tracker discover)"
+            )
+        return found
+
+    def _entries(self, type_id: str) -> list[dict]:
+        if type_id not in self._meta:
+            meta = self.client.create_meta(self.project, type_id) or {}
             entries = meta.get("fields") or []
             if isinstance(entries, dict):
                 entries = list(entries.values())
-            names: list[str] = []
-            for entry in entries:
-                if "priority" in (entry.get("fieldId"), entry.get("key")):
-                    names = [item["name"] for item in entry.get("allowedValues") or []]
-            self._priorities = names
-        return self._priorities
+            self._meta[type_id] = entries
+        return self._meta[type_id]
+
+    def priorities(self, type_id: str) -> list[str]:
+        names: list[str] = []
+        for entry in self._entries(type_id):
+            if "priority" in (entry.get("fieldId"), entry.get("key")):
+                names = [item["name"] for item in entry.get("allowedValues") or []]
+        return names
+
+    def create_screen_has(self, type_id: str, field_id: str) -> bool:
+        return any(field_id in (e.get("fieldId"), e.get("key")) for e in self._entries(type_id))
+
+    def initiative(self, key: str, verdict: Verdict) -> dict | None:
+        if not self.key_in_project(key):
+            verdict.problems.append(f"initiative {key} is not a card of project {self.project}")
+            return None
+        issue = self._issue(key)
+        if issue is None:
+            verdict.problems.append(f"initiative {key} was not found")
+            return None
+        fields = issue.get("fields") or {}
+        problems = []
+        if (fields.get("project") or {}).get("key") != self.project:
+            problems.append(f"initiative {key} does not belong to project {self.project}")
+        if (fields.get("issuetype") or {}).get("hierarchyLevel") != 2:
+            problems.append(f"{key} is not an initiative")
+        category = ((fields.get("status") or {}).get("statusCategory") or {}).get("key")
+        if category == "done":
+            problems.append(f"initiative {key} is done")
+        info = {"key": key, "title": fields.get("summary") or ""}
+        verdict.resolved["initiative"] = info
+        verdict.problems.extend(problems)
+        return None if problems else info
+
+    def person(self, ref: str, verdict: Verdict) -> str | None:
+        if ref == "me" or ref == self.own_dev_id:
+            return self.account_id
+        found = self.people.get(ref)
+        if found is None:
+            verdict.problems.append(
+                f"unknown person {ref!r}: run ws people add <e-mail> and paste the block into "
+                "config.toml"
+            )
+            return None
+        account_id = found.ids.get("jira")
+        if not account_id:
+            verdict.problems.append(
+                f"person {ref!r} has no jira id; run ws people add <e-mail> and paste the block "
+                "into config.toml"
+            )
+        return account_id
+
+    def person_name(self, ref: str, account_id: str) -> str:
+        """The name the preview shows: the tracker's display name, else the label, else the id."""
+        if account_id == self.account_id:
+            return self.name
+        try:
+            name = (self.client.user(account_id) or {}).get("displayName")
+        except JiraError:
+            name = None
+        label = self.people[ref].label if ref in self.people else None
+        return name or label or account_id
 
     def sprint(self, verdict: Verdict) -> dict | None:
         if self._sprints is None:
@@ -209,6 +316,7 @@ def check(ctx: Context, draft: Draft) -> Verdict:
         "move": _move,
         "comment": _comment,
         "worklog": _worklog,
+        "link": _link,
     }[draft.op](ctx, draft, verdict)
     if verdict.problems:
         verdict.requests = []
@@ -233,9 +341,10 @@ def _prefix_problem(title: str, epic_title: str | None) -> str | None:
     return None
 
 
-def _section_problems(text: str) -> list[str]:
-    counts = {name: 0 for name in REQUIRED_SECTIONS}
-    filled = {name: False for name in REQUIRED_SECTIONS}
+def _section_problems(text: str, type_: str) -> list[str]:
+    required = vocab.required_sections(type_)
+    counts = {name: 0 for name in required}
+    filled = {name: False for name in required}
     current = None
     in_code = False
     for line in text.splitlines():
@@ -249,7 +358,7 @@ def _section_problems(text: str) -> list[str]:
         if current and line.strip():
             filled[current] = True
     problems = []
-    for name in REQUIRED_SECTIONS:
+    for name in required:
         if counts[name] == 0:
             problems.append(f"the description needs a '## {name}' section")
         elif counts[name] > 1:
@@ -285,50 +394,160 @@ def _dates_problems(start: date | None, due: date | None) -> list[str]:
 
 def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
+    type_ = values["type"]
+    if type_ in vocab.UPPER_TYPES:
+        _create_upper(ctx, draft, verdict)
+        return
+    type_id = ctx.type_id(type_, verdict)
+    if type_id is None:
+        return
     epic = ctx.epic(values["epic"], verdict)
+    if epic and (problem := _prefix_problem(draft.title, epic["title"])):
+        verdict.problems.append(problem)
+    link = {"epic": epic, "line": f"Épico: {epic['key']} {epic['title']}"} if epic else None
+    _create_issue(ctx, draft, verdict, type_id, link, link_required=True)
+
+
+def _create_upper(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    values = draft.values
+    type_ = values["type"]
+    type_id = ctx.type_id(type_, verdict)
+    if type_id is None:
+        return
+    if not _UPPER_TITLE.match(draft.title):
+        article = "an epic" if type_ == "epic" else "an initiative"
+        verdict.problems.append(f"{article} title starts with [PREFIX]")
+    link = None
+    if "parent" in values:
+        initiative = ctx.initiative(values["parent"], verdict)
+        if not ctx.create_screen_has(type_id, "parent"):
+            verdict.problems.append(
+                f"the epic create screen has no parent: create it without parent and link it to "
+                f"{values['parent']} by hand in the tracker"
+            )
+        elif initiative:
+            link = {
+                "epic": initiative,
+                "line": f"Iniciativa: {initiative['key']} {initiative['title']}",
+            }
+    _create_issue(ctx, draft, verdict, type_id, link, link_required="parent" in values)
+
+
+def _create_issue(
+    ctx: Context,
+    draft: Draft,
+    verdict: Verdict,
+    type_id: str,
+    link: dict | None,
+    *,
+    link_required: bool,
+) -> None:
+    values = draft.values
+    type_ = values["type"]
     title = draft.title
     verdict.problems.extend(_summary_problems(title))
-    if epic and (problem := _prefix_problem(title, epic["title"])):
-        verdict.problems.append(problem)
-    verdict.problems.extend(_section_problems(draft.body))
+    verdict.problems.extend(_section_problems(draft.body, type_))
     description = _convert(draft.body, "description", verdict)
-    allowed = ctx.priorities()
+    allowed = ctx.priorities(type_id)
     if values["priority"] not in allowed:
         verdict.problems.append(
             f"priority {values['priority']!r} is not allowed; the project accepts "
             f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
         )
-    due = values["due"]
-    if due < ctx.today:
+    assignee_ref = values.get("assignee", "me")
+    reporter_ref = values.get("reporter", "me")
+    assignee = ctx.person(assignee_ref, verdict)
+    reporter = ctx.person(reporter_ref, verdict)
+    due = values.get("due")
+    wants_sprint = values.get("sprint") == "active"
+    if due and due < ctx.today:
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
-    sprint = ctx.sprint(verdict)
-    if verdict.problems or not (epic and sprint and description):
+    if wants_sprint and due is None:
+        verdict.problems.append('due is required with sprint = "active"')
+    sent = ["summary", "description", "assignee"]
+    sent += ["reporter"] if "reporter" in values else []
+    sent += ["parent"] if type_ in vocab.CARD_TYPES else []
+    sent += ["duedate"] if due else []
+    sent += [ctx.settings.sprint_field] if wants_sprint else []
+    for name in sent:
+        if not ctx.create_screen_has(type_id, name):
+            verdict.problems.append(
+                f"the create screen of {vocab.TYPE_LABELS[type_]} has no {name}"
+            )
+    sprint = ctx.sprint(verdict) if wants_sprint else None
+    if verdict.problems or not (assignee and reporter and description):
         return
-    settings = ctx.settings
+    if link_required and not link:
+        return
+    if wants_sprint and not sprint:
+        return
     fields = {
         "project": {"key": ctx.project},
-        "issuetype": {"name": settings.issue_type},
+        "issuetype": {"id": type_id},
         "summary": title,
         "description": description,
-        "parent": {"key": epic["key"]},
         "priority": {"name": values["priority"]},
-        "assignee": {"accountId": ctx.account_id},
-        "duedate": due.isoformat(),
-        settings.sprint_field: sprint["id"],
+        "assignee": {"accountId": assignee},
     }
+    if "reporter" in values:
+        fields["reporter"] = {"accountId": reporter}
+    if link:
+        fields["parent"] = {"key": link["epic"]["key"]}
+    if due:
+        fields["duedate"] = due.isoformat()
+    sprint_line = "Sprint: (nenhuma)"
+    if sprint:
+        fields[ctx.settings.sprint_field] = sprint["id"]
+        sprint_end = verdict.resolved["sprint"]["end_date"]
+        sprint_line = f"Sprint: {sprint.get('name')}" + (
+            f" (termina em {sprint_end})" if sprint_end else ""
+        )
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
-    sprint_end = verdict.resolved["sprint"]["end_date"]
+    heading = {"epic": "épico", "initiative": "iniciativa"}.get(type_, "card")
     verdict.preview = [
-        f"Criar card no projeto {ctx.project} ({settings.issue_type})",
+        f"Criar {heading} no projeto {ctx.project}",
+        f"Tipo: {vocab.TYPE_LABELS[type_]}",
         f"Título: {title}",
-        f"Épico: {epic['key']} {epic['title']}",
+        *([link["line"]] if link else []),
         f"Prioridade: {values['priority']}",
-        f"Responsável: {ctx.name}",
-        f"Sprint: {sprint.get('name')}" + (f" (termina em {sprint_end})" if sprint_end else ""),
-        f"Prazo: {due.isoformat()}",
+        f"Responsável: {ctx.person_name(assignee_ref, assignee)}",
+        f"Relator: {ctx.person_name(reporter_ref, reporter)}",
+        sprint_line,
+        f"Prazo: {due.isoformat() if due else '(nenhum)'}",
         "Descrição:",
         *[f"  {line}" for line in adf_text(description).splitlines()],
     ]
+
+
+def _card_type(ctx: Context, fields: dict) -> str | None:
+    """The neutral type of an existing card, from its issue type id; None when unknown."""
+    found = (fields.get("issuetype") or {}).get("id")
+    return next((name for name, type_id in ctx.settings.types.items() if type_id == found), None)
+
+
+_LEVELS = {-1: "a subtask", 0: "a card", 1: "an epic", 2: "an initiative"}
+
+
+def _level_problems(key: str, level, values: dict) -> list[str]:
+    """`type` and `epic` belong to a card (level 0), `parent` to an epic (level 1); moving a
+    card between levels is not an edit."""
+    what = _LEVELS.get(level, "of an unknown level")
+    problems = []
+    if "type" in values and level != 0:
+        problems.append(f"{key} is {what}: changing a card's level is done by hand in the tracker")
+    if "epic" in values and level != 0:
+        problems.append(
+            "an epic has no epic; use parent for its initiative"
+            if level == 1
+            else f"{key} is {what}; only a card has an epic"
+        )
+    if "parent" in values and level != 1:
+        problems.append(
+            "parent is only for an epic; a card uses epic"
+            if level == 0
+            else f"{key} is {what}; only an epic has a parent"
+        )
+    return problems
 
 
 def _parse_day(value) -> date | None:
@@ -341,23 +560,28 @@ def _parse_day(value) -> date | None:
 def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
     key = values["key"]
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     if current is None:
         return
     settings = ctx.settings
     changes: dict = {}
     before: dict = {}
     lines = [f"Editar o card {key}"]
+    level = (current.get("issuetype") or {}).get("hierarchyLevel")
+    verdict.problems.extend(_level_problems(key, level, values))
+    meta = ctx.client.edit_meta(key)
 
-    new_epic = ctx.epic(values["epic"], verdict) if "epic" in values else None
+    new_epic = ctx.epic(values["epic"], verdict) if "epic" in values and level == 0 else None
     current_parent = current.get("parent") or {}
-    if "epic" in values and new_epic and current_parent.get("key") != new_epic["key"]:
+    if new_epic and current_parent.get("key") != new_epic["key"]:
         changes["parent"] = {"key": new_epic["key"]}
         before["parent"] = current_parent.get("key")
         lines.append(f"Épico: {current_parent.get('key') or '(nenhum)'} -> {new_epic['key']}")
     if "title" in values:
         verdict.problems.extend(_summary_problems(values["title"]))
-    if "title" in values or "epic" in values:
+    if "title" in values and level in (1, 2) and not _UPPER_TITLE.match(values["title"]):
+        verdict.problems.append(f"{_LEVELS[level]} title starts with [PREFIX]")
+    if level == 0 and ("title" in values or "epic" in values):
         title = values.get("title", current.get("summary") or "")
         if "epic" in values:
             epic_title = new_epic["title"] if new_epic else None
@@ -375,9 +599,52 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["summary"] = current.get("summary")
         lines.append(f"Título: {current.get('summary')} -> {values['title']}")
 
+    if "type" in values and level == 0:
+        target = ctx.type_id(values["type"], verdict)
+        old_type = current.get("issuetype") or {}
+        if target and target != old_type.get("id"):
+            allowed = [
+                item.get("id") for item in (meta.get("issuetype") or {}).get("allowedValues", [])
+            ]
+            if target not in allowed:
+                verdict.problems.append(
+                    f"the card's edit screen does not allow type {values['type']}: "
+                    "change it with the tracker's move, by hand"
+                )
+            else:
+                changes["issuetype"] = {"id": target}
+                before["issuetype"] = old_type.get("id")
+                old_label = vocab.TYPE_LABELS.get(_card_type(ctx, current)) or old_type.get("name")
+                lines.append(
+                    f"Tipo: {old_label or '(nenhum)'} -> {vocab.TYPE_LABELS[values['type']]}"
+                )
+    for person_field, label in (("assignee", "Responsável"), ("reporter", "Relator")):
+        if person_field not in values:
+            continue
+        account_id = ctx.person(values[person_field], verdict)
+        old_person = current.get(person_field) or {}
+        if account_id and account_id != old_person.get("accountId"):
+            changes[person_field] = {"accountId": account_id}
+            before[person_field] = old_person.get("accountId")
+            old_name = old_person.get("displayName") or old_person.get("accountId")
+            new_name = ctx.person_name(values[person_field], account_id)
+            lines.append(f"{label}: {old_name or '(ninguém)'} -> {new_name}")
+    if "parent" in values and level == 1:
+        initiative = ctx.initiative(values["parent"], verdict)
+        if "parent" not in meta:
+            verdict.problems.append(
+                f"the edit screen has no parent: link {key} to {values['parent']} by hand "
+                "in the tracker"
+            )
+        elif initiative and values["parent"] != current_parent.get("key"):
+            changes["parent"] = {"key": values["parent"]}
+            before["parent"] = current_parent.get("key")
+            lines.append(f"Pai: {current_parent.get('key') or '(nenhum)'} -> {values['parent']}")
+
     if "priority" in values:
-        allowed = ctx.priorities()
-        if values["priority"] not in allowed:
+        type_id = (current.get("issuetype") or {}).get("id")
+        allowed = ctx.priorities(type_id) if type_id else None
+        if allowed is not None and values["priority"] not in allowed:
             verdict.problems.append(
                 f"priority {values['priority']!r} is not allowed; the project accepts "
                 f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
@@ -404,7 +671,8 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
     if draft.body.strip():
-        verdict.problems.extend(_section_problems(draft.body))
+        sections = _card_type(ctx, current) or "task"
+        verdict.problems.extend(_section_problems(draft.body, sections))
         old_doc = current.get("description")
         if old_doc:
             try:
@@ -427,6 +695,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             lines.append("Descrição, depois:")
             lines.extend(f"  {line}" for line in adf_text(new_doc).splitlines())
 
+    for name in changes:
+        if name not in meta:
+            verdict.problems.append(f"the edit screen of {key} has no {name}")
     if not changes and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
     if verdict.problems:
@@ -442,7 +713,7 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
     if draft.body.strip():
         verdict.problems.append("a move has no body")
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     if current is None:
         return
     target = fold(draft.values["to"])
@@ -536,7 +807,7 @@ def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> 
 
 def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     body = _convert(draft.body, "comment", verdict)
     if current is None or body is None:
         return
@@ -560,7 +831,7 @@ def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     day = draft.values.get("day", ctx.today)
     if day > ctx.today:
         verdict.problems.append(f"day {day.isoformat()} is after today ({ctx.today.isoformat()})")
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     comment = None
     if draft.body.strip():
         comment = _convert(draft.body, "worklog comment", verdict)
@@ -578,3 +849,69 @@ def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     verdict.preview = [f"Lançar horas no card {key}", f"Tempo: {spent}", f"Início: {started}"]
     if comment:
         verdict.preview.extend(["Comentário:", *[f"  {x}" for x in adf_text(comment).splitlines()]])
+
+
+def _existing_link(links: list, type_name: str, other: str) -> str | None:
+    """How the card is already tied to `other` by this link type: "out" (it is the outward
+    side, so it blocks `other`), "in" (it is blocked by `other`) or None."""
+    for link in links:
+        if (link.get("type") or {}).get("name") != type_name:
+            continue
+        if (link.get("outwardIssue") or {}).get("key") == other:
+            return "out"
+        if (link.get("inwardIssue") or {}).get("key") == other:
+            return "in"
+    return None
+
+
+def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
+    key = draft.values["key"]
+    fields = ctx.card_fields(key, verdict)
+    verdict.resolved["card"] = {"key": key}
+    targets = [
+        (kind, target)
+        for kind in vocab.LINK_KINDS
+        for target in dict.fromkeys(draft.values.get(kind, []))
+    ]
+    target_fields = {target: ctx.card_fields(target, verdict) for _, target in targets}
+    names = {kind: "relates" if kind == "relates" else "blocks" for kind, _ in targets}
+    type_names = {name: ctx.link_type(name, verdict) for name in dict.fromkeys(names.values())}
+    if fields is None or verdict.problems:
+        return
+    if not ctx.is_mine(fields):
+        for _, target in targets:
+            if not ctx.is_mine(target_fields[target]):
+                verdict.problems.append(
+                    f"card {target} is not yours: you are neither its assignee nor its "
+                    f"reporter, and the same goes for {key}"
+                )
+    links = fields.get("issuelinks") or []
+    for kind, target in targets:
+        type_name = type_names[names[kind]]
+        found = _existing_link(links, type_name, target)
+        line = f"{key} {vocab.LINK_LABELS[kind]} {target}"
+        if (kind, found) in _SAME_LINK or (kind == "relates" and found):
+            verdict.preview.append(f"{line}: já existe")
+            continue
+        if found:
+            verdict.problems.append(
+                f"{key} is already blocked by {target}"
+                if kind == "blocks"
+                else f"{key} already blocks {target}"
+            )
+            continue
+        inward, outward = (target, key) if kind == "blocked_by" else (key, target)
+        verdict.preview.append(line)
+        verdict.requests.append(
+            {
+                "method": "POST",
+                "path": "/rest/api/3/issueLink",
+                "body": {
+                    "type": {"name": type_name},
+                    "inwardIssue": {"key": inward},
+                    "outwardIssue": {"key": outward},
+                },
+            }
+        )
+    if not verdict.problems and not verdict.requests:
+        verdict.problems.append("the draft adds no link")

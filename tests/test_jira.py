@@ -398,35 +398,18 @@ def test_active_sprints_uses_the_agile_path(fake_jira):
     assert fake_jira.requests[0]["query"] == {"state": "active"}
 
 
-def test_create_meta_lists_the_types_then_reads_the_named_one(fake_jira):
-    types = {"issueTypes": [{"id": "1", "name": "Bug"}, {"id": "2", "name": "Task"}]}
+def test_create_meta_reads_the_screen_of_the_given_type_id(fake_jira):
     detail = {"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps(types),
-    )
     fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/2")] = (
         200,
         json.dumps(detail),
     )
 
-    assert _client(fake_jira).create_meta("TS", "Task") == detail
+    assert _client(fake_jira).create_meta("TS", "2") == detail
 
     assert [r["path"] for r in fake_jira.requests] == [
-        "/rest/api/3/issue/createmeta/TS/issuetypes",
-        "/rest/api/3/issue/createmeta/TS/issuetypes/2",
+        "/rest/api/3/issue/createmeta/TS/issuetypes/2"
     ]
-
-
-def test_create_meta_unknown_type_is_an_error(fake_jira):
-    types = {"issueTypes": [{"id": "1", "name": "Bug"}]}
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps(types),
-    )
-
-    with pytest.raises(JiraError, match="Task"):
-        _client(fake_jira).create_meta("TS", "Task")
 
 
 def test_truncated_answer_to_a_write_is_uncertain(fake_jira):
@@ -515,16 +498,6 @@ def test_null_pages_are_tolerated(fake_jira):
     assert _client(fake_jira).active_sprints(1) == []
 
 
-def test_create_meta_type_without_id_is_an_error(fake_jira):
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps({"issueTypes": [{"name": "Task"}]}),
-    )
-
-    with pytest.raises(JiraError, match="no id"):
-        _client(fake_jira).create_meta("TS", "Task")
-
-
 @pytest.mark.parametrize(
     "site",
     [
@@ -578,8 +551,6 @@ def test_task_list_with_a_site_that_is_not_atlassian_exits_2(ws_config, capsys):
 
 def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes"
-    types = {"issueTypes": [{"id": "2", "name": "Task"}]}
-    fake_jira.routes[("GET", base)] = (200, json.dumps(types))
     first = {
         "startAt": 0,
         "maxResults": 2,
@@ -595,7 +566,7 @@ def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
     fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(first))
     fake_jira.routes[("GET", f"{base}/2", "2")] = (200, json.dumps(second))
 
-    meta = _client(fake_jira).create_meta("TS", "Task")
+    meta = _client(fake_jira).create_meta("TS", "2")
 
     assert [item["fieldId"] for item in meta["fields"]] == ["a", "b", "priority"]
     detail = [r for r in fake_jira.requests if r["path"] == f"{base}/2"]
@@ -605,9 +576,8 @@ def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
 
 def test_create_meta_stops_on_an_empty_page(fake_jira):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes"
-    fake_jira.routes[("GET", base)] = (200, json.dumps({"issueTypes": [{"id": "2", "name": "T"}]}))
     page = {"startAt": 0, "total": 9, "fields": []}
     fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(page))
 
-    assert _client(fake_jira).create_meta("TS", "T")["fields"] == []
+    assert _client(fake_jira).create_meta("TS", "2")["fields"] == []
     assert len([r for r in fake_jira.requests if r["path"] == f"{base}/2"]) == 1
