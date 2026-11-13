@@ -102,3 +102,11 @@ def test_script_entry_point_runs_a_dry_run(tmp_path, home):
         env={**os.environ, "HOME": str(home)},
     )
     assert done.returncode == 0 and "total:" in done.stdout
+
+
+def test_dirty_tree_is_a_warning_in_a_dry_run_and_fatal_with_apply(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path)
+    args = ["--repo", str(repo), "--map", str(map_dir)]
+    assert cli.main(args, runner=FakeRunner(repo, clean=False)) == 0
+    assert "warn: the git tree is not clean" in capsys.readouterr().out
+    assert cli.main([*args, "--apply"], runner=FakeRunner(repo, clean=False)) == 1

@@ -13,7 +13,7 @@ from .frontmatter import (
     insert_front_matter,
     replace_front_matter,
 )
-from .plan import NEW_PROJECT, OLD_PROJECT, Item, Plan
+from .plan import NEW_PROJECT, OLD_PROJECT, Item, Plan, dropped_lines
 from .relink import affected_files, new_path, rename_slug, rewrite_links
 
 MARKER_START = "<!-- ws:items -->"
@@ -122,7 +122,10 @@ def moved_map(plan: Plan) -> dict[str, str]:
     return moved
 
 
-def precheck(plan: Plan, repo: Path, runner: Runner) -> list[str]:
+def precheck(
+    plan: Plan, repo: Path, runner: Runner, warnings: list[str] | None = None
+) -> list[str]:
+    """Problems that stop an apply; with `warnings`, a dirty tree is reported there instead."""
     problems = []
     for project in plan.project_tomls:
         names = {project} | ({OLD_PROJECT} if project == NEW_PROJECT else set())
@@ -130,7 +133,8 @@ def precheck(plan: Plan, repo: Path, runner: Runner) -> list[str]:
             if (repo / "projects" / name / "project.toml").exists():
                 problems.append(f"projects/{name}/project.toml already exists")
     if not runner.is_clean():
-        problems.append("the git tree is not clean: commit or stash first")
+        message = "the git tree is not clean: commit or stash first"
+        (problems if warnings is None else warnings).append(message)
     for item in plan.items:
         if item.origin != "file":
             continue
@@ -198,6 +202,8 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
     if problems:
         raise ApplyError("\n".join(problems))
     out(f"revert: {revert_command(repo)}")
+    for line in dropped_lines(plan):
+        out(line)
 
     moved = moved_map(plan)
     moved_posix = {PurePosixPath(k): PurePosixPath(v) for k, v in moved.items()}
@@ -232,7 +238,10 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
 
     for item in plan.items:
         if item.origin == "new":
-            _create(item, repo, runner, out)
+            try:
+                _create(item, repo, runner, out)
+            except ApplyError as error:
+                raise ApplyError(f"{error}\nrevert: {revert_command(repo)}") from error
 
     for project, entry in plan.project_tomls.items():
         _write(repo / "projects" / project / "project.toml", _toml_text(entry))
@@ -247,6 +256,10 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
         else:
             out(f"README markers not added: projects/{project}/README.md does not exist")
 
+    stale = map_dir / PENDING_FILE
+    if not plan.pending_epics and stale.exists():
+        stale.unlink()
+        out(f"removed stale {stale}")
     if plan.pending_epics:
         rows = "".join(f"{i.path}\t{epic}\n" for i, epic in plan.pending_epics)
         (map_dir / PENDING_FILE).write_text(rows, encoding="utf-8")

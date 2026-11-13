@@ -133,8 +133,9 @@ def test_apply_refuses_a_path_that_differs_from_the_plan(tmp_path):
     runner = FakeRunner(repo)
     original = runner.item_new
     runner.item_new = lambda *a: original(*a).replace("01-", "09-")
-    with pytest.raises(ApplyError, match="expected"):
+    with pytest.raises(ApplyError, match="expected") as err:
         apply(plan, repo, runner, tmp_path)
+    assert "revert: git -C" in str(err.value)
 
 
 def test_apply_writes_project_toml_pending_tsv_and_readme_markers(tmp_path):
@@ -212,3 +213,27 @@ def test_check_failure_raises_with_the_output_after_the_work(tmp_path, capsys):
         apply(plan, repo, runner, tmp_path)
     assert '"problems"' in str(err.value)
     assert runner.calls[-1] == ("item_check", ("p",))
+
+
+def test_links_from_a_tracker_false_row_are_reported_and_not_written(tmp_path, capsys):
+    from adopt_items.maprows import Link
+    from adopt_items.plan import render_plan
+
+    repo = repo_of(tmp_path, p={"01-a.md": "# A\n"})
+    rows = [
+        row(file="tasks/01-a.md", card="-", action="sem-card", status="a fazer",
+            links=(Link("relates", "TS-5570"),)),
+    ]  # fmt: skip
+    plan, _, lines = run(tmp_path, repo, rows)
+    assert len(plan.dropped_links) == 1
+    assert "warn: link dropped a.tsv:2 relates:TS-5570" in render_plan(plan)
+    assert any(line.startswith("warn: link dropped") for line in lines)
+    assert "relates" not in (repo / "projects/p/tasks/01-a.md").read_text()
+
+
+def test_a_stale_pending_file_is_removed_when_nothing_is_pending(tmp_path):
+    repo = repo_of(tmp_path, p={"01-a.md": "# A\n"})
+    (tmp_path / "map").mkdir()
+    (tmp_path / "map/adopt-pending.tsv").write_text("old\tnovo-E1\n")
+    run(tmp_path, repo, [row(file="tasks/01-a.md")])
+    assert not (tmp_path / "map/adopt-pending.tsv").exists()

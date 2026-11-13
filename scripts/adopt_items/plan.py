@@ -66,6 +66,7 @@ class Plan:
     skipped: list[tuple[Row, str]] = field(default_factory=list)
     project_tomls: dict[str, dict] = field(default_factory=dict)
     pending_epics: list[tuple[Item, str]] = field(default_factory=list)
+    dropped_links: list[tuple[Row, str, str, str]] = field(default_factory=list)
 
 
 def _slugify(text: str) -> str:
@@ -368,6 +369,10 @@ class _Planner:
         by_card = {i.row.card: i for i in self.plan.items}
         for i in self.plan.items:
             if i.fields.get("tracker") is False:
+                self.plan.dropped_links += [
+                    (i.row, link.kind, link.ref, "tracker = false items carry no links")
+                    for link in i.row.links
+                ]
                 continue
             for link in i.row.links:
                 self.resolve_one(i, link, by_card)
@@ -392,6 +397,13 @@ def build_plan(
     return _Planner(rows, repo, people, docs_overrides).run()
 
 
+def dropped_lines(plan: Plan) -> list[str]:
+    return [
+        f"warn: link dropped {r.source}:{r.line} {kind}:{ref}: {why}"
+        for r, kind, ref, why in plan.dropped_links
+    ]
+
+
 def render_plan(plan: Plan) -> str:
     lines = []
     if plan.rename:
@@ -408,6 +420,7 @@ def render_plan(plan: Plan) -> str:
     lines += [f"unattached document {name}" for name in plan.unattached]
     for r, reason in plan.skipped:
         lines.append(f"skip {r.source}:{r.line} {r.card}: {reason}")
+    lines += dropped_lines(plan)
     docs = sum(len(v) for v in plan.documents.values())
     lines.append(
         f"total: {1 if plan.rename else 0} rename, {len(plan.moves)} moves, "

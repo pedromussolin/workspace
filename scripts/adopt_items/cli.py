@@ -93,7 +93,10 @@ def main(argv: list[str] | None = None, runner: Runner | None = None) -> int:
         return 1
     if not args.apply:
         sys.stdout.write(render_plan(plan))
-        problems = precheck(plan, repo, runner)
+        warnings: list[str] = []
+        problems = precheck(plan, repo, runner, warnings)
+        for warning in warnings:
+            say(f"warn: {warning}")
         for problem in problems:
             say(f"problem: {problem}")
         _outside(False, say)
