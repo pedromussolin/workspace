@@ -3,8 +3,8 @@
 from datetime import date
 from pathlib import Path
 
-from ws.itemfile import ItemError, item_path, read_item, set_cache, set_keys, write_text
-from ws.items import Project, rel
+from ws.itemfile import Item, ItemError, item_path, read_item, set_cache, set_keys, write_text
+from ws.items import Project, ProjectMissing, link_ref, load_project, rel
 from ws.tracker.port import Card, People, Tracker, TrackerError
 from ws.tracker.vocab import LINK_KINDS
 
@@ -20,6 +20,36 @@ def _person(account: str | None, role: str, people: People) -> str:
     return found
 
 
+def _links(root: Path, rel_path: str, item: Item, kind: str, card: Card) -> list[str]:
+    """The item's list moved to the card's links of `kind`, keeping what the card cannot show.
+
+    An entry whose item has no card yet waits, so it stays; an entry the card already has stays as
+    the item spells it (a path is not rewritten to its ref); the card's other refs are added,
+    sorted; the item's entries the card lacks are dropped."""
+    entries = item.front.get(kind, [])
+    if not isinstance(entries, list):
+        raise ItemError(f"{rel_path}: {kind} must be a list; fix the item first")
+    try:
+        project = load_project(root, rel_path.split("/")[1])
+    except ProjectMissing as error:
+        raise ItemError(str(error)) from None
+    tracker = {link.ref for link in card.links if link.kind == kind}
+    kept: list[str] = []
+    covered: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, str):
+            raise ItemError(f"{rel_path}: {kind}: {entry!r} is not a link; fix the item first")
+        try:
+            ref = link_ref(root, project, entry)
+        except ItemError as error:
+            raise ItemError(f"{rel_path}: {kind}: {error}; fix the item first") from None
+        if ref is None or ref in tracker:
+            kept.append(entry)
+        if ref is not None:
+            covered.add(ref)
+    return kept + sorted(tracker - covered)
+
+
 def _value(field: str, card: Card, people: People) -> object:
     if field == "type":
         if card.type is None:
@@ -31,7 +61,7 @@ def _value(field: str, card: Card, people: People) -> object:
         return card.parent
     if field in ("assignee", "reporter"):
         return _person(getattr(card, field), field, people)
-    return sorted({link.ref for link in card.links if link.kind == field})
+    raise ItemError(f"{field!r} cannot be pulled")
 
 
 def pull(root: Path, rel_path: str, fields: list[str], tracker: Tracker, people: People) -> dict:
@@ -54,7 +84,12 @@ def pull(root: Path, rel_path: str, fields: list[str], tracker: Tracker, people:
     card = tracker.card(item.card)
     if card is None:
         raise ItemError(f"card {item.card} is not in the tracker")
-    values = {name: _value(name, card, people) for name in dict.fromkeys(fields)}
+    values = {
+        name: _links(root, rel_path, item, name, card)
+        if name in LINK_KINDS
+        else _value(name, card, people)
+        for name in dict.fromkeys(fields)
+    }
     changed = {
         name: {"item": item.front.get(name), "tracker": value}
         for name, value in values.items()

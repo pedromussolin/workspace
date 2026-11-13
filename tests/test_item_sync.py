@@ -216,3 +216,48 @@ def test_pull_an_empty_link_list_writes_nothing(item_repo, serve, capsys):
 
     assert (code, report["changed"]) == (0, {})
     assert path.read_text(encoding="utf-8") == before
+
+
+def test_pull_links_keep_waiting_entries_and_the_item_spelling(item_repo, serve, capsys):
+    listed = '["TS-2", "tasks/02-b.md", "tasks/03-c.md"]'
+    path = write_item(item_repo, "01-a.md", FRONT + f"\nblocks = {listed}")
+    write_item(item_repo, "02-b.md", FRONT.replace('card = "TS-5"\n', ""))
+    write_item(item_repo, "03-c.md", FRONT.replace("TS-5", "TS-3"))
+    before = path.read_text(encoding="utf-8")
+    links = (Link("blocks", "TS-4"), Link("blocks", "TS-3"), Link("relates", "TS-9"))
+    serve(make_card("TS-5", links=links))
+
+    code, report, _ = run(capsys, "pull", REL, "--fields", "blocks")
+
+    assert code == 0
+    pulled = ["tasks/02-b.md", "tasks/03-c.md", "TS-4"]
+    assert report["changed"] == {
+        "blocks": {"item": ["TS-2", "tasks/02-b.md", "tasks/03-c.md"], "tracker": pulled}
+    }
+    assert path.read_text(encoding="utf-8") == before.replace(
+        f"blocks = {listed}", 'blocks = ["tasks/02-b.md", "tasks/03-c.md", "TS-4"]'
+    )
+
+
+def test_pull_links_unchanged_when_only_a_waiting_entry_is_extra(item_repo, serve, capsys):
+    path = write_item(item_repo, "01-a.md", FRONT + '\nrelates = ["tasks/02-b.md", "TS-9"]')
+    write_item(item_repo, "02-b.md", FRONT.replace('card = "TS-5"\n', ""))
+    before = path.read_text(encoding="utf-8")
+    serve(make_card("TS-5", links=(Link("relates", "TS-9"),)))
+
+    code, report, _ = run(capsys, "pull", REL, "--fields", "relates")
+
+    assert (code, report["changed"]) == (0, {})
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_pull_links_refuses_an_entry_that_does_not_resolve(item_repo, serve, capsys):
+    path = write_item(item_repo, "01-a.md", FRONT + '\nblocks = ["tasks/09-none.md"]')
+    before = path.read_text(encoding="utf-8")
+    serve(make_card("TS-5", links=(Link("blocks", "TS-4"),)))
+
+    code, _, err = run(capsys, "pull", REL, "--fields", "blocks")
+
+    assert code == 1
+    assert "tasks/09-none.md" in err and "fix the item first" in err
+    assert path.read_text(encoding="utf-8") == before
