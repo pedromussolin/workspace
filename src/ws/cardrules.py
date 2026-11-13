@@ -195,6 +195,14 @@ class Context:
             )
         return found
 
+    def link_type(self, kind: str, verdict: Verdict) -> str | None:
+        found = self.settings.links.get(kind)
+        if not found:
+            verdict.problems.append(
+                f"link kind {kind!r} has no link type: add it to [jira.links] (ws tracker discover)"
+            )
+        return found
+
     def _entries(self, type_id: str) -> list[dict]:
         if type_id not in self._meta:
             meta = self.client.create_meta(self.project, type_id) or {}
@@ -851,6 +859,8 @@ def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         for target in dict.fromkeys(draft.values.get(kind, []))
     ]
     target_fields = {target: ctx.card_fields(target, verdict) for _, target in targets}
+    names = {kind: "relates" if kind == "relates" else "blocks" for kind, _ in targets}
+    type_names = {name: ctx.link_type(name, verdict) for name in dict.fromkeys(names.values())}
     if fields is None or verdict.problems:
         return
     if not ctx.is_mine(fields):
@@ -862,7 +872,7 @@ def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
                 )
     links = fields.get("issuelinks") or []
     for kind, target in targets:
-        type_name = ctx.settings.links["relates" if kind == "relates" else "blocks"]
+        type_name = type_names[names[kind]]
         found = _existing_link(links, type_name, target)
         line = f"{key} {vocab.LINK_LABELS[kind]} {target}"
         if (kind, found) in _SAME_LINK or (kind == "relates" and found):

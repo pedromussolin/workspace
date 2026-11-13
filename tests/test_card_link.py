@@ -162,3 +162,15 @@ def test_a_failing_link_reports_the_links_already_created(world, capsys, monkeyp
     assert "TS-120" not in text.split("Vinculado:")[1]
     assert "a transição foi aplicada" not in text
     assert len(bodies(world)) == 1
+
+
+def test_link_kind_without_a_link_type_is_a_problem(world, ws_config, capsys):  # noqa: F811
+    config = ws_config / "config.toml"
+    text = config.read_text(encoding="utf-8")
+    config.write_text(text.replace('relates = "Relates"\n', ""), encoding="utf-8")
+
+    message = problems(link_draft(relates=["TS-120", "TS-102"]), capsys)
+
+    assert message == (
+        "link kind 'relates' has no link type: add it to [jira.links] (ws tracker discover)"
+    )
