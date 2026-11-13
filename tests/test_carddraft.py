@@ -58,11 +58,12 @@ def test_draft_create_initiative_refuses_parent():
 
 def test_draft_create_accepts_people_and_sprint():
     values = create(
-        'epic = "TS-1"\nassignee = "ana@x.com"\nreporter = "bia@x.com"\nsprint = "active"'
+        'epic = "TS-1"\nassignee = "ana@example.com"\nreporter = "bia@example.com"\n'
+        'sprint = "active"'
     ).values
 
-    assert values["assignee"] == "ana@x.com"
-    assert values["reporter"] == "bia@x.com"
+    assert values["assignee"] == "ana@example.com"
+    assert values["reporter"] == "bia@example.com"
     assert values["sprint"] == "active"
 
 
