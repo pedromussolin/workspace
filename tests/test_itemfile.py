@@ -272,6 +272,12 @@ def test_link_path_resolves_across_projects_and_stays_in_projects(tmp_path):
         itemfile.link_path(root, "demo", "../other/tasks/s.md")
 
 
+@pytest.mark.parametrize("slug", ["Demo", "demo_x", "-demo", "demo-", "de--mo", "../demo", ""])
+def test_link_path_refuses_a_slug_that_is_not_a_project_name(tmp_path, slug):
+    with pytest.raises(ItemError, match="is not a project name"):
+        itemfile.link_path(tmp_path, slug, "tasks/01-a.md")
+
+
 def test_write_text_replaces_atomically_and_keeps_the_mode(tmp_path):
     path = write(tmp_path, "old")
     path.chmod(0o640)

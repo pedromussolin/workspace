@@ -11,6 +11,7 @@ from pathlib import Path
 
 from ws.config import data_dir
 from ws.itemfile import ItemError, item_path, read_item, set_keys, write_text
+from ws.tracker.vocab import REF
 
 UNKNOWN = "?"
 
@@ -61,6 +62,8 @@ def clear(rel: str) -> None:
 
 
 def write_back(root: Path, rel: str, ref: str) -> None:
+    if not REF.fullmatch(ref):
+        raise ItemError(f"{ref!r} is not a card ref (PROJECT-123)")
     path = item_path(root, rel)
     try:
         item = read_item(path)
@@ -68,6 +71,8 @@ def write_back(root: Path, rel: str, ref: str) -> None:
         raise ItemError(f"{rel} no longer exists") from None
     if item is None:
         raise ItemError(f"{rel} has no front matter")
+    if not item.tracked:
+        raise ItemError(f"{rel} has tracker = false, so it has no card")
     if item.front.get("card") == ref:
         return
     if "card" in item.front:

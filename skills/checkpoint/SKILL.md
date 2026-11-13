@@ -26,7 +26,9 @@ does not matter. Never build the git steps by hand and never skip a hook.
    said in a company-repo chat must not push the personal repo (tell the user and stop). The
    project is the one the session is working on (`projects/<slug>/`). If it is not clear, ask the
    user which one. `standalone` and `ai-studies` have no `CONTINUE.md` and are refused.
-2. **Check.** Run `ws checkpoint check <slug>`: JSON verdict, exit 0 when ok.
+2. **Check.** Run `ws checkpoint check <slug>`: JSON verdict, exit 0 when ok. When
+   `projects/<slug>/project.toml` exists, also run `ws item check <slug>` (offline, no tracker) and
+   fix the item files until it exits 0.
 3. **Update the files.**
    - `## Onde parei` in `CONTINUE.md`: what was done in this iteration, the state of branches and
      deploys.

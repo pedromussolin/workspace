@@ -11,6 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from ws.identity import DEV_ID
+from ws.project import SLUG_PATTERN
 from ws.taskmodel import Status
 from ws.tracker.vocab import CARD_TYPES, LINK_KINDS, REF
 from ws.userconfig import toml_string
@@ -31,7 +32,6 @@ CONTRACT_KEYS = (
 CACHE_KEYS = ("status", "priority", "due", "sprint", "synced")
 ITEM_PATH = re.compile(r"projects/[a-z0-9]+(?:-[a-z0-9]+)*/tasks/[A-Za-z0-9._-]+\.md")
 LINK_PATH = re.compile(r"(?:\.\./[a-z0-9]+(?:-[a-z0-9]+)*/)?tasks/[A-Za-z0-9._-]+\.md")
-_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 _KEY_LINE = re.compile(r"\s*([A-Za-z0-9_-]+)\s*=")
 _FENCE = "+++"
 _CACHE_TEXT = ("status", "priority", "sprint")
@@ -318,7 +318,7 @@ def item_path(root: Path, rel: str) -> Path:
 
 
 def link_path(root: Path, slug: str, target: str) -> Path:
-    if not _SLUG.fullmatch(slug):
+    if not SLUG_PATTERN.fullmatch(slug):
         raise ItemError(f"{slug!r} is not a project name")
     if not LINK_PATH.fullmatch(target):
         raise ItemError(f"{target!r} is neither tasks/<file>.md nor ../<project>/tasks/<file>.md")

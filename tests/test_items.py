@@ -126,7 +126,9 @@ def test_check_cardless_item_without_epic_is_pending_not_a_problem(item_repo, ca
 
     assert code == 0
     assert report["problems"] == []
-    assert report["pending"] == [{"path": "projects/demo/tasks/01-a.md", "needs": "epic"}]
+    assert report["pending"] == [
+        {"path": "projects/demo/tasks/01-a.md", "card": None, "op": "create", "needs": "epic"}
+    ]
 
     write_item(item_repo, "01-a.md", front + '\nepic = "TS-9"')
     code, report, _ = check(capsys)
@@ -165,6 +167,32 @@ def test_check_refuses_a_self_link_and_one_target_twice(item_repo, capsys):
     code, report, _ = check(capsys)
     assert code == 1
     assert "more than one" in texts(report)[0]
+
+
+@pytest.mark.parametrize("prefix", ["ARTEMIS V2", "VM TELAS", "FRONT", "A-B_C.2"])
+def test_check_accepts_a_prefix_with_inner_spaces(item_repo, capsys, prefix):
+    toml = f'epics = ["TS-100"]\n\n[prefixes]\nTS-100 = "{prefix}"\n'
+    (item_repo / "projects" / "demo" / "project.toml").write_text(toml, encoding="utf-8")
+
+    code, report, _ = check(capsys)
+
+    assert (code, report["problems"]) == (0, [])
+    assert items.load_project(item_repo, "demo").prefixes == {"TS-100": prefix}
+
+
+@pytest.mark.parametrize("prefix", ["[X]", "X]", " X", "X ", "", "A\\nB"])
+def test_check_refuses_a_prefix_with_brackets_or_end_spaces(item_repo, capsys, prefix):
+    toml = f'epics = ["TS-100"]\n\n[prefixes]\nTS-100 = "{prefix}"\n'
+    (item_repo / "projects" / "demo" / "project.toml").write_text(toml, encoding="utf-8")
+
+    code, report, _ = check(capsys)
+
+    assert code == 1
+    assert texts(report) == [
+        "prefixes: the prefix of TS-100 must be one line of text without brackets nor spaces "
+        "at the ends"
+    ]
+    assert items.load_project(item_repo, "demo").prefixes == {}
 
 
 def test_check_reports_a_broken_project_toml(item_repo, capsys):
@@ -269,7 +297,7 @@ def test_new_without_epic_leaves_the_key_out_and_check_reports_pending(item_repo
     assert "epic" not in text.split("+++")[1]
     code, report, _ = check(capsys)
     assert code == 0
-    assert report["pending"] == [{"path": out, "needs": "epic"}]
+    assert report["pending"] == [{"path": out, "card": None, "op": "create", "needs": "epic"}]
 
 
 @pytest.mark.parametrize(
@@ -365,6 +393,16 @@ def test_table_fills_an_empty_marker_block_and_keeps_a_hand_table(item_repo, cap
     assert main(["item", "table", "demo"]) == 0
     assert json.loads(capsys.readouterr().out)["changed"] is False
     assert readme(item_repo).read_text(encoding="utf-8") == text
+
+
+def test_table_strips_only_a_leading_number_from_the_heading(item_repo, capsys):
+    write_item(item_repo, "01-a.md", CLEAN, "# 01 — Migração fase 2 — cutover\n")
+    write_item(item_repo, "02-b.md", CLEAN.replace("TS-5", "TS-6"), "# Migração fase 3 — cutover\n")
+
+    assert main(["item", "table", "demo"]) == 0
+    text = readme(item_repo).read_text(encoding="utf-8")
+    assert "| 01 | [Migração fase 2 — cutover](tasks/01-a.md) |" in text
+    assert "| 02 | [Migração fase 3 — cutover](tasks/02-b.md) |" in text
 
 
 @pytest.mark.parametrize(
