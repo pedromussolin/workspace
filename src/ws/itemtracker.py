@@ -11,7 +11,15 @@ from pathlib import Path
 from ws import itemrecord
 from ws.card import drafts_folder
 from ws.itemfile import Item, ItemError
-from ws.items import PeopleDirectory, Project, check_offline, link_ref, rel
+from ws.items import (
+    PeopleDirectory,
+    Project,
+    check_offline,
+    link_ref,
+    load_project,
+    project_slugs,
+    rel,
+)
 from ws.tracker.port import Card, CardQuery, People, Tracker
 from ws.tracker.vocab import LINK_KINDS, required_sections
 
@@ -173,6 +181,7 @@ def _undeclared(reader: _Reader, project: Project, item: Item, path: str, card: 
                     "field": kind,
                     "item": list(item.links[kind]),
                     "tracker": [link.ref for link in card.links if link.kind == kind],
+                    "undeclared": extra,
                 }
             )
     return drift
@@ -182,7 +191,11 @@ def compare(projects: list[Project], root: Path, tracker: Tracker, people: Peopl
     directory: PeopleDirectory = people
     report = Report(problems=check_offline(projects, root, directory))
     bad = {p["path"] for p in report.problems}
-    reader = _Reader(projects, root, tracker)
+    chosen = {project.slug for project in projects}
+    everyone = projects + [
+        load_project(root, slug) for slug in project_slugs(root) if slug not in chosen
+    ]
+    reader = _Reader(everyone, root, tracker)
     seen: set = set()
     for project in projects:
         for item in project.items:
@@ -214,7 +227,7 @@ def compare(projects: list[Project], root: Path, tracker: Tracker, people: Peopl
             report.problems += problems
             report.pending += pending
             report.drift += _undeclared(reader, project, item, path, card)
-    held = {item.card for project in projects for item in project.items if item.card}
+    held = {item.card for project in everyone for item in project.items if item.card}
     listed: set[str] = set()
     for project in projects:
         if not project.epics:
@@ -300,7 +313,7 @@ def write_drafts(
 
     for entry in report.drift:
         if entry["field"] in LINK_KINDS and _selected(only, entry["path"], entry["card"]):
-            for target in entry["tracker"]:
+            for target in entry["undeclared"]:
                 text = _link_text(entry["field"], entry["card"], target)
                 by_hand.append(
                     f"remove the link {text} by hand, or ws item pull {entry['path']} "

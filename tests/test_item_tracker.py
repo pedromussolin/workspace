@@ -176,7 +176,14 @@ def test_check_tracker_undeclared_tracker_link_is_drift(item_repo, tracker, caps
 
     assert code == 0
     assert report["drift"] == [
-        {"path": REL, "card": "TS-5", "field": "relates", "item": [], "tracker": ["TS-9"]}
+        {
+            "path": REL,
+            "card": "TS-5",
+            "field": "relates",
+            "item": [],
+            "tracker": ["TS-9"],
+            "undeclared": ["TS-9"],
+        }
     ]
 
 
@@ -372,3 +379,43 @@ def test_check_tracker_through_the_jira_adapter(world, item_repo, capsys):  # no
 
     assert code == 0
     assert report == {"problems": [], "drift": [], "pending": [], "orphans": []}
+
+
+def test_drafts_by_hand_names_only_the_undeclared_links(item_repo, tracker, capsys):  # noqa: F811
+    write_item(item_repo, "01-a.md", FRONT + '\nblocks = ["TS-7"]')
+    tracker(
+        make_card("TS-5", links=(Link("blocks", "TS-7"), Link("blocks", "TS-9"))),
+        make_card("TS-7"),
+    )
+
+    _, report, _ = check(capsys)
+    _, result, _ = run(capsys, "drafts")
+
+    assert report["drift"][0]["undeclared"] == ["TS-9"]
+    assert result["by_hand"] == [
+        f"remove the link TS-5 blocks TS-9 by hand, or ws item pull {REL} --fields blocks"
+    ]
+
+
+def other_project(root):
+    folder = root / "projects" / "other"
+    (folder / "tasks").mkdir(parents=True)
+    (folder / "project.toml").write_text('epics = ["TS-100"]\n', encoding="utf-8")
+    (folder / "tasks" / "01-x.md").write_text(
+        "+++\n" + FRONT.replace("TS-5", "TS-6") + '\nblocks = ["TS-5"]\n+++\n# 01 — X\n',
+        encoding="utf-8",
+    )
+
+
+def test_check_one_project_knows_the_items_of_the_others(item_repo, tracker, capsys):  # noqa: F811
+    write_item(item_repo, "01-a.md", FRONT)
+    other_project(item_repo)
+    tracker(
+        make_card("TS-5", links=(Link("blocked_by", "TS-6"),)),
+        make_card("TS-6", links=(Link("blocks", "TS-5"),)),
+    )
+
+    code, report, _ = run(capsys, "check", "demo", "--tracker")
+
+    assert code == 0
+    assert report["drift"] == [] and report["orphans"] == []
