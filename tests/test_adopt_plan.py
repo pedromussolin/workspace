@@ -256,6 +256,11 @@ def test_render_plan_mentions_every_move_item_and_skip(tmp_path):
     assert "projects/artemis-v2/tasks/13-m.md" in text
     assert "projects/vm-migration/tasks/13-m.md" in text
     assert "tasks/13-m.md" in text and "TS-9" in text
+    item_lines = [ln for ln in text.splitlines() if ln.startswith("item ") and "vm-migration" in ln]
+    assert item_lines
+    for ln in item_lines:
+        assert ln.count("projects/vm-migration/tasks/") == 1
+        assert "vm-migration/projects/" not in ln
     assert "TS-8" in text and "closed card, no file" in text
     assert text.rstrip().splitlines()[-1].startswith("total")
 

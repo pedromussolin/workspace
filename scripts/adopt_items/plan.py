@@ -374,10 +374,9 @@ def render_plan(plan: Plan) -> str:
         lines.append(f"rename {plan.rename[0]} -> {plan.rename[1]}")
     lines += [f"move {old} -> {new}" for old, new in plan.moves]
     for i in plan.items:
-        where = i.path
         card = i.fields.get("card", "-")
         kind = "item" if i.fields.get("tracker") is not False else "item (tracker = false)"
-        lines.append(f"{kind} {i.project}/{where} card={card} source={i.row.source}:{i.row.line}")
+        lines.append(f"{kind} {i.path} card={card} source={i.row.source}:{i.row.line}")
     for item, placeholder in plan.pending_epics:
         lines.append(f"pending epic {item.path} -> {placeholder}")
     for project, names in sorted(plan.documents.items()):
