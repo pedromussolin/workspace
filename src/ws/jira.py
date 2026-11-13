@@ -253,6 +253,9 @@ class JiraClient:
                 f"Jira sent an unreadable answer for {method} {path}: {error}", uncertain=write
             ) from None
 
+    def user(self, account_id: str) -> dict:
+        return self.get("/rest/api/3/user", {"accountId": account_id}) or {}
+
 
 def _error_detail(error: urllib.error.HTTPError) -> str:
     try:

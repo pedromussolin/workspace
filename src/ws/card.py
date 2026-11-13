@@ -232,7 +232,8 @@ def _run(command: str, action) -> int:
 
 
 def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
-    context = cardrules.Context.load(client, settings, _now())
+    config = userconfig.load_config()
+    context = cardrules.Context.load(client, settings, _now(), config.people, config.identity_email)
     verdicts = [
         cardrules.check(context, item.draft) if item.draft else Verdict(problems=item.problems)
         for item in loaded
@@ -633,6 +634,14 @@ def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> None:
     key = key or verdict.resolved.get("card", {}).get("key")
     link = f" {site}/browse/{key}" if key else ""
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
+    if creating and key:
+        _log_created(item.path.name, key)
+
+
+def _log_created(name: str, key: str) -> None:
+    today = _now().date().isoformat()
+    with _store("created.tsv").open("a", encoding="utf-8") as log:
+        log.write(f"{name}\t{key}\t{today}\n")
 
 
 def _report_failure(

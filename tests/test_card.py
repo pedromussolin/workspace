@@ -214,6 +214,7 @@ def make_draft(name, op, body="", **front):
 
 def create_draft(name="create.md", title="[FRONT] Título curto", body=SECTIONS, **front):
     values = {"type": "task", "epic": "TS-100", "priority": "High", "due": date(2026, 10, 31)}
+    values["sprint"] = "active"
     values.update(front)
     values = {key: value for key, value in values.items() if value is not None}
     return make_draft(name, "create", f"# {title}\n\n{body}", **values)
@@ -319,6 +320,7 @@ def test_create_check_passes_and_builds_the_request(world, capsys):
         "parent": {"key": "TS-100"},
         "priority": {"name": "High"},
         "assignee": {"accountId": "acc-me"},
+        "reporter": {"accountId": "acc-me"},
         "duedate": "2026-10-31",
         SPRINT_FIELD: 55,
     }
@@ -911,7 +913,7 @@ OPS = {
 def test_another_persons_or_unassigned_card_is_refused_for_every_op(world, capsys, op, key):
     world.set_transitions(key, [{"id": "31", "to": {"name": "Em Validação"}, "fields": {}}])
 
-    assert "not assigned to you" in problems(OPS[op](key), capsys)
+    assert "is not yours" in problems(OPS[op](key), capsys)
     assert world.writes() == []
 
 
@@ -1129,7 +1131,7 @@ def test_approve_reruns_the_checks_and_refuses_a_card_reassigned_since_the_previ
     assert approve(path, code) == 1
     assert world.writes() == []
     captured = capsys.readouterr()
-    assert "not assigned to you" in captured.out + captured.err
+    assert "is not yours" in captured.out + captured.err
 
 
 def test_approve_refuses_when_the_requests_now_differ(world, capsys):

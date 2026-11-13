@@ -8,13 +8,13 @@ from zoneinfo import ZoneInfo
 
 from ws.adf import AdfError, foreign_nodes, to_adf
 from ws.carddraft import Draft
+from ws.identity import dev_id
 from ws.jira import CATEGORY_STATUS, JiraClient, JiraError
 from ws.taskmodel import Status
 from ws.tracker import vocab
-from ws.userconfig import JiraConfig
+from ws.userconfig import JiraConfig, Person
 
 MAX_SUMMARY = 255
-REQUIRED_SECTIONS = ("Contexto", "Pronto quando")
 WORKLOG_HOUR = 9
 
 _PREFIX = re.compile(r"^\[[^\]]+\]")
@@ -62,8 +62,19 @@ def adf_text(node: dict) -> str:
 class Context:
     """What the rules read from Jira, fetched once per run."""
 
-    def __init__(self, client: JiraClient, settings: JiraConfig, me: dict, tz: ZoneInfo, today):
+    def __init__(
+        self,
+        client: JiraClient,
+        settings: JiraConfig,
+        me: dict,
+        tz: ZoneInfo,
+        today,
+        people: dict[str, Person] | None = None,
+        identity_email: str | None = None,
+    ):
         self.client = client
+        self.people = people or {}
+        self.own_dev_id = dev_id(identity_email) if identity_email else None
         self.settings = settings
         self.project = settings.project
         self.account_id = me["accountId"]
@@ -71,11 +82,18 @@ class Context:
         self.tz = tz
         self.today: date = today
         self._issues: dict[str, dict | None] = {}
-        self._priorities: list[str] | None = None
+        self._priorities: dict[str, list[str]] = {}
         self._sprints: list[dict] | None = None
 
     @classmethod
-    def load(cls, client: JiraClient, settings: JiraConfig, now: datetime) -> "Context":
+    def load(
+        cls,
+        client: JiraClient,
+        settings: JiraConfig,
+        now: datetime,
+        people: dict[str, Person] | None = None,
+        identity_email: str | None = None,
+    ) -> "Context":
         me = client.myself() or {}
         if not me.get("accountId"):
             raise JiraError("Jira did not say who the user is (accountId)")
@@ -83,7 +101,7 @@ class Context:
             tz = ZoneInfo(me.get("timeZone"))
         except (ValueError, TypeError, OSError):
             raise JiraError("Jira did not give a valid time zone for the user") from None
-        return cls(client, settings, me, tz, now.astimezone(tz).date())
+        return cls(client, settings, me, tz, now.astimezone(tz).date(), people, identity_email)
 
     def key_in_project(self, key: str) -> bool:
         return re.fullmatch(rf"{re.escape(self.project)}-[1-9]\d*", key) is not None
@@ -101,12 +119,12 @@ class Context:
         self._issues[key] = issue
         return issue
 
-    def own_card(self, key: str, verdict: Verdict) -> dict | None:
+    def writable_card(self, key: str, verdict: Verdict) -> dict | None:
         if not self.key_in_project(key):
             verdict.problems.append(f"{key} is not a card of project {self.project}")
             return None
         names = ["summary", "status", "assignee", "description", "parent", "project"]
-        names += ["priority", "duedate"]
+        names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
         if self.settings.start_date_field:
             names.append(self.settings.start_date_field)
         issue = self._issue(key, names)
@@ -123,9 +141,10 @@ class Context:
             "status": (fields.get("status") or {}).get("name"),
             "assignee": assignee.get("displayName") or assignee.get("accountId"),
         }
-        if assignee.get("accountId") != self.account_id:
+        reporter = fields.get("reporter") or {}
+        if self.account_id not in (assignee.get("accountId"), reporter.get("accountId")):
             verdict.problems.append(
-                f"card {key} is not assigned to you; only your cards are written"
+                f"card {key} is not yours: you are neither its assignee nor its reporter"
             )
             return None
         return fields
@@ -154,9 +173,17 @@ class Context:
         verdict.problems.extend(problems)
         return None if problems else info
 
-    def priorities(self) -> list[str]:
-        if self._priorities is None:
-            meta = self.client.create_meta(self.project, self.settings.types["task"]) or {}
+    def type_id(self, type_: str, verdict: Verdict) -> str | None:
+        found = self.settings.types.get(type_)
+        if not found:
+            verdict.problems.append(
+                f"type {type_!r} has no issue type id: add it to [jira.types] (ws tracker discover)"
+            )
+        return found
+
+    def priorities(self, type_id: str) -> list[str]:
+        if type_id not in self._priorities:
+            meta = self.client.create_meta(self.project, type_id) or {}
             entries = meta.get("fields") or []
             if isinstance(entries, dict):
                 entries = list(entries.values())
@@ -164,8 +191,34 @@ class Context:
             for entry in entries:
                 if "priority" in (entry.get("fieldId"), entry.get("key")):
                     names = [item["name"] for item in entry.get("allowedValues") or []]
-            self._priorities = names
-        return self._priorities
+            self._priorities[type_id] = names
+        return self._priorities[type_id]
+
+    def person(self, ref: str, verdict: Verdict) -> str | None:
+        if ref == "me" or ref == self.own_dev_id:
+            return self.account_id
+        found = self.people.get(ref)
+        if found is None:
+            verdict.problems.append(
+                f"unknown person {ref!r}: run ws people add <e-mail> and paste the block into "
+                "config.toml"
+            )
+            return None
+        account_id = found.ids.get("jira")
+        if not account_id:
+            verdict.problems.append(f"person {ref!r} has no jira id")
+        return account_id
+
+    def person_name(self, ref: str, account_id: str) -> str:
+        """The name the preview shows: the tracker's display name, else the label, else the id."""
+        if account_id == self.account_id:
+            return self.name
+        try:
+            name = (self.client.user(account_id) or {}).get("displayName")
+        except JiraError:
+            name = None
+        label = self.people[ref].label if ref in self.people else None
+        return name or label or account_id
 
     def sprint(self, verdict: Verdict) -> dict | None:
         if self._sprints is None:
@@ -234,9 +287,10 @@ def _prefix_problem(title: str, epic_title: str | None) -> str | None:
     return None
 
 
-def _section_problems(text: str) -> list[str]:
-    counts = {name: 0 for name in REQUIRED_SECTIONS}
-    filled = {name: False for name in REQUIRED_SECTIONS}
+def _section_problems(text: str, type_: str) -> list[str]:
+    required = vocab.required_sections(type_)
+    counts = {name: 0 for name in required}
+    filled = {name: False for name in required}
     current = None
     in_code = False
     for line in text.splitlines():
@@ -250,7 +304,7 @@ def _section_problems(text: str) -> list[str]:
         if current and line.strip():
             filled[current] = True
     problems = []
-    for name in REQUIRED_SECTIONS:
+    for name in required:
         if counts[name] == 0:
             problems.append(f"the description needs a '## {name}' section")
         elif counts[name] > 1:
@@ -286,50 +340,83 @@ def _dates_problems(start: date | None, due: date | None) -> list[str]:
 
 def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
+    type_ = values["type"]
+    if type_ in vocab.UPPER_TYPES:
+        verdict.problems.append("creating an epic or an initiative is not supported yet")
+        return
+    type_id = ctx.type_id(type_, verdict)
+    if type_id is None:
+        return
     epic = ctx.epic(values["epic"], verdict)
     title = draft.title
     verdict.problems.extend(_summary_problems(title))
     if epic and (problem := _prefix_problem(title, epic["title"])):
         verdict.problems.append(problem)
-    verdict.problems.extend(_section_problems(draft.body))
+    verdict.problems.extend(_section_problems(draft.body, type_))
     description = _convert(draft.body, "description", verdict)
-    allowed = ctx.priorities()
+    allowed = ctx.priorities(type_id)
     if values["priority"] not in allowed:
         verdict.problems.append(
             f"priority {values['priority']!r} is not allowed; the project accepts "
             f"{', '.join(allowed) or 'none (no priority field on the create screen)'}"
         )
-    due = values["due"]
-    if due < ctx.today:
+    assignee_ref = values.get("assignee", "me")
+    reporter_ref = values.get("reporter", "me")
+    assignee = ctx.person(assignee_ref, verdict)
+    reporter = ctx.person(reporter_ref, verdict)
+    due = values.get("due")
+    wants_sprint = values.get("sprint") == "active"
+    if due and due < ctx.today:
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
-    sprint = ctx.sprint(verdict)
-    if verdict.problems or not (epic and sprint and description):
+    if wants_sprint and due is None:
+        verdict.problems.append('due is required with sprint = "active"')
+    sprint = ctx.sprint(verdict) if wants_sprint else None
+    if verdict.problems or not (epic and assignee and reporter and description):
         return
-    settings = ctx.settings
+    if wants_sprint and not sprint:
+        return
     fields = {
         "project": {"key": ctx.project},
-        "issuetype": {"id": settings.types["task"]},
+        "issuetype": {"id": type_id},
         "summary": title,
         "description": description,
         "parent": {"key": epic["key"]},
         "priority": {"name": values["priority"]},
-        "assignee": {"accountId": ctx.account_id},
-        "duedate": due.isoformat(),
-        settings.sprint_field: sprint["id"],
+        "assignee": {"accountId": assignee},
+        "reporter": {"accountId": reporter},
     }
+    if due:
+        fields["duedate"] = due.isoformat()
+    sprint_line = "Sprint: (nenhuma)"
+    if sprint:
+        fields[ctx.settings.sprint_field] = sprint["id"]
+        sprint_end = verdict.resolved["sprint"]["end_date"]
+        sprint_line = f"Sprint: {sprint.get('name')}" + (
+            f" (termina em {sprint_end})" if sprint_end else ""
+        )
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
-    sprint_end = verdict.resolved["sprint"]["end_date"]
     verdict.preview = [
-        f"Criar card no projeto {ctx.project} ({vocab.TYPE_LABELS['task']})",
+        f"Criar card no projeto {ctx.project}",
+        f"Tipo: {vocab.TYPE_LABELS[type_]}",
         f"Título: {title}",
         f"Épico: {epic['key']} {epic['title']}",
         f"Prioridade: {values['priority']}",
-        f"Responsável: {ctx.name}",
-        f"Sprint: {sprint.get('name')}" + (f" (termina em {sprint_end})" if sprint_end else ""),
-        f"Prazo: {due.isoformat()}",
+        f"Responsável: {ctx.person_name(assignee_ref, assignee)}",
+        f"Relator: {ctx.person_name(reporter_ref, reporter)}",
+        sprint_line,
+        f"Prazo: {due.isoformat() if due else '(nenhum)'}",
         "Descrição:",
         *[f"  {line}" for line in adf_text(description).splitlines()],
     ]
+
+
+def _card_type(ctx: Context, fields: dict) -> str:
+    """The neutral type of an existing card, from its issue type id; a task when unknown."""
+    found = (fields.get("issuetype") or {}).get("id")
+    for neutral, type_id in ctx.settings.types.items():
+        if type_id == found:
+            return neutral
+    return "task"
 
 
 def _parse_day(value) -> date | None:
@@ -342,7 +429,7 @@ def _parse_day(value) -> date | None:
 def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
     key = values["key"]
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     if current is None:
         return
     settings = ctx.settings
@@ -377,7 +464,8 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         lines.append(f"Título: {current.get('summary')} -> {values['title']}")
 
     if "priority" in values:
-        allowed = ctx.priorities()
+        card_type = _card_type(ctx, current)
+        allowed = ctx.priorities(ctx.type_id(card_type, verdict) or "")
         if values["priority"] not in allowed:
             verdict.problems.append(
                 f"priority {values['priority']!r} is not allowed; the project accepts "
@@ -405,7 +493,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
     if draft.body.strip():
-        verdict.problems.extend(_section_problems(draft.body))
+        verdict.problems.extend(_section_problems(draft.body, _card_type(ctx, current)))
         old_doc = current.get("description")
         if old_doc:
             try:
@@ -443,7 +531,7 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
     if draft.body.strip():
         verdict.problems.append("a move has no body")
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     if current is None:
         return
     target = fold(draft.values["to"])
@@ -537,7 +625,7 @@ def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> 
 
 def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     body = _convert(draft.body, "comment", verdict)
     if current is None or body is None:
         return
@@ -561,7 +649,7 @@ def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     day = draft.values.get("day", ctx.today)
     if day > ctx.today:
         verdict.problems.append(f"day {day.isoformat()} is after today ({ctx.today.isoformat()})")
-    current = ctx.own_card(key, verdict)
+    current = ctx.writable_card(key, verdict)
     comment = None
     if draft.body.strip():
         comment = _convert(draft.body, "worklog comment", verdict)
