@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 OLD_SLUG = "operations-screens-migration"
 NEW_SLUG = "vm-migration"
 
-_INLINE_LINK = re.compile(r'(!?\[[^\]]*\]\()([^)\s]+)((?:\s+"[^"]*")?\s*\))')
+_INLINE_LINK = re.compile(r'(!?\[[^\]]*\]\()(<[^>\n]*>|[^)\s]+)((?:\s+"[^"]*")?\s*\))')
 _REF_LINK = re.compile(r"^(\s{0,3}\[[^\]]+\]:\s*)(\S+)")
 _INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
@@ -21,12 +21,23 @@ def _blank_code(line: str) -> str:
 def _mapped(
     target: PurePosixPath, moved: dict[PurePosixPath, PurePosixPath]
 ) -> PurePosixPath | None:
-    for old, new in moved.items():
-        if target == old:
-            return new
-        if old in target.parents:
-            return new / target.relative_to(old)
-    return None
+    best: PurePosixPath | None = None
+    for old in moved:
+        if (target == old or old in target.parents) and (
+            best is None or len(old.parts) > len(best.parts)
+        ):
+            best = old
+    if best is None:
+        return None
+    return moved[best] / target.relative_to(best)
+
+
+def new_path(path: str, moved: dict[str, str]) -> str:
+    """Where `path` ends up: the most specific entry of `moved` (file or folder prefix) wins."""
+    mapped = _mapped(
+        PurePosixPath(path), {PurePosixPath(k): PurePosixPath(v) for k, v in moved.items()}
+    )
+    return path if mapped is None else mapped.as_posix()
 
 
 def _rewrite_target(
@@ -35,7 +46,9 @@ def _rewrite_target(
     source_new: PurePosixPath,
     moved: dict[PurePosixPath, PurePosixPath],
 ) -> str:
-    path, hash_, anchor = raw.partition("#")
+    wrapped = raw.startswith("<") and raw.endswith(">")
+    inner = raw[1:-1] if wrapped else raw
+    path, hash_, anchor = inner.partition("#")
     if not path or path.startswith("/") or _SCHEME.match(path):
         return raw
     resolved = posixpath.normpath(posixpath.join(source_old.parent.as_posix(), path))
@@ -50,7 +63,8 @@ def _rewrite_target(
     relative = posixpath.relpath(new_target.as_posix(), source_new.parent.as_posix())
     if path.endswith("/"):
         relative += "/"
-    return relative + hash_ + anchor
+    result = relative + hash_ + anchor
+    return f"<{result}>" if wrapped else result
 
 
 def rewrite_links(
@@ -114,7 +128,9 @@ def affected_files(repo: Path, moved: dict[PurePosixPath, PurePosixPath]) -> lis
     for path in markdown_files(repo):
         text = path.read_text(encoding="utf-8")
         old = PurePosixPath(path.relative_to(repo).as_posix())
-        new = moved.get(old, old)
+        new = PurePosixPath(
+            new_path(old.as_posix(), {k.as_posix(): v.as_posix() for k, v in moved.items()})
+        )
         rewritten = rewrite_links(text, old, new, moved)
         if rewritten != text or OLD_SLUG in text:
             found.append(path)

@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 
 import pytest
-from adopt_items.relink import affected_files, rename_slug, rewrite_links
+from adopt_items.relink import affected_files, new_path, rename_slug, rewrite_links
 
 P = PurePosixPath
 
@@ -113,3 +113,53 @@ def test_affected_files_skips_docs_history(tmp_path):
         "projects/c/README.md",
         "projects/d/project.toml",
     ]
+
+
+def test_link_between_two_files_inside_a_renamed_folder_is_unchanged(tmp_path):
+    git(tmp_path, "init", "-q")
+    readme = tmp_path / "projects/operations-screens-migration/README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("[a](tasks/a.md)")
+    git(tmp_path, "add", ".")
+    moved = {P("projects/operations-screens-migration"): P("projects/vm-migration")}
+    assert affected_files(tmp_path, moved) == []
+    assert (
+        new_path(
+            "projects/operations-screens-migration/README.md",
+            {k.as_posix(): v.as_posix() for k, v in moved.items()},
+        )
+        == "projects/vm-migration/README.md"
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_most_specific_move_wins_in_any_order(reverse):
+    entries = [
+        (P("projects/old"), P("projects/new")),
+        (P("projects/old/tasks/a.md"), P("projects/other/tasks/a.md")),
+    ]
+    moved = dict(reversed(entries) if reverse else entries)
+    src = P("projects/z/README.md")
+    out = rewrite_links("[a](../old/tasks/a.md) [b](../old/b.md)", src, src, moved)
+    assert out == "[a](../other/tasks/a.md) [b](../new/b.md)"
+    assert (
+        new_path("projects/old/tasks/a.md", {k.as_posix(): v.as_posix() for k, v in moved.items()})
+        == "projects/other/tasks/a.md"
+    )
+
+
+def test_angle_bracket_destination_is_unwrapped_and_rewrapped():
+    src = P("projects/a/README.md")
+    assert (
+        rewrite_links("[t](<y.md#s>) [u](<y.md>)", src, src, MOVED)
+        == "[t](<../b/y.md#s>) [u](<../b/y.md>)"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["[t](my%20file.md)", "[t](<my file.md>)", "[t](<a(1).md>)", "[t](a(1).md)"],
+)
+def test_paths_with_spaces_parentheses_or_encoding_that_do_not_match_are_untouched(text):
+    src = P("projects/a/README.md")
+    assert rewrite_links(text, src, src, MOVED) == text
