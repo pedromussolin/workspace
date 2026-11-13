@@ -261,3 +261,30 @@ def test_pull_links_refuses_an_entry_that_does_not_resolve(item_repo, serve, cap
     assert code == 1
     assert "tasks/09-none.md" in err and "fix the item first" in err
     assert path.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize("ref", ["ts-200", "TS-0", "TS200", "TS-200 ", "200"])
+def test_set_card_refuses_a_value_that_is_not_a_card_ref(item_repo, capsys, ref):
+    path = write_item(item_repo, "01-a.md", FRONT.replace('card = "TS-5"\n', ""))
+    before = path.read_text(encoding="utf-8")
+    itemrecord.record(REL, "?")
+
+    code, _, err = run(capsys, "set-card", REL, ref)
+
+    assert code == 1
+    assert "is not a card ref" in err
+    assert path.read_text(encoding="utf-8") == before
+    assert itemrecord.recorded(REL) == "?"
+
+
+def test_set_card_refuses_an_untracked_item(item_repo, capsys):
+    path = write_item(item_repo, "01-a.md", 'tracker = false\nstatus = "todo"')
+    before = path.read_text(encoding="utf-8")
+    itemrecord.record(REL, "TS-200")
+
+    code, _, err = run(capsys, "set-card", REL, "TS-200")
+
+    assert code == 1
+    assert "tracker = false" in err
+    assert path.read_text(encoding="utf-8") == before
+    assert itemrecord.recorded(REL) == "TS-200"
