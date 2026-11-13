@@ -39,6 +39,11 @@ SPRINT_FIELD = "customfield_10020"
 NOW = datetime(2026, 10, 27, 15, 0, tzinfo=UTC)
 
 SECTIONS = "## Contexto\nAlgo a explicar.\n\n## Pronto quando\n- feito\n"
+TYPE_IDS = ("3", "4", "5", "6", "7", "8", "9")
+CREATE_FIELDS = ("summary", "description", "assignee", "reporter", "parent", "duedate")
+CREATE_FIELDS += (SPRINT_FIELD,)
+EDIT_FIELDS = ("summary", "description", "priority", "duedate", START_FIELD, "assignee")
+EDIT_FIELDS += ("reporter", "parent")
 
 
 def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate", **extra):
@@ -96,19 +101,8 @@ class World:
                 },
             ],
         )
-        self.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/3")] = (
-            200,
-            json.dumps(
-                {
-                    "fields": [
-                        {
-                            "fieldId": "priority",
-                            "allowedValues": [{"name": "High"}, {"name": "Medium"}],
-                        }
-                    ]
-                }
-            ),
-        )
+        for type_id in TYPE_IDS:
+            self.set_create_screen(type_id)
         self.fake.routes[("POST", "/rest/api/3/issue")] = (201, json.dumps({"key": "TS-200"}))
         self.fake.routes[("PUT", "/rest/api/3/issue/TS-101")] = (204, "")
         self.fake.routes[("POST", "/rest/api/3/issue/TS-101/transitions")] = (204, "")
@@ -120,12 +114,34 @@ class World:
             200,
             json.dumps({"key": key, "fields": fields}),
         )
+        if ("GET", f"/rest/api/3/issue/{key}/editmeta") not in self.fake.routes:
+            self.set_edit_screen(key)
+
+    def set_create_screen(self, type_id, priorities=("High", "Medium"), without=()):
+        """The type's create screen: every field `ws card` sends, minus `without`."""
+        fields = [{"fieldId": "priority", "allowedValues": [{"name": n} for n in priorities]}]
+        fields += [{"fieldId": name} for name in CREATE_FIELDS if name not in without]
+        self.fake.routes[("GET", f"/rest/api/3/issue/createmeta/TS/issuetypes/{type_id}")] = (
+            200,
+            json.dumps({"fields": fields}),
+        )
+
+    def set_edit_screen(self, key, without=(), types=("3", "4", "5", "6", "7")):
+        """The card's edit screen: every field an edit sends, minus `without`."""
+        fields = {name: {"required": False} for name in EDIT_FIELDS if name not in without}
+        if "issuetype" not in without:
+            fields["issuetype"] = {"allowedValues": [{"id": item, "name": "x"} for item in types]}
+        self.fake.routes[("GET", f"/rest/api/3/issue/{key}/editmeta")] = (
+            200,
+            json.dumps({"fields": fields}),
+        )
 
     def set_card(self, key, assignee="acc-me", **overrides):
         fields = _fields(
             "[FRONT] Tela de exemplo",
             assignee=assignee,
             parent={"key": "TS-100", "fields": {"summary": "[FRONT] Épico de exemplo"}},
+            issuetype={"id": "3", "name": "Tarefa", "hierarchyLevel": 0},
             description=to_adf(SECTIONS),
             priority={"name": "Medium"},
             duedate="2026-11-05",
@@ -321,7 +337,6 @@ def test_create_check_passes_and_builds_the_request(world, capsys):
         "parent": {"key": "TS-100"},
         "priority": {"name": "High"},
         "assignee": {"accountId": "acc-me"},
-        "reporter": {"accountId": "acc-me"},
         "duedate": "2026-10-31",
         SPRINT_FIELD: 55,
     }
@@ -2028,10 +2043,12 @@ def test_applying_a_draft_removes_the_other_pending_records_that_mention_it(worl
 def test_the_priority_on_a_later_page_of_the_create_screen_is_found(world, capsys):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes/3"
     del world.fake.routes[("GET", base)]
-    page = {"total": 2, "fields": [{"fieldId": "summary"}]}
+    total = len(CREATE_FIELDS) + 1
+    page = {"total": total, "fields": [{"fieldId": name} for name in CREATE_FIELDS]}
     world.fake.routes[("GET", base, "0")] = (200, json.dumps(page))
-    later = {"total": 2, "fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
-    world.fake.routes[("GET", base, "1")] = (200, json.dumps(later))
+    priority = [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]
+    later = {"total": total, "fields": priority}
+    world.fake.routes[("GET", base, str(len(CREATE_FIELDS)))] = (200, json.dumps(later))
 
     passing(create_draft(), capsys)
 

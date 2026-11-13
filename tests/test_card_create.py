@@ -45,10 +45,7 @@ def test_write_card_of_anyone_else_is_refused(world, capsys, op):  # noqa: F811
 
 
 def test_create_sends_the_type_id(world, capsys):  # noqa: F811
-    world.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/6")] = (
-        200,
-        json.dumps({"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}),
-    )
+    world.set_create_screen("6", priorities=("High",))
     path = create_draft(type="improvement")
 
     verdict = passing(path, capsys)
@@ -59,10 +56,7 @@ def test_create_sends_the_type_id(world, capsys):  # noqa: F811
 
 
 def test_create_priorities_come_from_the_type_id(world, capsys):  # noqa: F811
-    world.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/6")] = (
-        200,
-        json.dumps({"fields": [{"fieldId": "priority", "allowedValues": [{"name": "Low"}]}]}),
-    )
+    world.set_create_screen("6", priorities=("Low",))
 
     assert "priority 'High' is not allowed; the project accepts Low" in problems(
         create_draft(type="improvement"), capsys
@@ -91,7 +85,7 @@ def test_create_assignee_and_reporter_from_dev_ids(world, capsys):  # noqa: F811
     out, _ = preview(path, capsys)
 
     assert fields["assignee"] == {"accountId": "acc-ana"}
-    assert fields["reporter"] == {"accountId": "acc-me"}
+    assert "reporter" not in fields
     assert world.requests_to("GET", "/rest/api/3/user")[0]["query"] == {"accountId": "acc-ana"}
     assert "Responsável: ana" in out
     assert "Relator: Dev Example" in out
@@ -188,10 +182,7 @@ def test_create_past_due_is_still_refused(world, capsys):  # noqa: F811
 
 
 def test_create_bug_needs_reproduction_and_evidence(world, capsys):  # noqa: F811
-    world.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/4")] = (
-        200,
-        json.dumps({"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}),
-    )
+    world.set_create_screen("4", priorities=("High",))
     path = create_draft(type="bug", body=SECTIONS + "\n## Evidência\nlog\n")
 
     assert "the description needs a '## Como reproduzir' section" in problems(path, capsys)
@@ -201,10 +192,7 @@ def test_create_bug_needs_reproduction_and_evidence(world, capsys):  # noqa: F81
 
 
 def test_create_hotfix_needs_why_not_the_release(world, capsys):  # noqa: F811
-    world.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/5")] = (
-        200,
-        json.dumps({"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}),
-    )
+    world.set_create_screen("5", priorities=("High",))
     body = SECTIONS + "\n## Como reproduzir\n1. abrir\n\n## Evidência\nlog\n"
 
     assert "the description needs a '## Por que não espera a release' section" in problems(
@@ -220,3 +208,27 @@ def test_created_cards_are_logged(world, capsys):  # noqa: F811
 
     log = data_dir() / "cards" / "created.tsv"
     assert log.read_text(encoding="utf-8") == "create.md\tTS-200\t2026-10-27\n"
+
+
+def test_create_reporter_missing_from_the_screen_is_refused(world, capsys):  # noqa: F811
+    world.set_create_screen("6", without=("reporter",))
+    path = create_draft(type="improvement", reporter=dev_id("ana@example.com"))
+
+    assert "the create screen of Melhoria has no reporter" in problems(path, capsys)
+    assert world.writes() == []
+
+
+def test_create_without_reporter_in_the_draft_does_not_send_it(world, capsys):  # noqa: F811
+    world.set_create_screen("6", without=("reporter",))
+
+    fields = passing(create_draft(type="improvement"), capsys)["requests"][0]["body"]["fields"]
+
+    assert "reporter" not in fields
+
+
+@pytest.mark.parametrize("field", ["assignee", "parent", "duedate", SPRINT_FIELD, "description"])
+def test_create_field_missing_from_the_screen_is_refused(world, capsys, field):  # noqa: F811
+    world.set_create_screen("3", without=(field,))
+
+    assert f"the create screen of Tarefa has no {field}" in problems(create_draft(), capsys)
+    assert world.writes() == []

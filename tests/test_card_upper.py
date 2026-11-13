@@ -1,5 +1,3 @@
-import json
-
 from test_card import (
     _fields,
     claude_settings,  # noqa: F401
@@ -10,13 +8,9 @@ from test_card import (
     world,  # noqa: F401
 )
 
-SCREEN = "/rest/api/3/issue/createmeta/TS/issuetypes/{}"
-PRIORITY = {"fieldId": "priority", "allowedValues": [{"name": "High"}]}
-
 
 def screen(world, type_id, *, parent):  # noqa: F811
-    fields = [PRIORITY] + ([{"fieldId": "parent"}] if parent else [])
-    world.fake.routes[("GET", SCREEN.format(type_id))] = (200, json.dumps({"fields": fields}))
+    world.set_create_screen(type_id, priorities=("High",), without=() if parent else ("parent",))
 
 
 def upper_draft(type_="epic", title="[FRONT] Épico novo", **front):

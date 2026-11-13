@@ -464,6 +464,16 @@ def _create_issue(
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
     if wants_sprint and due is None:
         verdict.problems.append('due is required with sprint = "active"')
+    sent = ["summary", "description", "assignee"]
+    sent += ["reporter"] if "reporter" in values else []
+    sent += ["parent"] if type_ in vocab.CARD_TYPES else []
+    sent += ["duedate"] if due else []
+    sent += [ctx.settings.sprint_field] if wants_sprint else []
+    for name in sent:
+        if not ctx.create_screen_has(type_id, name):
+            verdict.problems.append(
+                f"the create screen of {vocab.TYPE_LABELS[type_]} has no {name}"
+            )
     sprint = ctx.sprint(verdict) if wants_sprint else None
     if verdict.problems or not (assignee and reporter and description):
         return
@@ -478,8 +488,9 @@ def _create_issue(
         "description": description,
         "priority": {"name": values["priority"]},
         "assignee": {"accountId": assignee},
-        "reporter": {"accountId": reporter},
     }
+    if "reporter" in values:
+        fields["reporter"] = {"accountId": reporter}
     if link:
         fields["parent"] = {"key": link["epic"]["key"]}
     if due:
