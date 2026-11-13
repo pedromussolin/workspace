@@ -267,6 +267,11 @@ class JiraClient:
         found = self.get("/rest/api/3/user/search", {"query": query})
         return found if isinstance(found, list) else []
 
+    def edit_meta(self, key: str) -> dict:
+        found = self.get(f"/rest/api/3/issue/{_segment(key)}/editmeta") or {}
+        fields = found.get("fields") if isinstance(found, dict) else None
+        return fields if isinstance(fields, dict) else {}
+
 
 def _error_detail(error: urllib.error.HTTPError) -> str:
     try:
