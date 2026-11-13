@@ -179,6 +179,8 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
                 needed.add("types")
             if "start" in values:
                 needed.add("start_date_field")
+            if "sprint" in values:
+                needed |= {"board_id", "sprint_field"}
         if op == "link":
             needed.add("links")
     return needed

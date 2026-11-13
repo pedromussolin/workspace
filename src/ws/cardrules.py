@@ -118,6 +118,8 @@ class Context:
         names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
         if self.settings.start_date_field:
             names.append(self.settings.start_date_field)
+        if self.settings.sprint_field:
+            names.append(self.settings.sprint_field)
         try:
             issue = self.client.issue(key, names)
         except JiraError as error:
@@ -670,6 +672,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["duedate"] = old_due.isoformat() if old_due else None
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
+    if values.get("sprint") == "active":
+        _edit_sprint(ctx, current, verdict, changes, before, lines)
+
     if draft.body.strip():
         sections = _card_type(ctx, current) or "task"
         verdict.problems.extend(_section_problems(draft.body, sections))
@@ -707,6 +712,22 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     ]
     verdict.before = before
     verdict.preview = lines
+
+
+def _edit_sprint(
+    ctx: Context, current: dict, verdict: Verdict, changes: dict, before: dict, lines: list[str]
+) -> None:
+    sprint = ctx.sprint(verdict)
+    if sprint is None:
+        return
+    field = ctx.settings.sprint_field
+    old = [item for item in (current.get(field) or []) if isinstance(item, dict)]
+    if any(item.get("id") == sprint["id"] for item in old):
+        return
+    changes[field] = sprint["id"]
+    before[field] = [item.get("id") for item in old] or None
+    names = ", ".join(str(item.get("name")) for item in old) or "(nenhuma)"
+    lines.append(f"Sprint: {names} -> {sprint.get('name')}")
 
 
 def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
