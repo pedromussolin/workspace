@@ -13,9 +13,27 @@ from ws.adf import to_adf
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
 from ws.config import data_dir
+from ws.identity import dev_id
 from ws.userconfig import save_jira_token
 
 EMAIL = "dev@example.com"
+TRACKER_TABLES = f"""
+[jira.types]
+task = "3"
+bug = "4"
+hotfix = "5"
+improvement = "6"
+feature = "7"
+epic = "8"
+initiative = "9"
+
+[jira.links]
+blocks = "Blocks"
+relates = "Relates"
+
+[people."{dev_id("ana@example.com")}"]
+jira = "acc-ana"
+"""
 START_FIELD = "customfield_10015"
 SPRINT_FIELD = "customfield_10020"
 NOW = datetime(2026, 10, 27, 15, 0, tzinfo=UTC)
@@ -76,10 +94,6 @@ class World:
                     "fields": {"resolution": {"required": True, "name": "Resolution"}},
                 },
             ],
-        )
-        self.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-            200,
-            json.dumps({"issueTypes": [{"id": "3", "name": "Tarefa"}]}),
         )
         self.fake.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/3")] = (
             200,
@@ -173,8 +187,8 @@ def claude_settings(tmp_path, monkeypatch):
 def world(ws_config, fake_jira, monkeypatch, claude_settings):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'
-        f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
-        f'sprint_field = "{SPRINT_FIELD}"\n',
+        f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
+        f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
     )
     save_jira_token("sample-value")
@@ -295,7 +309,7 @@ def test_create_check_passes_and_builds_the_request(world, capsys):
     fields = request["body"]["fields"]
     assert fields == {
         "project": {"key": "TS"},
-        "issuetype": {"name": "Tarefa"},
+        "issuetype": {"id": "3"},
         "summary": "[FRONT] Título curto",
         "description": to_adf(SECTIONS),
         "parent": {"key": "TS-100"},
@@ -1380,10 +1394,34 @@ def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsy
 
     assert main(["card", "check", str(create_draft())]) == 2
     err = capsys.readouterr().err
-    for name in ["board_id", "issue_type", "sprint_field"]:
+    for name in ["board_id", "[jira.types]", "sprint_field"]:
         assert name in err
     capsys.readouterr()
     assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 0
+
+
+def test_an_unknown_tracker_kind_exits_2(world, capsys, ws_config):
+    config = ws_config / "config.toml"
+    config.write_text('[tracker]\nkind = "linear"\n' + config.read_text(), encoding="utf-8")
+
+    assert main(["card", "check", str(create_draft())]) == 2
+    assert "no adapter" in capsys.readouterr().err
+    assert world.fake.requests == []
+
+
+def _keys(op, **values):
+    draft = card.Draft(op, values, None, "", "x")
+    return card._needed_keys([card.Loaded(Path("d.md"), draft, "x", [])])
+
+
+def test_a_type_change_needs_the_types_but_a_plain_edit_does_not():
+    assert "types" in _keys("edit", key="TS-1", type="bug")
+    assert "types" not in _keys("edit", key="TS-1", start=NOW.date())
+    assert "types" in _keys("create")
+
+
+def test_a_link_needs_the_links_table():
+    assert "links" in _keys("link")
 
 
 def test_no_token_exits_2(world, capsys, ws_config):
@@ -1828,8 +1866,8 @@ def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys
 def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
         f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'
-        f'board_id = 7\nissue_type = "Tarefa"\nstart_date_field = "{START_FIELD}"\n'
-        f'sprint_field = "{SPRINT_FIELD}"\n',
+        f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
+        f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
     )
 

@@ -190,16 +190,9 @@ class JiraClient:
         page = self.get(f"/rest/agile/1.0/board/{_segment(board_id)}/sprint", {"state": "active"})
         return (page or {}).get("values", [])
 
-    def create_meta(self, project: str, issue_type: str) -> dict:
-        base = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
-        types = self._pages(base, "issueTypes").get("issueTypes", [])
-        for candidate in types:
-            if candidate.get("name") == issue_type:
-                type_id = candidate.get("id")
-                if not type_id:
-                    raise JiraError(f"issue type {issue_type!r} has no id in project {project}")
-                return self._pages(f"{base}/{_segment(type_id)}", "fields")
-        raise JiraError(f"issue type {issue_type!r} not found in project {project}")
+    def create_meta(self, project: str, type_id: str) -> dict:
+        path = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes/{_segment(type_id)}"
+        return self._pages(path, "fields")
 
     def _pages(self, path: str, key: str) -> dict:
         """A paged listing as one page: the `key` lists of every page joined. A page without

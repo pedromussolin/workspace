@@ -17,6 +17,7 @@ from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
 from ws.config import claude_settings_path, data_dir
 from ws.jira import JiraClient, JiraError, SiteRefused
+from ws.tracker import UnknownTracker, require_kind
 
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = timedelta(minutes=30)
@@ -170,25 +171,31 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
             continue
         op, values = item.draft.op, item.draft.values
         if op == "create":
-            needed |= {"board_id", "issue_type", "sprint_field"}
+            needed |= {"board_id", "types", "sprint_field"}
         if op == "edit":
-            if "priority" in values:
-                needed.add("issue_type")
+            if "priority" in values or "type" in values:
+                needed.add("types")
             if "start" in values:
                 needed.add("start_date_field")
+        if op == "link":
+            needed.add("links")
     return needed
 
 
 def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
     try:
-        settings = userconfig.load_config().jira
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise SetupNeeded(str(error)) from None
-    missing = [name for name in sorted(needed) if getattr(settings, name) is None]
+    settings = config.jira
+    missing = [name for name in sorted(needed) if not getattr(settings, name)]
     if missing:
+        tables = {"types": "[jira.types]", "links": "[jira.links]"}
         raise SetupNeeded(
-            f"config.toml [jira] is missing {', '.join(missing)}; see the README section "
-            '"Local config"'
+            f"config.toml [jira] is missing "
+            f"{', '.join(tables.get(name, name) for name in missing)}; "
+            'see the README section "Local config"'
         )
     if not _PROJECT.fullmatch(settings.project):
         raise SetupNeeded("config.toml [jira] project is not a valid project key")
