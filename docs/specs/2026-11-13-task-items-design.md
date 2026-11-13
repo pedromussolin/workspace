@@ -46,11 +46,11 @@ Facts of the Jira site, read on 2026-11-13 (REST, read only):
 ## Decisions (user, 2026-11-13)
 
 1. **Hierarchy.** Initiative > epic > card. TS-5645 is now the Iniciativa "[MIGRAÇÃO VM] Migração
-   VM Frankl". Under it, three new epics: "Telas e scripts" (the other developer develops, the
-   user is the reporter); "Entrada das liquidações do ML na cessão" (a third developer owns it and
-   writes its cards; we create only the epic); "Fechamento dos lotes do ML fora da VM" (the
-   user's). The Artemis epic keeps the batch-closing work; the VM epics hold the migrate and
-   switch-off cards, linked to the Artemis cards.
+   VM Frankl". Under it, two new epics we create: "Telas e scripts" (the other developer
+   develops, the user is the reporter) and "Fechamento dos lotes do ML fora da VM" (the user's).
+   A third epic, "Entrada das liquidações do ML na cessão", belongs to a third developer, who
+   creates and manages it; we create nothing there. The Artemis epic keeps the batch-closing
+   work; the VM epics hold the migrate and switch-off cards, linked to the Artemis cards.
 2. **Type by nature**, not always Tarefa (rules below).
 3. **Assignee and reporter are separate.** The user is the reporter of the other developer's cards,
    writes them and follows them.
@@ -62,6 +62,9 @@ Facts of the Jira site, read on 2026-11-13 (REST, read only):
    when `/card` runs.
 8. **Tracker-neutral.** Skills, items and the core use neutral terms; the config says which tracker
    the user works in; each tracker is an adapter. Only the Jira adapter is built now.
+9. **Scope of the reorganization.** Only cards in the current work: the old epics in the backlog
+   (and their cards) stay as they are for now. The type changes only on open cards; done cards
+   keep their type. Cards the other developer reported get the user as reporter.
 
 ## Approaches considered
 
@@ -335,7 +338,7 @@ repo, real names), after the user's review. Columns, tab-separated, header first
 
 ## Applying to the tracker
 
-Through `/card` only, each step one preview and one approval: create the three epics (and link
+Through `/card` only, each step one preview and one approval: create the two epics (and link
 each to TS-5645 by hand); move and edit the existing cards; create the new cards (the user's
 first, then the other developer's); a second `ws item drafts` run for the links. Then `ws item
 sync`, `ws item table`, and `ws item check --tracker` must report no problems.
