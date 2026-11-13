@@ -6,6 +6,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import date
 
+from ws.itemfile import ITEM_PATH
 from ws.tracker.vocab import ALL_TYPES, CARD_TYPES, LINK_KINDS, UPPER_TYPES
 
 OPS = ("create", "edit", "move", "comment", "worklog", "link")
@@ -19,7 +20,7 @@ REQUIRED = {
     "link": {"key"},
 }
 OPTIONAL = {
-    "create": {"epic", "parent", "assignee", "reporter", "sprint", "due"},
+    "create": {"epic", "parent", "assignee", "reporter", "sprint", "due", "item"},
     "edit": {
         "title",
         "priority",
@@ -136,7 +137,22 @@ def _cross_rules(op: str, values: dict) -> list[str]:
     return problems
 
 
+def _item_rules(kind: str, values: dict) -> list[str]:
+    if "item" not in values:
+        return []
+    if not ITEM_PATH.fullmatch(values["item"]):
+        return ["item must be a path like projects/<slug>/tasks/NN-name.md"]
+    if kind not in CARD_TYPES:
+        return ["item is only for a card; an epic or an initiative has no item"]
+    return []
+
+
 def _create_rules(kind: str, values: dict) -> list[str]:
+    problems = _item_rules(kind, values)
+    return problems + _type_rules(kind, values)
+
+
+def _type_rules(kind: str, values: dict) -> list[str]:
     if kind in CARD_TYPES:
         if "parent" in values:
             return ["parent is only for an epic; a card uses epic"]
