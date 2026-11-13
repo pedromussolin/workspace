@@ -68,9 +68,21 @@ site = "https://<site>.atlassian.net"
 email = "<you>@<company>"
 project = "<PROJECT>"
 board_id = <board id>
-issue_type = "<issue type name>"
 start_date_field = "customfield_<n>"
 sprint_field = "customfield_<n>"
+
+[jira.types]
+task = "<issue type id>"
+bug = "<issue type id>"
+hotfix = "<issue type id>"
+improvement = "<issue type id>"
+feature = "<issue type id>"
+epic = "<issue type id>"
+initiative = "<issue type id>"
+
+[jira.links]
+blocks = "<link type name>"
+relates = "<link type name>"
 
 [jira.status_overrides]
 "Tarefas pendentes" = "todo"
@@ -84,16 +96,35 @@ sprint_field = "customfield_<n>"
 "Concluído" = "done"
 "Cancelada" = "cancelled"
 
+[tracker]
+kind = "jira"
+
+[identity]
+email = "<you>@<company>"
+
+[people."dev-<10 hex digits>"]
+jira = "<account id>"
+label = "<short name>"
+
 [standup]
 repo_roots = ["~/repos"]
 stale_workdays = 3
 ```
 
+- `[tracker] kind` names the tracker adapter; absent means `jira`, the only one that exists.
+- `[jira.types]` maps each neutral card type to the id of the issue type in the project, and
+  `[jira.links]` maps `blocks` and `relates` to the link type name. `[jira] issue_type` was
+  replaced by `[jira.types]` and is refused.
+- `[identity] email` is yours (absent means `[jira] email`). `[people."<dev id>"]` maps a dev id
+  (`dev-` and the first 10 hex digits of the SHA-256 of the trimmed, lowercased e-mail) to the
+  person's id in each tracker; `label` is only a reminder.
+
 - `[jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
   `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
-- The five `[jira]` keys after `email` are read by `ws card`; a missing one exits 2 naming it.
+- The keys after `email` (and `[jira.types]`, `[jira.links]`) are read by `ws card`; a missing one
+  exits 2 naming it.
   `ws card` only touches cards of `project`.
 - The API key must be an unscoped token: a scoped token only works through the
   `api.atlassian.com/ex/jira/<cloudId>` gateway, and `ws` calls the site URL.

@@ -10,6 +10,7 @@ from ws.adf import AdfError, foreign_nodes, to_adf
 from ws.carddraft import Draft
 from ws.jira import CATEGORY_STATUS, JiraClient, JiraError
 from ws.taskmodel import Status
+from ws.tracker import vocab
 from ws.userconfig import JiraConfig
 
 MAX_SUMMARY = 255
@@ -155,7 +156,7 @@ class Context:
 
     def priorities(self) -> list[str]:
         if self._priorities is None:
-            meta = self.client.create_meta(self.project, self.settings.issue_type) or {}
+            meta = self.client.create_meta(self.project, self.settings.types["task"]) or {}
             entries = meta.get("fields") or []
             if isinstance(entries, dict):
                 entries = list(entries.values())
@@ -307,7 +308,7 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     settings = ctx.settings
     fields = {
         "project": {"key": ctx.project},
-        "issuetype": {"name": settings.issue_type},
+        "issuetype": {"id": settings.types["task"]},
         "summary": title,
         "description": description,
         "parent": {"key": epic["key"]},
@@ -319,7 +320,7 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
     sprint_end = verdict.resolved["sprint"]["end_date"]
     verdict.preview = [
-        f"Criar card no projeto {ctx.project} ({settings.issue_type})",
+        f"Criar card no projeto {ctx.project} ({vocab.TYPE_LABELS['task']})",
         f"Título: {title}",
         f"Épico: {epic['key']} {epic['title']}",
         f"Prioridade: {values['priority']}",

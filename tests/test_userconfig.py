@@ -1,3 +1,4 @@
+import hashlib
 import json
 import stat
 import sys
@@ -7,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from ws.cli import main
+from ws.identity import dev_id
 from ws.userconfig import (
     ConfigInvalid,
     ConfigMissing,
+    Person,
     load_config,
     load_jira_token,
     load_standup,
@@ -275,7 +278,6 @@ def test_mcp_headers_help_says_the_gate_asks(capsys):
 CARD_KEYS = """\
 project = "TS"
 board_id = 12
-issue_type = "Task"
 start_date_field = "customfield_1"
 sprint_field = "customfield_2"
 """
@@ -289,7 +291,6 @@ def test_card_keys_are_read(config_dir):
 
     assert jira.project == "TS"
     assert jira.board_id == 12
-    assert jira.issue_type == "Task"
     assert jira.start_date_field == "customfield_1"
     assert jira.sprint_field == "customfield_2"
 
@@ -301,7 +302,6 @@ def test_card_keys_are_none_when_absent(config_dir):
 
     assert jira.project is None
     assert jira.board_id is None
-    assert jira.issue_type is None
     assert jira.start_date_field is None
     assert jira.sprint_field is None
 
@@ -314,7 +314,6 @@ def test_card_keys_are_none_when_absent(config_dir):
         ('board_id = "12"', "board_id"),
         ("board_id = true", "board_id"),
         ("board_id = 0", "board_id"),
-        ("issue_type = 3", "issue_type"),
         ("start_date_field = 3", "start_date_field"),
         ("sprint_field = []", "sprint_field"),
     ],
@@ -489,3 +488,113 @@ def test_load_standup_defaults_and_rejects_a_bad_value(config_dir, tmp_path, mon
 def test_toml_string_escapes_what_a_basic_string_cannot_hold():
     text = 'a"b\\c\n\x7f\U0001f600'
     assert tomllib.loads(f"v = {toml_string(text)}")["v"] == text
+
+
+def _with(config_dir, extra: str, jira_extra: str = ""):
+    text = CONFIG.replace('email = "dev@example.com"\n', 'email = "dev@example.com"\n' + jira_extra)
+    (config_dir / "config.toml").write_text(text + extra, encoding="utf-8")
+
+
+def test_tracker_kind_defaults_to_jira(config_dir):
+    _with(config_dir, "")
+
+    assert load_config().tracker_kind == "jira"
+
+
+def test_tracker_kind_is_read(config_dir):
+    _with(config_dir, '\n[tracker]\nkind = "jira"\n')
+
+    assert load_config().tracker_kind == "jira"
+
+
+def test_jira_types_and_links_are_read(config_dir):
+    _with(
+        config_dir,
+        '\n[jira.types]\ntask = "10002"\nimprovement = "10010"\n'
+        '\n[jira.links]\nblocks = "Blocks"\n',
+    )
+
+    jira = load_config().jira
+
+    assert jira.types == {"task": "10002", "improvement": "10010"}
+    assert jira.links == {"blocks": "Blocks"}
+
+
+def test_jira_types_and_links_default_to_empty(config_dir):
+    _with(config_dir, "")
+
+    jira = load_config().jira
+
+    assert jira.types == {} and jira.links == {}
+
+
+@pytest.mark.parametrize(
+    ("table", "name"),
+    [("types", "story"), ("links", "duplicates"), ("links", "blocked_by")],
+)
+def test_jira_types_and_links_refuse_unknown_neutral_names(config_dir, table, name):
+    _with(config_dir, f'\n[jira.{table}]\n{name} = "1"\n')
+
+    with pytest.raises(ConfigInvalid, match=name):
+        load_config()
+
+
+def test_jira_types_refuse_a_value_that_is_not_a_string(config_dir):
+    _with(config_dir, "\n[jira.types]\ntask = 3\n")
+
+    with pytest.raises(ConfigInvalid, match="jira.types.task"):
+        load_config()
+
+
+def test_people_are_read(config_dir):
+    _with(config_dir, '\n[people."dev-0123456789"]\njira = "acc-ana"\nlabel = "ana"\n')
+
+    assert load_config().people == {
+        "dev-0123456789": Person("dev-0123456789", {"jira": "acc-ana"}, "ana")
+    }
+
+
+def test_people_label_is_optional(config_dir):
+    _with(config_dir, '\n[people."dev-0123456789"]\njira = "acc-ana"\n')
+
+    assert load_config().people["dev-0123456789"].label is None
+
+
+def test_people_refuse_a_key_that_is_not_a_tracker_or_label(config_dir):
+    _with(config_dir, '\n[people."dev-0123456789"]\nemail = "ana@example.com"\n')
+
+    with pytest.raises(ConfigInvalid, match="email"):
+        load_config()
+
+
+@pytest.mark.parametrize("key", ["ana", "me", "dev-XYZ", "dev-0123456789a", "dev-ABCDEF0123"])
+def test_people_refuse_keys_that_are_not_dev_ids(config_dir, key):
+    _with(config_dir, f'\n[people."{key}"]\njira = "acc-ana"\n')
+
+    with pytest.raises(ConfigInvalid, match="dev-"):
+        load_config()
+
+
+def test_dev_id_is_the_hash_of_the_trimmed_lowercase_email():
+    expected = "dev-" + hashlib.sha256(b"ana@example.com").hexdigest()[:10]
+
+    assert dev_id(" Ana@Example.com ") == dev_id("ana@example.com") == expected
+
+
+def test_identity_email_falls_back_to_jira_email(config_dir):
+    _with(config_dir, "")
+
+    assert load_config().identity_email == "dev@example.com"
+
+
+def test_identity_email_is_read_from_identity(config_dir):
+    _with(config_dir, '\n[identity]\nemail = "ana@example.com"\n')
+
+    assert load_config().identity_email == "ana@example.com"
+
+
+def test_issue_type_key_is_refused_with_the_new_block(config_dir):
+    _with(config_dir, "", 'issue_type = "Tarefa"\n')
+
+    with pytest.raises(ConfigInvalid, match=r"\[jira\.types\]"):
+        load_config()
