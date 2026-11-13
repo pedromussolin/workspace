@@ -253,6 +253,17 @@ class JiraClient:
                 f"Jira sent an unreadable answer for {method} {path}: {error}", uncertain=write
             ) from None
 
+    def issue_types(self, project: str) -> list[dict]:
+        path = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
+        return self._pages(path, "issueTypes").get("issueTypes", [])
+
+    def link_types(self) -> list[dict]:
+        return (self.get("/rest/api/3/issueLinkType") or {}).get("issueLinkTypes", [])
+
+    def user_search(self, query: str) -> list[dict]:
+        found = self.get("/rest/api/3/user/search", {"query": query})
+        return found if isinstance(found, list) else []
+
 
 def _error_detail(error: urllib.error.HTTPError) -> str:
     try:
