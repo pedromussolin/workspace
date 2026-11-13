@@ -199,7 +199,7 @@ def make_draft(name, op, body="", **front):
 
 
 def create_draft(name="create.md", title="[FRONT] Título curto", body=SECTIONS, **front):
-    values = {"epic": "TS-100", "priority": "High", "due": date(2026, 10, 31)}
+    values = {"type": "task", "epic": "TS-100", "priority": "High", "due": date(2026, 10, 31)}
     values.update(front)
     values = {key: value for key, value in values.items() if value is not None}
     return make_draft(name, "create", f"# {title}\n\n{body}", **values)
@@ -225,7 +225,10 @@ def passing(path, capsys):
 
 
 def test_draft_accepts_toml_dates_and_strings():
-    raw = b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\ndue = 2026-10-31\n+++\n# T\n\nx\n'
+    raw = (
+        b'+++\nop = "create"\ntype = "task"\nepic = "TS-1"\npriority = "High"\n'
+        b"due = 2026-10-31\n+++\n# T\n\nx\n"
+    )
 
     draft = parse_draft(raw)
 
@@ -241,7 +244,7 @@ def test_draft_edit_still_accepts_a_start_date():
 
 def test_draft_create_refuses_a_start_key():
     raw = (
-        b'+++\nop = "create"\nepic = "TS-1"\npriority = "High"\n'
+        b'+++\nop = "create"\ntype = "task"\nepic = "TS-1"\npriority = "High"\n'
         b"due = 2026-10-31\nstart = 2026-10-28\n+++\n# T\n\nx\n"
     )
 
@@ -265,7 +268,8 @@ def test_draft_create_refuses_a_start_key():
         (b'+++\nop = "worklog"\nkey = "TS-1"\ntime = "1h"\nday = "ontem"\n+++\n', "day"),
         (b'+++\nop = "move"\nkey = ""\nto = "X"\n+++\n', "key must be"),
         (
-            b'+++\nop = "create"\nepic = "T"\npriority = "H"\ndue = 2026-10-31\n+++\ntext\n',
+            b'+++\nop = "create"\ntype = "task"\nepic = "T"\npriority = "H"\n'
+            b"due = 2026-10-31\n+++\ntext\n",
             "# title",
         ),
         (b"\xff\xfe", "UTF-8"),
