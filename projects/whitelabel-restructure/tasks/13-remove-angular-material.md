@@ -1,3 +1,10 @@
++++
+card = "TS-5370"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 13 — Remove Angular Material
 
 - **TS:** TS-5370 · **Branch:** `chore/TS-5370-remove-angular-material`

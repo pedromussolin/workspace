@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 Status: proposta (o usuário pode mudar o plano)
 Data: 30/10/2026
 Tags: organização, projetos, kanban, ws

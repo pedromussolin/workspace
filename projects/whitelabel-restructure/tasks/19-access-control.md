@@ -1,3 +1,10 @@
++++
+card = "TS-5390"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 19 — Controle de acesso pelo portal
 
 - **TS:** TS-5390 · **Branch:** `feature/TS-5390-controle-de-acesso` (front da 13; BFF da `origin/master`)

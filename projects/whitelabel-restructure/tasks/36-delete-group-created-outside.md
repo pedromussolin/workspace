@@ -1,3 +1,10 @@
++++
+card = "TS-5437"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 36 — Apagar grupo do ambiente criado fora da tela
 
 - **TS:** TS-5437 (épico TS-5357) · **Branch:** juntada na `release/20261027` (front e BFF)

@@ -1,3 +1,11 @@
++++
+card = "TS-5739"
+type = "feature"
+epic = "TS-5690"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
+relates = ["TS-5442"]
++++
 # 03 — Análise de Migração
 
 - **Status:**

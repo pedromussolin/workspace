@@ -1,3 +1,11 @@
++++
+card = "TS-5405"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["26-access-control-ux-plan.md"]
++++
 # 26 — Controle de acesso: organização e UX/UI
 
 - **TS:** TS-5405 · **Branch:** `feature/TS-5405-controle-de-acesso-ux` (front e BFF)

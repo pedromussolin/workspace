@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 Status: decisões pendentes
 Data: 30/10/2026
 Tags: segurança, aprovação, ws, mcp

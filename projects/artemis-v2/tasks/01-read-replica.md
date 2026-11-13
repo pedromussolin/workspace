@@ -1,3 +1,10 @@
++++
+card = "TS-5279"
+type = "task"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 01 — Réplica de leitura no init do SQLAlchemy
 
 - **Status:** concluída no código em 07/10/2026 — TS-5279, PR #2628 (merge

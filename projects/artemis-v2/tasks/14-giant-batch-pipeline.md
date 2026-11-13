@@ -1,8 +1,17 @@
++++
+card = "TS-5737"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+blocks = ["TS-5738"]
+docs = ["14-phase0-design.md"]
++++
 # 14 — Esteira de baixa que não aguenta lote gigante
 
 - **Status:** mapeada (11/11/2026). Em 12/11 o escopo da Fase 0 foi decidido (reentrega segura e arquivo em blocos; ver `decisions.md`); desenho da Fase 0 em [14-phase0-design.md](14-phase0-design.md), com 8 decisões para aprovação antes de implementar. Em 12/11 o teto ganhou 3 rodadas automáticas antes de `errado` (seção 3.1); as decisões 1, 4 e 8 seguem abertas (D39). Sem card no Jira (13/11). Achado: nos produtos do Mercato Libero o pico de memória é a guarda de lote vazio, que a TS-5582 já corrige.
 - **Repos:** platform-cessao, platform-cessao-argocd.
-- **Relacionadas:** [13](13-mercato-libero-settlement.md) (todo fechamento da rota nova cai na mesma
+- **Relacionadas:** [13](../../vm-migration/tasks/13-mercato-libero-settlement.md) (todo fechamento da rota nova cai na mesma
   esteira) e [03](03-async-closing-and-429.md) (fila própria do fechamento, modelo para isolar a esteira).
 - **Evidência:** [lote gigante parado, 07/11 a 11/11](../evidence/stuck-giant-batch-2026-11-11.md).
 

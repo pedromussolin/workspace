@@ -1,3 +1,10 @@
++++
+card = "TS-5424"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 31 — Ajustes visuais e padrões de design (pós-deploy)
 
 - **TS:** TS-5424 · **Branch:** `feature/TS-5424-ajustes-visuais-e-padroes` (worktree

@@ -1,3 +1,10 @@
++++
+card = "TS-5369"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 12 — Páginas gerais
 
 - **TS:** TS-5369 · **Branch:** `refact/TS-5369-paginas-gerais-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

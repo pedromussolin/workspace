@@ -1,3 +1,11 @@
++++
+card = "TS-5406"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["28-poli-mascot-plan.md"]
++++
 # 28 — POLI dentro do portal, com mascotes animados
 
 - **TS:** TS-5406 · **Branch:** `feature/TS-5406-poli-mascote` (só front)

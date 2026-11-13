@@ -1,3 +1,10 @@
++++
+card = "TS-5416"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 32 — Enviar agora escolhendo os subfluxos (PR 4 da tarefa 31)
 
 - **TS:** TS-5416 (já existia como "executar rota unitária").

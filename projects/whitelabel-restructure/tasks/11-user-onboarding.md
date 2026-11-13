@@ -1,3 +1,10 @@
++++
+card = "TS-5368"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 11 — Onboarding BGT, Usuários, Clientes e Simulação
 
 - **TS:** TS-5368 · **Branch:** `refact/TS-5368-onboarding-usuarios-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

@@ -1,3 +1,10 @@
++++
+card = "TS-5386"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 18 — Segurança do front
 
 - **TS:** TS-5386 · **Branch:** `fix/TS-5386-seguranca-front` (da `master`, com

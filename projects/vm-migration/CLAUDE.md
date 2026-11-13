@@ -16,14 +16,14 @@ nome do host.
 ## Valores reais fora do repo
 
 Hosts, IPs, usuários de banco, credenciais e os nomes reais por trás dos análogos ficam no
-arquivo local `~/.config/workspace/private/operations-screens-migration.md`, fora do controle de
+arquivo local `~/.config/workspace/private/vm-migration.md`, fora do controle de
 versão. Aqui entra só a referência genérica, como "EC2 de automações" ou "usuário de banco
 próprio".
 
 ## Dados locais fora do repo
 
 Cópias de scripts da EC2, listagens de crontab, logs, dumps de configuração e evidências com dados
-reais ficam em `~/.local/share/workspace/projects/operations-screens-migration/`. O código da EC2 é
+reais ficam em `~/.local/share/workspace/projects/vm-migration/`. O código da EC2 é
 da empresa: nunca entra no repo, nem em trechos. Aqui entra só a descrição do que ele faz e o
 caminho na máquina.
 

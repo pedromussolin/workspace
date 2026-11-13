@@ -1,3 +1,12 @@
++++
+card = "TS-5726"
+type = "task"
+epic = "TS-5704"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
+blocks = ["TS-5729", "TS-5730", "TS-5742", "TS-5707", "TS-5708"]
+blocked_by = ["TS-5717"]
++++
 # 03 — Especificação do catálogo de consultas
 
 Status: a começar (13/11/2026)

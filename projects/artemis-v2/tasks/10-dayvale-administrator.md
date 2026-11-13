@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 # 10 — Fluxo da Genius para a Dayvale
 
 - **Status:** escopo dividido em 04/11/2026. O **envio** da liquidação fica

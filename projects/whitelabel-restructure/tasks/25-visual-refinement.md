@@ -1,3 +1,11 @@
++++
+card = "TS-5395"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["25-local-data.md", "25-partners-home.md"]
++++
 # 25 — Refinamento visual e de design
 
 - **TS:** TS-5395 · **Branch:** `refact/TS-5395-refinamento-visual` (da `release/20261016` do front)

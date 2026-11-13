@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 Status: a fazer
 Data: 06/11/2026
 Tags: tracker, skills, cards

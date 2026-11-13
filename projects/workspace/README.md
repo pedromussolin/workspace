@@ -73,6 +73,9 @@ Uma tarefa por arquivo em `tasks/`; esta tabela é o índice.
 | 04 | [Gerenciador de cards genérico](tasks/04-generic-tracker.md) | a fazer |
 | 05 | [Segredos por adaptador: cofres de mercado e modelo local](tasks/05-secrets-adapters.md) | a fazer (mapeada para depois) |
 
+<!-- ws:items -->
+<!-- /ws:items -->
+
 ## Situação
 
 30/10/2026: fase 1 instalada e conferida nesta máquina; a fase 2 espera a resposta às sete decisões

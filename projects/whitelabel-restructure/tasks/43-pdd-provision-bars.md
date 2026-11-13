@@ -1,3 +1,10 @@
++++
+card = "TS-5492"
+type = "bug"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 43 — Barras da provisão do PDD com a mesma largura
 
 - **TS:** TS-5492 (épico TS-5357) · **Branch:** `fix/TS-5492-barras-da-provisao-com-mesma-largura` (front), da `master`

@@ -1,3 +1,10 @@
++++
+card = "TS-5389"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 17 — Pasta `.ai`: repositório pronto para desenvolver com IA
 
 - **TS:** TS-5389 · **Branch:** `chore/TS-5389-pasta-ai` (da 13)

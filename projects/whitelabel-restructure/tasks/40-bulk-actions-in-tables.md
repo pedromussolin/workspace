@@ -1,3 +1,10 @@
++++
+card = "TS-5463"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 40 — Ações em lote nas tabelas do Controle de acesso
 
 - **TS:** TS-5463 (épico TS-5357) · **Branch:** `feature/TS-5463-acoes-em-lote-nas-tabelas` (front), da `master`,

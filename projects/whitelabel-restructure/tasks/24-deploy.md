@@ -1,3 +1,10 @@
++++
+card = "TS-5394"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 24 — Deploy da reestruturação
 
 - **TS:** TS-5394 · **Branch:** `release/AAAAMMDD` (front e BFF)

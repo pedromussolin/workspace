@@ -1,3 +1,10 @@
++++
+card = "TS-5362"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 05 — Pré-Trade
 
 - **TS:** TS-5362 · **Branch:** `refact/TS-5362-pre-trade-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

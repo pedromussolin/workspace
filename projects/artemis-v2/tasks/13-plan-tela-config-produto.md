@@ -1,3 +1,10 @@
++++
+card = "TS-5624"
+type = "feature"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # TS-5624: tela de configuração do produto (Cessão e Liquidação) — plano de implementação
 
 > Para quem executa: usar superpowers:subagent-driven-development (recomendado) ou

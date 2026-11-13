@@ -1,3 +1,10 @@
++++
+card = "TS-5458"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 30 — Nomes e docstrings dos testes do BFF em inglês
 
 - **TS:** TS-5458 (épico TS-5357) · **Branch:** `test/TS-5458-testes-do-bff-em-ingles` (BFF), da `master`

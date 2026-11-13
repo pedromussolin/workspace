@@ -86,6 +86,9 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 43 | [Barras da provisão do PDD com a mesma largura](tasks/43-pdd-provision-bars.md) | `fix/TS-5492-barras-da-provisao-com-mesma-largura` (front) | `master` | **na `release/20261030`** (30/10): sandbox #253, master #254 | TS-5492 |
 | 24 | [Deploy da reestruturação](tasks/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção**: 21/10 (`release/20261021`) e 27/10 (`release/20261027`); conferência de 27/10 feita em 28/10 | TS-5394 |
 
+<!-- ws:items -->
+<!-- /ws:items -->
+
 ## Situação em 16/10
 
 **Prontas: 22 de 23** (a 16 está adiada e fica fora da conta). Falta a 24,

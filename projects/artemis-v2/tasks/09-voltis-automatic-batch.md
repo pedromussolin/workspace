@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "cancelled"
++++
 # 09 — Lote de liquidação automático da Voltis
 
 - **Status:** aguardando as configs do produto e a explicação do bug.

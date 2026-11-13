@@ -1,3 +1,10 @@
++++
+card = "TS-5426"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 33 — "Ver como" outra pessoa (PR 3 da tarefa 31)
 
 - **TS:** TS-5426.

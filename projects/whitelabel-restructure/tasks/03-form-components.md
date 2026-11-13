@@ -1,3 +1,10 @@
++++
+card = "TS-5360"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 03 — Componentes: ícones, botões e formulário
 
 - **TS:** TS-5360 · **Branch:** `feature/TS-5360-componentes-formulario` (da 02)

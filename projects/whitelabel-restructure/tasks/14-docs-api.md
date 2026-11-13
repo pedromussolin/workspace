@@ -1,3 +1,10 @@
++++
+card = "TS-5371"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 14 — Docs da API autenticada
 
 - **TS:** TS-5371 · **Branch:** `feature/TS-5371-docs-api-autenticada` (da 04)

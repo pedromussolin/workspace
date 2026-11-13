@@ -1,3 +1,12 @@
++++
+card = "TS-5718"
+type = "feature"
+epic = "TS-5704"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
+blocks = ["TS-5719", "TS-5720"]
+blocked_by = ["TS-5717", "TS-5707", "TS-5708", "TS-5714"]
++++
 # 10 — BFF da tela Envio de Relatórios
 
 Status: a começar (13/11/2026)

@@ -1,3 +1,10 @@
++++
+card = "TS-5440"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 38 — Telas sem uso removidas
 
 - **TS:** TS-5440 (épico TS-5357) · **Branch:** juntada na `release/20261027` (front e BFF)

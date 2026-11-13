@@ -1,3 +1,10 @@
++++
+card = "TS-5735"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 06 — Nome do CNAB na tela
 
 - **Status:** mapeado, aguardando D4.

@@ -1,7 +1,7 @@
 # Chamadas da EC2 de automações à cessão — 22/10 a 04/11/2026
 
 Foto do que a máquina do Rafael Frankl chama na API da cessão, para começar o mapeamento da
-[tarefa 13](../tasks/13-mercato-libero-settlement.md). Mostra só o que passa pela API: o que o
+[tarefa 13](../../vm-migration/tasks/13-mercato-libero-settlement.md). Mostra só o que passa pela API: o que o
 script grava direto no banco (usuário de banco próprio) ou busca em outros sistemas não aparece.
 
 - Fonte: Datadog APM (spans indexados), `env:production`, serviço `platform-cessao`,

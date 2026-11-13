@@ -1,3 +1,10 @@
++++
+card = "TS-5393"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 23 — Ilustrações próprias
 
 - **TS:** TS-5393 · **Branch:** `feature/TS-5393-ilustracoes` (da 13)

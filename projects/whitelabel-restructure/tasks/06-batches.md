@@ -1,3 +1,10 @@
++++
+card = "TS-5363"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 06 — Lotes de Liquidação, Lotes de Cessão e Detalhe do Contrato
 
 - **TS:** TS-5363 · **Branch:** `refact/TS-5363-lotes-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

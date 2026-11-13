@@ -5,7 +5,7 @@ Tags: operações, EC2, transição
 # Migração das telas de operações
 
 > Nome provisório. A pasta usa o slug em inglês da regra do repositório
-> (`operations-screens-migration`); o nome definitivo é a D1 de [decisions.md](decisions.md).
+> (`vm-migration`); o nome definitivo é a D1 de [decisions.md](decisions.md).
 
 ## Visão geral
 
@@ -41,6 +41,9 @@ relatórios, ficam no épico "Migração VM" do Jira.
 | 10 | [BFF da tela Envio de Relatórios](tasks/10-bff-report-sending.md) | a começar |
 | 11 | [Front da tela Envio de Relatórios](tasks/11-front-report-sending.md) | a começar |
 | 12 | [Migração em ondas e desligamento dos scripts](tasks/12-report-migration-waves.md) | a começar |
+
+<!-- ws:items -->
+<!-- /ws:items -->
 
 ## Situação
 

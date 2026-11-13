@@ -1,14 +1,18 @@
++++
+tracker = false
+status = "cancelled"
++++
 # 11 — Fechamento automático por horário de corte, com bypass
 
 - **Status:** ideia levantada pelo Pietro em 06/10/2026; precisa de desenho. Desde 04/11 é o
-  núcleo da [tarefa 13](13-mercato-libero-settlement.md): substitui a varredura do Mercato
+  núcleo da [tarefa 13](../../vm-migration/tasks/13-mercato-libero-settlement.md): substitui a varredura do Mercato
   Libero, e o prazo passa a ser a saída do Rafael Frankl.
 - **Repos:** platform-cessao (principal), BFF e front (bypass na tela).
 - **Decisões:** [D8](../decisions.md).
 - **Relacionadas:** [02](02-close-batch-by-proc-id.md),
   [03](03-async-closing-and-429.md),
   [09](09-voltis-automatic-batch.md), [10](10-dayvale-administrator.md),
-  [13](13-mercato-libero-settlement.md).
+  [13](../../vm-migration/tasks/13-mercato-libero-settlement.md).
 
 ## Problema
 

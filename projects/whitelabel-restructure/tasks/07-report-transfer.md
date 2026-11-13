@@ -1,3 +1,10 @@
++++
+card = "TS-5364"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 07 — Report Transfer
 
 - **TS:** TS-5364 · **Branch:** `refact/TS-5364-report-transfer-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

@@ -1,3 +1,10 @@
++++
+card = "TS-5734"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 05 — Tipo de baixa na tabela de pagamentos
 
 - **Status:** mapeado; falta conferir o caso da Dots no banco.

@@ -1,3 +1,10 @@
++++
+card = "TS-5706"
+type = "task"
+epic = "TS-5704"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
++++
 # 01 — Inventário da EC2 de automações
 
 Status: a começar (05/11/2026)

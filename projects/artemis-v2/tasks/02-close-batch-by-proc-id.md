@@ -1,3 +1,11 @@
++++
+card = "TS-5435"
+type = "task"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["02-03-implementation-plan.md", "02-03-sandbox-tests.md"]
++++
 # 02 — Dois modos de fechamento: por chave ou por proc_id
 
 - **Status:** desenho alinhado com o Pietro em 06/10/2026; D3 tomada em 13/10.

@@ -420,7 +420,7 @@ Prose under `projects/` is in PT-BR; folder and file names are in English.
 | [artemis-v2](projects/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches, and taking over the Mercato Libero settlement flow |
 | [whitelabel-restructure](projects/whitelabel-restructure/README.md) | Epic that restructures the partner portal front end: brand themes, dark mode, own components, new architecture |
 | [valids](projects/valids/README.md) | The VALIDs feature: the controllership's allowance dashboard (PDD) on the partner portal, fed by the data lake |
-| [operations-screens-migration](projects/operations-screens-migration/README.md) | Takeover of the screens, routines and tools a departing developer built for the operations team on an automation EC2 (provisional name) |
+| [vm-migration](projects/vm-migration/README.md) | Takeover of the screens, routines and tools a departing developer built for the operations team on an automation EC2 (provisional name) |
 | [ai-studies](projects/ai-studies/README.md) | Study guide of the AI concepts used in this workspace |
 | [standalone](projects/standalone/README.md) | Tasks that belong to no project |
 

@@ -1,3 +1,11 @@
++++
+card = "TS-5717"
+type = "task"
+epic = "TS-5704"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
+blocks = ["TS-5726", "TS-5707", "TS-5709", "TS-5711", "TS-5714", "TS-5718"]
++++
 # 02 — Envio de relatórios pela tela Envio de Relatórios
 
 Status: planejada (13/11/2026)
@@ -6,7 +14,7 @@ Status: planejada (13/11/2026)
 ## Objetivo
 
 Levar para a tela Envio de Relatórios do portal os relatórios que os scripts do repositório de
-automações (`plgn-automations`) geram e mandam por e-mail a partir da EC2 de automações. A tela
+automações (`pldr-automations`) geram e mandam por e-mail a partir da EC2 de automações. A tela
 (o módulo `report-transfer`) hoje só move arquivos entre SFTP, FTP, S3 e GCS; passa a consultar
 os microsserviços, gerar o arquivo e mandar por e-mail. Cada onda roda em paralelo com o script e,
 quando anexos e totais baterem, a linha do script sai da agenda do orquestrador
@@ -83,4 +91,4 @@ Estimativa em dias de trabalho de uma pessoa que conhece o repositório, com tes
 
 - Leitura do código do repositório de automações em 05/11 e 13/11/2026 [C].
 - Inventário dos scripts de e-mail e backlog interativo com as estimativas no claude.ai: links no
-  arquivo privado do projeto (`~/.config/workspace/private/operations-screens-migration.md`).
+  arquivo privado do projeto (`~/.config/workspace/private/vm-migration.md`).

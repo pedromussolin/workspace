@@ -1,3 +1,10 @@
++++
+card = "TS-5736"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 07 — Filtro por identificador de contrato
 
 - **Status:** mapeado, aguardando D5.

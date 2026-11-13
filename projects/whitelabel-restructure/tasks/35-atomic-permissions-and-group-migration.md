@@ -1,3 +1,10 @@
++++
+card = "TS-5431"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 35 — Um escopo por área em todas as páginas e migração manual dos grupos
 
 - **TS:** TS-5431 (épico TS-5357).

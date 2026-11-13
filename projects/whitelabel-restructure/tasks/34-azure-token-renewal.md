@@ -1,3 +1,10 @@
++++
+card = "TS-5429"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 34 — Renovação dos tokens do Azure derruba a sessão antes das 8 horas
 
 - **TS:** TS-5429 (épico TS-5357).

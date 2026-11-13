@@ -1,3 +1,10 @@
++++
+card = "TS-5387"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 20 — Devcontainer do front mais leve e confiável
 
 - **TS:** TS-5387 · **Branch:** `chore/TS-5387-devcontainer` (da `origin/master`, com `--no-track`)

@@ -1,3 +1,10 @@
++++
+card = "TS-5379"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-a0893bc9a2"
+reporter = "dev-ae95329f82"
++++
 # 08 — Genius: reenvio e logs de erro
 
 - **Status:** mapeado; problemas revisados no código em 13/10/2026.

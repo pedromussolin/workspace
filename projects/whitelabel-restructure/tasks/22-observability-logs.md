@@ -1,3 +1,10 @@
++++
+card = "TS-5392"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 22 — Observabilidade: logs estruturados no BFF e visibilidade no front
 
 - **TS:** TS-5392 · **Branch:** `feature/TS-5392-observabilidade` (BFF e front)

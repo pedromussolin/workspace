@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 Status: a fazer (mapeada para depois)
 Data: 08/11/2026
 Tags: segredos, credenciais, adaptadores

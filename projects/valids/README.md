@@ -73,6 +73,9 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 03 | [Análise de Migração](tasks/03-migration-analysis.md) | data-lake-api, BFF, front | D21; D22 provisória (matriz na próxima versão) | faixas mensais integradas; 28/10: rota de datas integrada no BFF e no calendário do front, em alterações locais; build de desenvolvimento e verificações locais passaram, testes HTTP/navegador impedidos pelo ambiente; pagamento pendente da D21 | TS-5442 (integração) |
 | 04 | [Monitoramento de Inconsistências: Performance de Pagamento, Lacunas de Parcelas e Análise Residual](tasks/04-inconsistency-monitoring.md) | data-lake-api, BFF, front | Residual: D59 a D66 tomadas; Performance: commitada (TS-5467), sem push, D76; Lacunas: D41, D72 | viabilidade conferida (27/10): as três saem das views `administradores_*`; taxa média fora por enquanto (D44); Lacunas sem o Fydd, pesadas (57 s num fundo) e com a liquidação para achar a parcela posterior paga (D41); 29/10: Análise Residual commitada nas três pontas (TS-5466), sem push; migration e carga desligadas; 29/10: Performance em espera (time de dados); Lacunas: D40, D42, D71, D73 e D74 tomadas; view por contrato testada | TS-5466 (Residual), TS-5467 (Performance) |
 
+<!-- ws:items -->
+<!-- /ws:items -->
+
 ## Glossário
 
 - **ECL (Expected Credit Loss):** nome em inglês usado nos campos financeiros

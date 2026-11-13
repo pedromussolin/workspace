@@ -1,3 +1,11 @@
++++
+card = "TS-5383"
+type = "task"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["12-real-batches-pr-analysis.md"]
++++
 # 12 — Lotes reais: buscar os lotes antes dos valores
 
 - **Status:** **prioridade máxima** (passa na frente das outras, 14/10/2026);

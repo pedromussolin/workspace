@@ -1,3 +1,10 @@
++++
+card = "TS-5367"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 10 — Orquestrador
 
 - **TS:** TS-5367 · **Branch:** `refact/TS-5367-orquestrador-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

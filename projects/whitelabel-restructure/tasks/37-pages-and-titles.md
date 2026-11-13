@@ -1,3 +1,10 @@
++++
+card = "TS-5439"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 37 — Formalização numa página só, página que abre por outra e títulos
 
 - **TS:** TS-5439 (épico TS-5357) · **Branch:** juntada na `release/20261027` (front e BFF)

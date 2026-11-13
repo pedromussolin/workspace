@@ -1,3 +1,10 @@
++++
+card = "TS-5358"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 01 — Estrutura base
 
 - **TS:** TS-5358 · **Branch:** `refact/TS-5358-estrutura-base-front` (de `origin/master`)

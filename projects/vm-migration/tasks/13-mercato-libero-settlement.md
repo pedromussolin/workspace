@@ -1,14 +1,22 @@
++++
+card = "TS-5565"
+type = "task"
+epic = "TS-5705"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+relates = ["TS-5738"]
++++
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 
 - **Status:** recorte ampliado e levantamentos feitos em 05/11/2026 (ver "Levantamentos de
   05/11"); desenho em andamento. O desenho passa pela aprovação do Pietro antes de qualquer código.
 - **Repos:** platform-cessao (principal); BFF e front só no bypass da tarefa 11.
-- **Desenho (rascunho de 08/11, em revisão):** [13-closing-design.md](13-closing-design.md).
-- **Decisões:** [D8](../decisions.md) (onde guardar modo e horário), [D25](../decisions.md)
+- **Desenho (rascunho de 08/11, em revisão):** [13-closing-design.md](../../artemis-v2/tasks/13-closing-design.md).
+- **Decisões:** [D8](../../artemis-v2/decisions.md) (onde guardar modo e horário), [D25](../../artemis-v2/decisions.md)
   (contingência).
-- **Relacionadas:** [11](11-closing-by-cutoff-time.md) (núcleo desta tarefa),
-  [02](02-close-batch-by-proc-id.md), [03](03-async-closing-and-429.md); inventário da máquina em
-  `projects/operations-screens-migration/tasks/01-ec2-inventory.md`.
+- **Relacionadas:** [11](../../artemis-v2/tasks/11-closing-by-cutoff-time.md) (núcleo desta tarefa),
+  [02](../../artemis-v2/tasks/02-close-batch-by-proc-id.md), [03](../../artemis-v2/tasks/03-async-closing-and-429.md); inventário da máquina em
+  `projects/vm-migration/tasks/01-ec2-inventory.md`.
 
 ## Contexto
 
@@ -22,7 +30,7 @@ de outros devs.
 
 - **Na V2: do sistema em diante.** Quando as liquidações já estão na cessão, a V2 garante o
   fechamento dos lotes sem a varredura do Rafael. O núcleo é a
-  [tarefa 11](11-closing-by-cutoff-time.md) (fechamento automático por horário de corte); esta
+  [tarefa 11](../../artemis-v2/tasks/11-closing-by-cutoff-time.md) (fechamento automático por horário de corte); esta
   tarefa leva o caso do Mercato Libero para ela e cuida da troca.
 - **Fora, com o time: até chegar no sistema.** Receber os arquivos, transformar, trocar a
   configuração do produto e subir os dados. O Pietro decide com o time como fica.
@@ -48,9 +56,9 @@ Prazos provisórios; a meta é terminar até 13/11. Caminho crítico: TS-5567 �
 ## Levantamentos de 05/11
 
 Três leituras de código, com o detalhe em arquivos próprios:
-[mapa dos fechamentos](13-closing-paths-map.md) (gatilhos, flags e combinações),
-[automações do Mercato Libero](13-automations-survey.md) (o repo do Rafael) e
-[scheduler](13-scheduler-survey.md) (o da shared e as rotinas periódicas da cessão).
+[mapa dos fechamentos](../../artemis-v2/tasks/13-closing-paths-map.md) (gatilhos, flags e combinações),
+[automações do Mercato Libero](../../artemis-v2/tasks/13-automations-survey.md) (o repo do Rafael) e
+[scheduler](../../artemis-v2/tasks/13-scheduler-survey.md) (o da shared e as rotinas periódicas da cessão).
 
 - **Produtos hoje [C, réplica, 05/11]:** 4, 80, 81 e 1406 em `acumulado` (só `acumula_liquidacoes`
   ligada); 15 e 581 em `manual` (todas desligadas); nenhum com `liquidacao_automatico`. Em todo o
@@ -81,8 +89,8 @@ Três leituras de código, com o detalhe em arquivos próprios:
   fixas no beat, em UTC, sem registro de execução nem checagem de dia útil. A lógica da shared é
   copiável; modelos, rotas e a ligação com o Celery 5.2 e o SQLAlchemy 1.3 se reescrevem.
 
-- **Acúmulo como comportamento natural (06/11)** — [impacto na cessão](13-natural-accumulation-impact.md)
-  e [consumidores externos](13-external-consumers.md). Proposta: nenhum pagamento ganha lote ao chegar;
+- **Acúmulo como comportamento natural (06/11)** — [impacto na cessão](../../artemis-v2/tasks/13-natural-accumulation-impact.md)
+  e [consumidores externos](../../artemis-v2/tasks/13-external-consumers.md). Proposta: nenhum pagamento ganha lote ao chegar;
   ele espera sem lote até um fechamento (manual, fim da remessa ou horário), e o fechamento novo junta
   por chave, de qualquer data, com a D9. `acumulado` é a única modalidade que dá lote na chegada
   (`estados_liquidacao.py:349-351`); `manual` e `agendado` já esperam sem lote. Cancelamento, estorno,
@@ -175,13 +183,13 @@ Três leituras de código, com o detalhe em arquivos próprios:
 - **Sem a varredura, os lotes não fecham [C em 15/10, conferir de novo]:** nos produtos que
   acumulam liquidações (4, 80, 81 e 1406), só o `POST /liquidacao/` da varredura fecha os lotes
   vigentes, porque nenhum deles tem fechamento por agendamento
-  ([evidência de 14/10](../evidence/sweep-datadog-2026-10-14.md#produtos-que-acumulam-liquidações-4-80-81-1406)).
+  ([evidência de 14/10](../../artemis-v2/evidence/sweep-datadog-2026-10-14.md#produtos-que-acumulam-liquidações-4-80-81-1406)).
   Se a máquina parar, o lote fica aberto e não vai para a ADM.
 - **Precedente [C]:** em 14/10, quando a lista da varredura mudou, os produtos 15 e 581 ficaram
   sem fechamento e acumularam 67 mil pagamentos parados num dia
-  ([alerta de 15/10](../evidence/sweep-datadog-2026-10-14.md#alerta-1510-produtos-15-e-581-sem-fechamento-desde-a-mudança)).
+  ([alerta de 15/10](../../artemis-v2/evidence/sweep-datadog-2026-10-14.md#alerta-1510-produtos-15-e-581-sem-fechamento-desde-a-mudança)).
 - **A máquina segue ativa [C]:** chamou a cessão todos os dias de 22/10 a 04/11; o fechamento roda
-  às 16h–17h de Brasília ([evidência de 04/11](../evidence/mercato-libero-ec2-calls-2026-11-04.md)).
+  às 16h–17h de Brasília ([evidência de 04/11](../../artemis-v2/evidence/mercato-libero-ec2-calls-2026-11-04.md)).
 
 ## O que a tarefa 11 precisa cobrir para o Mercato Libero
 
@@ -222,7 +230,7 @@ Três leituras de código, com o detalhe em arquivos próprios:
 - **O que existe [C, leitura de outubro]:** `fechar_lote_liquidacao_por_agendamento`, beat fixo às
   19:00 UTC (16:00 de Brasília), ligado pela opção `baixa_por_agendamento` do produto. Fecha os
   lotes vigentes, roda a busca de grupos aptos e manda para a esteira de baixa
-  ([tarefa 11](11-closing-by-cutoff-time.md#o-que-já-existe-de-por-horário)). É o que a varredura
+  ([tarefa 11](../../artemis-v2/tasks/11-closing-by-cutoff-time.md#o-que-já-existe-de-por-horário)). É o que a varredura
   faz, no mesmo horário. Em 15/10 os seis produtos estavam com a opção nula.
 - **[H] Ponte, não solução:** ligar a opção nos seis produtos seguraria o fechamento se o Rafael
   sair antes da tarefa 11. Antes, conferir: o código na master atual; o custo da busca antiga, a

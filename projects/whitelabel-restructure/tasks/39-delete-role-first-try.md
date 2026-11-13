@@ -1,3 +1,10 @@
++++
+card = "TS-5457"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 39 — Apagar role na primeira tentativa
 
 - **TS:** TS-5457 (épico TS-5357) · **Branch:** `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF), da `master`

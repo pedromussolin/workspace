@@ -12,7 +12,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
   aplicação fica com a gente.
 - Desde 04/11/2026: absorver a liquidação do Mercato Libero, que o Rafael
   Frankl rodava sozinho fora dos repositórios e que passa para nós com a
-  saída dele ([tarefa 13](tasks/13-mercato-libero-settlement.md)).
+  saída dele ([tarefa 13](../vm-migration/tasks/13-mercato-libero-settlement.md)).
 
 ## Como ler esta pasta
 
@@ -58,8 +58,11 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | cessão | configs do produto | aguardando dados | a definir |
 | 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia; núcleo da 13 desde 04/11 | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
-| 13 | [Absorver a liquidação do Mercato Libero](tasks/13-mercato-libero-settlement.md) | cessão (do sistema em diante; a chegada dos dados fica com o time) | 11, D25 | cards com planos em `tasks/13-plan.md`; quase todos com branch enviada; TS-5620 em andamento; release única quando todos estiverem prontos (13/11) | a definir |
+| 13 | [Absorver a liquidação do Mercato Libero](../vm-migration/tasks/13-mercato-libero-settlement.md) | cessão (do sistema em diante; a chegada dos dados fica com o time) | 11, D25 | cards com planos em `tasks/13-plan.md`; quase todos com branch enviada; TS-5620 em andamento; release única quando todos estiverem prontos (13/11) | a definir |
 | 14 | [Esteira de baixa que não aguenta lote gigante](tasks/14-giant-batch-pipeline.md) | cessão, argocd | pré-requisito da migração da 13 | desenho da Fase 0 em `tasks/14-phase0-design.md` (12/11); teto em rodadas decidido; D39 aberta; sem card | a definir |
+
+<!-- ws:items -->
+<!-- /ws:items -->
 
 ## Fases propostas
 

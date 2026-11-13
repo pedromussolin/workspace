@@ -1,3 +1,11 @@
++++
+card = "TS-5407"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+docs = ["27-organization-and-client-plan.md"]
++++
 # 27 — Organização e cliente da pessoa no controle de acesso
 
 - **TS:** TS-5407 · **Branch:** `feature/TS-5407-organizacao-e-cliente` (front e BFF)

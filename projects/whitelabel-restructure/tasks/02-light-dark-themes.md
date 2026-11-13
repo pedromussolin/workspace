@@ -1,3 +1,10 @@
++++
+card = "TS-5359"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
++++
 # 02 — Temas claro e escuro
 
 - **TS:** TS-5359 · **Branch:** `feature/TS-5359-temas-claro-escuro` (da 01)
