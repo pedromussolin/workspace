@@ -183,7 +183,7 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
     return needed
 
 
-def _session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
+def session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
     try:
         config = userconfig.load_config()
         require_kind(config.tracker_kind)
@@ -311,7 +311,7 @@ def run_check(argument: str) -> int:
         return 1
 
     def action() -> int:
-        settings, client = _session(_needed_keys([item]))
+        settings, client = session(_needed_keys([item]))
         _ensure_store()
         verdict = build_plan(client, settings, [item]).verdicts[0]
         _print_verdict(verdict)
@@ -352,7 +352,7 @@ def _owned_levels(types: dict[str, str]) -> dict[str, int]:
 
 def run_epics() -> int:
     def action() -> int:
-        settings, client = _session({"project"})
+        settings, client = session({"project"})
         jql = (
             f'assignee = currentUser() AND project = "{settings.project}" '
             "AND statusCategory != Done"
@@ -430,7 +430,7 @@ def _print_problems(plan: Plan) -> None:
 
 
 def _preview(argument: str, loaded: list[Loaded]) -> int:
-    settings, client = _session(_needed_keys(loaded))
+    settings, client = session(_needed_keys(loaded))
     _ensure_store()
     plan = build_plan(client, settings, loaded)
     if not plan.ok:
@@ -592,7 +592,7 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
             file=sys.stderr,
         )
         return 1
-    settings, client = _session(_needed_keys(loaded))
+    settings, client = session(_needed_keys(loaded))
     plan = build_plan(client, settings, loaded)
     if not plan.ok:
         _print_problems(plan)
