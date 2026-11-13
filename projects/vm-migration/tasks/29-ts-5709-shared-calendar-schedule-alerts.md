@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5713"]
 blocked_by = ["TS-5717"]
 docs = ["09-shared-calendar-schedule-alerts.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 29 — Shared: calendário de dias úteis e datas relativas nos filtros
 

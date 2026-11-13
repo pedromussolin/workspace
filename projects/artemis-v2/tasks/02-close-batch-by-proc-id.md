@@ -5,6 +5,13 @@ epic = "TS-5278"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 docs = ["02-03-implementation-plan.md", "02-03-sandbox-tests.md"]
+
+[tracker]
+status = "done"
+priority = "Highest"
+due = 2026-11-06
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 02 — Dois modos de fechamento: por chave ou por proc_id
 

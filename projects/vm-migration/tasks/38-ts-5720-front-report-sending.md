@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5721"]
 blocked_by = ["TS-5718"]
 docs = ["11-front-report-sending.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 38 — Front: Origem com consulta, filtros e prévias
 

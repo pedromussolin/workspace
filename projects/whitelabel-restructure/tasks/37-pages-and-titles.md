@@ -4,6 +4,13 @@ type = "task"
 epic = "TS-5357"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "High"
+due = 2026-10-27
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 37 — Formalização numa página só, página que abre por outra e títulos
 

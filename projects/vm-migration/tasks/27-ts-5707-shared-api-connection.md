@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5708", "TS-5710", "TS-5711", "TS-5718", "TS-5722"]
 blocked_by = ["TS-5717", "TS-5726"]
 docs = ["06-shared-api-connection.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 27 — Shared: conexão do tipo API e cliente HTTP dos microsserviços
 

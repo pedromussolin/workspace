@@ -5,6 +5,12 @@ epic = "TS-5704"
 assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 blocks = ["TS-5726", "TS-5707", "TS-5709", "TS-5711", "TS-5714", "TS-5718"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 02 — Envio de relatórios pela tela Envio de Relatórios
 

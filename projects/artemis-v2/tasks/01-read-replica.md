@@ -4,6 +4,12 @@ type = "task"
 epic = "TS-5278"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Highest"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 01 — Réplica de leitura no init do SQLAlchemy
 

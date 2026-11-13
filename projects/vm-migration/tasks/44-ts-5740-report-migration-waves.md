@@ -6,6 +6,12 @@ assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 blocked_by = ["TS-5732", "TS-5724"]
 docs = ["12-report-migration-waves.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 44 — Onda 3: migrar e desligar Estoque (VLTS I) e Base de operações e estoque (FBRX3)
 

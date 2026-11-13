@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5743", "TS-5732"]
 blocked_by = ["TS-5726"]
 docs = ["05-lake-stock-position.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 24 — Posição de ativos no data-lake-api: lista opcional, VLTS I e prévia SQL
 

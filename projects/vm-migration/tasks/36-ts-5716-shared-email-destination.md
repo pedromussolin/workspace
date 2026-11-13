@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5724"]
 blocked_by = ["TS-5710", "TS-5715"]
 docs = ["08-shared-email-destination.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 36 — Shared: destino e-mail no bloco, item da execução e teste de conexão
 

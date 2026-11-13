@@ -6,6 +6,12 @@ assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 relates = ["TS-5724"]
 docs = ["12-report-migration-waves.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 47 — GMUDs dos deploys da migração de relatórios
 

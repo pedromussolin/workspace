@@ -6,6 +6,12 @@ assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 blocks = ["TS-5738"]
 docs = ["14-phase0-design.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 14 — Esteira de baixa que não aguenta lote gigante
 

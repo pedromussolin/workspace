@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5741", "TS-5727"]
 blocked_by = ["TS-5711"]
 docs = ["07-shared-query-source-and-file.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 32 — Shared: regras nomeadas em código no catálogo
 

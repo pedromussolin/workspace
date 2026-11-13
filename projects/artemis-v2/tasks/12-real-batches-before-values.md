@@ -5,6 +5,12 @@ epic = "TS-5278"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 docs = ["12-real-batches-pr-analysis.md"]
+
+[tracker]
+status = "done"
+priority = "Highest"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 12 — Lotes reais: buscar os lotes antes dos valores
 

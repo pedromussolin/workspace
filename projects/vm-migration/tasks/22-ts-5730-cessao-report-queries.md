@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5731"]
 blocked_by = ["TS-5726", "TS-5729"]
 docs = ["04-cessao-report-queries.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 22 — Rota de consulta de liquidação no platform-cessao
 

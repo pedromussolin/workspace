@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5724"]
 blocked_by = ["TS-5707"]
 docs = ["12-report-migration-waves.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 40 — Cadastrar URL e token dos serviços no Parameter Store
 

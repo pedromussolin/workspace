@@ -74,6 +74,13 @@ Uma tarefa por arquivo em `tasks/`; esta tabela é o índice.
 | 05 | [Segredos por adaptador: cofres de mercado e modelo local](tasks/05-secrets-adapters.md) | a fazer (mapeada para depois) |
 
 <!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
+| 01 | [Fase 1: portão no Claude Code](tasks/01-phase1-gate.md) | — | — | — | concluída |
+| 02 | [Fase 2: aprovação no `ws`](tasks/02-phase2-approvals.md) | — | — | — | a fazer |
+| 03 | [Organizar os projetos em contexto, iniciativa, épico e item](tasks/03-work-organization.md) | — | — | — | a fazer |
+| 04 | [Gerenciador de cards genérico](tasks/04-generic-tracker.md) | — | — | — | a fazer |
+| 05 | [Segredos por adaptador: cofres de mercado e o modelo local como reserva](tasks/05-secrets-adapters.md) | — | — | — | a fazer |
 <!-- /ws:items -->
 
 ## Situação

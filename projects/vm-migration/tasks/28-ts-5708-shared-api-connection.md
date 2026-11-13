@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5710", "TS-5718"]
 blocked_by = ["TS-5726", "TS-5707"]
 docs = ["06-shared-api-connection.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 28 — Shared: catálogo fixo de consultas e prévias de dados e SQL
 

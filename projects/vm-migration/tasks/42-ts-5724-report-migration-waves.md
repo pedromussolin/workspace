@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5725", "TS-5740", "TS-5741"]
 blocked_by = ["TS-5731", "TS-5713", "TS-5716", "TS-5721", "TS-5722", "TS-5723"]
 docs = ["12-report-migration-waves.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 42 — Onda 1: migrar e desligar Cessões diárias e mensais, Pendura a acrescer e Vencimentos atualizados
 

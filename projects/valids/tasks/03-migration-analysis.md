@@ -5,6 +5,12 @@ epic = "TS-5690"
 assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 relates = ["TS-5442"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 03 — Análise de Migração
 

@@ -4,6 +4,13 @@ type = "bug"
 epic = "TS-5357"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Medium"
+due = 2026-10-30
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 43 — Barras da provisão do PDD com a mesma largura
 

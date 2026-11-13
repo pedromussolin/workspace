@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5712", "TS-5713"]
 blocked_by = ["TS-5717", "TS-5707", "TS-5710"]
 docs = ["07-shared-query-source-and-file.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 31 — Shared: execução da rota de dados e ajustes de linhas
 

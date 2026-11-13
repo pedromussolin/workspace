@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5732"]
 blocked_by = ["TS-5742"]
 docs = ["05-lake-stock-position.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 25 — Posição de ativos no data-lake-api: ramos Dayvale e FBRX3
 

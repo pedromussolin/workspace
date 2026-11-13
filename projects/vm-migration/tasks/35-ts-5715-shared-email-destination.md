@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5716"]
 blocked_by = ["TS-5714"]
 docs = ["08-shared-email-destination.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 35 — Shared: resolução de destinatários e envio pelo Graph com anexos
 

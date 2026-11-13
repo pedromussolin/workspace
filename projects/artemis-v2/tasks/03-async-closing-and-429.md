@@ -5,6 +5,12 @@ epic = "TS-5278"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 docs = ["03-closing-analysis.md", "03-post-production-cases.md", "03-pre-production-review.md"]
+
+[tracker]
+status = "done"
+priority = "Highest"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 03 — Fechamento de lote: mais rápido, sem espera e sem 429
 

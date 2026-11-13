@@ -5,6 +5,12 @@ epic = "TS-5690"
 assignee = "dev-a0893bc9a2"
 reporter = "dev-a0893bc9a2"
 relates = ["TS-4366", "TS-5044", "TS-4815"]
+
+[tracker]
+status = "done"
+priority = "Medium"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 01 — Mov. Estoque: aquisições, baixas e accrual de juros
 

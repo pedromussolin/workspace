@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5740", "TS-5741"]
 blocked_by = ["TS-5742", "TS-5743"]
 docs = ["05-lake-stock-position.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 26 — Validar a posição de ativos contra os relatórios de estoque
 

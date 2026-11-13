@@ -4,6 +4,12 @@ type = "task"
 epic = "TS-5704"
 assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 01 — Inventário da EC2 de automações
 

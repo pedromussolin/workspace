@@ -18,6 +18,8 @@ Uma tarefa por arquivo em `tasks/`, com o prefixo `NN-` e um nome curto em ingl�
 |---|---|---|
 
 <!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
 <!-- /ws:items -->
 
 ## Situação

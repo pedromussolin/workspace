@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5724"]
 blocked_by = ["TS-5713", "TS-5719", "TS-5720"]
 docs = ["11-front-report-sending.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 39 — Front: Gerar Arquivo, destino e-mail e agenda por dia útil no editor
 

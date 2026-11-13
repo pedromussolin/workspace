@@ -5,6 +5,13 @@ epic = "TS-5705"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 relates = ["TS-5738"]
+
+[tracker]
+status = "todo"
+priority = "Highest"
+due = 2026-11-13
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 

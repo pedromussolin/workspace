@@ -6,6 +6,12 @@ assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 blocks = ["TS-5719", "TS-5720"]
 blocked_by = ["TS-5717", "TS-5707", "TS-5708", "TS-5714"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 10 — BFF da tela Envio de Relatórios
 

@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5724", "TS-5725"]
 blocked_by = ["TS-5729", "TS-5730"]
 docs = ["04-cessao-report-queries.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 23 — Validar as rotas do platform-cessao contra o SQL dos scripts
 

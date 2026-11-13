@@ -6,6 +6,13 @@ assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 blocks = ["TS-5465"]
 docs = ["41-fqdn-and-partner-header.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+due = 2026-11-13
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 45 — Escopo do parceiro pelo X-Identificador-Interno nas rotas do portal
 

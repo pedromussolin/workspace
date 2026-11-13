@@ -5,6 +5,12 @@ epic = "TS-5357"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 docs = ["27-organization-and-client-plan.md"]
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
 +++
 # 27 — Organização e cliente da pessoa no controle de acesso
 

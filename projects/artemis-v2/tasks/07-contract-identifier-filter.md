@@ -4,6 +4,12 @@ type = "improvement"
 epic = "TS-5278"
 assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 07 — Filtro por identificador de contrato
 

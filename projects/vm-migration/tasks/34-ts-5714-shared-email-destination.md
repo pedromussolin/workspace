@@ -7,6 +7,12 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5715", "TS-5718", "TS-5723"]
 blocked_by = ["TS-5717"]
 docs = ["08-shared-email-destination.md"]
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = ""
+synced = 2026-11-13
 +++
 # 34 — Shared: conexão do tipo E-mail e cadastro de contatos
 

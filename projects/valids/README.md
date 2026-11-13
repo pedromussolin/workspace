@@ -74,6 +74,15 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 04 | [Monitoramento de Inconsistências: Performance de Pagamento, Lacunas de Parcelas e Análise Residual](tasks/04-inconsistency-monitoring.md) | data-lake-api, BFF, front | Residual: D59 a D66 tomadas; Performance: commitada (TS-5467), sem push, D76; Lacunas: D41, D72 | viabilidade conferida (27/10): as três saem das views `administradores_*`; taxa média fora por enquanto (D44); Lacunas sem o Fydd, pesadas (57 s num fundo) e com a liquidação para achar a parcela posterior paga (D41); 29/10: Análise Residual commitada nas três pontas (TS-5466), sem push; migration e carga desligadas; 29/10: Performance em espera (time de dados); Lacunas: D40, D42, D71, D73 e D74 tomadas; view por contrato testada | TS-5466 (Residual), TS-5467 (Performance) |
 
 <!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
+| 01 | [Mov. Estoque: aquisições, baixas e accrual de juros](tasks/01-stock-movement.md) | TS-5441 | Tarefa | dev-a0893bc9a2 | concluída |
+| 03 | [Análise de Migração](tasks/03-migration-analysis.md) | TS-5739 | Nova função | dev-a0893bc9a2 | a fazer |
+| 05 | [Abertura de Rating](tasks/05-ts-5436-rating-breakdown.md) | TS-5436 | Tarefa | dev-a0893bc9a2 | concluída |
+| 06 | [Integração das Visualizações](tasks/06-ts-5442-rating-breakdown.md) | TS-5442 | Tarefa | dev-a0893bc9a2 | concluída |
+| 07 | [Análise Residual](tasks/07-ts-5466-inconsistency-monitoring.md) | TS-5466 | Nova função | dev-a0893bc9a2 | bloqueado |
+| 08 | [Performance de Pagamento](tasks/08-ts-5467-inconsistency-monitoring.md) | TS-5467 | Nova função | dev-a0893bc9a2 | bloqueado |
+| 09 | [Lacunas de Parcelas](tasks/09-ts-5468-inconsistency-monitoring.md) | TS-5468 | Nova função | dev-a0893bc9a2 | bloqueado |
 <!-- /ws:items -->
 
 ## Glossário
