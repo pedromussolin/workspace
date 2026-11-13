@@ -111,7 +111,7 @@ def _is_link(value: object) -> bool:
     return isinstance(value, str) and bool(REF.fullmatch(value) or LINK_PATH.fullmatch(value))
 
 
-def _is_doc(doc: object) -> bool:
+def is_doc(doc: object) -> bool:
     """A non-empty relative path from `tasks/` that stays inside the project folder."""
     if not isinstance(doc, str) or not doc or doc.startswith("/") or "\\" in doc or "\0" in doc:
         return False
@@ -194,7 +194,7 @@ def schema_problems(item: Item) -> list[str]:
             out += [
                 f"docs: {doc!r} must be a path relative to tasks/"
                 for doc in docs
-                if not _is_doc(doc)
+                if not is_doc(doc)
             ]
     return out
 
