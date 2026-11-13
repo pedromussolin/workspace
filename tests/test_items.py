@@ -369,6 +369,16 @@ def test_table_fills_an_empty_marker_block_and_keeps_a_hand_table(item_repo, cap
     assert readme(item_repo).read_text(encoding="utf-8") == text
 
 
+def test_table_strips_only_a_leading_number_from_the_heading(item_repo, capsys):
+    write_item(item_repo, "01-a.md", CLEAN, "# 01 — Migração fase 2 — cutover\n")
+    write_item(item_repo, "02-b.md", CLEAN.replace("TS-5", "TS-6"), "# Migração fase 3 — cutover\n")
+
+    assert main(["item", "table", "demo"]) == 0
+    text = readme(item_repo).read_text(encoding="utf-8")
+    assert "| 01 | [Migração fase 2 — cutover](tasks/01-a.md) |" in text
+    assert "| 02 | [Migração fase 3 — cutover](tasks/02-b.md) |" in text
+
+
 @pytest.mark.parametrize(
     "text",
     [

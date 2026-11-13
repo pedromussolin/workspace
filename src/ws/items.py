@@ -35,7 +35,7 @@ TABLE_HEADER = "| # | Tarefa | Card | Tipo | Responsável | Status |"
 TABLE_RULE = "|---|---|---|---|---|---|"
 _PROJECT_KEYS = ("epics", "initiative", "prefixes")
 _NUMBER = re.compile(r"\d+")
-_TITLE_NUMBER = re.compile(r"\d+\s+—\s+")
+_TITLE_NUMBER = re.compile(r"^\d+\s+—\s+")
 _WORD = re.compile(r"[a-z0-9]+")
 _NAME_WORDS = 6
 
