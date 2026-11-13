@@ -349,7 +349,14 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws gate catalog pass SERVER TOOL…` | Puts the tools in the `pass` list of the server in the repo's `catalog.json` (creating the server), takes them out of `ask` and of the unclassified record; commit the file and run `ws setup` to update the protected copy |
 | `ws gate catalog ask SERVER TOOL…` | Same for the `ask` list (writes); a name outside `[A-Za-z0-9_.-]+` is refused |
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
-| `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON (each card with `is_epic`) through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
+| `ws task list [--since YYYY-MM-DD] [--role mine\|following\|all]` | Prints the user's Jira cards as compact JSON (each card with `is_epic`) through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error | `--role` picks the cards the user is assignee of (`mine`, default), writes or follows (`following`), or both (`all`) |
+| `ws item new PROJECT --type T [--epic K] [--assignee A] [--reporter R] --heading "..." [--slug S]` | Creates an item file in `projects/<project>/tasks/` from the template of the type and prints its repo-relative path; `--epic` is optional (an item can exist before its epic); `me` is written as the user's dev id |
+| `ws item check [PROJECT...] [--tracker]` | Validates the items against `project.toml` and each other and prints `{"problems", "drift", "pending", "orphans"}`; offline by default (the last three stay empty), with `--tracker` it compares each item with its card; exit 1 with problems, 2 setup, 3 tracker error |
+| `ws item drafts [PROJECT...] [--only REFS]` | Writes the `/card` drafts that align the tracker with the items (edits, links, creates) and prints `{"folder", "count", "need_text", "waiting", "by_hand"}`; nothing goes to the tracker |
+| `ws item pull ITEM --fields F,...` | Copies the tracker's values of those contract keys into the item, leaving every other byte |
+| `ws item sync [PROJECT...]` | Rewrites each tracked item's `[tracker]` table (status, priority, due, sprint, synced) from its card |
+| `ws item table PROJECT` | Refreshes the items table of the project's `README.md` between its markers |
+| `ws item set-card ITEM (REF \| --none)` | Settles an item whose create was uncertain or whose write-back failed: records the card, or releases the item |
 | `ws standup report --activity FILE [--cards FILE] [--board FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every card move; `--board FILE` (the `ws board status` output) brings the status suggestions, `moves` and `to_confirm`, and its warnings join `warnings`; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
 | `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog, link) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
 | `ws card epics` | Lists the epics of your open cards, plus the epics and initiatives you own and the open epics under those initiatives (`key`, `title`, `prefix`, `status`, `level`, `parent`) |
@@ -418,3 +425,9 @@ Prose under `projects/` is in PT-BR; folder and file names are in English.
 | [standalone](projects/standalone/README.md) | Tasks that belong to no project |
 
 New projects start with `ws project new <slug>`.
+
+A project with a `project.toml` (`epics`, the project's epic refs, and an optional initiative) keeps
+one item file per task in `tasks/`. The front matter holds the card's contract (`card`, `type`,
+`epic`, `assignee`, `reporter`, `blocks`, `blocked_by`, `relates`, `docs`; people as dev ids, never
+`me`) and a `[tracker]` table that only `ws item sync` writes. The `ws item` commands never write to
+the tracker; `/card` does. See `docs/specs/2026-11-13-task-items-design.md`.

@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar" or the daily's "para aplicar".
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -75,6 +75,35 @@ Nothing is written through the Atlassian MCP, ever.
      When the preview names no failing file (one `ws card preview: ...` line on stderr, a draft
      that did not load), show that message and ask the user; do not guess which drafts to move.
 
+## Reorganize (`/card reorganizar`)
+
+Aligns the project items (`projects/<slug>/tasks/*.md`) with the tracker. The item files are
+written by `ws item` commands, never by hand here; the tracker is written only by the apply.
+
+1. Run `ws item check --tracker [projects...]`. It prints `problems`, `drift`, `pending` and
+   `orphans`. Exit 1: show each `problems` entry in PT-BR and stop for the user to fix the item.
+   Exit 2 is setup, 3 is the tracker refusing or unreachable: show the message.
+2. Show each `drift` entry (`path`, `card`, `field`) in PT-BR with both values; for people use
+   `names`, not ids. Ask, per field, which side is right.
+3. Where the tracker's side is right: `ws item pull <path> --fields f1,f2` (it changes only those
+   keys of the item).
+4. Where the item's side is right, and for `pending` entries: `ws item drafts [--only REFS]`
+   (`REFS`: commas, card refs or item paths as `check` printed them). It prints `{"folder",
+   "count", "need_text", "waiting", "by_hand"}`. For each path in `need_text` write the `# <title>`
+   and the sections (the real names, in a draft outside the repo) and run `ws card check` on each.
+5. One preview of the `folder` and one approval (steps 3 and 4 above).
+6. Tell the user, in PT-BR, what is in `waiting` (links whose other card is not created yet: run
+   `ws item drafts` again after this apply, a second batch) and in `by_hand` (what only the user
+   can do in the tracker).
+7. After the apply: `ws item sync [projects...]` (refreshes each item's `[tracker]` table) and
+   `ws item table <slug>` (the README table).
+
+A write-back failure after a create, or an uncertain create, leaves the item recorded as pending:
+name `ws item set-card <item> <ref>` (the card exists) or `ws item set-card <item> --none` (it does
+not), then draft again if needed. `ws item drafts` refuses to draft that item until then.
+Items without an epic are not drafted: `by_hand` says so; set `epic` in the item first (the
+`task-shaping` skill helps).
+
 ## The draft
 
 A Markdown file with TOML front matter between `+++` lines. Unknown keys are an error. Dates are
@@ -82,7 +111,7 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
 | `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter` | optional new description |
 | `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |

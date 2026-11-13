@@ -87,7 +87,7 @@ repo gets only the generic reference. Never read `~/.config/workspace/credential
 
 | Path | What lives there |
 |---|---|
-| `projects/<slug>/` | one planning project: `README.md`, `CLAUDE.md`, `CONTINUE.md`, `decisions.md`, `tasks/`, `evidence/`, `attachments/` |
+| `projects/<slug>/` | one planning project: `README.md`, `CLAUDE.md`, `CONTINUE.md`, `decisions.md`, `project.toml` (epics, optional), `tasks/`, `evidence/`, `attachments/` |
 | `projects/standalone/` | tasks that belong to no project: a `README.md` with the task table and `tasks/` |
 | `templates/project/` | template copied by `ws project new <slug>` |
 | `skills/` | versioned Claude skills, symlinked into `~/.claude/skills` by `ws setup` |
