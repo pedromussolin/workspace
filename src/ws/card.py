@@ -698,7 +698,11 @@ def _report_failure(
     kept = _keep_aside(item.path)
     if applied:
         print(f"Já aplicados: {', '.join(applied)}")
-    if sent:
+    if sent and item.draft and item.draft.op == "link":
+        created = [line for line in verdict.preview if not line.endswith(": já existe")][:sent]
+        print(f"{item.path.name}: {sent} vínculo(s) já criado(s); o restante não foi enviado")
+        print(*[f"  Vinculado: {line}" for line in created], sep="\n")
+    elif sent:
         print(f"{item.path.name}: a transição foi aplicada, mas a data de início não")
     if error.uncertain:
         print(f"{item.path.name}: resultado incerto: confira no Jira ({error})")

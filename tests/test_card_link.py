@@ -9,6 +9,7 @@ from test_card import (
 )
 
 from ws import card
+from ws.jira import JiraError
 
 ISSUE_LINK = ("POST", "/rest/api/3/issueLink")
 
@@ -137,3 +138,27 @@ def test_applying_a_link_draft_sends_one_post_per_missing_link(world, capsys):  
     assert "Vinculado: TS-101 é bloqueado por TS-102" in out
     assert "TS-120" not in out
     assert not path.exists()
+
+
+def test_a_failing_link_reports_the_links_already_created(world, capsys, monkeypatch):  # noqa: F811
+    world.fake.routes[ISSUE_LINK] = (201, "")
+    path = link_draft(blocks=["TS-102"], relates=["TS-120"], blocked_by=["TS-103"])
+    _, code = preview(path, capsys)
+    real, calls = card._send, []
+
+    def flaky(client, request):
+        calls.append(request)
+        if len(calls) == 2:
+            raise JiraError("boom", status=500)
+        return real(client, request)
+
+    monkeypatch.setattr(card, "_send", flaky)
+
+    assert approve(path, code) == 3
+
+    text = capsys.readouterr().out
+    assert "l.md: 1 vínculo(s) já criado(s); o restante não foi enviado" in text
+    assert "Vinculado: TS-101 bloqueia TS-102" in text
+    assert "TS-120" not in text.split("Vinculado:")[1]
+    assert "a transição foi aplicada" not in text
+    assert len(bodies(world)) == 1
