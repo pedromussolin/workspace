@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 
-from adopt_helpers import git, make_repo, row
+from adopt_helpers import make_repo, row
 from adopt_items.apply import SubprocessRunner, apply, revert_command
 from adopt_items.maprows import Link
 from adopt_items.plan import build_plan
@@ -54,11 +54,9 @@ def test_real_ws_item_new_and_check(tmp_path, ws_config):
 def test_the_revert_command_restores_the_tree(tmp_path, ws_config):
     repo = tmp_path / "repo"
     repo.mkdir()
+    shutil.copytree(TEMPLATES, repo / "templates" / "item")
     make_repo(repo, demo={"01-a.md": "# A\n"})
     (ws_config / "config.toml").write_text(CONFIG, encoding="utf-8")
-    shutil.copytree(TEMPLATES, repo / "templates" / "item")
-    git(repo, "add", "-A")
-    git(repo, "commit", "-q", "-m", "t")
     plan = build_plan(
         [row(project="demo", file="tasks/01-a.md", epic="TS-9")], repo, {"ana": ANA, "bia": ME}, []
     )

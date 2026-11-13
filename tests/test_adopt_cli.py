@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from adopt_helpers import HEADER, FakeRunner, make_repo, tree_hash
+from adopt_helpers import HEADER, FakeRunner, git, make_repo, tree_hash
 from adopt_items import cli
 
 
@@ -44,7 +44,7 @@ def test_dry_run_writes_nothing(tmp_path, home, capsys):
     before = tree_hash(repo), tree_hash(map_dir)
     code = cli.main(["--repo", str(repo), "--map", str(map_dir)], runner=runner)
     out = capsys.readouterr().out
-    assert code == 0 and "item projects/p/tasks/01-a.md" in out
+    assert code == 0 and "item file projects/p/tasks/01-a.md" in out
     assert (tree_hash(repo), tree_hash(map_dir)) == before
     assert all(call[0] == "is_clean" for call in runner.calls)
 
@@ -112,6 +112,52 @@ def test_dirty_tree_is_a_warning_in_a_dry_run_and_fatal_with_apply(tmp_path, hom
     assert cli.main([*args, "--apply"], runner=FakeRunner(repo, clean=False)) == 1
 
 
+def test_dry_run_prints_each_problem_of_a_planned_project_toml(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path)
+    write_map(
+        map_dir,
+        {"file": "tasks/01-a.md", "epic": "TS-51", "title": "[[X] a"},
+        {"card": "TS-51", "type": "Epic", "title": "Epic"},
+    )
+    code = cli.main(["--repo", str(repo), "--map", str(map_dir)], runner=FakeRunner(repo))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert [ln for ln in out.splitlines() if ln.startswith("problem: projects/p/project.toml: ")]
+
+
+def test_dry_run_shows_every_change(tmp_path, home, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    make_repo(repo, p={"01-a.md": "# A\n", "00-index.md": "[a](01-a.md)\n"}, q={})
+    (repo / "README.md").write_text("[a](projects/p/tasks/01-a.md)\n")
+    (repo / "projects/q/README.md").write_text("# q\n\nsem tabela\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "root")
+    map_dir = tmp_path / "map"
+    write_map(
+        map_dir,
+        {"project": "q", "file": "tasks/01-a.md (p)", "epic": "TS-9"},
+        {"project": "q", "card": "novo", "action": "criar", "epic": "TS-9", "title": "Nova"},
+        {"project": "q", "card": "TS-9", "type": "Epic", "title": "Epic"},
+    )
+    before = tree_hash(repo)
+    code = cli.main(["--repo", str(repo), "--map", str(map_dir)], runner=FakeRunner(repo))
+    lines = capsys.readouterr().out.splitlines()
+    assert code == 0
+    for expected in (
+        "move projects/p/tasks/01-a.md -> projects/q/tasks/01-a.md",
+        "item file projects/q/tasks/01-a.md card=TS-1 source=a.tsv:2",
+        "item new projects/q/tasks/02-new-a-3.md card=- source=a.tsv:3",
+        "project.toml projects/q/project.toml",
+        '  epics = ["TS-9"]',
+        "rewrite README.md",
+        "rewrite projects/p/tasks/00-index.md",
+        "readme markers q: no ## Tarefas heading",
+    ):
+        assert expected in lines
+    assert tree_hash(repo) == before
+
+
 def test_outside_alone_only_moves_outside_the_repo(tmp_path, home, capsys):
     repo, map_dir = setup(tmp_path)
     private = home / ".config/workspace/private"
@@ -128,3 +174,63 @@ def test_outside_alone_only_moves_outside_the_repo(tmp_path, home, capsys):
     assert not data.exists() and data.with_name("vm-migration").is_dir()
     assert "outside: mv" in out and "total:" not in out and "item " not in out
     assert tree_hash(repo) == before and runner.calls == []
+
+
+class BrokenRunner(FakeRunner):
+    def __init__(self, repo, error: BaseException, where: str):
+        super().__init__(repo)
+        self.error, self.where = error, where
+
+    def is_clean(self) -> bool:
+        if self.where == "is_clean":
+            raise self.error
+        return super().is_clean()
+
+    def item_new(self, *args) -> str:
+        if self.where == "item_new":
+            raise self.error
+        return super().item_new(*args)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        subprocess.CalledProcessError(1, ["ws", "item", "new"], stderr="fatal: boom\n"),
+        FileNotFoundError(2, "No such file or directory", "boom"),
+    ],
+)
+def test_an_error_during_apply_prints_it_and_the_revert_command(tmp_path, home, capsys, error):
+    repo, map_dir = setup(tmp_path, card="novo", action="criar", file="-")
+    args = ["--repo", str(repo), "--map", str(map_dir), "--apply"]
+    assert cli.main(args, runner=BrokenRunner(repo, error, "item_new")) == 1
+    out = capsys.readouterr().out
+    stopped = out[out.index("stopped: ") :]
+    assert "boom" in stopped
+    assert stopped.rstrip().splitlines()[-1].startswith("revert: git -C")
+
+
+def test_an_error_before_any_write_prints_no_revert_command(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path)
+    error = subprocess.CalledProcessError(128, ["git", "status"], stderr="fatal: no repo\n")
+    args = ["--repo", str(repo), "--map", str(map_dir), "--apply"]
+    assert cli.main(args, runner=BrokenRunner(repo, error, "is_clean")) == 1
+    out = capsys.readouterr().out
+    assert "stopped before writing anything" in out and "fatal: no repo" in out
+    assert "revert:" not in out
+
+
+def test_a_check_failure_repeats_the_revert_command(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path)
+    runner = FakeRunner(repo, check=(1, '{"problems": ["boom"]}'))
+    assert cli.main(["--repo", str(repo), "--map", str(map_dir), "--apply"], runner=runner) == 1
+    out = capsys.readouterr().out
+    assert out.rstrip().splitlines()[-1].startswith("revert: git -C")
+
+
+def test_dry_run_reports_a_missing_item_template(tmp_path, home, capsys):
+    repo, map_dir = setup(tmp_path, card="novo", action="criar", file="-")
+    (repo / "templates/item/task.md").unlink()
+    git(repo, "commit", "-aq", "-m", "no task template")
+    assert cli.main(["--repo", str(repo), "--map", str(map_dir)], runner=FakeRunner(repo)) == 1
+    out = capsys.readouterr().out
+    assert "problem: templates/item/task.md does not exist" in out

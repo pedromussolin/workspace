@@ -363,3 +363,23 @@ def test_a_ts_token_of_the_file_name_is_not_repeated_in_the_slug(tmp_path):
         "ts-5582-plan", "ts-5596-plan", "ts-5600", "ts-5601", "ts-5602-a", "ts-5603-a",
         "plan-ts-5582",
     ]  # fmt: skip
+
+
+def test_render_plan_tags_items_and_shows_project_toml_bodies_and_extra_lines(tmp_path):
+    repo = make_repo(tmp_path, p=["01-a.md"])
+    rows = [
+        row(file="tasks/01-a.md", epic="TS-51"),
+        row(card="novo-a-3", action="criar", epic="TS-51", line=3),
+        row(card="TS-51", type_="epic", title="Epic", line=4),
+        row(card="TS-60", epic="TS-51", title="[FRONT] a", line=5),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    lines = render_plan(plan, ["rewrite README.md", "readme markers p: added"]).splitlines()
+    assert "item file projects/p/tasks/01-a.md card=TS-1 source=a.tsv:2" in lines
+    assert "item new projects/p/tasks/02-new-a-3.md card=- source=a.tsv:3" in lines
+    start = lines.index("project.toml projects/p/project.toml")
+    assert lines[start + 1 : start + 5] == [
+        '  epics = ["TS-51"]', "", "  [prefixes]", '  TS-51 = "FRONT"',
+    ]  # fmt: skip
+    assert lines[-3:-1] == ["rewrite README.md", "readme markers p: added"]
+    assert lines[-1].startswith("total:")

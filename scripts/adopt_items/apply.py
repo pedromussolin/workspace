@@ -4,17 +4,19 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
+from ws.items import ProjectMissing, load_project
+
 from .frontmatter import (
-    _quote,
     fill_sections,
     has_front_matter,
     insert_front_matter,
     replace_front_matter,
 )
-from .plan import NEW_PROJECT, OLD_PROJECT, Item, Plan, dropped_lines
+from .plan import NEW_PROJECT, OLD_PROJECT, Item, Plan, dropped_lines, toml_text
 from .relink import ROOT_FILES, affected_files, new_path, rename_slug, rewrite_links
 
 MARKER_START = "<!-- ws:items -->"
@@ -106,6 +108,13 @@ def revert_command(repo: Path) -> str:
     )
 
 
+def describe_error(error: BaseException) -> str:
+    stderr = getattr(error, "stderr", None)
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", "replace")
+    return f"{error}: {stderr.strip()}" if stderr and stderr.strip() else str(error)
+
+
 def _original(plan: Plan, path: str) -> str:
     """Where `path` (a final repo-relative path) lives before the plan runs."""
     for src, dst in plan.moves:
@@ -148,6 +157,27 @@ def precheck(
         path = repo / _original(plan, item.path)
         if path.is_file() and has_front_matter(path.read_bytes().decode("utf-8")):
             problems.append(f"{item.path} already has front matter")
+    for type_ in sorted({i.fields.get("type") or "" for i in plan.items if i.origin == "new"}):
+        if type_ and not (repo / "templates" / "item" / f"{type_}.md").is_file():
+            problems.append(f"templates/item/{type_}.md does not exist: ws item new needs it")
+    return problems + toml_problems(plan)
+
+
+def toml_problems(plan: Plan) -> list[str]:
+    """Every planned project.toml, read back by the loader `ws item check` uses."""
+    problems = []
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        for project, entry in sorted(plan.project_tomls.items()):
+            folder = root / "projects" / project
+            folder.mkdir(parents=True)
+            (folder / "project.toml").write_text(toml_text(entry), encoding="utf-8")
+            try:
+                found = load_project(root, project).problems
+            except ProjectMissing as error:
+                problems.append(str(error))
+                continue
+            problems += [f"{p['path']}: {p['problem']}" for p in found]
     return problems
 
 
@@ -159,25 +189,14 @@ def _write(path: Path, text: str) -> None:
     path.write_bytes(text.encode("utf-8"))
 
 
-def _toml_text(entry: dict) -> str:
-    text = f"epics = [{', '.join(_quote(e) for e in entry['epics'])}]\n"
-    if entry.get("initiative"):
-        text += f"initiative = {_quote(entry['initiative'])}\n"
-    if entry.get("prefixes"):
-        text += "\n[prefixes]\n"
-        text += "".join(f"{k} = {_quote(v)}\n" for k, v in entry["prefixes"].items())
-    return text
-
-
-def add_markers(readme: Path) -> str:
-    """Appends the empty marker block after the first table under `## Tarefas`."""
-    text = _read(readme)
+def _with_markers(text: str) -> tuple[str, str]:
+    """("added", new text), or (why not, the text unchanged)."""
     if MARKER_START in text:
-        return "present"
+        return "present", text
     lines = text.splitlines(keepends=True)
     start = next((i for i, line in enumerate(lines) if line.strip() == "## Tarefas"), None)
     if start is None:
-        return "no ## Tarefas heading"
+        return "no ## Tarefas heading", text
     end = None
     for i in range(start + 1, len(lines)):
         stripped = lines[i].strip()
@@ -188,17 +207,61 @@ def add_markers(readme: Path) -> str:
         elif end is not None:
             break
     if end is None:
-        return "no table under ## Tarefas"
+        return "no table under ## Tarefas", text
     nl = "\r\n" if lines[end].endswith("\r\n") else "\n"
     if not lines[end].endswith("\n"):
         lines[end] += nl
     block = f"{nl}{MARKER_START}{nl}{MARKER_END}{nl}"
     lines.insert(end + 1, block)
-    _write(readme, "".join(lines))
-    return "added"
+    return "added", "".join(lines)
+
+
+def add_markers(readme: Path) -> str:
+    """Appends the empty marker block after the first table under `## Tarefas`."""
+    result, text = _with_markers(_read(readme))
+    if result == "added":
+        _write(readme, text)
+    return result
+
+
+def _readme_markers(project: str, readme: Path, write: bool) -> str:
+    if not readme.is_file():
+        result = f"projects/{project}/README.md does not exist"
+    else:
+        result = add_markers(readme) if write else _with_markers(_read(readme))[0]
+    return f"readme markers {project}: {result}"
+
+
+def planned_rewrites(plan: Plan, repo: Path) -> list[tuple[str, str]]:
+    """(final repo-relative path, new text) of every file whose links or project slug change."""
+    moved = moved_map(plan)
+    moved_posix = {PurePosixPath(k): PurePosixPath(v) for k, v in moved.items()}
+    rewrites = []
+    for path in affected_files(repo, moved_posix):
+        old = path.relative_to(repo).as_posix()
+        new = new_path(old, moved)
+        text = _read(path)
+        rewritten = rename_slug(
+            rewrite_links(text, PurePosixPath(old), PurePosixPath(new), moved_posix),
+            OLD_PROJECT,
+            NEW_PROJECT,
+        )
+        if rewritten != text:
+            rewrites.append((new, rewritten))
+    return rewrites
+
+
+def preview_lines(plan: Plan, repo: Path) -> list[str]:
+    """What only the repo tells a dry run: the files rewritten and the README markers."""
+    lines = [f"rewrite {path}" for path, _ in planned_rewrites(plan, repo)]
+    for project in sorted(plan.project_tomls):
+        readme = repo / _original(plan, f"projects/{project}/README.md")
+        lines.append(_readme_markers(project, readme, write=False))
+    return lines
 
 
 def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
+    """Runs the plan; once it has started, every error carries the revert command."""
     lines: list[str] = []
 
     def out(line: str) -> None:
@@ -208,13 +271,21 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
     problems = precheck(plan, repo, runner)
     if problems:
         raise ApplyError("\n".join(problems))
-    out(f"revert: {revert_command(repo)}")
+    rewrites = planned_rewrites(plan, repo)
+    revert = revert_command(repo)
+    out(f"revert: {revert}")
+    try:
+        _steps(plan, repo, runner, map_dir, rewrites, out)
+    except ApplyError as error:
+        raise ApplyError(f"{error}\nrevert: {revert}") from error
+    except (subprocess.CalledProcessError, OSError) as error:
+        raise ApplyError(f"{describe_error(error)}\nrevert: {revert}") from error
+    return lines
+
+
+def _steps(plan: Plan, repo: Path, runner: Runner, map_dir: Path, rewrites, out) -> None:
     for line in dropped_lines(plan):
         out(line)
-
-    moved = moved_map(plan)
-    moved_posix = {PurePosixPath(k): PurePosixPath(v) for k, v in moved.items()}
-    affected = affected_files(repo, moved_posix)
 
     if plan.rename:
         out(f"git mv {plan.rename[0]} {plan.rename[1]}")
@@ -223,19 +294,9 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
         out(f"git mv {src} {dst}")
         runner.git_mv(src, dst)
 
-    for old_file in affected:
-        old = old_file.relative_to(repo).as_posix()
-        new = new_path(old, moved)
-        path = repo / new
-        text = _read(path)
-        rewritten = rename_slug(
-            rewrite_links(text, PurePosixPath(old), PurePosixPath(new), moved_posix),
-            OLD_PROJECT,
-            NEW_PROJECT,
-        )
-        if rewritten != text:
-            _write(path, rewritten)
-            out(f"rewrite {new}")
+    for path, text in rewrites:
+        _write(repo / path, text)
+        out(f"rewrite {path}")
 
     for item in plan.items:
         if item.origin == "file":
@@ -245,23 +306,12 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
 
     for item in plan.items:
         if item.origin == "new":
-            try:
-                _create(item, repo, runner, out)
-            except ApplyError as error:
-                raise ApplyError(f"{error}\nrevert: {revert_command(repo)}") from error
+            _create(item, repo, runner, out)
 
     for project, entry in plan.project_tomls.items():
-        _write(repo / "projects" / project / "project.toml", _toml_text(entry))
+        _write(repo / "projects" / project / "project.toml", toml_text(entry))
         out(f"project.toml {project}")
-        readme = repo / "projects" / project / "README.md"
-        if readme.is_file():
-            result = add_markers(readme)
-            if result != "added":
-                out(f"README markers not added in projects/{project}/README.md: {result}")
-            else:
-                out(f"README markers projects/{project}/README.md")
-        else:
-            out(f"README markers not added: projects/{project}/README.md does not exist")
+        out(_readme_markers(project, repo / "projects" / project / "README.md", write=True))
 
     stale = map_dir / PENDING_FILE
     if not plan.pending_epics and stale.exists():
@@ -274,10 +324,8 @@ def apply(plan: Plan, repo: Path, runner: Runner, map_dir: Path) -> list[str]:
 
     code, output = runner.item_check(sorted(plan.project_tomls))
     if code != 0:
-        print(output)
         raise ApplyError(f"ws item check exited {code}:\n{output}")
     out("ws item check: ok")
-    return lines
 
 
 def _fields(item: Item) -> dict:

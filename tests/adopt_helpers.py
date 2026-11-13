@@ -27,8 +27,19 @@ def git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
 
 
+NEUTRAL_TYPES = ("task", "bug", "hotfix", "improvement", "feature")
+
+
 def make_repo(root: Path, **projects: dict[str, str]) -> Path:
-    """A git repo whose `projects/<name>/tasks/` hold the given {file name: text}."""
+    """A git repo whose `projects/<name>/tasks/` hold the given {file name: text}.
+
+    It gets a stand-in `templates/item/<type>.md` per type unless the folder is already there.
+    """
+    templates = root / "templates" / "item"
+    if not templates.exists():
+        templates.mkdir(parents=True)
+        for type_ in NEUTRAL_TYPES:
+            (templates / f"{type_}.md").write_text("## Contexto\n\n## Pronto quando\n")
     for project, files in projects.items():
         tasks = root / "projects" / project / "tasks"
         tasks.mkdir(parents=True)

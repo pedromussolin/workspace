@@ -2,10 +2,19 @@
 
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
-from .apply import ApplyError, Runner, SubprocessRunner, apply, precheck
+from .apply import (
+    ApplyError,
+    Runner,
+    SubprocessRunner,
+    apply,
+    describe_error,
+    precheck,
+    preview_lines,
+)
 from .maprows import PROJECT_DIR, load_people, load_rows
 from .plan import NEW_PROJECT, OLD_PROJECT, PlanError, build_plan, render_plan
 
@@ -101,9 +110,14 @@ def main(argv: list[str] | None = None, runner: Runner | None = None) -> int:
             say(f"problem: {problem}")
         return 1
     if not args.apply:
-        sys.stdout.write(render_plan(plan))
-        warnings: list[str] = []
-        problems = precheck(plan, repo, runner, warnings)
+        try:
+            extra = preview_lines(plan, repo)
+            warnings: list[str] = []
+            problems = precheck(plan, repo, runner, warnings)
+        except (subprocess.CalledProcessError, OSError, UnicodeDecodeError) as error:
+            say(f"problem: {describe_error(error)}")
+            return 1
+        sys.stdout.write(render_plan(plan, extra))
         for warning in warnings:
             say(f"warn: {warning}")
         for problem in problems:
@@ -114,6 +128,9 @@ def main(argv: list[str] | None = None, runner: Runner | None = None) -> int:
         apply(plan, repo, runner, args.map)
     except ApplyError as error:
         say(f"stopped: {error}")
+        return 1
+    except (subprocess.CalledProcessError, OSError, UnicodeDecodeError) as error:
+        say(f"stopped before writing anything: {describe_error(error)}")
         return 1
     _outside(args.outside, say)
     return 0

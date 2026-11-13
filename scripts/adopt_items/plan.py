@@ -15,6 +15,7 @@ from typing import Literal
 
 from ws.project import SLUG_PATTERN
 
+from .frontmatter import _quote
 from .maprows import (
     EPIC_ALIAS,
     PROJECT_DIR,
@@ -412,23 +413,39 @@ def dropped_lines(plan: Plan) -> list[str]:
     ]
 
 
-def render_plan(plan: Plan) -> str:
+def toml_text(entry: dict) -> str:
+    text = f"epics = [{', '.join(_quote(e) for e in entry['epics'])}]\n"
+    if entry.get("initiative"):
+        text += f"initiative = {_quote(entry['initiative'])}\n"
+    if entry.get("prefixes"):
+        text += "\n[prefixes]\n"
+        text += "".join(f"{k} = {_quote(v)}\n" for k, v in entry["prefixes"].items())
+    return text
+
+
+def render_plan(plan: Plan, extra: list[str] | tuple[str, ...] = ()) -> str:
+    """The dry-run report; `extra` (lines that need the repo) goes right before the total."""
     lines = []
     if plan.rename:
         lines.append(f"rename {plan.rename[0]} -> {plan.rename[1]}")
     lines += [f"move {old} -> {new}" for old, new in plan.moves]
     for i in plan.items:
         card = i.fields.get("card", "-")
-        kind = "item" if i.fields.get("tracker") is not False else "item (tracker = false)"
-        lines.append(f"{kind} {i.path} card={card} source={i.row.source}:{i.row.line}")
+        tag = "" if i.fields.get("tracker") is not False else " (tracker = false)"
+        where = f"{i.row.source}:{i.row.line}"
+        lines.append(f"item {i.origin} {i.path} card={card} source={where}{tag}")
     for item, placeholder in plan.pending_epics:
         lines.append(f"pending epic {item.path} -> {placeholder}")
     for project, names in sorted(plan.documents.items()):
         lines += [f"document {project}/{name}" for name in names]
     lines += [f"unattached document {name}" for name in plan.unattached]
+    for project, entry in sorted(plan.project_tomls.items()):
+        lines.append(f"project.toml projects/{project}/project.toml")
+        lines += [f"  {line}" if line else "" for line in toml_text(entry).splitlines()]
     for r, reason in plan.skipped:
         lines.append(f"skip {r.source}:{r.line} {r.card}: {reason}")
     lines += dropped_lines(plan)
+    lines += extra
     docs = sum(len(v) for v in plan.documents.values())
     lines.append(
         f"total: {1 if plan.rename else 0} rename, {len(plan.moves)} moves, "

@@ -1,10 +1,11 @@
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 from adopt_helpers import PEOPLE, FakeRunner, git, make_repo, row, tree_hash
 from adopt_items import apply as apply_mod
-from adopt_items.apply import ApplyError, apply, revert_command
+from adopt_items.apply import ApplyError, apply, precheck, revert_command
 from adopt_items.plan import build_plan
 
 
@@ -170,7 +171,8 @@ def test_readme_marker_is_not_added_twice_and_a_missing_heading_is_reported(tmp_
     rows = [row(card="TS-51", type_="epic"), row(project="q", card="TS-52", type_="epic", line=3)]
     _, _, lines = run(tmp_path, repo, rows)
     assert (repo / "projects/q/README.md").read_text() == "# q\n\nsem tabela\n"
-    assert any("projects/q/README.md" in line and "Tarefas" in line for line in lines)
+    assert "readme markers q: no ## Tarefas heading" in lines
+    assert "readme markers p: added" in lines
     marked = (repo / "projects/p/README.md").read_text()
     assert marked.count("ws:items") == 2
     apply_mod.add_markers(repo / "projects/p/README.md")
@@ -269,3 +271,45 @@ def test_the_revert_command_restores_root_files_the_relink_rewrote(tmp_path, wit
     )
     assert status.stdout == ""
     assert (repo / "README.md").read_text() == link
+
+
+def test_precheck_reads_the_planned_project_toml_with_the_item_loader(tmp_path):
+    repo = repo_of(tmp_path, p={"01-a.md": "# A\n"})
+    rows = [
+        row(file="tasks/01-a.md", epic="TS-51", title="[[X] a"),
+        row(card="TS-51", type_="epic", title="Epic", line=3),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    assert plan.project_tomls["p"]["prefixes"] == {"TS-51": "[X"}
+    problems = precheck(plan, repo, FakeRunner(repo))
+    assert [p for p in problems if p.startswith("projects/p/project.toml: ") and "prefix" in p]
+    before = tree_hash(repo)
+    with pytest.raises(ApplyError, match="prefixes"):
+        apply(plan, repo, FakeRunner(repo), tmp_path)
+    assert tree_hash(repo) == before
+
+
+def test_precheck_needs_the_template_of_every_new_item_type(tmp_path):
+    repo = repo_of(tmp_path, p={})
+    shutil.rmtree(repo / "templates")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "no templates")
+    rows = [
+        row(card="novo-a-2", action="criar", type_="bug"),
+        row(card="novo-a-3", action="criar", type_="bug", line=3),
+        row(card="novo-a-4", action="criar", type_="feature", line=4),
+    ]
+    plan = build_plan(rows, repo, PEOPLE, [])
+    problems = precheck(plan, repo, FakeRunner(repo))
+    assert [p for p in problems if p.startswith("templates/")] == [
+        "templates/item/bug.md does not exist: ws item new needs it",
+        "templates/item/feature.md does not exist: ws item new needs it",
+    ]
+
+
+def test_a_check_failure_carries_the_revert_command(tmp_path):
+    repo = repo_of(tmp_path, p={"01-a.md": "# A\n"})
+    plan = build_plan([row(file="tasks/01-a.md")], repo, PEOPLE, [])
+    with pytest.raises(ApplyError) as err:
+        apply(plan, repo, FakeRunner(repo, check=(1, "{}")), tmp_path)
+    assert str(err.value).splitlines()[-1] == f"revert: {revert_command(repo)}"
