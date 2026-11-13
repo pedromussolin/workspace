@@ -92,7 +92,7 @@ Facts of the Jira site, read on 2026-11-13 (REST, read only):
 
 ## The rules of a card (one file, two skills)
 
-`skills/task-shaping/references/card-rules.md`, read by the new `task-shaping` skill and by `/card`.
+`skills/card/references/card-rules.md`, read by the new `task-shaping` skill and by `/card`.
 Neutral words only. What can be checked in code is also in `ws card check` and `ws item check`
 (marked **[code]**).
 
@@ -280,7 +280,7 @@ the tracker. `ws task list` keeps `mine` = assignee only (the daily does not cha
   item recorded there until `ws item set-card <item> <ref>` writes it and clears the record.
 - **`edit`** gains `type`, `assignee`, `reporter` and `parent`. When the tracker refuses a type
   change, the message says to do it by hand (Jira: "Mover").
-- **New op `link`**: `card` plus any of `blocks`, `blocked_by`, `relates`. Adds only missing links;
+- **New op `link`**: `key` plus any of `blocks`, `blocked_by`, `relates`. Adds only missing links;
   an existing one shows as "já existe"; never removes. Both cards in the project; at least one
   writable. Links to cards created in the same batch are not resolved: they go in a later run,
   once the refs exist.
