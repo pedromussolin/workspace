@@ -1501,6 +1501,48 @@ def set_config(scenario, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def test_strict_fails_on_a_missing_name_with_a_default(scenario, capsys):
+    scenario.set_store([n for n in CLEAN_STORE if not n.endswith("CFG_LOG_LEVEL")])
+    scenario.write_values(ARGOCD_CLEAN)
+    code, out, _ = scenario.check(capsys)
+    assert code == 0
+    assert "Resultado: APROVADO; 1 com valor padrão ausentes (sem --strict, não reprovam)" in out
+    code, result, _ = scenario.check_json(capsys)
+    assert (code, result["ok"], result["strict"]) == (0, True, False)
+    assert result["counts"]["missing_with_default"] == 1
+
+    code, out, _ = scenario.check(capsys, "--strict")
+    assert code == 1
+    assert "Resultado: REPROVADO; 1 com valor padrão ausentes (modo estrito: reprovam)" in out
+    code, result, _ = scenario.check_json(capsys, "--strict")
+    assert (code, result["ok"], result["strict"]) == (1, False, True)
+    assert result["counts"]["missing_with_default"] == 1
+
+
+def test_strict_from_the_config_global_or_per_repo(scenario, capsys):
+    scenario.set_store([n for n in CLEAN_STORE if not n.endswith("CFG_LOG_LEVEL")])
+    scenario.write_values(ARGOCD_CLEAN)
+    set_config(scenario, 'source = "aws"', 'source = "aws"\nstrict = true')
+    assert scenario.check(capsys)[0] == 1
+    set_config(scenario, "[env_check.repos.api]", "[env_check.repos.api]\nstrict = false")
+    assert scenario.check(capsys)[0] == 0
+    assert scenario.check(capsys, "--strict")[0] == 1
+
+
+def test_resultado_line_always_counts_the_defaults(scenario, capsys):
+    scenario.set_store(CLEAN_STORE)
+    scenario.write_values(ARGOCD_CLEAN)
+    out = scenario.check(capsys)[1]
+    assert "Resultado: APROVADO; 0 com valor padrão ausentes (sem --strict, não reprovam)" in out
+    scenario.set_store(DEFAULT_STORE)
+    scenario.write_values(ARGOCD_VALUES)
+    out = scenario.check(capsys)[1]
+    assert (
+        "Resultado: REPROVADO (1 obrigatórias ausentes, 2 no argocd); "
+        "1 com valor padrão ausentes (sem --strict, não reprovam)"
+    ) in out
+
+
 def test_ignore_names_are_never_reported(scenario, git, capsys):
     commit_all(git, scenario.repo, {"src/dd.py": "import os\nA = os.environ['DD_AGENT_HOST']\n"})
     scenario.set_store([*DEFAULT_STORE, "/realm/env/app/DD_ENV", "/realm/env/app/dd.bad"])
@@ -1564,6 +1606,7 @@ def test_load_settings_reads_the_table(tmp_path, monkeypatch):
         dynamic = { Cls = ["CFG_X_"] }
         exclude_globs = ["scripts/**"]
         ignore = ["DD_*"]
+        strict = false
 
         [env_check.repos.front]
         path = "/abs/front"
@@ -1581,16 +1624,20 @@ def test_load_settings_reads_the_table(tmp_path, monkeypatch):
     assert (api.name, api.kind, api.path) == ("api", "python", Path("/fake-home/repos/api"))
     assert api.prefix == {"prod": "/p"} and api.values == {"prod": ["v.yaml"]}
     assert api.dynamic == {"Cls": ("CFG_X_",)}
-    assert (api.exclude_globs, api.ignore) == (("scripts/**",), ("DD_*",))
+    assert (api.exclude_globs, api.ignore, api.strict) == (("scripts/**",), ("DD_*",), False)
     front = settings.repos["front"]
     assert front.shell_files == ("entrypoint.sh",)
-    assert (front.exclude_globs, front.ignore) == (("**/tests/**",), ())
+    assert (front.exclude_globs, front.ignore, front.strict) == (("**/tests/**",), (), None)
+    assert settings.strict is False
 
 
 def test_load_settings_defaults_to_aws(tmp_path, monkeypatch):
     settings_file(tmp_path, monkeypatch, "[env_check]\n")
     settings = envcheck.load_settings()
     assert (settings.source, settings.script, settings.repos) == ("aws", None, {})
+    assert settings.strict is False
+    settings_file(tmp_path, monkeypatch, "[env_check]\nstrict = true\n")
+    assert envcheck.load_settings().strict is True
 
 
 @pytest.mark.parametrize(
@@ -1630,6 +1677,11 @@ def test_load_settings_defaults_to_aws(tmp_path, monkeypatch):
         (
             "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\ndynamic={C='x'}",
             "env_check.repos.api.dynamic.C",
+        ),
+        ("strict = 'yes'", "env_check.strict"),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nstrict=1",
+            "env_check.repos.api.strict",
         ),
         (
             "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nignore='DD_*'",
@@ -1694,3 +1746,5 @@ def test_role_vars_read_by_the_code_are_never_missing():
     assert result["counts"]["code"] == 1
     store_has_it = compare(scan, {"CFG_A", "POD_REGION"}, set(), ["POD_*"], [])
     assert store_has_it["only_in_store"] == []
+    strict = compare(scan, {"CFG_A"}, set(), ["POD_*"], [], strict=True)
+    assert strict["ok"] is True

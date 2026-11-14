@@ -61,6 +61,7 @@ class RepoProfile:
     dynamic: dict[str, tuple[str, ...]]
     exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
     ignore: tuple[str, ...] = ()
+    strict: bool | None = None  # None: the global `[env_check] strict`
 
 
 @dataclass
@@ -781,6 +782,7 @@ class EnvCheckSettings:
     script: Path | None
     role_vars: tuple[str, ...]
     repos: dict[str, RepoProfile]
+    strict: bool = False
 
 
 def is_valid_name(name: str) -> bool:
@@ -905,7 +907,7 @@ def _names_from_script_output(output: str) -> list[str]:
     return names
 
 
-SETTINGS_KEYS = {"source", "script", "role_vars", "repos"}
+SETTINGS_KEYS = {"source", "script", "role_vars", "repos", "strict"}
 REPO_KEYS = {
     "path",
     "argocd",
@@ -920,6 +922,7 @@ REPO_KEYS = {
     "dynamic",
     "exclude_globs",
     "ignore",
+    "strict",
 }
 
 
@@ -938,6 +941,13 @@ def _strings(value: object, where: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
         raise _invalid(where, "must be a list of non-empty strings")
     return tuple(value)
+
+
+def _bool_key(table: dict, key: str, where: str) -> bool | None:
+    value = table.get(key)
+    if value is not None and not isinstance(value, bool):
+        raise _invalid(f"{where}.{key}", "must be true or false")
+    return value
 
 
 def _path_key(table: dict, key: str, where: str) -> Path:
@@ -996,6 +1006,7 @@ def _repo_profile(name: str, table: dict) -> RepoProfile:
             table.get("exclude_globs", list(DEFAULT_EXCLUDE_GLOBS)), f"{where}.exclude_globs"
         ),
         ignore=_strings(table.get("ignore", []), f"{where}.ignore"),
+        strict=_bool_key(table, "strict", where),
     )
 
 
@@ -1020,6 +1031,7 @@ def load_settings() -> EnvCheckSettings:
         script=Path(script).expanduser() if script else None,
         role_vars=_strings(table.get("role_vars", []), "env_check.role_vars"),
         repos={name: _repo_profile(name, repo) for name, repo in repos.items()},
+        strict=bool(_bool_key(table, "strict", "env_check")),
     )
 
 
@@ -1049,10 +1061,12 @@ def compare(
     always_required: list[str],
     *,
     ignore: tuple[str, ...] = (),
+    strict: bool = False,
 ) -> dict:
     """The buckets of the check: what the code reads against the store and the argocd values.
 
-    A role var is never missing (the pod's role sets it) and an `ignore`d name is never reported.
+    A role var is never missing (the pod's role sets it) and an `ignore`d name is never reported;
+    `strict` makes a missing name with a default fail the check too.
     """
     forced = {name.upper() for name in always_required}
     is_role = _pattern_matcher(role_vars)
@@ -1088,8 +1102,10 @@ def compare(
         "argocd": len(argocd),
         **{name: len(items) for name, items in buckets.items()},
     }
+    failing = ["missing_required", "in_argocd", *(["missing_with_default"] if strict else [])]
     return {
-        "ok": not buckets["missing_required"] and not buckets["in_argocd"],
+        "ok": not any(buckets[key] for key in failing),
+        "strict": strict,
         "counts": counts,
         **buckets,
     }
@@ -1180,5 +1196,15 @@ def render_text(result: dict) -> str:
         )
         if counts[key]
     ]
-    lines.extend(["", f"Resultado: {verdict}" + (f" ({', '.join(reasons)})" if reasons else "")])
+    defaults = f"{counts['missing_with_default']} com valor padrão ausentes " + (
+        "(modo estrito: reprovam)" if result["strict"] else "(sem --strict, não reprovam)"
+    )
+    lines.extend(
+        [
+            "",
+            f"Resultado: {verdict}"
+            + (f" ({', '.join(reasons)})" if reasons else "")
+            + f"; {defaults}",
+        ]
+    )
     return "\n".join(lines)

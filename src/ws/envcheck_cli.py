@@ -45,6 +45,12 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
         action="store_true",
         help="the commit of the image tag in the environment's argocd values",
     )
+    check.add_argument(
+        "--strict",
+        action="store_true",
+        help="a name with a default missing from the store also fails (for a release); "
+        "same as strict = true in [env_check] or in the repo's table",
+    )
     check.add_argument("--json", action="store_true", help="print JSON instead of PT-BR text")
     check.set_defaults(handler=_cmd_check)
 
@@ -93,6 +99,7 @@ def _check(args: argparse.Namespace) -> dict:
         scan = envcheck.scan_shell(files, list(profile.shell_files))
     argocd_names, warnings = _argocd(profile, args.env)
     store = envcheck.store_names(settings, profile, args.env)
+    repo_strict = profile.strict if profile.strict is not None else settings.strict
 
     compared = envcheck.compare(
         scan,
@@ -101,6 +108,7 @@ def _check(args: argparse.Namespace) -> dict:
         list(settings.role_vars),
         list(profile.always_required),
         ignore=profile.ignore,
+        strict=args.strict or repo_strict,
     )
     return {
         "repo": args.repo,

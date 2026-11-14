@@ -22,7 +22,7 @@ def test_env_check_help_lists_its_flags(capsys):
         main(["env", "check", "--help"])
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    for flag in ("--env", "--ref", "--deployed", "--json"):
+    for flag in ("--env", "--ref", "--deployed", "--strict", "--json"):
         assert flag in out
 
 
