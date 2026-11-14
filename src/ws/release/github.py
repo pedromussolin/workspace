@@ -1,5 +1,9 @@
 """The `gh` adapter: reads PRs and writes through the GitHub CLI, nothing else.
 
+User text goes only as the value of `--title` (a separate argv item, never `--title=...`) and the
+body only through `write(..., body)`, which adds `--body-file`; never a positional argument.
+Only the verbs in `ALLOWED_WRITES` run.
+
 Writes are split by what the caller may do next. `GhFailed` means GitHub refused (a 4xx, a bad
 argument): nothing happened, fix and retry. `GhUncertain` means the request may have landed (a
 timeout, an HTTP 5xx, a lost connection): look at GitHub before sending again.
@@ -26,9 +30,10 @@ class GhUncertain(Exception):
     """A write was sent and the outcome is unknown (timeout, HTTP 5xx, connection error)."""
 
 
+ALLOWED_WRITES = {("pr", "create"), ("pr", "edit"), ("pr", "comment"), ("pr", "close")}
 UNCERTAIN_STDERR = re.compile(
-    r"HTTP 5\d\d|timed? ?out|connection (reset|refused|error)|could not resolve host"
-    r"|dial tcp|EOF|network is unreachable",
+    r"\bHTTP 5\d\d\b|\btimed out\b|\btimeout\b|\bconnection (reset|refused|error)\b"
+    r"|\bcould not resolve host\b|\bdial tcp\b|\bnetwork is unreachable\b",
     re.IGNORECASE,
 )
 LIST_FIELDS = "number,state,baseRefName,headRefName,title,url,mergedAt"
@@ -47,6 +52,10 @@ class PullRequest:
     body: str = ""
     labels: tuple[str, ...] = ()
     assignees: tuple[str, ...] = ()
+
+
+def unexpected(args) -> GhFailed:
+    return GhFailed(f"unexpected gh output: gh {' '.join(args[:2])}")
 
 
 def to_pull_request(raw: dict) -> PullRequest:
@@ -76,7 +85,7 @@ class Gh:
                 ["gh", "auth", "status"], capture_output=True, text=True, timeout=self.timeout
             )
         except subprocess.TimeoutExpired:
-            raise GhMissing("gh is not logged in: run gh auth login") from None
+            raise GhMissing("gh did not answer in time") from None
         if done.returncode != 0:
             raise GhMissing("gh is not logged in: run gh auth login")
 
@@ -89,25 +98,32 @@ class Gh:
         if base:
             args += ["--base", base]
         args += ["--json", LIST_FIELDS, "--limit", "100"]
-        return [to_pull_request(item) for item in json.loads(self._read(args))]
+        return [self._parse(args, to_pull_request, item) for item in self._json(args, list)]
 
     def pr(self, slug: str, number: int) -> PullRequest:
-        out = self._read(["pr", "view", str(number), "-R", slug, "--json", VIEW_FIELDS])
-        return to_pull_request(json.loads(out))
+        args = ["pr", "view", str(number), "-R", slug, "--json", VIEW_FIELDS]
+        return self._parse(args, to_pull_request, self._json(args, dict))
 
     def checks(self, slug: str, number: int) -> dict:
-        out = self._read(
-            ["pr", "view", str(number), "-R", slug, "--json", "mergeable,statusCheckRollup"]
-        )
-        raw = json.loads(out)
+        args = ["pr", "view", str(number), "-R", slug, "--json", "mergeable,statusCheckRollup"]
+        raw = self._json(args, dict)
         checks: dict[str, str] = {}
-        for item in raw.get("statusCheckRollup") or ():
-            name = item.get("name") or item.get("context") or ""
-            checks[name] = item.get("conclusion") or item.get("state") or item.get("status") or ""
+        try:
+            for item in raw.get("statusCheckRollup") or ():
+                name = item.get("name") or item.get("context") or ""
+                checks[name] = (
+                    item.get("conclusion") or item.get("state") or item.get("status") or ""
+                )
+        except (AttributeError, TypeError):
+            raise unexpected(args) from None
         return {"mergeable": raw.get("mergeable") or "", "checks": checks}
 
     def write(self, args: tuple[str, ...], body: str | None) -> str:
         """Run a `gh` write and return its stdout. A body goes by a mode-600 file, removed after."""
+        if tuple(args[:2]) not in ALLOWED_WRITES:
+            raise GhFailed(f"refused: gh {' '.join(args[:2])} is not allowed")
+        if body is not None and any(a == "--body" or a.startswith("--body") for a in args):
+            raise GhFailed("refused: the body goes through the body argument, not the args")
         argv = list(args)
         path = None
         if body is not None:
@@ -133,6 +149,22 @@ class Gh:
                 raise GhUncertain(message)
             raise GhFailed(message)
         return done.stdout.strip()
+
+    def _json(self, args: list[str], kind: type):
+        try:
+            data = json.loads(self._read(args))
+        except ValueError:
+            raise unexpected(args) from None
+        if not isinstance(data, kind):
+            raise unexpected(args)
+        return data
+
+    @staticmethod
+    def _parse(args, build, raw):
+        try:
+            return build(raw)
+        except (KeyError, TypeError, AttributeError):
+            raise unexpected(args) from None
 
     def _read(self, args: list[str]) -> str:
         try:

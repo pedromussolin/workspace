@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import pytest
 from fake_gh import FakeGh, fake_gh  # noqa: F401
@@ -68,19 +69,19 @@ def test_write_edit_without_body_has_no_file(fake_gh):  # noqa: F811
 def test_write_5xx_is_uncertain(fake_gh):  # noqa: F811
     fake_gh.fail("pr create", "HTTP 502")
     with pytest.raises(GhUncertain):
-        Gh().write(("pr", "create", "-R", SLUG), "corpo")
+        Gh().write(("pr", "create", "-R", SLUG, "--title", "t"), "corpo")
 
 
 def test_write_timeout_is_uncertain(fake_gh):  # noqa: F811
     fake_gh.hang("pr create")
     with pytest.raises(GhUncertain):
-        Gh(timeout=0.5).write(("pr", "create", "-R", SLUG), "corpo")
+        Gh(timeout=0.5).write(("pr", "create", "-R", SLUG, "--title", "t"), "corpo")
 
 
 def test_write_422_is_failed(fake_gh):  # noqa: F811
     fake_gh.fail("pr create", "HTTP 422: Validation Failed")
     with pytest.raises(GhFailed) as caught:
-        Gh().write(("pr", "create", "-R", SLUG), "corpo")
+        Gh().write(("pr", "create", "-R", SLUG, "--title", "t"), "corpo")
     assert not isinstance(caught.value, GhUncertain)
 
 
@@ -93,6 +94,88 @@ def test_checks_reads_conclusions(fake_gh):  # noqa: F811
     }
 
 
-def test_unsupported_verb_exits_1(fake_gh):  # noqa: F811
-    with pytest.raises(GhFailed, match="unsupported"):
-        Gh().write(("pr", "merge", "1", "-R", SLUG), None)
+def test_fake_unsupported_verb_exits_1(fake_gh):  # noqa: F811
+    done = subprocess.run(["gh", "pr", "merge", "1"], capture_output=True, text=True)
+    assert done.returncode == 1
+    assert "unsupported" in done.stderr
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("pr", "merge", "1", "-R", SLUG),
+        ("api", "-X", "DELETE", "repos/acme/repo-a"),
+        ("repo", "delete", SLUG),
+        ("frobnicate", "x"),
+        (),
+    ],
+)
+def test_write_refuses_verbs_outside_the_allowlist(fake_gh, args):  # noqa: F811
+    with pytest.raises(GhFailed, match="refused"):
+        Gh().write(args, None)
+    assert fake_gh.calls == []
+
+
+def test_write_refuses_a_body_in_the_args_when_body_is_given(fake_gh):  # noqa: F811
+    for extra in ("--body", "--body-file"):
+        with pytest.raises(GhFailed, match="refused"):
+            Gh().write(("pr", "create", "-R", SLUG, "--title", "t", extra, "x"), "corpo")
+    assert fake_gh.calls == []
+
+
+@pytest.mark.parametrize("output", ["", "not json", "{}", "[1]", '{"number": 1}'])
+def test_reads_with_unexpected_output_fail_without_echoing_it(fake_gh, output):  # noqa: F811
+    fake_gh.add_pr(SLUG, 1, "h", "master")
+    fake_gh.raw_output(output)
+    for call in (
+        lambda: Gh().pr(SLUG, 1),
+        lambda: Gh().prs(SLUG),
+        lambda: Gh().checks(SLUG, 1),
+    ):
+        try:
+            call()
+        except GhFailed as error:
+            assert "unexpected gh output" in str(error)
+            assert "not json" not in str(error)
+        else:
+            assert output in ("{}", '{"number": 1}')  # checks tolerates a bare object
+
+
+def test_require_auth_timeout_is_not_logged_out(fake_gh):  # noqa: F811
+    fake_gh.hang("auth status")
+    with pytest.raises(GhMissing, match="did not answer in time"):
+        Gh(timeout=0.5).require_auth()
+
+
+def test_4xx_with_uncertain_letters_inside_words_stays_failed(fake_gh):  # noqa: F811
+    fake_gh.fail("pr create", "HTTP 422: title is not retimed out-of-band; EOFs; timeouts differ")
+    with pytest.raises(GhFailed) as caught:
+        Gh().write(("pr", "create", "-R", SLUG, "--title", "t"), "corpo")
+    assert not isinstance(caught.value, GhUncertain)
+
+
+def test_fake_create_needs_title_and_body(fake_gh):  # noqa: F811
+    with pytest.raises(GhFailed, match="title is required"):
+        Gh().write(("pr", "create", "-R", SLUG), "corpo")
+    with pytest.raises(GhFailed, match="body is required"):
+        Gh().write(("pr", "create", "-R", SLUG, "--title", "t"), None)
+
+
+def test_fake_edit_applies_title_base_and_labels(fake_gh):  # noqa: F811
+    fake_gh.add_pr(SLUG, 1, "h", "master")
+    Gh().write(
+        ("pr", "edit", "1", "-R", SLUG, "--title", "novo", "--base", "sandbox", "--add-label", "x"),
+        None,
+    )
+    pr = Gh().pr(SLUG, 1)
+    assert (pr.title, pr.base, pr.labels) == ("novo", "sandbox", ("x",))
+    with pytest.raises(GhFailed, match="unknown flag"):
+        Gh().write(("pr", "edit", "1", "-R", SLUG, "--milestone", "m"), None)
+
+
+def test_fake_rejects_unknown_json_field_and_state(fake_gh):  # noqa: F811
+    for args in (
+        ["pr", "list", "-R", SLUG, "--json", "nope"],
+        ["pr", "list", "-R", SLUG, "--state", "bogus"],
+    ):
+        assert subprocess.run(["gh", *args], capture_output=True).returncode == 1

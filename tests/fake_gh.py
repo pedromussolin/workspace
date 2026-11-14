@@ -6,8 +6,11 @@ slug, the failures and hangs to simulate, the log of every call and the body tex
 or edit. Arrange with `add_pr`, `set_checks`, `fail`, `hang`, `logged_out`; inspect with `calls`,
 `writes`, `prs`, `bodies`.
 
-Supported: `auth status`, `pr list`, `pr view`, `pr create`, `pr edit N --body-file`,
-`pr close N --comment`, `pr comment N --body`. Any other verb exits 1 with `unsupported`.
+Supported: `auth status`, `pr list`, `pr view`, `pr create`, `pr edit N` (`--body-file`,
+`--title`, `--base`, `--add-label`), `pr close N --comment`, `pr comment N --body`. Strict: unknown
+flags, unknown `--json` fields, a bad `--state` and a
+`pr create` without `--title` or a body exit 1.
+Any other verb exits 1 with `unsupported`.
 """
 
 import json
@@ -70,10 +73,42 @@ if verb == "auth status":
 slug = option("-R")
 
 
+JSON_FIELDS = {{
+    "number", "state", "baseRefName", "headRefName", "title", "url", "mergedAt", "body",
+    "labels", "assignees", "mergeable", "statusCheckRollup",
+}}
+ALLOWED_FLAGS = {{
+    "pr list": {{"-R", "--state", "--head", "--base", "--json", "--limit"}},
+    "pr view": {{"-R", "--json"}},
+    "pr create": {{
+        "-R", "--base", "--head", "--title", "--body", "--body-file", "--label", "--assignee",
+    }},
+    "pr edit": {{"-R", "--title", "--base", "--body", "--body-file", "--add-label"}},
+    "pr close": {{"-R", "--comment"}},
+    "pr comment": {{"-R", "--body"}},
+}}
+if verb in ALLOWED_FLAGS:
+    for arg in argv[2:]:
+        if arg.startswith("-") and arg.split("=")[0] not in ALLOWED_FLAGS[verb]:
+            fail("unknown flag: " + arg)
+        if arg.startswith("--") and "=" in arg:
+            fail("unsupported form: " + arg)
+if option("--json"):
+    for name in option("--json").split(","):
+        if name not in JSON_FIELDS:
+            fail("Unknown JSON field: " + name)
+if option("--state", "all") not in ("open", "closed", "merged", "all"):
+    fail("invalid state: " + option("--state"))
+
+
 def project(item, fields):
     return {{name: item[name] for name in fields.split(",") if name in item}}
 
 
+if verb in ("pr list", "pr view") and state.get("raw") is not None:
+    save()
+    print(state["raw"])
+    sys.exit(0)
 if verb == "pr list":
     found = [
         item for item in state["prs"].get(slug, [])
@@ -88,6 +123,10 @@ elif verb == "pr view":
     save()
     print(json.dumps(project(item, option("--json"))))
 elif verb == "pr create":
+    if not option("--title"):
+        fail("title is required")
+    if "--body" not in argv and "--body-file" not in argv:
+        fail("body is required: use --body or --body-file")
     prs = state["prs"].setdefault(slug, [])
     number = max([item["number"] for item in prs], default=0) + 1
     url = "https://github.com/" + slug + "/pull/" + str(number)
@@ -106,6 +145,11 @@ elif verb == "pr create":
     print(url)
 elif verb == "pr edit":
     item = find(slug, int(argv[2]))
+    if option("--title"):
+        item["title"] = option("--title")
+    if option("--base"):
+        item["baseRefName"] = option("--base")
+    item["labels"] += [{{"name": n}} for n in values("--add-label")]
     if "--body-file" in argv:
         item["body"] = open(option("--body-file")).read()
         state["bodies"][argv[2]] = item["body"]
@@ -195,6 +239,12 @@ class FakeGh:
         """Make every call of `verb` sleep far past any timeout a test sets."""
         data = self._read()
         data["hang"].append(verb)
+        self._write(data)
+
+    def raw_output(self, text: str) -> None:
+        """Make `pr list` and `pr view` print `text` verbatim (to test malformed output)."""
+        data = self._read()
+        data["raw"] = text
         self._write(data)
 
     def logged_out(self) -> None:
