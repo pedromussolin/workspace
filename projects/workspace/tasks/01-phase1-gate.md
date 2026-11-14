@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "done"
++++
 Status: concluída
 Data: 29/10/2026
 Tags: segurança, hooks

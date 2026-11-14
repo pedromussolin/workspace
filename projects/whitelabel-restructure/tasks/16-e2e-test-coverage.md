@@ -1,3 +1,7 @@
++++
+tracker = false
+status = "todo"
++++
 # 16 — E2E, cobertura e regressão visual
 
 > **Adiada (11/10/2026):** workflows, E2E, cobertura no CI e CI/CD ficam para depois; o Pietro vai fazer com o time de infraestrutura. D9 segue em aberto.

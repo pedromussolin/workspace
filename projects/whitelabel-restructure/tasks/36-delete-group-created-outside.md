@@ -1,3 +1,17 @@
++++
+card = "TS-5437"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "High"
+due = 2026-10-27
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 36 — Apagar grupo do ambiente criado fora da tela
 
 - **TS:** TS-5437 (épico TS-5357) · **Branch:** juntada na `release/20261027` (front e BFF)

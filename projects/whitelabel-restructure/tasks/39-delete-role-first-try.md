@@ -1,3 +1,17 @@
++++
+card = "TS-5457"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Medium"
+due = 2026-10-30
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 39 — Apagar role na primeira tentativa
 
 - **TS:** TS-5457 (épico TS-5357) · **Branch:** `fix/TS-5457-apagar-role-na-primeira-tentativa` (BFF), da `master`

@@ -1,7 +1,8 @@
 # Artemis V2 — workspace
 
 Planejamento e acompanhamento da V2 do Projeto Artemis: fechamento e
-conciliação dos lotes de liquidação da platform-cessao. Aqui ficam as
+conciliação dos lotes de liquidação da platform-cessao e, desde 04/11/2026,
+a absorção da liquidação do Mercato Libero (tarefa 13). Aqui ficam as
 tarefas, as decisões, as evidências e as análises. O código vive nos
 repositórios da empresa (ver "Repositórios"), não aqui.
 
@@ -71,6 +72,7 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 | apl-credit-whitelabel | front do portal (Angular) |
 | platform-cessao-argocd | deploy (workers, filas, réplicas) |
 | atlas / fetch-api | API GraphQL legada que também fecha lote |
+| EC2 de automações | onde a liquidação do Mercato Libero roda hoje, fora dos repos (tarefa 13) |
 
 As regras de git dos repos da empresa (branch e commit com o ID `TS-…`, sem `Co-Authored-By`,
 replicar na branch `-sdbx`) estão no `~/repos/CLAUDE.md` e valem só para eles. Neste repo valem as
@@ -92,4 +94,5 @@ regras do `CLAUDE.md` da raiz.
 - **Migrations:** nunca alterar uma existente; mudança vai em migration nova.
 - **Varredura do Mercato Libero:** chama a mesma rota por fora e grava direto
   no banco. Mudança de regra ou de estado na liquidação deve ser combinada
-  com o dono dela.
+  com o dono dela. Com a saída do Rafael Frankl, o fluxo vem para a V2
+  (tarefa 13); até a absorção, a varredura continua sendo um chamador externo.

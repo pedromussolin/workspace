@@ -1,3 +1,16 @@
++++
+card = "TS-5429"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 34 — Renovação dos tokens do Azure derruba a sessão antes das 8 horas
 
 - **TS:** TS-5429 (épico TS-5357).

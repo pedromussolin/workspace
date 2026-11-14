@@ -8,7 +8,20 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 ## Onde parei
 
-30/10/2026. Frente atual: portões de aprovação. Fase 1 concluída, instalada e conferida nesta máquina (detalhe na
+09/11/2026. Frente atual: o produto (o `ws` como assistente do dev para vender a devs do mundo
+todo) e a base dele. Passagem completa, com o desenho em aberto:
+`attachments/handoff-20261109-product-base.md` (nesta pasta).
+
+- Sincronização do board concluída e na `main`; evals `out-of-sync-card` e `daily-detailed`
+  passam 3 de 3.
+- Documento de descoberta de produto reescrito em 07/11 (assistente em sete frentes, núcleo
+  hexagonal, concorrentes, lançamento, riscos): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G5U
+- Tarefa 05 registrada: segredos por adaptador, para depois.
+- Desenho da base (organização, memória, busca, nuvem) em andamento: decisões D14 a D23;
+  pendentes P14 (três camadas com busca e grafo) e P15 (estrutura do repo de cada espaço).
+- A fase 2 dos portões (P1 a P7) fica depois da base (D17).
+
+Estado de 30/10, abaixo. Frente da época: portões de aprovação. Fase 1 concluída, instalada e conferida nesta máquina (detalhe na
 [tarefa 01](tasks/01-phase1-gate.md)):
 
 - portão único `hooks/approval_gate.py` (regras em `hooks/gate/`), rodando da cópia protegida
@@ -31,14 +44,22 @@ mudou para outra máquina.
 
 ## Branches e worktrees
 
-- `workspace`: tudo na `main`, sincronizada com o GitHub; nenhum worktree de agente aberto.
+- `workspace`: `main` sincronizada com o GitHub (09/11).
+- O trabalho dos agentes de 03/11 nunca entrou na `main` (lá os comandos `ws env`, `ws deploy-check`
+  e `ws handoff` ainda são esboços). Antes de formatar a máquina, foi salvo no GitHub em branches:
+  - `wip/automations-a-handoff`: parte A, skill de handoff e hooks;
+  - `wip/automations-b-daily-period`: parte B, daily por período e texto para gestor (com evals);
+  - `wip/automations-c-env-check`: parte C, `ws env` (código × Parameter Store × argocd);
+  - `wip/automations-d-deploy-check`: parte D, `ws deploy-check` após a revisão;
+  - `wip/gate-compound-push`: portão (push composto, dupla do gh, furo `$'…'`), com um commit "wip".
+  Detalhe de cada uma em `attachments/handoff-20261103-gate-tokens-automations.md`. Retomar:
+  `git switch <branch>`, conferir a suíte, revisar e juntar na `main`.
 
 ## Próximo passo
 
-1. Máquina nova? Siga "Máquina nova" no `README.md` deste projeto antes de tudo.
-2. Pergunte antes a ordem (P13): a reorganização dos projetos (tarefa 03, em proposta) vem antes
-   ou depois da fase 2. Depois leve as decisões P1 a P7 (ou P8 a P12) do `decisions.md` numa pergunta só, com a recomendação de
-   cada uma (ele pediu para acelerar: uma rodada de decisões, não uma pergunta por vez).
-3. Com as respostas: escreva a spec curta da fase 2 em `docs/specs/`, o código do contrato comum
-   (registro de pedidos e interface de executor) e faça o push antes de disparar os agentes.
-4. Dispare 2a e 2b em paralelo, como diz "Processo" na [tarefa 02](tasks/02-phase2-approvals.md).
+1. Leia inteira a passagem `attachments/handoff-20261109-product-base.md`.
+2. Peça o ok do usuário em P14 e P15 numa pergunta só.
+3. Siga o desenho da base uma seção por vez, com o ok dele: tipos de arquivo e campos, memória
+   por nível, índice e busca, nuvem e sigilo, migração, portas do núcleo.
+4. Escreva a spec em `docs/specs/`, commit e push; depois o plano.
+5. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões.

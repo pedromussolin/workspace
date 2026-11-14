@@ -1,3 +1,16 @@
++++
+card = "TS-5372"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 15 — Vitrine do design system
 
 - **TS:** TS-5372 · **Branch:** `feature/TS-5372-vitrine-design-system` (da 04)

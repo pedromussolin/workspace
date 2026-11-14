@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from ws import (
+    board_cli,
     bootstrap,
     card,
     checkpoint,
@@ -19,6 +20,7 @@ from ws import (
     gatecatalog,
     gittools,
     handoff_cli,
+    item_cli,
     jira,
     names,
     newwords,
@@ -34,6 +36,8 @@ from ws import (
     workdays,
 )
 from ws.config import claude_skills_dir, config_dir, repo_root
+from ws.identity import dev_id
+from ws.tracker import UnknownTracker, jira_discover, require_kind
 
 
 def _add_setup(subparsers) -> None:
@@ -716,10 +720,17 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
         metavar="YYYY-MM-DD",
         help="Include tasks finished since this day (default: the previous workday).",
     )
+    listing.add_argument(
+        "--role",
+        choices=jira.ROLES,
+        default="mine",
+        help="mine: assigned to me (default); following: I asked for it and someone else does "
+        "it; all: both.",
+    )
     listing.set_defaults(handler=_cmd_task_list)
     status = commands.add_parser(
         "status",
-        help="Apply the status rules to Jira cards and the collected activity (JSON).",
+        help="List the Jira cards and which ones are stuck, from the collected activity (JSON).",
     )
     status.add_argument("--cards", type=Path, required=True, help="Output of `ws task list`.")
     status.add_argument(
@@ -744,12 +755,16 @@ def _cmd_task_list(args: argparse.Namespace) -> int:
         return 2
     try:
         account_id = client.myself()["accountId"]
-        issues = client.search(jira.my_tasks_jql(since), jira.FIELDS)
+        issues = client.search(jira.tasks_jql(since, args.role), jira.FIELDS)
         cards = [jira.card_from_issue(issue, account_id) for issue in issues]
     except (jira.JiraError, KeyError, ValueError) as error:
         print(f"ws task list: {error}", file=sys.stderr)
         return 1
-    print(json.dumps({"platform": "jira", "cards": cards}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"platform": "jira", "role": args.role, "cards": cards}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 
@@ -802,6 +817,101 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.approve))
 
 
+def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("tracker", help="Tracker config helpers.")
+    commands = parser.add_subparsers(dest="tracker_command", required=True)
+    discover = commands.add_parser(
+        "discover",
+        help="Print the [jira.types] and [jira.links] blocks for config.toml (read only).",
+    )
+    discover.set_defaults(handler=_cmd_tracker_discover)
+
+
+def _cmd_tracker_discover(args: argparse.Namespace) -> int:
+    try:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+        settings = config.jira
+        if not settings.project:
+            raise userconfig.ConfigInvalid("[jira] project is not set")
+        client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
+    except (
+        userconfig.ConfigMissing,
+        userconfig.ConfigInvalid,
+        jira.SiteRefused,
+        UnknownTracker,
+    ) as error:
+        print(f"ws tracker discover: {error}", file=sys.stderr)
+        return 2
+    try:
+        text = jira_discover.discover_toml(
+            client.issue_types(settings.project), client.link_types()
+        )
+    except jira.JiraError as error:
+        print(f"ws tracker discover: {error}", file=sys.stderr)
+        return 3
+    print(text, end="")
+    return 0
+
+
+def _add_people(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    parser = subparsers.add_parser("people", help="Dev ids and the [people] config.")
+    commands = parser.add_subparsers(dest="people_command", required=True)
+    me = commands.add_parser("me", help="Print your dev id (no network).")
+    me.set_defaults(handler=_cmd_people_me)
+    add = commands.add_parser(
+        "add", help="Print the [people] block of a colleague for config.toml (read only)."
+    )
+    add.add_argument("email", help="The colleague's e-mail (never printed).")
+    add.add_argument("--account", help="The tracker account id, to skip the search.")
+    add.set_defaults(handler=_cmd_people_add)
+
+
+def _cmd_people_me(args: argparse.Namespace) -> int:
+    try:
+        email = userconfig.load_config().identity_email
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws people me: {error}", file=sys.stderr)
+        return 2
+    print(dev_id(email))
+    return 0
+
+
+def _cmd_people_add(args: argparse.Namespace) -> int:
+    try:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+        account = args.account
+        client = None
+        if not account:
+            settings = config.jira
+            client = jira.JiraClient(settings.site, settings.email, userconfig.load_jira_token())
+    except (
+        userconfig.ConfigMissing,
+        userconfig.ConfigInvalid,
+        jira.SiteRefused,
+        UnknownTracker,
+    ) as error:
+        print(f"ws people add: {error}", file=sys.stderr)
+        return 2
+    if client is not None:
+        try:
+            users = [u for u in client.user_search(args.email.strip()) if u.get("accountId")]
+        except jira.JiraError as error:
+            print(f"ws people add: {error}", file=sys.stderr)
+            return 3
+        if len(users) != 1:
+            print(
+                f"ws people add: the search found {len(users)} accounts, not exactly one; "
+                "pass --account ID",
+                file=sys.stderr,
+            )
+            return 1
+        account = users[0]["accountId"]
+    print(jira_discover.people_block(dev_id(args.email), config.tracker_kind, account), end="")
+    return 0
+
+
 def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     parser = subparsers.add_parser("standup", help="Daily standup helpers.")
     commands = parser.add_subparsers(dest="standup_command", required=True)
@@ -828,12 +938,19 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         help="Group the activity by task: yesterday, today, blockers.",
         description=(
             "Turns the output of `ws standup collect` into JSON grouped by task. With --cards "
-            "(the output of `ws task list`) it adds titles, statuses, status suggestions and "
-            "blockers, and needs config.toml; without it the report comes from the activity alone."
+            "(the output of `ws task list`) it adds titles, statuses and blockers, and needs "
+            "config.toml; without it the report comes from the activity alone. Status suggestions "
+            "and `moves` come only from --board (the output of `ws board status`)."
         ),
     )
     report.add_argument("--activity", type=Path, required=True, help="output of standup collect")
     report.add_argument("--cards", type=Path, default=None, help="cards file; absent: no Jira")
+    report.add_argument(
+        "--board",
+        type=Path,
+        default=None,
+        help="output of `ws board status`: status moves and cards to confirm come from it",
+    )
     report.add_argument(
         "--today",
         type=date.fromisoformat,
@@ -895,8 +1012,12 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
                 jira.task_from_card(card, config.jira.site, config.jira.status_overrides)
                 for card in cards
             ]
+        board = None
+        if args.board is not None:
+            raw = json.loads(args.board.read_text(encoding="utf-8"))
+            board = {name: raw[name] for name in ("moves", "to_confirm", "warnings")}
         result = standupreport.build_report(
-            activity, tasks, args.today or date.today(), stale_workdays, args.top
+            activity, tasks, args.today or date.today(), stale_workdays, args.top, board
         )
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         print(f"ws standup report: {error}", file=sys.stderr)
@@ -992,11 +1113,15 @@ def build_parser() -> argparse.ArgumentParser:
     _add_gate(subparsers)
     _add_task(subparsers)
     _add_card(subparsers)
+    _add_tracker(subparsers)
+    _add_people(subparsers)
     _add_standup(subparsers)
     _add_checkpoint(subparsers)
     handoff_cli.register(subparsers)
+    board_cli.register(subparsers)
     envcheck_cli.register(subparsers)
     deploycheck_cli.register(subparsers)
+    item_cli.register(subparsers)
     return parser
 
 

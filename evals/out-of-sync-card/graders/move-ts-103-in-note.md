@@ -1,7 +1,9 @@
 ---
 type: regex
-pattern: 'Para você:[\s\S]*mover TS-103 para em validação'
+pattern: 'Para você:[\s\S]*/card sincronizar \(2 cards\)'
 ---
 
-TS-103 is "In Progress" in the Jira mock and its pull request demo-api#42 is merged: rule R2
-suggests moving it to validation, in the same note.
+Board positions come only from git. TS-102 is "To Do" in the Jira mock but has a local commit on
+its branch: that proves em andamento. TS-103 is "In Progress" in the Jira mock and its commit is in
+the remote sandbox branch: that proves em validação. Two moves, so the "Para você:" note closes
+with "/card sincronizar (2 cards)", even when `--top 3` cuts a task from the topics.

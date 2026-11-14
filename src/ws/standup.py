@@ -46,7 +46,7 @@ def _is_repo(path: Path) -> bool:
     return not path.name.startswith(".") and path.is_dir() and (path / ".git").exists()
 
 
-def _find_repos(cfg: StandupConfig, workspace: Path, warnings: list[str]) -> list[Path]:
+def find_repos(cfg: StandupConfig, workspace: Path, warnings: list[str]) -> list[Path]:
     own = workspace.resolve()
     repos: list[Path] = []
     for root in cfg.repo_roots:
@@ -206,7 +206,7 @@ def collect(cfg: StandupConfig, today: date, workspace: Path, gh: str = "gh") ->
     last_activity: dict[str, str] = {}
     seen: set[str] = set()
     listed_branches: set[tuple[str, str]] = set()
-    for repo in _find_repos(cfg, workspace, warnings):
+    for repo in find_repos(cfg, workspace, warnings):
         try:
             branches.extend(_branches(repo, stale_since, listed_branches))
             email = _author_email(repo)

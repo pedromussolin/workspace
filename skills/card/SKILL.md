@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates the user's own Jira cards (create, edit, move to a status, comment, log work) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação" or the daily's "para aplicar".
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -12,9 +12,18 @@ Nothing is written through the Atlassian MCP, ever.
 
 ## Steps
 
-1. **Understand the request.** Ask only what is missing. For `create`: the epic (run
-   `ws card epics` and offer the list; empty, ask for an epic key), the priority and the due date
-   (a create has no start date: it is set when the task starts). Write the title and sections in the user's style (below).
+1. **Understand the request.** Read `references/card-rules.md` (next to this file) to choose the
+   type, the epic, the links and the sections. Ask only what is missing. For `create`: the type
+   (propose one from the rules' ordered questions, with a one-line reason), the epic (run
+   `ws card epics` and offer the list; empty, ask for an epic key; an epic or an initiative takes no
+   epic), the priority and, only when there is a sprint, the due date (a create has no start date:
+   it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
+   The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
+   (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
+   colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is
+   the user: the tracker makes the creator the reporter, and a `reporter` key is sent only when
+   written (the type's create screen must have the field). Write the title and sections in
+   the user's style (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
@@ -31,8 +40,83 @@ Nothing is written through the Atlassian MCP, ever.
    shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
    `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
-5. **Several changes** (the daily's "para aplicar: /card mover ...; ..."): one draft per change
-   in one folder, one preview, one approval.
+   Exit 1 after a line `Card <ref> criado, mas o item <path> não foi atualizado (...); rode ws
+   item set-card <path> <ref>`: the card exists and only the item's `card` line is missing. Run
+   that printed `ws item set-card` command as printed (it writes only that line and clears the
+   record), tell the user, and never draft or apply that create again.
+5. **Several changes**: one draft per change in one folder, one preview, one approval.
+6. **Sync** (`/card sincronizar`, the daily's "para aplicar /card sincronizar"): moves the cards
+   to the status the code proves. Work in `~/.local/share/workspace/board/` (`mkdir -p` first).
+   - Run `rm -f ~/.local/share/workspace/board/cards.json ~/.local/share/workspace/board/cards.json.tmp ~/.local/share/workspace/board/board.json ~/.local/share/workspace/board/board.json.tmp`
+     first, so a file from an earlier run is never used. Then
+     `ws task list > ~/.local/share/workspace/board/cards.json.tmp` and, only on exit 0, `mv` it to
+     `cards.json`; then
+     `ws board status --cards ~/.local/share/workspace/board/cards.json > ~/.local/share/workspace/board/board.json.tmp`
+     and, only on exit 0, `mv` it to `board.json`. When `ws task list` or `ws board status` fails,
+     stop and say why, in PT-BR, from its stderr. Exit 2 from `ws board status` with the `[board]`
+     message: tell the user to add `[board]` to `config.toml` (README, "Local config").
+   - Show the user, in PT-BR and short: each `moves` entry ("TS-1: em andamento → concluído (em
+     produção)", with `environment` in plain words, or without it when null); each `held` card
+     with its reason, the first case that applies (`<status>` in PT-BR, so no "fica em em"):
+     `holding.tag` set, "TS-2 (<status>): o commit <holding.commit> de <holding.repo> ainda não
+     está na tag de produção <holding.tag>"; else `holding.reached` set, "TS-2 (<status>): o
+     commit <holding.commit> de <holding.repo> só chegou a <holding.reached>"; else "TS-2
+     (<status>): o commit <holding.commit> de <holding.repo> está só na branch <holding.branch>"
+     (or "está fora dos ambientes" when `holding.branch` is null); each `limited` card ("o git só prova até
+     <status>"); and the `warnings`: one starting with `fetch <repo>:` is written "dados de <repo>
+     podem estar desatualizados" instead of the raw text (`stale` on a move is only a bool, the
+     repo name exists only there); the others as they are. Status names in PT-BR:
+     `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done`
+     "concluída", `cancelled` "cancelada".
+   - No `moves`: say so and stop.
+   - Otherwise run `ws board drafts --board ~/.local/share/workspace/board/board.json`; it prints
+     `{"folder", "count"}`. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
+     one approval box for all moves. When the preview exits 1, it lists the failing drafts by file
+     name: `mv` exactly those files to `<folder>-refused/` (next to the sync folder, inside
+     `~/.local/share/workspace/cards/drafts/`; `mkdir -p` first), tell the user, in PT-BR, which
+     cards to move by hand and why (the problem the preview printed), and preview the folder again
+     with the rest. If no draft is left, stop.
+     When the preview names no failing file (one `ws card preview: ...` line on stderr, a draft
+     that did not load), show that message and ask the user; do not guess which drafts to move.
+
+## Reorganize (`/card reorganizar`)
+
+Aligns the project items (`projects/<slug>/tasks/*.md`) with the tracker. The item files are
+written by `ws item` commands, never by hand here; the tracker is written only by the apply.
+
+1. Run `ws item check --tracker [projects...]`. It prints `problems`, `drift`, `pending` and
+   `orphans`. Exit 1: show each `problems` entry in PT-BR and stop for the user to fix the item.
+   Exit 2 is setup, 3 is the tracker refusing or unreachable: show the message.
+2. Show each `drift` entry (`path`, `card`, `field`) in PT-BR with both values; for people use
+   `names`, not ids. Ask, per field, which side is right.
+3. Where the tracker's side is right: `ws item pull <path> --fields f1,f2` (it changes only those
+   keys of the item).
+4. Show each `orphans` entry (`card`, `title`, `type`, `epic`) in PT-BR: open cards under the
+   project's epics that no item holds. Before drafting any create, compare each pending create
+   (`"op": "create"`, `card` null) with the orphans: when an orphan is the same task (same `type`,
+   same `epic` when the item has one, and a title that means the same as the item's heading), say
+   so and offer `ws item set-card <path> <ref>` instead of a create, which would duplicate the
+   card. Only on the user's yes run it (it writes only the item's `card` line); when that pending
+   entry had `"needs": "epic"`, run `ws item pull <path> --fields epic` right after (an item with
+   a card needs its epic). Then go back to step 1: the adopted card shows its drift like any other.
+   An orphan the user does not adopt is only reported; nothing is drafted for it.
+5. Where the item's side is right, and for the remaining `pending` entries: `ws item drafts [--only REFS]`
+   (`REFS`: commas, card refs or item paths as `check` printed them). It prints `{"folder",
+   "count", "need_text", "waiting", "by_hand"}`. For each path in `need_text` write the `# <title>`
+   and the sections (the real names, in a draft under `~/.local/share/workspace/cards/drafts/`, outside the repo) and run `ws card check` on each.
+6. One preview of the `folder` and one approval (steps 3 and 4 of the main Steps, including what
+   step 4 says about an exit 1 with `ws item set-card`).
+7. Tell the user, in PT-BR, what is in `waiting` (links whose other card is not created yet: run
+   `ws item drafts` again after this apply, a second batch) and in `by_hand` (what only the user
+   can do in the tracker).
+8. After the apply: `ws item sync [projects...]` (refreshes each item's `[tracker]` table) and
+   `ws item table <slug>` (the README table).
+
+A write-back failure after a create, or an uncertain create, leaves the item recorded as pending:
+name `ws item set-card <item> <ref>` (the card exists) or `ws item set-card <item> --none` (it does
+not), then draft again if needed. `ws item drafts` refuses to draft that item until then.
+Items without an epic are not drafted: `by_hand` says so; set `epic` in the item first (the
+`task-shaping` skill helps).
 
 ## The draft
 
@@ -41,8 +125,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `epic`, `priority`, `due` (no `start`: an unknown key) | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `priority`, `start`, `due`, `epic` | optional new description |
+| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (only `"active"`: puts the card in the board's active sprint) | optional new description |
+| `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
 | `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`), optional `day` | optional comment |
@@ -50,9 +135,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 ```text
 +++
 op = "create"
+type = "task"
 epic = "TS-101"
 priority = "High"
-due = 2026-10-31
 +++
 # [FRONT] Título curto do card
 
@@ -61,6 +146,64 @@ Por que existe e o que muda, em texto simples.
 
 ## Pronto quando
 - O que precisa estar valendo para fechar o card.
+```
+
+A `bug` for another developer (a dev id; `reporter` stays the user), in the active sprint, so with a
+`due`:
+
+```text
++++
+op = "create"
+type = "bug"
+epic = "TS-101"
+priority = "High"
+assignee = "dev-0123456789"
+sprint = "active"
+due = 2026-11-20
++++
+# [FRONT] Tela fecha sem salvar o filtro
+
+## Contexto
+O filtro some ao trocar de aba.
+
+## Como reproduzir
+1. Aplicar um filtro e trocar de aba.
+
+## Evidência
+Trecho do log do erro, sem dado de cliente.
+
+## Pronto quando
+- O filtro continua aplicado ao voltar para a aba.
+```
+
+An epic: the title starts with its prefix and a space, and only `## Contexto` is required. This
+Jira's epic create and edit screens have no `parent`, so leave it out: after the epic is created,
+the user links it to its initiative by hand in the tracker (say so in the answer).
+
+```text
++++
+op = "create"
+type = "epic"
+priority = "Medium"
++++
+# [FRONT] Nome do épico
+
+## Contexto
+O sistema ou objetivo que o épico cobre.
+```
+
+A link: `TS-102` blocks `TS-103` and relates to `TS-104`. Both cards must exist, so a card created
+in the same batch is linked in a later run, and at least one of the two must be writable. A link
+already in Jira is skipped; its opposite, or the same link twice (or both ways) in one batch, is
+refused.
+
+```text
++++
+op = "link"
+key = "TS-102"
+blocks = ["TS-103"]
+relates = ["TS-104"]
++++
 ```
 
 ```text
@@ -107,8 +250,16 @@ day = 2026-10-28
   description. An epic with no prefix takes any title. One line, up to 255 characters.
 - Description sections, level-2 headings exactly: `## Contexto`, `## Desenho combinado`,
   `## A fazer antes de implementar`, `## Pronto quando`. `## Contexto` and `## Pronto quando` are
-  required and not empty; the other two only when there is something to say.
-- Plain PT-BR describing the task, not the person. Only headings, paragraphs, lists, fenced code,
+  required and not empty; the other two only when there is something to say. A `bug` and a
+  `hotfix` also need `## Como reproduzir` and `## Evidência`, a `hotfix` also
+  `## Por que não espera a release`, and an `epic` or `initiative` only `## Contexto`
+  (`references/card-rules.md`).
+- Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
+  conversation or agreements between them. Bad: "Validar a estrutura do documento com <o usuário>."
+  Good: "Validar a estrutura do documento." Valid for create, edit (title and description) and
+  comment. Citing the user or Claude stays when it is part of the task itself, and other people stay
+  when the task depends on them.
+- Only headings, paragraphs, lists, fenced code,
   `**bold**`, `` `code` `` and links; no tables, quotes, images or HTML (the converter refuses).
 
 ## Exit codes
@@ -124,5 +275,9 @@ day = 2026-10-28
   result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
   for the title.
 
-Only the user's own cards, in the configured project, are written; a refusal for another person's
-card or another project is final: tell the user to do it by hand.
+Only cards where the user is the assignee or the reporter, in the configured project, are written
+(a link needs one of its two cards to be writable); a refusal for another person's card or another
+project is final: tell the user to do it by hand. A type change only goes between the five card
+types; changing a card's level (to or from epic or initiative) is done by hand in the tracker. When
+a field is not on the type's create screen or the card's edit screen, the check names it: drop it
+from the draft, or the user sets it by hand in the tracker.

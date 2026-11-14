@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
 
-FIELDS = ["summary", "status", "parent", "reporter", "updated"]
+FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype", "assignee"]
 
 PAGE_SIZE = 100
 META_PAGE_SIZE = 200
@@ -62,12 +62,30 @@ class JiraError(Exception):
         self.uncertain = uncertain
 
 
-def my_tasks_jql(since: date) -> str:
+ROLES = ("mine", "following", "all")
+
+_ROLE_JQL = {
+    "mine": "assignee = currentUser()",
+    "following": "reporter = currentUser() AND assignee != currentUser()",
+    "all": "(assignee = currentUser() OR reporter = currentUser())",
+}
+
+
+def role_jql(role: str) -> str:
+    """`mine`: assigned to me; `following`: I asked for it and someone else does it."""
+    return _ROLE_JQL[role]
+
+
+def tasks_jql(since: date, role: str = "mine") -> str:
     return (
-        "assignee = currentUser() AND "
+        f"{role_jql(role)} AND "
         f'(statusCategory != Done OR updated >= "{since.isoformat()}") '
         "ORDER BY updated DESC"
     )
+
+
+def my_tasks_jql(since: date) -> str:
+    return tasks_jql(since, "mine")
 
 
 def _required(source: dict, name: str, where: str):
@@ -88,6 +106,8 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
     parent = fields.get("parent") or {}
     reporter = fields.get("reporter") or {}
     updated = datetime.fromisoformat(_required(fields, "updated", where))
+    level = (fields.get("issuetype") or {}).get("hierarchyLevel")
+    is_epic = isinstance(level, int) and not isinstance(level, bool) and level >= 1
     return {
         "key": key,
         "title": _required(fields, "summary", where),
@@ -97,6 +117,8 @@ def card_from_issue(issue: dict, my_account_id: str) -> dict:
         "epic_title": (parent.get("fields") or {}).get("summary"),
         "reporter_is_me": reporter.get("accountId") == my_account_id,
         "updated": updated.isoformat(),
+        "is_epic": is_epic,
+        "assignee_name": (fields.get("assignee") or {}).get("displayName"),
     }
 
 
@@ -124,6 +146,7 @@ def task_from_card(card: dict, site: str, overrides: dict[str, str]) -> Task:
         epic_title=card["epic_title"],
         requested_by_other=not card["reporter_is_me"],
         updated=datetime.fromisoformat(card["updated"]),
+        is_epic=bool(card.get("is_epic", False)),
     )
 
 
@@ -186,16 +209,9 @@ class JiraClient:
         page = self.get(f"/rest/agile/1.0/board/{_segment(board_id)}/sprint", {"state": "active"})
         return (page or {}).get("values", [])
 
-    def create_meta(self, project: str, issue_type: str) -> dict:
-        base = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
-        types = self._pages(base, "issueTypes").get("issueTypes", [])
-        for candidate in types:
-            if candidate.get("name") == issue_type:
-                type_id = candidate.get("id")
-                if not type_id:
-                    raise JiraError(f"issue type {issue_type!r} has no id in project {project}")
-                return self._pages(f"{base}/{_segment(type_id)}", "fields")
-        raise JiraError(f"issue type {issue_type!r} not found in project {project}")
+    def create_meta(self, project: str, type_id: str) -> dict:
+        path = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes/{_segment(type_id)}"
+        return self._pages(path, "fields")
 
     def _pages(self, path: str, key: str) -> dict:
         """A paged listing as one page: the `key` lists of every page joined. A page without
@@ -255,6 +271,25 @@ class JiraClient:
             raise JiraError(
                 f"Jira sent an unreadable answer for {method} {path}: {error}", uncertain=write
             ) from None
+
+    def user(self, account_id: str) -> dict:
+        return self.get("/rest/api/3/user", {"accountId": account_id}) or {}
+
+    def issue_types(self, project: str) -> list[dict]:
+        path = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes"
+        return self._pages(path, "issueTypes").get("issueTypes", [])
+
+    def link_types(self) -> list[dict]:
+        return (self.get("/rest/api/3/issueLinkType") or {}).get("issueLinkTypes", [])
+
+    def user_search(self, query: str) -> list[dict]:
+        found = self.get("/rest/api/3/user/search", {"query": query})
+        return found if isinstance(found, list) else []
+
+    def edit_meta(self, key: str) -> dict:
+        found = self.get(f"/rest/api/3/issue/{_segment(key)}/editmeta") or {}
+        fields = found.get("fields") if isinstance(found, dict) else None
+        return fields if isinstance(fields, dict) else {}
 
 
 def _error_detail(error: urllib.error.HTTPError) -> str:

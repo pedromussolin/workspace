@@ -17,6 +17,11 @@ Uma tarefa por arquivo em `tasks/`, com o prefixo `NN-` e um nome curto em ingl�
 | # | Tarefa | Status |
 |---|---|---|
 
+<!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
+<!-- /ws:items -->
+
 ## Situação
 
 Nenhuma tarefa avulsa por enquanto (26/10/2026).

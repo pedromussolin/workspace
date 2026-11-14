@@ -1,3 +1,16 @@
++++
+card = "TS-5735"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 06 — Nome do CNAB na tela
 
 - **Status:** mapeado, aguardando D4.

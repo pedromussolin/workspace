@@ -86,6 +86,63 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 43 | [Barras da provisão do PDD com a mesma largura](tasks/43-pdd-provision-bars.md) | `fix/TS-5492-barras-da-provisao-com-mesma-largura` (front) | `master` | **na `release/20261030`** (30/10): sandbox #253, master #254 | TS-5492 |
 | 24 | [Deploy da reestruturação](tasks/24-deploy.md) | `release/AAAAMMDD` (front e BFF) | todas | **em produção**: 21/10 (`release/20261021`) e 27/10 (`release/20261027`); conferência de 27/10 feita em 28/10 | TS-5394 |
 
+<!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
+| 01 | [Estrutura base](tasks/01-base-structure.md) | TS-5358 | Tarefa | dev-ae95329f82 | concluída |
+| 02 | [Temas claro e escuro](tasks/02-light-dark-themes.md) | TS-5359 | Tarefa | dev-ae95329f82 | concluída |
+| 03 | [Componentes: ícones, botões e formulário](tasks/03-form-components.md) | TS-5360 | Tarefa | dev-ae95329f82 | concluída |
+| 04 | [Componentes: overlay e tabela](tasks/04-overlay-table-components.md) | TS-5361 | Tarefa | dev-ae95329f82 | concluída |
+| 05 | [Pré-Trade](tasks/05-pre-trade.md) | TS-5362 | Tarefa | dev-ae95329f82 | concluída |
+| 06 | [Lotes de Liquidação, Lotes de Cessão e Detalhe do Contrato](tasks/06-batches.md) | TS-5363 | Tarefa | dev-ae95329f82 | concluída |
+| 07 | [Report Transfer](tasks/07-report-transfer.md) | TS-5364 | Tarefa | dev-ae95329f82 | concluída |
+| 08 | [Formalização](tasks/08-formalization.md) | TS-5365 | Tarefa | dev-ae95329f82 | concluída |
+| 09 | [Controladoria e Consolidação de Caixa](tasks/09-controllership.md) | TS-5366 | Tarefa | dev-ae95329f82 | concluída |
+| 10 | [Orquestrador](tasks/10-orchestrator.md) | TS-5367 | Tarefa | dev-ae95329f82 | concluída |
+| 11 | [Onboarding BGT, Usuários, Clientes e Simulação](tasks/11-user-onboarding.md) | TS-5368 | Tarefa | dev-ae95329f82 | concluída |
+| 12 | [Páginas gerais](tasks/12-general-pages.md) | TS-5369 | Tarefa | dev-ae95329f82 | concluída |
+| 13 | [Remove Angular Material](tasks/13-remove-angular-material.md) | TS-5370 | Tarefa | dev-ae95329f82 | concluída |
+| 14 | [Docs da API autenticada](tasks/14-docs-api.md) | TS-5371 | Tarefa | dev-ae95329f82 | concluída |
+| 15 | [Vitrine do design system](tasks/15-design-system-showcase.md) | TS-5372 | Tarefa | dev-ae95329f82 | concluída |
+| 16 | [E2E, cobertura e regressão visual](tasks/16-e2e-test-coverage.md) | — | — | — | a fazer |
+| 17 | [Pasta `.ai`: repositório pronto para desenvolver com IA](tasks/17-ai-folder.md) | TS-5389 | Tarefa | dev-ae95329f82 | concluída |
+| 18 | [Segurança do front](tasks/18-security.md) | TS-5386 | Tarefa | dev-ae95329f82 | concluída |
+| 19 | [Controle de acesso pelo portal](tasks/19-access-control.md) | TS-5390 | Tarefa | dev-ae95329f82 | concluída |
+| 20 | [Devcontainer do front mais leve e confiável](tasks/20-devcontainer.md) | TS-5387 | Tarefa | dev-ae95329f82 | concluída |
+| 21 | [Permissões por ação: escopos e ações bem definidos](tasks/21-permissions-by-action.md) | TS-5391 | Tarefa | dev-ae95329f82 | concluída |
+| 22 | [Observabilidade: logs estruturados no BFF e visibilidade no front](tasks/22-observability-logs.md) | TS-5392 | Tarefa | dev-ae95329f82 | concluída |
+| 23 | [Ilustrações próprias](tasks/23-illustrations.md) | TS-5393 | Tarefa | dev-ae95329f82 | concluída |
+| 24 | [Deploy da reestruturação](tasks/24-deploy.md) | TS-5394 | Tarefa | dev-ae95329f82 | concluída |
+| 25 | [Refinamento visual e de design](tasks/25-visual-refinement.md) | TS-5395 | Tarefa | dev-ae95329f82 | concluída |
+| 26 | [Controle de acesso: organização e UX/UI](tasks/26-access-control-ux.md) | TS-5405 | Tarefa | dev-ae95329f82 | concluída |
+| 27 | [Organização e cliente da pessoa no controle de acesso](tasks/27-organization-and-client.md) | TS-5407 | Tarefa | dev-ae95329f82 | concluída |
+| 28 | [POLI dentro do portal, com mascotes animados](tasks/28-poli-mascot.md) | TS-5406 | Tarefa | dev-ae95329f82 | concluída |
+| 29 | [Segurança e alinhamento com a infraestrutura](tasks/29-security-infra.md) | TS-5411 | Tarefa | dev-ae95329f82 | concluída |
+| 30 | [Nomes e docstrings dos testes do BFF em inglês](tasks/30-bff-tests-in-english.md) | TS-5458 | Tarefa | dev-ae95329f82 | concluída |
+| 31 | [Ajustes visuais e padrões de design (pós-deploy)](tasks/31-visual-adjustments-and-patterns.md) | TS-5424 | Tarefa | dev-ae95329f82 | concluída |
+| 32 | [Enviar agora escolhendo os subfluxos (PR 4 da tarefa 31)](tasks/32-send-by-subflow.md) | TS-5416 | Tarefa | dev-ae95329f82 | concluída |
+| 33 | ["Ver como" outra pessoa (PR 3 da tarefa 31)](tasks/33-view-as.md) | TS-5426 | Tarefa | dev-ae95329f82 | concluída |
+| 34 | [Renovação dos tokens do Azure derruba a sessão antes das 8 horas](tasks/34-azure-token-renewal.md) | TS-5429 | Tarefa | dev-ae95329f82 | concluída |
+| 35 | [Um escopo por área em todas as páginas e migração manual dos grupos](tasks/35-atomic-permissions-and-group-migration.md) | TS-5431 | Tarefa | dev-ae95329f82 | concluída |
+| 36 | [Apagar grupo do ambiente criado fora da tela](tasks/36-delete-group-created-outside.md) | TS-5437 | Tarefa | dev-ae95329f82 | concluída |
+| 37 | [Formalização numa página só, página que abre por outra e títulos](tasks/37-pages-and-titles.md) | TS-5439 | Tarefa | dev-ae95329f82 | concluída |
+| 38 | [Telas sem uso removidas](tasks/38-unused-screens.md) | TS-5440 | Tarefa | dev-ae95329f82 | concluída |
+| 39 | [Apagar role na primeira tentativa](tasks/39-delete-role-first-try.md) | TS-5457 | Tarefa | dev-ae95329f82 | concluída |
+| 40 | [Ações em lote nas tabelas do Controle de acesso](tasks/40-bulk-actions-in-tables.md) | TS-5463 | Tarefa | dev-ae95329f82 | concluída |
+| 42 | [Tags sobre o rodapé e altura padrão dos modais](tasks/42-dialog-layers-and-height.md) | TS-5491 | Bug | dev-ae95329f82 | concluída |
+| 43 | [Barras da provisão do PDD com a mesma largura](tasks/43-pdd-provision-bars.md) | TS-5492 | Bug | dev-ae95329f82 | concluída |
+| 44 | [Cabeçalho do parceiro em toda chamada interna e serviços pelo FQDN](tasks/44-ts-5465-fqdn-and-partner-header.md) | TS-5465 | Melhoria | dev-ae95329f82 | em andamento |
+| 45 | [Escopo do parceiro pelo X-Identificador-Interno nas rotas do portal](tasks/45-ts-5464-fqdn-and-partner-header.md) | TS-5464 | Melhoria | dev-ae95329f82 | a fazer |
+| 46 | [Camada MCP: ferramentas do portal para assistentes de IA](tasks/46-ts-5518.md) | TS-5518 | Nova função | dev-ae95329f82 | em andamento |
+| 47 | [Exportação da Saúde dos fundos sai sem o CNPJ do fundo](tasks/47-ts-5532.md) | TS-5532 | Bug | dev-ae95329f82 | a fazer |
+| 48 | [Smoke visual que abre os diálogos do portal](tasks/48-new-whitelabel-100.md) | — | Nova função | dev-ae95329f82 | — |
+| 49 | [Skeleton da coluna de seleção nas tabelas](tasks/49-new-whitelabel-101.md) | — | Bug | dev-ae95329f82 | — |
+| 50 | [Trocar a role engineering do /docs por api-docs:read](tasks/50-new-whitelabel-102.md) | — | Melhoria | dev-ae95329f82 | — |
+| 51 | [Limpeza do Azure: roles, grupos e permissões antigas da reestruturação](tasks/51-new-whitelabel-103.md) | — | Tarefa | dev-ae95329f82 | — |
+| 52 | [Apagar as 6 roles antigas dos Lastros no Azure](tasks/52-new-whitelabel-104.md) | — | Tarefa | dev-ae95329f82 | — |
+| 53 | [Rulesets nos repositórios e hotspots do Sonar](tasks/53-new-whitelabel-105.md) | — | Tarefa | dev-ae95329f82 | — |
+<!-- /ws:items -->
+
 ## Situação em 16/10
 
 **Prontas: 22 de 23** (a 16 está adiada e fica fora da conta). Falta a 24,

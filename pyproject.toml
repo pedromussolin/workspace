@@ -12,6 +12,11 @@ ws = "ws.cli:main"
 requires = ["uv_build>=0.13.5,<0.14"]
 build-backend = "uv_build"
 
+[tool.uv]
+# claude plugin eval refuses a plugin holding a file with more than one name, and every worktree
+# of the repo lives inside it (.claude/worktrees): their .venv must hold copies, not hard links.
+link-mode = "copy"
+
 [tool.ruff]
 line-length = 100
 extend-exclude = ["projects"]
@@ -21,6 +26,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts"]
 
 [dependency-groups]
 dev = [

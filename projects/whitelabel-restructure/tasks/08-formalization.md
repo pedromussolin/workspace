@@ -1,3 +1,16 @@
++++
+card = "TS-5365"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 08 — Formalização
 
 - **TS:** TS-5365 · **Branch:** `refact/TS-5365-formalizacao-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

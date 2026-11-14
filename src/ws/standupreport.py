@@ -1,6 +1,5 @@
 """Agrupa a atividade coletada por tarefa: ontem, hoje, bloqueios e o que não tem chave."""
 
-import re
 from datetime import date, datetime, time
 
 from ws.standup import keys_in
@@ -9,7 +8,6 @@ from ws.taskstatus import ACTIVE_STATUSES, evaluate
 
 SUBJECT_LIMIT = 5
 TODAY_STATUSES = (*ACTIVE_STATUSES, Status.READY_DEPLOY)
-FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 def _yesterday(activity: dict, cards: dict[str, Task]) -> list[dict]:
@@ -64,11 +62,13 @@ def _yesterday(activity: dict, cards: dict[str, Task]) -> list[dict]:
     return result
 
 
-def _suggestion(found: dict) -> dict:
-    suggestion = {name: found[name] for name in ("from", "to", "rule", "evidence")}
-    if FULL_SHA.fullmatch(suggestion["evidence"]):
-        suggestion["evidence"] = suggestion["evidence"][:7]
-    return suggestion
+def _suggestion(move: dict) -> dict:
+    return {
+        "from": move["from"],
+        "to": move["to"],
+        "rule": "board",
+        "evidence": move["environment"] or "commit",
+    }
 
 
 def build_report(
@@ -77,13 +77,15 @@ def build_report(
     today: date,
     stale_workdays: int,
     top: int | None = None,
+    board: dict | None = None,
 ) -> dict:
     cards = {task.key: task for task in tasks or []}
     yesterday = _yesterday(activity, cards)
+    moving = frozenset(move["key"] for move in board["moves"]) if board is not None else frozenset()
     evaluated = (
-        evaluate(tasks, activity, today, stale_workdays)
+        evaluate(tasks, activity, today, stale_workdays, moving)
         if tasks is not None
-        else {"suggestions": [], "stuck": []}
+        else {"stuck": []}
     )
     blocked_cards = [
         {
@@ -116,7 +118,9 @@ def build_report(
         for key in keys_in(step["text"]):
             step_of.setdefault(key, step["text"])
 
-    suggestions = {item["key"]: _suggestion(item) for item in evaluated["suggestions"]}
+    suggestions = {
+        move["key"]: _suggestion(move) for move in (board["moves"] if board is not None else [])
+    }
     in_yesterday = {item["key"]: item for item in yesterday}
     for key, item in in_yesterday.items():
         item["suggestion"] = suggestions.get(key)
@@ -149,9 +153,8 @@ def build_report(
     shown = {entry["key"] for entry in today_entries}
 
     moves = [
-        {"key": entry["key"], "from": entry["suggestion"]["from"], "to": entry["suggestion"]["to"]}
-        for entry in (*yesterday, *today_entries)
-        if entry["suggestion"]
+        {"key": move["key"], "from": move["from"], "to": move["to"]}
+        for move in (board["moves"] if board is not None else [])
     ]
     more = {"yesterday": 0, "today": 0}
     if top is not None:
@@ -174,9 +177,10 @@ def build_report(
         "blockers": blockers,
         "more": more,
         "moves": moves,
+        "to_confirm": board["to_confirm"] if board is not None else [],
         "keyless": {
             "commits": len(keyless),
             "repos": sorted({commit["repo"] for commit in keyless}),
         },
-        "warnings": activity["warnings"],
+        "warnings": [*activity["warnings"], *(board["warnings"] if board is not None else [])],
     }
