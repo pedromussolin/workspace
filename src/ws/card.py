@@ -2,17 +2,16 @@
 
 import hashlib
 import json
-import os
+import os  # noqa: F401  (tests patch card.os)
 import re
 import shlex
 import shutil
-import stat
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
-from ws import bootstrap, cardrules, humans, itemrecord, userconfig
+from ws import approval, bootstrap, cardrules, humans, itemrecord, userconfig
 from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
 from ws.config import claude_settings_path, data_dir, repo_root
@@ -21,9 +20,9 @@ from ws.jira import JiraClient, JiraError, SiteRefused
 from ws.tracker import UnknownTracker, require_kind
 
 REQUEST_TIMEOUT = 20
-APPROVAL_WINDOW = timedelta(minutes=30)
+APPROVAL_WINDOW = approval.APPROVAL_WINDOW
 
-_CODE = re.compile(r"[0-9a-f]{12}")
+_CODE = approval.CODE
 _PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _SUBFOLDERS = ("drafts", "pending", "done", "uncertain")
 _OPERATIONS = {
@@ -100,7 +99,7 @@ def _now() -> datetime:
 def _session_id() -> int:
     """The session of the shell that runs this command. Claude Code runs each Bash call in its own
     session, so a preview and an approval in one command line share it and are refused."""
-    return os.getsid(0)
+    return approval.session_id()
 
 
 def _store(*parts: str) -> Path:
@@ -109,9 +108,7 @@ def _store(*parts: str) -> Path:
 
 def _ensure_store() -> None:
     for name in ("", *_SUBFOLDERS):
-        folder = _store(name) if name else _store()
-        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-        folder.chmod(0o700)
+        approval.ensure_store(_store(name) if name else _store())
 
 
 def _drafts_root() -> Path:
@@ -318,8 +315,7 @@ def approval_code(site: str, requests: list[dict], befores: list[dict], summary:
         "before": befores,
         "summary": summary,
     }
-    text = json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(text.encode()).hexdigest()[:12]
+    return approval.digest(material)
 
 
 def run_check(argument: str) -> int:
@@ -498,53 +494,15 @@ def _write_pending(code: str, site: str, plan: Plan) -> None:
         "before": plan.befores,
         "summary": plan.summary,
     }
-    path = _pending_path(code)
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(record, handle, ensure_ascii=False)
-        path.chmod(0o600)
-    except OSError:
-        path.unlink(missing_ok=True)
-        raise
+    approval.write_pending(_store("pending"), code, record)
 
 
 def _read_pending(code: str) -> tuple[dict | None, str | None]:
-    """(record, None) usable; (None, None) absent; (None, reason) present but refused."""
-    path = _pending_path(code)
-    try:
-        info = path.lstat()
-    except FileNotFoundError:
-        return None, None
-    except OSError as error:
-        return None, f"cannot read the pending record: {error.strerror}"
-    if (
-        not stat.S_ISREG(info.st_mode)
-        or info.st_uid != os.getuid()
-        or stat.S_IMODE(info.st_mode) != 0o600
-    ):
-        return None, (
-            f"the pending record {code} is not a private file of yours (owner, mode 600); "
-            "delete it and run ws card preview again"
-        )
-    try:
-        record = json.loads(path.read_text(encoding="utf-8"))
-        created = datetime.fromisoformat(record["created_at"])
-        if created.tzinfo is None:
-            raise ValueError("no time zone")
-    except (OSError, ValueError, KeyError, TypeError):
-        return None, f"the pending record {code} is unreadable; run ws card preview again"
-    if created > _now():
-        return None, f"the pending record {code} is in the future; run ws card preview again"
-    record["_created"] = created
-    return record, None
+    return approval.read_pending(_store("pending"), code, now=_now(), preview="ws card preview")
 
 
 def _purge_expired() -> None:
-    for path in _store("pending").glob("*.json"):
-        record, _ = _read_pending(path.stem)
-        if record is None or _now() - record["_created"] > APPROVAL_WINDOW:
-            path.unlink(missing_ok=True)
+    approval.purge_expired(_store("pending"), now=_now(), preview="ws card preview")
 
 
 def _interactive() -> bool:
