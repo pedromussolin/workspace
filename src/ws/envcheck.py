@@ -1042,11 +1042,16 @@ def compare(
     role_vars: list[str],
     always_required: list[str],
 ) -> dict:
-    """The buckets of the check: what the code reads against the store and the argocd values."""
+    """The buckets of the check: what the code reads against the store and the argocd values.
+
+    A role var is never missing (the pod's role sets it).
+    """
     forced = {name.upper() for name in always_required}
     valid_store = {name for name in store if is_valid_name(name)}
     is_role = _role_matcher(role_vars)
-    code = scan.names
+    known = set(scan.names) | set(scan.migration_only)
+    code = {n: i for n, i in scan.names.items() if not is_role(n)}
+    migration_only = [i for n, i in scan.migration_only.items() if not is_role(n)]
     missing = [code[name] for name in sorted(code) if name not in valid_store]
     required = [i for i in missing if i.required or i.name in forced]
     with_default = [i for i in missing if i not in required]
@@ -1055,16 +1060,13 @@ def compare(
         for n in sorted(argocd)
         if not is_role(n)
     ]
-    known = set(code) | set(scan.migration_only)
     buckets = {
         "missing_required": [_entry(i) for i in required],
         "missing_with_default": [_entry(i) for i in with_default],
         "in_argocd": in_argocd,
         "only_in_store": sorted(valid_store - known),
         "invalid_in_store": sorted(store - valid_store),
-        "migration_only": [
-            _entry(i, in_store=i.name in valid_store) for i in scan.migration_only.values()
-        ],
+        "migration_only": [_entry(i, in_store=i.name in valid_store) for i in migration_only],
         "unresolved": [{"where": u.where, "call": u.call} for u in scan.unresolved],
     }
     counts = {

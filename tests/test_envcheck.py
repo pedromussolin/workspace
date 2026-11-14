@@ -1615,3 +1615,28 @@ def test_compare_is_a_pure_function_of_its_inputs():
     forced = compare(scan, {"CFG_A"}, set(), [], ["CFG_B"])
     assert names_of(forced["missing_required"]) == ["CFG_B"]
     assert forced["missing_with_default"] == []
+
+
+def test_role_vars_read_by_the_code_are_never_missing():
+    scan = scan_python(
+        src(
+            **{
+                "src/a.py": """
+                    import os
+
+                    A = os.environ["CFG_A"]
+                    R = os.environ["POD_ROLE_ARN"]
+                    D = os.getenv("POD_REGION", "x")
+                """,
+                "migrations/0001.py": "import os\nM = os.environ['POD_ROLE_ARN']\n",
+            }
+        ),
+        profile(migration_globs=("migrations/**",)),
+    )
+    assert {"POD_ROLE_ARN", "POD_REGION"} <= set(scan.names)
+    result = compare(scan, {"CFG_A"}, set(), ["POD_*"], [])
+    assert result["missing_required"] == [] and result["missing_with_default"] == []
+    assert result["ok"] is True
+    assert result["counts"]["code"] == 1
+    store_has_it = compare(scan, {"CFG_A", "POD_REGION"}, set(), ["POD_*"], [])
+    assert store_has_it["only_in_store"] == []
