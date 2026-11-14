@@ -11,12 +11,15 @@ pytest_plugins = ["release_helpers"]
 CODE = f"release/{DAY}"
 ONE, TWO, ONLY = "feature/TS-101-one", "feature/TS-102-two", "feature/TS-201-only"
 BASE = "origin/master"
+ERR: list[str] = [""]
 
 
 def _run(capsys, day: str | None = DAY, **kwargs) -> tuple[int, dict]:
     args = argparse.Namespace(**{"project": "demo", "day": day, "links": False, **kwargs})
     code = status.run_status(args)
-    out = capsys.readouterr().out
+    captured = capsys.readouterr()
+    ERR[:] = [captured.err]
+    out = captured.out
     return code, json.loads(out) if out.strip() else {}
 
 
@@ -126,3 +129,45 @@ def test_status_makes_no_gh_write(world: World, fake_gh, capsys):  # noqa: F811
     _run(capsys, day=None)
     assert fake_gh.calls
     assert fake_gh.writes == []
+
+
+def test_status_sandbox_only_release_pr_is_listed(world: World, fake_gh, capsys):  # noqa: F811
+    fake_gh.add_pr("acme/repo-a", 13, f"{CODE}-sdbx", "sandbox")
+    code, payload = _run(capsys, day=None)
+    assert code == 0
+    row = next(r for r in payload["releases"] if r["date"] == DAY)
+    assert not row["folder"]
+    assert [p["number"] for p in row["open_prs"]] == [13]
+
+
+def test_status_links_warn_about_a_repo_without_pr(world: World, fake_gh, capsys):  # noqa: F811
+    _release(world)
+    fake_gh.add_pr("acme/repo-a", 12, CODE, "master")
+    code, payload = _run(capsys, links=True)
+    err = ERR[0]
+    assert code == 0
+    assert payload["links"] == ["repo-a, PR #12: https://github.com/acme/repo-a/pull/12"]
+    assert f"repo-b: no code PR for {ONLY}; the links are incomplete" in err
+    assert any("repo-a: no sandbox PR" in w for w in _repo(payload, "repo-a")["warnings"])
+
+
+def test_status_gh_failure_exits_2(world: World, fake_gh, capsys):  # noqa: F811
+    _release(world)
+    fake_gh.fail("pr list", "boom")
+    code, _ = _run(capsys)
+    assert code == 2
+    assert "gh" in ERR[0]
+
+
+def test_status_missing_folder_exits_2(world: World, fake_gh, capsys):  # noqa: F811
+    code, _ = _run(capsys)
+    assert code == 2
+    assert "not found" in ERR[0]
+
+
+def test_status_merged_pr_still_appears(world: World, fake_gh, capsys):  # noqa: F811
+    world.write_release({"repo-b": [ONLY]})
+    fake_gh.add_pr("acme/repo-b", 5, ONLY, "master", state="MERGED", merged_at="2026-11-01")
+    code, payload = _run(capsys)
+    assert code == 0
+    assert [(p["number"], p["state"]) for p in _repo(payload, "repo-b")["prs"]] == [(5, "MERGED")]

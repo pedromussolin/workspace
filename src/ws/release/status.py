@@ -6,6 +6,7 @@ read. Without a day it lists the releases of the project; with one it reports ea
 
 import argparse
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from ws.release.github import Gh, GhFailed, GhMissing, GhUncertain, PullRequest
 from ws.release.settings import ReleaseConfig, load_release_config
 
 SANDBOX = "-sandbox"
-RELEASE_HEAD = re.compile(r"release/(\d{8})")
+RELEASE_HEAD = re.compile(r"release/(\d{8})(-sdbx)?")
 FOLDER = re.compile(r"release-(\d{8})")
 
 
@@ -61,7 +62,7 @@ def _releases(config: ReleaseConfig, slug: str, gh: Gh) -> dict:
                 rows[match.group(1)] = {"date": match.group(1), "folder": True, "open_prs": []}
     for entry in config.repos:
         for pr in gh.prs(entry.slug, state="open"):
-            match = RELEASE_HEAD.fullmatch(pr.head)
+            match = RELEASE_HEAD.match(pr.head)
             if match:
                 row = rows.setdefault(
                     match.group(1), {"date": match.group(1), "folder": False, "open_prs": []}
@@ -74,6 +75,8 @@ def _releases(config: ReleaseConfig, slug: str, gh: Gh) -> dict:
 
 def _day(config: ReleaseConfig, slug: str, day: date, gh: Gh, with_links: bool) -> tuple[dict, int]:
     folder = release_folder.release_dir(slug, day)
+    if not folder.is_dir():
+        raise ReleaseSetup(f"{folder} not found")
     release = release_folder.read_release(folder, tuple(repo.name for repo in config.repos))
     repos: list[dict] = []
     found: dict[str, PullRequest] = {}
@@ -90,6 +93,10 @@ def _day(config: ReleaseConfig, slug: str, day: date, gh: Gh, with_links: bool) 
             if pr:
                 found[ref] = pr
                 row["prs"].append(_pr_json(gh, entry.slug, pr, kind))
+            elif with_links:
+                missing = f"{name}: no {kind} PR for {state.code_branch}; the links are incomplete"
+                row["warnings"].append(missing)
+                print(f"ws release status: {missing}", file=sys.stderr)
         repos.append(row)
     payload: dict = {"date": text.compact(day), "repos": repos}
     if with_links:
