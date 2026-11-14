@@ -223,7 +223,14 @@ def _class_fields(node: ast.ClassDef) -> list[_Field]:
 
 
 def _config_prefix(node: ast.ClassDef, path: str, warnings: list[str]) -> str | None:
-    """The `env_prefix` of the class's own config, `None` when it sets none."""
+    """The `env_prefix` of the class's own config, `None` when it sets none.
+
+    A class keyword (`class S(BaseSettings, env_prefix="CFG_")`) wins over `model_config`, as in
+    pydantic.
+    """
+    keyword = next((k.value for k in node.keywords if k.arg == SETTINGS_CONFIG_KEY), None)
+    if keyword is not None:
+        return _literal_prefix(keyword, path, warnings)
     for statement in node.body:
         prefix_node = None
         if isinstance(statement, ast.Assign | ast.AnnAssign):
@@ -416,6 +423,15 @@ class _ReadVisitor(ast.NodeVisitor):
     def visit_Subscript(self, node: ast.Subscript) -> None:
         if isinstance(node.ctx, ast.Load) and _is_environ(node.value):
             self._read(node.slice, "os.environ", True, node.lineno)
+        self.generic_visit(node)
+
+    def visit_Compare(self, node: ast.Compare) -> None:
+        """`"NAME" in os.environ` (or `not in`): the code copes with the name being unset."""
+        left = node.left
+        for op, right in zip(node.ops, node.comparators, strict=True):
+            if isinstance(op, ast.In | ast.NotIn) and _is_environ(right):
+                self._read(left, "in os.environ", False, node.lineno)
+            left = right
         self.generic_visit(node)
 
     def _call_kind(self, func: ast.expr) -> tuple[str, bool] | None:

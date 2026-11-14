@@ -391,6 +391,64 @@ def test_getenv_and_environ_reads():
     assert result.names["CFG_D"].where == ("src/app.py:8",)
 
 
+def test_in_environ_is_a_read_with_a_default():
+    files = src(
+        **{
+            "src/app.py": """
+                import os
+
+                if "CFG_FLAG_ON" in os.environ:
+                    pass
+                SKIP = "CFG_FLAG_OFF" not in os.environ
+                BOTH = "CFG_X" in os.environ and 1 < 2
+                key = "CFG_DYN"
+                DYN = key in os.environ
+                NOT_ENV = "CFG_NOT_ENV" in {"a": 1}
+            """
+        }
+    )
+    result = scan_python(files, profile())
+    assert names(result) == {"CFG_FLAG_ON": False, "CFG_FLAG_OFF": False, "CFG_X": False}
+    assert result.names["CFG_FLAG_ON"].where == ("src/app.py:4",)
+    assert [(u.where, u.call) for u in result.unresolved] == [("src/app.py:9", "in os.environ")]
+
+
+def test_env_prefix_as_a_class_keyword():
+    files = src(
+        **{
+            "src/config.py": """
+                from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+                class GroupSettings(BaseSettings, env_prefix="CFG_G_"):
+                    host: str
+
+
+                class Both(BaseSettings, env_prefix="CFG_KW_"):
+                    model_config = SettingsConfigDict(env_prefix="CFG_BODY_")
+
+                    port: int = 1
+
+
+                class Child(GroupSettings):
+                    user: str
+
+
+                class Dynamic(BaseSettings, env_prefix=PREFIX):
+                    region: str
+            """
+        }
+    )
+    result = scan_python(files, profile())
+    assert names(result) == {
+        "CFG_G_HOST": True,
+        "CFG_G_USER": True,
+        "CFG_KW_PORT": False,
+        "REGION": True,
+    }
+    assert any("src/config.py:19" in w and "env_prefix" in w for w in result.warnings)
+
+
 def test_configured_helper_with_literal():
     files = src(
         **{
