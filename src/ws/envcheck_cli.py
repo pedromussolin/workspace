@@ -95,7 +95,12 @@ def _check(args: argparse.Namespace) -> dict:
     store = envcheck.store_names(settings, profile, args.env)
 
     compared = envcheck.compare(
-        scan, store, argocd_names, list(settings.role_vars), list(profile.always_required)
+        scan,
+        store,
+        argocd_names,
+        list(settings.role_vars),
+        list(profile.always_required),
+        ignore=profile.ignore,
     )
     return {
         "repo": args.repo,

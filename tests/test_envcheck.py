@@ -326,6 +326,26 @@ def test_tests_folder_skipped():
     assert set(names(scan_python(files, profile()))) == {"CFG_LOG_LEVEL", "CFG_LOG_SINK"}
 
 
+def test_exclude_globs_replace_the_tests_default():
+    files = src(
+        **{
+            "src/app.py": "import os\nA = os.getenv('CFG_APP')\n",
+            "tests/test_app.py": "import os\nB = os.getenv('CFG_TEST')\n",
+            "scripts/seed.py": "import os\nC = os.getenv('CFG_SEED')\n",
+            "scripts/keep/me.py": "import os\nD = os.getenv('CFG_KEEP')\n",
+        }
+    )
+    assert set(names(scan_python(files, profile()))) == {"CFG_APP", "CFG_SEED", "CFG_KEEP"}
+    custom = profile(exclude_globs=("scripts/*.py", "**/tests/**"))
+    assert set(names(scan_python(files, custom))) == {"CFG_APP", "CFG_KEEP"}
+    assert set(names(scan_python(files, profile(exclude_globs=())))) == {
+        "CFG_APP",
+        "CFG_TEST",
+        "CFG_SEED",
+        "CFG_KEEP",
+    }
+
+
 def test_syntax_error_file_is_a_warning():
     files = src(**SETTINGS)
     files["src/broken.py"] = b"def broken(:\n"
@@ -1474,6 +1494,27 @@ def test_no_value_reaches_the_cli_output(scenario, fake_bin, tmp_path, monkeypat
     assert "código 1" in seen[-1]
 
 
+def set_config(scenario, old: str, new: str) -> None:
+    path = scenario.config / "config.toml"
+    text = path.read_text(encoding="utf-8")
+    assert old in text
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def test_ignore_names_are_never_reported(scenario, git, capsys):
+    commit_all(git, scenario.repo, {"src/dd.py": "import os\nA = os.environ['DD_AGENT_HOST']\n"})
+    scenario.set_store([*DEFAULT_STORE, "/realm/env/app/DD_ENV", "/realm/env/app/dd.bad"])
+    scenario.write_values(ARGOCD_VALUES.replace("FOO_FLAG", "DD_SERVICE"))
+    _, before, _ = scenario.check_json(capsys, ref="HEAD")
+    assert "DD_AGENT_HOST" in names_of(before["missing_required"])
+    set_config(scenario, 'helpers = ["env"]', 'helpers = ["env"]\nignore = ["DD_*", "dd.*"]')
+    _, result, _ = scenario.check_json(capsys, ref="HEAD")
+    every = json.dumps({k: v for k, v in result.items() if k != "commit"})
+    for name in ("DD_AGENT_HOST", "DD_ENV", "DD_SERVICE", "DD.BAD"):
+        assert name not in every
+    assert names_of(result["in_argocd"]) == ["CFG_DB_URL"]
+
+
 def use_script_source(scenario, script: Path) -> None:
     config = (scenario.config / "config.toml").read_text(encoding="utf-8")
     config = config.replace('source = "aws"', f'source = "script"\nscript = "{script}"')
@@ -1521,6 +1562,8 @@ def test_load_settings_reads_the_table(tmp_path, monkeypatch):
         prefix = { prod = "/p" }
         values = { prod = ["v.yaml"] }
         dynamic = { Cls = ["CFG_X_"] }
+        exclude_globs = ["scripts/**"]
+        ignore = ["DD_*"]
 
         [env_check.repos.front]
         path = "/abs/front"
@@ -1538,7 +1581,10 @@ def test_load_settings_reads_the_table(tmp_path, monkeypatch):
     assert (api.name, api.kind, api.path) == ("api", "python", Path("/fake-home/repos/api"))
     assert api.prefix == {"prod": "/p"} and api.values == {"prod": ["v.yaml"]}
     assert api.dynamic == {"Cls": ("CFG_X_",)}
-    assert settings.repos["front"].shell_files == ("entrypoint.sh",)
+    assert (api.exclude_globs, api.ignore) == (("scripts/**",), ("DD_*",))
+    front = settings.repos["front"]
+    assert front.shell_files == ("entrypoint.sh",)
+    assert (front.exclude_globs, front.ignore) == (("**/tests/**",), ())
 
 
 def test_load_settings_defaults_to_aws(tmp_path, monkeypatch):
@@ -1584,6 +1630,14 @@ def test_load_settings_defaults_to_aws(tmp_path, monkeypatch):
         (
             "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\ndynamic={C='x'}",
             "env_check.repos.api.dynamic.C",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nignore='DD_*'",
+            "env_check.repos.api.ignore",
+        ),
+        (
+            "[env_check.repos.api]\npath='a'\nargocd='a'\nprefix={p='x'}\nexclude_globs=['']",
+            "env_check.repos.api.exclude_globs",
         ),
     ],
 )

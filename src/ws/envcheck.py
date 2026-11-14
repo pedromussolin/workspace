@@ -23,6 +23,7 @@ SETTINGS_BASE = "BaseSettings"
 SETTINGS_CONFIG_KEY = "env_prefix"
 ALIAS_KEYS = ("validation_alias", "alias")
 REGULAR_MODES = ("100644", "100755")
+DEFAULT_EXCLUDE_GLOBS = ("**/tests/**",)
 
 
 class SetupError(Exception):
@@ -58,6 +59,8 @@ class RepoProfile:
     always_required: tuple[str, ...]
     shell_files: tuple[str, ...]
     dynamic: dict[str, tuple[str, ...]]
+    exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
+    ignore: tuple[str, ...] = ()
 
 
 @dataclass
@@ -98,10 +101,6 @@ class _Names:
             name: CodeName(name, i["required"], i["kind"], tuple(i["where"]), i["count"])
             for name, i in sorted(self._items.items())
         }
-
-
-def _is_test_path(path: str) -> bool:
-    return "tests" in path.split("/")[:-1]
 
 
 @dataclass
@@ -284,8 +283,9 @@ def _parse(path: str, content: bytes, warnings: list[str]) -> ast.Module | None:
     return None
 
 
-def _python_files(files: dict[str, bytes]) -> list[str]:
-    return sorted(p for p in files if p.endswith(".py") and not _is_test_path(p))
+def _python_files(files: dict[str, bytes], exclude_globs: tuple[str, ...]) -> list[str]:
+    excluded = [_glob_regex(g) for g in exclude_globs]
+    return sorted(p for p in files if p.endswith(".py") and not any(e.match(p) for e in excluded))
 
 
 def _collect_classes(trees: dict[str, ast.Module], warnings: list[str]) -> dict[str, list[_Class]]:
@@ -463,7 +463,7 @@ def _is_environ(node: ast.expr) -> bool:
 def scan_python(files: dict[str, bytes], profile: RepoProfile) -> ScanResult:
     warnings: list[str] = []
     trees = {}
-    for path in _python_files(files):
+    for path in _python_files(files, profile.exclude_globs):
         tree = _parse(path, files[path], warnings)
         if tree is not None:
             trees[path] = tree
@@ -918,6 +918,8 @@ REPO_KEYS = {
     "always_required",
     "shell_files",
     "dynamic",
+    "exclude_globs",
+    "ignore",
 }
 
 
@@ -990,6 +992,10 @@ def _repo_profile(name: str, table: dict) -> RepoProfile:
         always_required=_strings(table.get("always_required", []), f"{where}.always_required"),
         shell_files=shell_files,
         dynamic=dynamic,
+        exclude_globs=_strings(
+            table.get("exclude_globs", list(DEFAULT_EXCLUDE_GLOBS)), f"{where}.exclude_globs"
+        ),
+        ignore=_strings(table.get("ignore", []), f"{where}.ignore"),
     )
 
 
@@ -1028,7 +1034,7 @@ def _entry(item: CodeName, **extra: object) -> dict:
     }
 
 
-def _role_matcher(patterns: list[str]) -> Callable[[str], bool]:
+def _pattern_matcher(patterns: list[str]) -> Callable[[str], bool]:
     compiled = [
         re.compile(".*".join(map(re.escape, p.upper().split("*"))) + r"\Z") for p in patterns
     ]
@@ -1041,17 +1047,24 @@ def compare(
     argocd: set[str],
     role_vars: list[str],
     always_required: list[str],
+    *,
+    ignore: tuple[str, ...] = (),
 ) -> dict:
     """The buckets of the check: what the code reads against the store and the argocd values.
 
-    A role var is never missing (the pod's role sets it).
+    A role var is never missing (the pod's role sets it) and an `ignore`d name is never reported.
     """
     forced = {name.upper() for name in always_required}
+    is_role = _pattern_matcher(role_vars)
+    is_ignored = _pattern_matcher(list(ignore))
+    store = {name for name in store if not is_ignored(name)}
+    argocd = {name for name in argocd if not is_ignored(name)}
     valid_store = {name for name in store if is_valid_name(name)}
-    is_role = _role_matcher(role_vars)
-    known = set(scan.names) | set(scan.migration_only)
-    code = {n: i for n, i in scan.names.items() if not is_role(n)}
-    migration_only = [i for n, i in scan.migration_only.items() if not is_role(n)]
+    known = {n for n in [*scan.names, *scan.migration_only] if not is_ignored(n)}
+    code = {n: i for n, i in scan.names.items() if not is_ignored(n) and not is_role(n)}
+    migration_only = [
+        i for n, i in scan.migration_only.items() if not is_ignored(n) and not is_role(n)
+    ]
     missing = [code[name] for name in sorted(code) if name not in valid_store]
     required = [i for i in missing if i.required or i.name in forced]
     with_default = [i for i in missing if i not in required]
