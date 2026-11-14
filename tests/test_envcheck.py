@@ -589,6 +589,57 @@ def test_shell_names_assigned_in_script_skipped():
     }
 
 
+def test_shell_name_defaulted_from_itself_is_optional_everywhere():
+    files = sh(
+        **{
+            "entrypoint.sh": """\
+                #!/bin/sh
+                echo "${APP_EARLY}"
+                APP_EARLY="${APP_EARLY:-x}"
+                : "${APP_SET:=y}"
+                APP_EQ=${APP_EQ=z}
+                echo "${APP_EQ} ${APP_EARLY} ${APP_SELF}"
+                APP_SELF=${APP_SELF}
+                echo "${APP_SELF} ${APP_PLAIN}"
+            """
+        }
+    )
+    result = scan_shell(files, ["entrypoint.sh"])
+    assert {n: i.required for n, i in result.names.items()} == {
+        "APP_EARLY": False,
+        "APP_SET": False,
+        "APP_EQ": False,
+        "APP_SELF": True,
+        "APP_PLAIN": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "a) SVC=one ;;",
+        "true; SVC=one",
+        "test -n x && SVC=one",
+        "test -n x || SVC=one",
+        "if true; then SVC=one; fi",
+        "for i in a; do SVC=one; done",
+        "if false; then :; else SVC=one; fi",
+        "! SVC=one",
+        "case x in a) SVC=one;; b) OTHER=two;; esac",
+    ],
+)
+def test_shell_assignment_after_a_separator_or_keyword(line):
+    files = sh(**{"entrypoint.sh": f"{line}\necho ${{SVC}} ${{APP_REAL}}\n"})
+    result = scan_shell(files, ["entrypoint.sh"])
+    assert set(result.names) == {"APP_REAL"}
+
+
+def test_shell_assignment_value_stops_at_the_separator():
+    files = sh(**{"entrypoint.sh": "A=1; B=${A}\nC=${D}; D=${C}\necho ${A} ${B} ${E}\n"})
+    result = scan_shell(files, ["entrypoint.sh"])
+    assert set(result.names) == {"E"}
+
+
 def test_shell_file_missing_at_the_ref_is_a_warning():
     result = scan_shell(sh(**{"entrypoint.sh": "echo ${A_B}"}), ["entrypoint.sh", "other.sh"])
     assert set(result.names) == {"A_B"}

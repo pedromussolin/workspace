@@ -487,27 +487,38 @@ def _add_settings(sinks: _Sinks, hierarchy: _Hierarchy, info: _Class, profile: R
 
 
 SHELL_EXPANSION = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(:?[-=+])?")
+# An assignment starts a line or follows `;`, `)` (a case branch), `&&`, `||`, `then`, `do`,
+# `else` or `!`; its value is one shell word (quotes, `${...}` and `$(...)` kept whole).
 SHELL_ASSIGNMENT = re.compile(
-    r"^\s*(?:(?:export|local|readonly)\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$"
+    r"(?:^|;|\)|&&|\|\||(?<![^\s;&|])(?:then|do|else|!)(?=\s))\s*"
+    r"(?:(?:export|local|readonly)\s+)?([A-Za-z_][A-Za-z0-9_]*)="
+    r"((?:\"(?:[^\"\\]|\\.)*\"|'[^']*'|\$\{[^}]*\}|\$\([^)]*\)|[^\s;&|()'\"])*)"
 )
 SHELL_LOOP_VARIABLE = re.compile(r"^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b")
 SHELL_READ = re.compile(r"\bread\s+((?:-\w+\s+)*)([A-Za-z_][A-Za-z0-9_ ]*)")
 
 
-def _shell_assigned(lines: list[str]) -> set[str]:
-    """Names the script sets itself, unless the value is read from the same name's environment."""
+def _shell_assigned(lines: list[str]) -> tuple[set[str], set[str]]:
+    """Names the script sets itself, and the names it defaults from their own environment.
+
+    `X=${X:-y}` reads `X` but gives it a default, so `X` is not required anywhere in the file.
+    """
     assigned: set[str] = set()
+    defaulted: set[str] = set()
     for line in lines:
-        match = SHELL_ASSIGNMENT.match(line)
-        if match and not re.search(rf"\$\{{?{match.group(1)}\b", match.group(2)):
-            assigned.add(match.group(1))
+        for match in SHELL_ASSIGNMENT.finditer(line):
+            name, value = match.groups()
+            if re.search(rf"\$\{{{name}:?[-=]", value):
+                defaulted.add(name)
+            elif not re.search(rf"\$\{{?{name}\b", value):
+                assigned.add(name)
         loop = SHELL_LOOP_VARIABLE.match(line)
         if loop:
             assigned.add(loop.group(1))
         read = SHELL_READ.search(line)
         if read:
             assigned.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", read.group(2).split(";")[0]))
-    return assigned
+    return assigned, defaulted
 
 
 def scan_shell(files: dict[str, bytes], shell_files: list[str]) -> ScanResult:
@@ -519,14 +530,15 @@ def scan_shell(files: dict[str, bytes], shell_files: list[str]) -> ScanResult:
             warnings.append(f"{path}: shell file not found at that commit")
             continue
         lines = files[path].decode("utf-8", errors="replace").splitlines()
-        assigned = _shell_assigned(lines)
+        assigned, defaulted = _shell_assigned(lines)
         for number, line in enumerate(lines, start=1):
             if line.lstrip().startswith("#"):
                 continue
             for match in SHELL_EXPANSION.finditer(line):
                 name = match.group(1)
                 if name not in assigned:
-                    found.add(name.upper(), match.group(2) is None, "shell", f"{path}:{number}")
+                    required = match.group(2) is None and name not in defaulted
+                    found.add(name.upper(), required, "shell", f"{path}:{number}")
     return ScanResult(found.build(), {}, [], warnings)
 
 
