@@ -1,10 +1,12 @@
 """The `gh` adapter: reads PRs and writes through the GitHub CLI, nothing else.
 
-Text sent to GitHub travels in one fixed place each: a title only as the value of `--title`
-(a separate argv item, never `--title=...`); a PR body through `write(..., body)`, which writes it
-to a mode-600 temporary file passed as `--body-file`; a comment text as the value of `--body`
-(never a positional). `args` that already hold `--body` or `--body-file` are refused when `body=`
-is given. Only the verbs in `ALLOWED_WRITES` run.
+What the module enforces: only the verbs in `ALLOWED_WRITES` run; `write(..., body)` puts the body
+in a mode-600 temporary file passed as `--body-file`, removed afterwards, and refuses `args` that
+already hold `--body` or `--body-file`; reads check that `gh` printed the JSON expected.
+
+Convention the callers follow and the module does not check: a title goes only as the value of
+`--title` (a separate argv item, never `--title=...`) and a comment text only as the value of
+`--body`, never a positional argument.
 
 Writes are split by what the caller may do next. `GhFailed` means GitHub refused (a 4xx, a bad
 argument): nothing happened, fix and retry. `GhUncertain` means the request may have landed (a
