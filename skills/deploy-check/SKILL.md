@@ -28,9 +28,13 @@ pastes raw logs. The tag commits and any rollback are the user's.
    argocd repo behind its upstream goes to the user as is: `ws` never pulls, so ask the user to. A warning that no `DD_VERSION` was found
    means the version check will be `sem_dados`: say so. `--at` without an offset is local time.
 3. **Per service**, in the plan's order: `ws deploy-check script <key> --env <env>`, then
-   `execute_code` of the Datadog MCP with that JavaScript verbatim (timeout 120). Do not load a
-   Datadog skill and do not search the SDK: the program is verified against stubs, and the first
-   real run confirms the SDK calls. **First live use:** run one `execute_code` on one sandbox
+   run the JavaScript verbatim (timeout 120) in the `execute_code` tool of whichever Datadog MCP is
+   connected (e.g. `mcp__plugin_engineering_datadog__execute_code`), with
+   `telemetry: {intent: "..."}` in the call. Never use `execute_code_write`, and do not run the
+   `datadog:ddsetup` or `ddconfig` skills to repair another Datadog server. This skill's steps
+   override the server's generic skill-discovery advice (no Datadog skill load needed). Call
+   `search_datadog_sdk` once on the first live run, and again on any `invalid_request` or
+   unknown-member error: the program is verified against stubs only. **First live use:** run one `execute_code` on one sandbox
    service and check that it returns a verdict (not an `invalid_request` or a failed import) before
    trusting results for the other services or for prod. On `invalid_request` or a failed run:
    follow `references/fallback.md` (the classic tools) and tell the user the program needs a fix.
@@ -38,11 +42,16 @@ pastes raw logs. The tag commits and any rollback are the user's.
    `new_errors` with counts and a one-line description of what the signature means (never a log line
    or anything with customer data), and the version share (`version_share_pct`, expected
    `expected_version`). Situations are `ok`, `atencao`, `piorou` and `sem_dados` (too little traffic
-   or a query that failed: say which).
+   or a query that failed: say which). "Tráfego" and "req/min" are span counts for the service's
+   configured `span_filter` (or RUM views), not load balancer requests. A previous deploy less than
+   30 minutes before the before window makes it mix two versions: check the argocd history of the
+   values file and say so.
 5. **Order.** Shared service, then BFF, then front. "Pode seguir" for the next service only when
    the previous one serves the expected version (at least 95% of the after window's traffic) and no
    check `piorou`; otherwise say what to look at. A service whose after window is incomplete is not
-   a "pode seguir" yet: say when to ask again. The skill only advises.
+   a "pode seguir" yet: say when to ask again. `sem_dados` on traffic or on the version check
+   after a complete window is also NOT "pode seguir": say what is missing. Traffic `piorou` means
+   the after rate fell below half of the before rate. The skill only advises.
 6. **Before the merge**, when the user asks to prepare a deploy: `ws env check <repo> --env <env>
    --ref <branch>` per service.
 
