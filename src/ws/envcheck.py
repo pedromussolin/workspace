@@ -737,6 +737,10 @@ SCRIPT_FAILED_HINT = (
     "o script do Parameter Store falhou (código {code}); a saída dele não é exibida por conter "
     "valores: rode-o no terminal para ver o erro"
 )
+SCRIPT_UNREADABLE_HINT = (
+    "a saída do script do Parameter Store não pôde ser lida; ela não é exibida por conter "
+    "valores: rode-o no terminal para ver o que ele imprime"
+)
 
 
 class StoreUnreachable(Exception):
@@ -831,34 +835,43 @@ def _script_names(settings: EnvCheckSettings, prefix: str, run: Callable) -> set
             "(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) in the terminal that "
             "runs the command"
         )
-    failure = None
+    # Every exception here may carry the script's output (values): none is chained or kept, the
+    # fixed error is raised after the `except` blocks, so it has no `__context__`.
+    failure: Exception | None = None
+    code: object = None
+    listed: list[str] = []
     try:
         result = run(
             [str(settings.script), "/" + prefix.strip("/")],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            text=True,
             timeout=STORE_TIMEOUT_SECONDS,
         )
+        code = result.returncode
+        if code == 0:
+            listed = _names_from_script_output(result.stdout.decode("utf-8", errors="replace"))
     except OSError:
         failure = SetupError(f"store script {settings.script} could not be run")
     except subprocess.TimeoutExpired:
         failure = StoreUnreachable(SCRIPT_FAILED_HINT.format(code="timeout"))
+    except Exception:
+        failure = StoreUnreachable(SCRIPT_UNREADABLE_HINT)
+    result = None
     if failure is not None:
         raise failure
-    code = result.returncode
-    listed = _names_from_script_output(result.stdout) if code == 0 else []
-    del result
     if code != 0:
         raise StoreUnreachable(SCRIPT_FAILED_HINT.format(code=code))
     return _normalized(listed, prefix)
 
 
 def _names_from_script_output(output: str) -> list[str]:
-    """The text between `] ` and the first `=` of each line; the rest of the line is dropped."""
+    """The text between `] ` and the first `=` of each line; the rest of the line is dropped.
+
+    Lines end only at `\\n`: `str.splitlines` also breaks at characters a value may hold.
+    """
     names = []
-    for line in output.splitlines():
-        match = SCRIPT_LINE.match(ANSI.sub("", line))
+    for line in output.split("\n"):
+        match = SCRIPT_LINE.match(ANSI.sub("", line.rstrip("\r")))
         if match:
             names.append(match.group(1))
     return names

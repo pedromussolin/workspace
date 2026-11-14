@@ -963,6 +963,62 @@ def test_script_timeout_keeps_no_output_in_the_exception(monkeypatch, tmp_path):
     assert error.value.__context__ is None
 
 
+FAKE_SCRIPT_NOT_UTF8 = """\
+#!{python}
+import sys
+
+out = sys.stdout.buffer
+out.write(b"[SecureString] /realm/env/app/CFG_ONE=\\xff\\xfe{canary}\\n")
+# \\xc2\\x85 is U+0085, a line break for str.splitlines: the text after it stays in the value.
+out.write(b"[String] /realm/env/app/CFG_TWO=\\xc3{canary}\\xc2\\x85")
+out.write(b"[String] /realm/env/app/CFG_X=1\\n")
+out.write(b"Total: 2 parameters\\n")
+"""
+
+
+class FakeCompleted:
+    def __init__(self, stdout: bytes, returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+def test_script_output_not_utf8_is_read_without_a_crash(fake_bin, monkeypatch, capsys):
+    script = fake_bin("list-store", FAKE_SCRIPT_NOT_UTF8)
+    export_aws_variables(monkeypatch)
+    found = store_names(script_settings(script), profile(), "prod")
+    assert found == {"CFG_ONE", "CFG_TWO"}
+    captured = capsys.readouterr()
+    assert CANARY not in captured.out + captured.err + repr(found)
+
+
+@pytest.mark.parametrize("where", ["parse", "run"])
+def test_any_script_failure_is_a_fixed_error_without_the_output(fake_bin, monkeypatch, where):
+    script = fake_bin("list-store", FAKE_SCRIPT)
+    export_aws_variables(monkeypatch)
+    output = b"[SecureString] /realm/env/app/CFG_ONE=\xff" + CANARY.encode() + b"\n"
+
+    def broken_parse(text: str) -> list[str]:
+        raise UnicodeDecodeError("utf-8", output, 0, 1, "invalid start byte")
+
+    def broken_run(*args, **kwargs):
+        raise ValueError(output)
+
+    monkeypatch.setattr(envcheck, "_names_from_script_output", broken_parse)
+    run = broken_run if where == "run" else (lambda *a, **k: FakeCompleted(output))
+    with pytest.raises(StoreUnreachable) as error:
+        store_names(script_settings(script), profile(), "prod", run=run)
+    assert error.value.__context__ is None
+    assert error.value.__cause__ is None
+    assert error.value.args == (envcheck.SCRIPT_UNREADABLE_HINT,)
+    for text in (
+        str(error.value),
+        repr(error.value),
+        repr(error.value.args),
+        all_text(error.value),
+    ):
+        assert CANARY not in text
+
+
 CONFIG = """\
 [env_check]
 source = "aws"
@@ -1307,6 +1363,30 @@ def test_no_value_reaches_the_cli_output(scenario, fake_bin, tmp_path, monkeypat
             assert code == (1 if mode == "0" else 3)
     assert CANARY not in " ".join(seen)
     assert "código 1" in seen[-1]
+
+
+def use_script_source(scenario, script: Path) -> None:
+    config = (scenario.config / "config.toml").read_text(encoding="utf-8")
+    config = config.replace('source = "aws"', f'source = "script"\nscript = "{script}"')
+    (scenario.config / "config.toml").write_text(config, encoding="utf-8")
+
+
+def test_script_output_problems_never_reach_the_cli(scenario, fake_bin, monkeypatch, capsys):
+    use_script_source(scenario, fake_bin("list-store", FAKE_SCRIPT_NOT_UTF8))
+    export_aws_variables(monkeypatch)
+    code, out, err = scenario.check(capsys)
+    assert code == 1
+    assert CANARY not in out + err
+
+    def broken_parse(text: str) -> list[str]:
+        raise UnicodeDecodeError("utf-8", CANARY.encode(), 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(envcheck, "_names_from_script_output", broken_parse)
+    for extra in ((), ("--json",)):
+        code, out, err = scenario.check(capsys, *extra)
+        assert (code, out) == (3, "")
+        assert CANARY not in err
+        assert "não pôde ser lida" in err
 
 
 def settings_file(tmp_path, monkeypatch, body: str) -> Path:
