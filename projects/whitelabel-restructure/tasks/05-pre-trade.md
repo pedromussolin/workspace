@@ -1,3 +1,16 @@
++++
+card = "TS-5362"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 05 — Pré-Trade
 
 - **TS:** TS-5362 · **Branch:** `refact/TS-5362-pre-trade-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

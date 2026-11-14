@@ -49,6 +49,8 @@ CARD = {
     "epic_title": "[FRONT] Épico de exemplo",
     "reporter_is_me": True,
     "updated": "2026-10-26T12:15:36.854000-03:00",
+    "is_epic": False,
+    "assignee_name": None,
 }
 
 
@@ -108,6 +110,27 @@ def test_card_reporter_is_me_only_for_my_account():
     assert card_from_issue(REST_ISSUE, "acc-other")["reporter_is_me"] is False
 
 
+def test_fields_ask_for_issuetype():
+    assert "issuetype" in FIELDS
+
+
+def test_card_from_issue_flags_epic_by_hierarchy_level():
+    epic = deepcopy(REST_ISSUE)
+    epic["fields"]["issuetype"] = {"name": "Épico", "hierarchyLevel": 1}
+    task = deepcopy(REST_ISSUE)
+    task["fields"]["issuetype"] = {"name": "Tarefa", "hierarchyLevel": 0}
+    no_level = deepcopy(REST_ISSUE)
+    no_level["fields"]["issuetype"] = {"name": "Épico"}
+    odd_level = deepcopy(REST_ISSUE)
+    odd_level["fields"]["issuetype"] = {"name": "Épico", "hierarchyLevel": "1"}
+
+    assert card_from_issue(epic, "acc-me")["is_epic"] is True
+    assert card_from_issue(task, "acc-me")["is_epic"] is False
+    assert card_from_issue(REST_ISSUE, "acc-me")["is_epic"] is False
+    assert card_from_issue(no_level, "acc-me")["is_epic"] is False
+    assert card_from_issue(odd_level, "acc-me")["is_epic"] is False
+
+
 def test_card_without_parent_has_null_epic():
     issue = deepcopy(REST_ISSUE)
     del issue["fields"]["parent"]
@@ -134,6 +157,14 @@ def test_task_from_card_builds_the_neutral_task():
     assert task.status == Status.VALIDATION
     assert task.requested_by_other is False
     assert task.updated.isoformat() == CARD["updated"]
+
+
+def test_task_from_card_without_is_epic_is_not_epic():
+    card = {key: value for key, value in CARD.items() if key != "is_epic"}
+    site = "https://example.atlassian.net"
+
+    assert task_from_card(card, site, {}).is_epic is False
+    assert task_from_card({**card, "is_epic": True}, site, {}).is_epic is True
 
 
 def test_task_from_card_names_the_missing_field():
@@ -200,7 +231,11 @@ def test_task_list_prints_cards_as_json(jira_config, fake_jira, capsys):
     code = main(["task", "list", "--since", "2026-10-23"])
 
     assert code == 0
-    assert json.loads(capsys.readouterr().out) == {"platform": "jira", "cards": [CARD]}
+    assert json.loads(capsys.readouterr().out) == {
+        "platform": "jira",
+        "role": "mine",
+        "cards": [CARD],
+    }
     search = fake_jira.requests[-1]["query"]
     assert search["jql"] == my_tasks_jql(date(2026, 10, 23))
     assert search["fields"] == ",".join(FIELDS)
@@ -368,35 +403,18 @@ def test_active_sprints_uses_the_agile_path(fake_jira):
     assert fake_jira.requests[0]["query"] == {"state": "active"}
 
 
-def test_create_meta_lists_the_types_then_reads_the_named_one(fake_jira):
-    types = {"issueTypes": [{"id": "1", "name": "Bug"}, {"id": "2", "name": "Task"}]}
+def test_create_meta_reads_the_screen_of_the_given_type_id(fake_jira):
     detail = {"fields": [{"fieldId": "priority", "allowedValues": [{"name": "High"}]}]}
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps(types),
-    )
     fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes/2")] = (
         200,
         json.dumps(detail),
     )
 
-    assert _client(fake_jira).create_meta("TS", "Task") == detail
+    assert _client(fake_jira).create_meta("TS", "2") == detail
 
     assert [r["path"] for r in fake_jira.requests] == [
-        "/rest/api/3/issue/createmeta/TS/issuetypes",
-        "/rest/api/3/issue/createmeta/TS/issuetypes/2",
+        "/rest/api/3/issue/createmeta/TS/issuetypes/2"
     ]
-
-
-def test_create_meta_unknown_type_is_an_error(fake_jira):
-    types = {"issueTypes": [{"id": "1", "name": "Bug"}]}
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps(types),
-    )
-
-    with pytest.raises(JiraError, match="Task"):
-        _client(fake_jira).create_meta("TS", "Task")
 
 
 def test_truncated_answer_to_a_write_is_uncertain(fake_jira):
@@ -485,16 +503,6 @@ def test_null_pages_are_tolerated(fake_jira):
     assert _client(fake_jira).active_sprints(1) == []
 
 
-def test_create_meta_type_without_id_is_an_error(fake_jira):
-    fake_jira.routes[("GET", "/rest/api/3/issue/createmeta/TS/issuetypes")] = (
-        200,
-        json.dumps({"issueTypes": [{"name": "Task"}]}),
-    )
-
-    with pytest.raises(JiraError, match="no id"):
-        _client(fake_jira).create_meta("TS", "Task")
-
-
 @pytest.mark.parametrize(
     "site",
     [
@@ -548,8 +556,6 @@ def test_task_list_with_a_site_that_is_not_atlassian_exits_2(ws_config, capsys):
 
 def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes"
-    types = {"issueTypes": [{"id": "2", "name": "Task"}]}
-    fake_jira.routes[("GET", base)] = (200, json.dumps(types))
     first = {
         "startAt": 0,
         "maxResults": 2,
@@ -565,7 +571,7 @@ def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
     fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(first))
     fake_jira.routes[("GET", f"{base}/2", "2")] = (200, json.dumps(second))
 
-    meta = _client(fake_jira).create_meta("TS", "Task")
+    meta = _client(fake_jira).create_meta("TS", "2")
 
     assert [item["fieldId"] for item in meta["fields"]] == ["a", "b", "priority"]
     detail = [r for r in fake_jira.requests if r["path"] == f"{base}/2"]
@@ -575,9 +581,45 @@ def test_create_meta_follows_every_page_of_the_field_listing(fake_jira):
 
 def test_create_meta_stops_on_an_empty_page(fake_jira):
     base = "/rest/api/3/issue/createmeta/TS/issuetypes"
-    fake_jira.routes[("GET", base)] = (200, json.dumps({"issueTypes": [{"id": "2", "name": "T"}]}))
     page = {"startAt": 0, "total": 9, "fields": []}
     fake_jira.routes[("GET", f"{base}/2", "0")] = (200, json.dumps(page))
 
-    assert _client(fake_jira).create_meta("TS", "T")["fields"] == []
+    assert _client(fake_jira).create_meta("TS", "2")["fields"] == []
     assert len([r for r in fake_jira.requests if r["path"] == f"{base}/2"]) == 1
+
+
+def test_task_list_role_following(jira_config, fake_jira, capsys):
+    fake_jira.pages = {None: {"issues": [REST_ISSUE], "isLast": True}}
+
+    code = main(["task", "list", "--role", "following", "--since", "2026-10-23"])
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["role"] == "following"
+    jql = fake_jira.requests[-1]["query"]["jql"]
+    assert jql.startswith("reporter = currentUser() AND assignee != currentUser() AND (")
+
+
+def test_task_list_cards_carry_the_assignee_name(jira_config, fake_jira, capsys):
+    issue = deepcopy(REST_ISSUE)
+    issue["fields"]["assignee"] = {"accountId": "acc-ana", "displayName": "Ana Example"}
+    fake_jira.pages = {None: {"issues": [issue], "isLast": True}}
+
+    assert main(["task", "list", "--since", "2026-10-23"]) == 0
+
+    assert json.loads(capsys.readouterr().out)["cards"][0]["assignee_name"] == "Ana Example"
+    assert "assignee" in fake_jira.requests[-1]["query"]["fields"].split(",")
+
+
+def test_task_list_default_role_keeps_the_jql(jira_config, fake_jira):
+    fake_jira.pages = {None: {"issues": [], "isLast": True}}
+
+    assert main(["task", "list", "--since", "2026-10-23"]) == 0
+
+    assert fake_jira.requests[-1]["query"]["jql"] == my_tasks_jql(date(2026, 10, 23))
+
+
+def test_task_list_unknown_role_exits_2(jira_config, capsys):
+    with pytest.raises(SystemExit) as stop:
+        main(["task", "list", "--role", "boss"])
+
+    assert stop.value.code == 2

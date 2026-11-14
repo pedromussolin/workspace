@@ -1,8 +1,18 @@
++++
+tracker = false
+status = "todo"
++++
 Status: proposta (o usuário pode mudar o plano)
 Data: 30/10/2026
 Tags: organização, projetos, kanban, ws
 
 # 03 — Organizar os projetos em contexto, iniciativa, épico e item
+
+> Atualização de 08/11/2026: o desenho da base do produto substitui parte desta proposta. Espaço
+> por empresa, cliente ou pessoal no topo, com um repo git cada (D17, D20); "Contexto" vira sistema
+> cadastrado (D19); a iniciativa vira projeto livre e a `sustentacao/` vira `inbox/` (D18). Itens
+> planos com campos (P10) e migração por script (P12) seguem valendo. Ver o `decisions.md` e a
+> passagem citada no `CONTINUE.md`.
 
 ## Por que
 

@@ -1,3 +1,16 @@
++++
+card = "TS-5391"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 21 — Permissões por ação: escopos e ações bem definidos
 
 - **TS:** TS-5391 · **Branch:** `feature/TS-5391-permissoes-por-acao` (front da 19; BFF da 19)

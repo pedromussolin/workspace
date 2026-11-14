@@ -126,7 +126,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 ## B9 — Parceiro sem `internal_id` enxerga todos os produtos (segurança)
 
 - **Onde:** BFF `src/shared/repository/users.py:33-50` e
-  `src/shared/business/users.py:128-131`. Para quem não é PLGN,
+  `src/shared/business/users.py:128-131`. Para quem não é PLDR,
   `get_partner_internal_id_list` devolve `[]` quando falta `client_id`, ele não
   é inteiro ou nenhum produto tem `internal_id`. A busca de fundos vai sem
   `identificador_parceiro`, e a cessão só filtra com a lista preenchida
@@ -135,7 +135,7 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
   status de lotes de qualquer produto. Enfraquece o B5.
 - **Confirmado:** leitura do código no code review da TS-5377 (14/10). Não se
   sabe se há usuários nessa situação.
-- **Correção:** em `get_allowed_product_ids`, lista vazia para não PLGN vira
+- **Correção:** em `get_allowed_product_ids`, lista vazia para não PLDR vira
   `[]` (nenhum produto) ou 403, nunca busca sem filtro.
 
 ## B10 — Rotas de lote sem checagem de produto (segurança)
@@ -415,6 +415,83 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Falta (infra):** ver a `maxmemory-policy` do grupo de parâmetros e o que enche o Redis nos
   picos (chaves por prefixo, tamanho), e decidir entre limpar, aumentar ou separar um Redis para
   travas.
+
+## B25 — Pagamento entra em lote já enviado quando o vigente não é fechado (importante)
+
+- **Onde:** `get_create_or_update_liquidacao_lote_vigente` reaproveita o vigente enquanto
+  `fechado = false`, sem olhar o estado do lote (`api/liquidacao/repository.py:429-457`, em
+  579ad13e3); o `POST /liquidacao/liquidar` envia o lote sem fechar o vigente
+  (`api/liquidacao/validator.py:39-45` só confere se o lote existe).
+- **Efeito [C, réplica, 06/11]:** 14 lotes dos produtos 1109 e 1373 receberam 10.562 pagamentos
+  (R$ 10,9 mi) depois de concluídos, sem nenhuma atividade no log do lote depois da conclusão:
+  4 lotes concluídos em 09/07 receberam 6.559 em 07/08; 8 lotes concluídos em 30/10 receberam
+  3.944 em 05/11; 2 lotes receberam 59 pagamentos 6 s depois do envio (corrida, ver B15).
+- **Quem envia [C, Datadog]:** os lotes de 30/10 saíram por `POST /liquidacao/liquidar` às
+  20h32 UTC, chamado por pods com python-requests 2.28.2 (**[H]** Atlas/fetch-api).
+- **Não é bug [C]:** nos outros ~2.000 lotes concluídos com vigente aberto dos oito acumulados
+  fora do Mercato Libero, nada entrou depois da conclusão; a data de envio deles é uma data de
+  referência (dia anterior, 12h), anterior à criação do lote. A primeira leitura de 06/11
+  (pagamentos "depois do envio", centenas de milhões) comparava com essa data e estava errada.
+- **Resposta do negócio (E2, 10/11):** o omnis (1109) **não envia lote à administradora**. O
+  "Liquidar" só fecha o lote de baixa na própria cessão, para controle da carteira (o estoque é
+  replicado de uma securitizadora parceira). A operação recebe os arquivos dela, sobe o lote pelo
+  Atlas, fecha e corrige à mão a data do lote para o dia anterior (é a "data de referência, dia
+  anterior" vista acima). No 1109, o B25 afeta só o controle interno: não há pagamento que deixou
+  de chegar à administradora. **Resposta final (10/11):** o lemans_2 (1373) segue a mesma lógica,
+  sem envio; os pagamentos que entraram em lote já liquidado têm volume muito pequeno e não têm
+  impacto. As datas: a operação recebe todo dia os arquivos de liquidação do dia anterior, processa e
+  volta a data para a data do arquivo (sempre o dia anterior).
+- **Conclusão:** o B25 não tem impacto nos dois produtos; nada a corrigir nos dados. A guarda da D34
+  evita que se repita. Com o Atlas descontinuado (D35), a troca de data precisa de outro caminho:
+  o ideal é o lote já nascer com a data do arquivo.
+- **Correção:** com a D34, a guarda da chegada (só entra em lote `pendente`) e o "Liquidar" que
+  fecha o lote aberto antes de enviar (decisão 5 da proposta). Os afetados ficam como estão
+  (resposta do negócio). Card TS-5573, que perde o objeto principal.
+
+## B26 — Lotes vazios em todos os estados (sobras de correções direto no banco)
+
+- **Efeito [C, réplica, 06/11, lotes criados nos últimos 60 dias]:** lotes sem nenhum pagamento:
+  `errado` 10.293 (1145, 1472, 1505, 1571, 1637, 1703, 1901), `conciliacao_manual` 3.222 (713,
+  1043, 449, 1505, 1637), `pendente` 1.319 (inclui 4, 80, 81, 1109, 1373), `liquidando` 433,
+  `concluido` 96. Na fila manual, só 7 lotes do 1637 têm pagamento (226, R$ 47,3 mil); o resto
+  está vazio.
+- **Amostra [C, log do lote]:** lotes do 713 criados pelo SISTEMA em 22/09 às 00h17 de Brasília,
+  já vazios; foram para `aguarda_conciliacao` e, às 14h01, a rotina de conciliação os mandou para a
+  fila manual.
+- **Causa [C, réplica, 07/11]:** não é o fechamento atual. Todos os pontos do código que criam
+  lote descartam lote sem pagamento (`create_by_originador`, `refact.py` por chave e por remessa).
+  Os vazios são sobras de três episódios corrigidos direto no banco, mais o vigente do acúmulo:
+  - **1901, 12/09 23h03 a 13/09 8h34:** 10.247 lotes, um por pagamento; o envio à administradora
+    falhou ("nome do arquivo de liquidação não está no padrão") e os pagamentos foram apagados: não
+    existe mais pagamento criado nesse intervalo.
+  - **713, 1043 e 449 (Voltis), madrugadas de 22 e 23/09:** 3.640 lotes, um por pagamento, criados
+    ~3 s depois de cada pagamento virar `cadastrado` (fechamento na chegada). No mesmo dia os
+    pagamentos foram movidos para os lotes por chave: os 3.189 pagamentos do 713 criados na rajada
+    estão no lote concluído de 13h de 22/09 (1043: 13; 449: 8, iguais aos vazios da fila manual).
+  - **Produtos com acúmulo (1109, 1373, 81...):** lote vigente `pendente` que nasce vazio ao
+    reabrir; some com a TS-5567.
+  - **Por que "direto no banco":** o log do lote não registra a saída dos pagamentos (só criação e
+    roteamento), o código não tem caminho que desvincule pagamento, e a configuração desses
+    produtos hoje é `manual` com `produto_config.data_atualizacao` de jul/2026 (713) ou anterior.
+  - **Prova do lote com pagamento:** o roteamento da conciliação gravou `fundo_id` 120 ms depois
+    da criação, e `LiquidacaoLoteProcesso.fundo` (`models.py:5975`) vem do primeiro pagamento.
+- **Por que o 1901 fechou um lote por pagamento [C, código; H para a data da troca]:** o modelo nasce
+  com `lote_liquidacao = True` (`models.py:1327`, fecha na chegada) e `baixa_por_agendamento = True`
+  (`:1493`). Antes de 27/10 (`apply_closing_modality`), produto novo herdava esses valores; o 1901 foi
+  criado em 10/09 e a rajada começou em 12/09. A flag foi desligada depois direto no banco
+  (`data_atualizacao` igual à de criação). Proposta: produto novo nasce manual + por_chave, flags
+  desligadas (D7 do plano da TS-5583).
+- **Por que ficam presos na fila manual [C, código]:** `LiquidacaoLoteProcesso.fundo`
+  (`models.py:5975`) faz `.first()` do primeiro pagamento e quebra no lote vazio. A rotina de
+  conciliação captura o erro em `_agrupar_por_conta` (`cessao/tasks/conciliacao_liquidacao.py:70-97`)
+  e manda o lote para a fila manual com `conta_vinculada_nao_resolvida` (o motivo dos vazios do 713).
+  O "aprovar" (`cessao/api/liquidacao/service.py:501`) e a esteira (`cessao/tasks/liquidacao_lote.py:101`)
+  montam o lote do mesmo jeito: a operação não consegue tirá-los da fila pela tela.
+- **Prevenção (proposta):** limpeza com registro, guarda para lote sem pagamento não seguir na
+  esteira, área administrativa no lugar de SQL para trocar configuração, e o resumo diário
+  mostrando lotes vazios como alerta.
+- **Por que importa:** o resumo da fila manual e o Excel listariam milhares de lotes vazios; o
+  fechamento agendado pode criar mais. Limpar os pendentes antes de ligar o resumo.
 
 ## Menores
 

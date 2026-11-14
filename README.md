@@ -68,9 +68,21 @@ site = "https://<site>.atlassian.net"
 email = "<you>@<company>"
 project = "<PROJECT>"
 board_id = <board id>
-issue_type = "<issue type name>"
 start_date_field = "customfield_<n>"
 sprint_field = "customfield_<n>"
+
+[jira.types]
+task = "<issue type id>"
+bug = "<issue type id>"
+hotfix = "<issue type id>"
+improvement = "<issue type id>"
+feature = "<issue type id>"
+epic = "<issue type id>"
+initiative = "<issue type id>"
+
+[jira.links]
+blocks = "<link type name>"
+relates = "<link type name>"
 
 [jira.status_overrides]
 "Tarefas pendentes" = "todo"
@@ -84,16 +96,36 @@ sprint_field = "customfield_<n>"
 "Concluído" = "done"
 "Cancelada" = "cancelled"
 
+[tracker]
+kind = "jira"
+
+[identity]
+email = "<you>@<company>"
+
+[people."dev-<10 hex digits>"]
+jira = "<account id>"
+label = "<short name>"
+
 [standup]
 repo_roots = ["~/repos"]
 stale_workdays = 3
 ```
 
+- `[tracker] kind` names the tracker adapter; absent means `jira`, the only one that exists.
+- `[jira.types]` maps each neutral card type to the id of the issue type in the project, and
+  `[jira.links]` maps `blocks` and `relates` to the link type name. `[jira] issue_type` was
+  replaced by `[jira.types]` and is refused: delete the `issue_type` line from `[jira]`, then
+  run `ws tracker discover` and paste its output into `config.toml`.
+- `[identity] email` is yours (absent means `[jira] email`). `[people."<dev id>"]` maps a dev id
+  (`dev-` and the first 10 hex digits of the SHA-256 of the trimmed, lowercased e-mail) to the
+  person's id in each tracker; `label` is only a reminder.
+
 - `[jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
   `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
-- The five `[jira]` keys after `email` are read by `ws card`; a missing one exits 2 naming it.
+- The keys after `email` (and `[jira.types]`, `[jira.links]`) are read by `ws card`; a missing one
+  exits 2 naming it.
   `ws card` only touches cards of `project`.
 - The API key must be an unscoped token: a scoped token only works through the
   `api.atlassian.com/ex/jira/<cloudId>` gateway, and `ws` calls the site URL.
@@ -108,6 +140,112 @@ stale_workdays = 3
 - The Jira API key is created on the Atlassian site and saved with `ws config token jira`, run in
   your own terminal, outside Claude (the command refuses to run without a terminal). It is stored
   in `~/.config/workspace/credentials` (mode 600) and never pasted in a chat.
+
+### `[board]`
+
+`ws board` moves cards by what the code proves. Without a `[board]` table in `config.toml` it exits
+2 and says what to add, and the `daily` goes on with the activity alone. An environment is a
+question (which commits are in it?) answered by one proof; a profile is an ordered list of
+environments, and each repo, or glob of repos, uses one profile. The names below are placeholders:
+
+```toml
+[board]
+remote = "origin"            # default
+lookback_days = 120          # default
+fetch = true                 # default
+default_profile = "gitops"   # the profile of every repo without its own
+
+# A profile: environments in order, statuses rising. Each environment has one proof.
+[[board.profiles.gitops.environments]]
+name = "sandbox"
+status = "validation"
+proof = "branch"
+branches = ["sandbox", "staging"]   # the first that exists on the remote
+
+[[board.profiles.gitops.environments]]
+name = "master"
+status = "ready_deploy"
+proof = "branch"
+branches = ["master", "main"]
+
+[[board.profiles.gitops.environments]]
+name = "production"
+status = "done"
+proof = "file"                      # GitOps: image tags written in a deploy repo
+deploy_repo = "{repo}-argocd"
+deploy_branch = "master"
+image_tag = 'prod-([0-9a-f]{7,40})'
+
+# Release by tag in the code repo itself.
+[[board.profiles.release-tag.environments]]
+name = "main"
+status = "ready_deploy"
+proof = "branch"
+branches = ["main"]
+
+[[board.profiles.release-tag.environments]]
+name = "production"
+status = "done"
+proof = "tag"
+tag = "v*"                          # the most recent tag matching the glob
+
+# Anything else (a deploy API, Kubernetes, an observability tool): a read-only command that
+# prints the deployed shas, one per line.
+[[board.profiles.api.environments]]
+name = "production"
+status = "done"
+proof = "command"
+command = ["~/bin/deployed-sha", "{repo}", "{env}"]
+timeout = 20                        # seconds, default 20
+
+[board.repos."some-repo"]
+profile = "release-tag"
+
+[board.repos."data-*"]
+inactive = ["sandbox"]              # declared, switched off: proves nothing in these repos
+
+[board.repos."*-argocd"]
+ignore = true                       # deploy repos are proof sources, not code
+
+[board.repos."*-workspace"]
+ignore = true
+
+# Status names in the tracker for the statuses a move can reach (global: one board).
+[board.statuses]
+in_progress = "Em andamento"
+validation = "In Validation"
+ready_deploy = "Ready Deploy"
+done = "Concluído"
+```
+
+- Each commit takes the highest environment that contains it; the card takes the lowest of its
+  commits. The statuses of a profile must rise along its list.
+- Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent
+  tag matching the glob), `file` (the commit shas that `image_tag` captures in the deploy repo's
+  branch) and `command` (a program that prints the deployed shas, one per line).
+- A proof that errors holds the environment (fails closed): it stays in the repo's cap and no
+  commit of that repo counts as being there, so the card stays below it.
+  - `command`: a failure to run, a non-zero exit, a timeout, a line that is not a sha or a sha
+    that does not resolve holds, with the warning `proof <repo>/<env>: ...`.
+  - `file`: a `git grep` error holds, and so does a captured sha that does not resolve in the
+    repo while others do (warning `deploy <repo>: tag <tag> not found in this repo`), both with
+    the prefix `deploy <repo>: ...`.
+  - `file`, not an error: a deploy repo that is not found (`deploy <repo>: <deploy repo> not
+    found`) or no captured sha resolving in the repo (`deploy <repo>: no image tag of this repo
+    in <deploy repo>`) means the environment is ignored for that repo: it is out of the cap and
+    holds nothing.
+- A `tag` proof fetches with `--tags`. A tag moved on the remote makes that repo's fetch fail, and
+  its data is then stale (warning `fetch <repo>: ...`).
+- A deploy repo shared by several apps needs an `image_tag` specific to the app, so only that
+  app's tags are captured.
+- A `command` proof must only read (it asks, it never changes anything): it runs without a shell,
+  with `~`, `{repo}` and `{env}` expanded, and is stopped after `timeout` seconds. What it does is
+  your responsibility.
+- A repo uses the table whose key is its exact name, else the first glob that matches, else
+  `default_profile`. `ignore = true` leaves a repo out; `inactive` switches environments off.
+- `[board.statuses]` needs a name for every status any profile uses, plus `in_progress`, and each
+  name must map back to its own status through `[jira.status_overrides]`.
+- A bad value exits 2 with the key path.
 
 ## What protects the repo
 
@@ -211,13 +349,24 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws gate catalog pass SERVER TOOL…` | Puts the tools in the `pass` list of the server in the repo's `catalog.json` (creating the server), takes them out of `ask` and of the unclassified record; commit the file and run `ws setup` to update the protected copy |
 | `ws gate catalog ask SERVER TOOL…` | Same for the `ask` list (writes); a name outside `[A-Za-z0-9_.-]+` is refused |
 | `ws standup collect [--today YYYY-MM-DD]` | Prints as JSON the activity of the user since the previous workday: commits and branches of every git repo under `repo_roots`, PRs from one GitHub search, the "Próximo passo" of each project and `warnings`; the skill `daily` runs it |
-| `ws task list [--since YYYY-MM-DD]` | Prints the user's Jira cards as compact JSON through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error |
-| `ws standup report --activity FILE [--cards FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every suggestion; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
-| `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
-| `ws card epics` | Lists the epics of your open cards (key, title, prefix, status) |
+| `ws task list [--since YYYY-MM-DD] [--role mine\|following\|all]` | Prints the user's Jira cards as compact JSON (each card with `is_epic`) through the REST API (the main source of the `daily` skill; the Atlassian MCP is its fallback); exit 2 without config or API key, exit 1 on a Jira error; `--role` picks the cards where the user is the assignee (`mine`, default), the reporter with someone else as assignee (`following`), or both (`all`) |
+| `ws item new PROJECT --type T [--epic K] [--assignee A] [--reporter R] --heading "..." [--slug S]` | Creates an item file in `projects/<project>/tasks/` from the template of the type and prints its repo-relative path; `--epic` is optional (an item can exist before its epic); `me` is written as the user's dev id |
+| `ws item check [PROJECT...] [--tracker]` | Validates the items against `project.toml` and each other and prints `{"problems", "drift", "pending", "orphans"}`. Offline by default: `drift` and `orphans` stay empty and `pending` lists the items with no card and no epic (`{"path", "card": null, "op": "create", "needs": "epic"}`). With `--tracker` it compares each item with its card (the type of a done or cancelled card is not compared: it keeps its type); `pending` then lists every create, in the same shape (`needs` only without an epic), and every missing link (`{"path", "card", "op": "link", "kind", "to", "waits"}`), and `orphans` the open cards of the project's epics that no item holds (`{"card", "title", "type", "epic"}`; `/card reorganizar` offers `ws item set-card` for an orphan that is a pending create's card); exit 1 with problems, 2 setup, 3 tracker error |
+| `ws item drafts [PROJECT...] [--only REFS]` | Writes the `/card` drafts that align the tracker with the items (edits, links, creates) and prints `{"folder", "count", "need_text", "waiting", "by_hand"}`; nothing goes to the tracker |
+| `ws item pull ITEM --fields F,...` | Copies the tracker's values of those contract keys into the item, leaving every other byte; a link list (`blocks`, `blocked_by`, `relates`) keeps the entries whose item has no card yet and the item's spelling of the links the card has, gains the card's other links and loses the rest; prints `{"path", "changed"}` with the old and the written value of each changed key |
+| `ws item sync [PROJECT...]` | Rewrites each tracked item's `[tracker]` table (status, priority, due, sprint, synced) from its card |
+| `ws item table PROJECT` | Refreshes the items table of the project's `README.md` between its markers |
+| `ws item set-card ITEM (REF \| --none)` | Settles an item whose create was uncertain or whose write-back failed, or adopts an existing card for an item with none: records the card, or releases the item; refuses a value that is not a card ref, an item that already has another card and a `tracker = false` item |
+| `ws standup report --activity FILE [--cards FILE] [--board FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every card move; `--board FILE` (the `ws board status` output) brings the status suggestions, `moves` and `to_confirm`, and its warnings join `warnings`; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
+| `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog, link) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
+| `ws card epics` | Lists the epics of your open cards, plus the epics and initiatives you own and the open epics under those initiatives (`key`, `title`, `prefix`, `status`, `level`, `parent`) |
+| `ws tracker discover` | Prints the `[jira.types]` and `[jira.links]` blocks of the project's Jira, for you to paste in `config.toml` (read only); exit 2 on setup, 3 when Jira refuses |
+| `ws people me` / `ws people add EMAIL [--account ID]` | `me` prints your dev id; `add` prints the `[people."dev-…"]` block of a colleague (searches the account by e-mail unless `--account`; never prints the e-mail; read only) |
 | `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
 | `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the approval gate, whose box shows the preview's summary), exit 2 when those are not set up; on a real terminal it shows the summary and asks `Gravar no Jira? [s/N]` instead; a failed or uncertain draft goes to `cards/uncertain/` |
-| `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints the neutral tasks, the status `suggestions` (to-do with commits, in progress with a merged PR) and the cards possibly `stuck` |
+| `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
+| `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
+| `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints `tasks` (the neutral tasks) and `stuck` (active cards with no activity for the configured workdays) |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
 | `ws checkpoint check SLUG` | Validates the project's `CONTINUE.md` (required sections `## Onde parei` and `## Próximo passo` filled in, size limit on the next step) and `decisions.md`; prints a JSON verdict, exit 0 when ok, 1 otherwise |
@@ -268,10 +417,17 @@ Prose under `projects/` is in PT-BR; folder and file names are in English.
 
 | Project | What it is |
 |---|---|
-| [artemis-v2](projects/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches |
+| [artemis-v2](projects/artemis-v2/README.md) | Planning of V2 of the Artemis project: closing and reconciliation of settlement batches, and taking over the Mercato Libero settlement flow |
 | [whitelabel-restructure](projects/whitelabel-restructure/README.md) | Epic that restructures the partner portal front end: brand themes, dark mode, own components, new architecture |
 | [valids](projects/valids/README.md) | The VALIDs feature: the controllership's allowance dashboard (PDD) on the partner portal, fed by the data lake |
+| [vm-migration](projects/vm-migration/README.md) | Moving everything off a departing developer's automation VM (initiative TS-5645): screens, reports and scripts (epic TS-5704) and the settlement flows of one customer (epic TS-5705) |
 | [ai-studies](projects/ai-studies/README.md) | Study guide of the AI concepts used in this workspace |
 | [standalone](projects/standalone/README.md) | Tasks that belong to no project |
 
 New projects start with `ws project new <slug>`.
+
+A project with a `project.toml` (`epics`, the project's epic refs, and an optional initiative) keeps
+one item file per task in `tasks/`. The front matter holds the card's contract (`card`, `type`,
+`epic`, `assignee`, `reporter`, `blocks`, `blocked_by`, `relates`, `docs`; people as dev ids, never
+`me`) and a `[tracker]` table that only `ws item sync` writes. The `ws item` commands never write to
+the tracker; `/card` does. See `docs/specs/2026-11-13-task-items-design.md`.

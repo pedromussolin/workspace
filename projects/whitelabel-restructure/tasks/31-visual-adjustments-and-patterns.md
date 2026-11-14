@@ -1,3 +1,16 @@
++++
+card = "TS-5424"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "High"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 31 — Ajustes visuais e padrões de design (pós-deploy)
 
 - **TS:** TS-5424 · **Branch:** `feature/TS-5424-ajustes-visuais-e-padroes` (worktree

@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 03/11/2026
+Data: 04/11/2026
 Tags: valids, pdd, ecl, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,8 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 03/11/2026, na migração da pasta local `~/projects/pdd-workspace` para cá, a partir do README, do histórico das tarefas (último registro em 30/10) e das branches conferidas nos repositórios em 03/11. O que aqui não está escrito, essas fontes não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+Migração: em 03/11/2026 a pasta local `~/projects/pdd-workspace` virou este projeto, com os nomes em inglês e o conteúdo igual, publicada no mesmo dia (8 commits, de `chore: palavras conhecidas do projeto valids` a `chore: Frescor como palavra conhecida`). O que sobrou dela está em "Pendências fora da feature".
 
 Situação das abas pelo `README.md` (30/10):
 
@@ -42,6 +44,18 @@ Decisões pendentes no `decisions.md`: D21, D38, D41, D43, D47, D72 e D76.
 | data-lake-api-argocd | `feature/TS-5442-pdd-cargas-diarias` (`5042f92`) | publicada; fora da `master` pelo que o clone local sabe (sem fetch desde o clone) |
 
 Worktrees: nenhum. A cópia `~/projects/.worktrees/apl-credit-whitelabel-mov-estoque`, citada na tarefa 01, não existe mais; o front está no checkout principal.
+
+## Pendências fora da feature
+
+Da migração e da máquina do Heitor, levantadas em 03 e 04/11/2026. Nenhuma bloqueia a feature.
+
+| # | Pendência | Quem decide | O que falta |
+|---|---|---|---|
+| 1 | Apagar as cópias antigas, fora do repo: `~/projects/pdd-workspace` e `~/projects/.pdd_workspace` | Heitor | o sim dele; o conteúdo já está aqui, em `~/.config/workspace/private/valids.md` e em `~/.local/share/workspace/projects/valids/` |
+| 2 | O `~/.config/workspace/names.toml` da máquina do Heitor nasceu em 03/11 só com os nomes deste projeto; em 04/11 ganhou os dos outros projetos (41 nomes distintos) | Heitor | confirmar que é a tabela completa do Pietro; tirar as 5 entradas repetidas (iguais entre si) e o comentário do topo que ainda diz "Partial on purpose" |
+| 3 | O hook não barra CNPJ (o `CLAUDE.md` antigo da pasta fazia um grep de 14 dígitos) | Heitor | decidir se os CNPJs do arquivo privado entram no `names.toml`, com a letra do fundo como análogo |
+| 4 | O `ws setup` não rodou inteiro na máquina do Heitor: hooks do git ligados à mão e dicionários baixados em 03/11; em 04/11 entraram o `uv` 0.13.5 (SHA-256 conferido) e o `ws` (`uv tool install --editable .`); faltam o `config.toml`, os tokens, os links das skills e o portão do Claude Code | Heitor | no terminal dele: copiar o `config.toml` preparado, `ws config token jira` e `github`, `ws setup`; depois o Claude aplica o bloco do `settings.json` |
+| 5 | O `pre-push` só acusa o e-mail da empresa no commit depois de os commits existirem | Pietro (dono do `ws`) | proposta no `docs/backlog.md`, "Confidentiality check" |
 
 ## Próximo passo
 

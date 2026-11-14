@@ -34,8 +34,14 @@ Algum desses é impedimento?
   "Algum desses é impedimento?" once, only when at least one `stuck` line exists; it refers to
   those. With none, write "Nenhum." and no question.
 - `<suggestion>`: only when the entry's `suggestion` is not null, as "Sugestão: mover de <from>
-  para <to> (<evidence>)"; nothing moved. The closing note says "para aplicar /card mover <KEY>
-  para <status>; ..." with every suggestion. Otherwise nothing.
+  para <to> (<evidence>)"; nothing moved. `<evidence>` comes from `suggestion.evidence`: an
+  environment name reads "na sandbox", "na master" or "em produção" for `sandbox`, `master` or
+  `production`, and "no ambiente <name>" for any other; `commit` reads "commit numa branch". The
+  closing note says "para aplicar /card sincronizar (N cards)" with N = the number of `moves`
+  (the report's `moves` holds `{key, from, to}`). Otherwise nothing.
+- **Testado em homologação?** Only when `to_confirm` is not empty: one line after **Impedimentos**,
+  "Testado em homologação? <KEY> (última atualização <dd/mm>); ..." from each entry's `key` and `since`. The report
+  has no list of held or limited cards, so do not write one; `/card sincronizar` shows them.
 - Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
   validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".
 - `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list

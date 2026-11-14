@@ -1,3 +1,16 @@
++++
+card = "TS-5366"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 09 — Controladoria e Consolidação de Caixa
 
 - **TS:** TS-5366 · **Branch:** `refact/TS-5366-controladoria-nova-arquitetura` (da 04, ou da `origin/master` depois do merge da 04)

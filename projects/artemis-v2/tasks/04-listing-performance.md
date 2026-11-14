@@ -1,3 +1,16 @@
++++
+card = "TS-5733"
+type = "improvement"
+epic = "TS-5278"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "todo"
+priority = "Medium"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 04 — Performance das listagens de lotes
 
 - **Status:** mapeado; a revisão de queries é com a DBA.

@@ -36,101 +36,6 @@ def make_activity(**overrides) -> dict:
     return activity
 
 
-def make_pr(number: int, keys: list[str], merged_at: str | None) -> dict:
-    return {
-        "repo": "app",
-        "number": number,
-        "title": "Ajuste",
-        "state": "merged" if merged_at else "open",
-        "merged_at": merged_at,
-        "url": f"https://example.com/app/pull/{number}",
-        "keys": keys,
-    }
-
-
-def test_todo_with_commit_suggests_in_progress():
-    activity = make_activity(
-        commits=[
-            {
-                "repo": "app",
-                "sha": "abc123",
-                "date": "2026-10-26",
-                "subject": "ajuste",
-                "keys": ["TS-101"],
-            }
-        ]
-    )
-    result = evaluate([make_task("TS-101", Status.TODO)], activity, TODAY, 3)
-    assert result["suggestions"] == [
-        {
-            "key": "TS-101",
-            "from": "todo",
-            "to": "in_progress",
-            "rule": "R1",
-            "evidence": "abc123",
-        }
-    ]
-
-
-def test_todo_with_branch_suggests_in_progress():
-    activity = make_activity(
-        branches=[{"repo": "app", "name": "feature/TS-101-x", "keys": ["TS-101"]}]
-    )
-    result = evaluate([make_task("TS-101", Status.TODO)], activity, TODAY, 3)
-    assert result["suggestions"][0]["evidence"] == "feature/TS-101-x"
-
-
-def test_todo_with_only_another_key_commit_suggests_nothing():
-    activity = make_activity(
-        commits=[
-            {
-                "repo": "app",
-                "sha": "abc123",
-                "date": "2026-10-26",
-                "subject": "ajuste",
-                "keys": ["TS-999"],
-            }
-        ]
-    )
-    result = evaluate([make_task("TS-101", Status.TODO)], activity, TODAY, 3)
-    assert result == {"suggestions": [], "stuck": []}
-
-
-def test_in_progress_with_merged_pr_suggests_validation():
-    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
-    result = evaluate([make_task("TS-101", Status.IN_PROGRESS)], activity, TODAY, 3)
-    assert result["suggestions"] == [
-        {
-            "key": "TS-101",
-            "from": "in_progress",
-            "to": "validation",
-            "rule": "R2",
-            "evidence": "app#7",
-        }
-    ]
-
-
-def test_in_progress_with_open_pr_suggests_nothing():
-    activity = make_activity(
-        prs=[make_pr(7, ["TS-101"], None)], last_activity={"TS-101": "2026-10-26"}
-    )
-    result = evaluate([make_task("TS-101", Status.IN_PROGRESS)], activity, TODAY, 3)
-    assert result == {"suggestions": [], "stuck": []}
-
-
-def test_one_merged_pr_with_two_keys_suggests_both():
-    activity = make_activity(prs=[make_pr(7, ["TS-101", "TS-102"], "2026-10-26T12:00:00Z")])
-    tasks = [
-        make_task("TS-101", Status.IN_PROGRESS),
-        make_task("TS-102", Status.IN_PROGRESS),
-    ]
-    result = evaluate(tasks, activity, TODAY, 3)
-    assert [(s["key"], s["to"], s["evidence"]) for s in result["suggestions"]] == [
-        ("TS-101", "validation", "app#7"),
-        ("TS-102", "validation", "app#7"),
-    ]
-
-
 def test_in_progress_without_activity_and_old_update_is_stuck():
     old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
     result = evaluate([make_task("TS-101", Status.IN_PROGRESS, old)], make_activity(), TODAY, 3)
@@ -152,12 +57,11 @@ def test_in_progress_updated_on_the_cutoff_day_is_not_stuck():
     assert result["stuck"] == []
 
 
-def test_task_with_suggestion_is_not_listed_as_stuck():
+def test_moving_card_is_not_stuck():
     old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
-    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
-    result = evaluate([make_task("TS-101", Status.IN_PROGRESS, old)], activity, TODAY, 3)
-    assert [s["rule"] for s in result["suggestions"]] == ["R2"]
-    assert result["stuck"] == []
+    task = make_task("TS-101", Status.IN_PROGRESS, old)
+    result = evaluate([task], make_activity(), TODAY, 3, moving=frozenset({"TS-101"}))
+    assert result == {"stuck": []}
 
 
 def make_card(**overrides) -> dict:
@@ -208,7 +112,7 @@ def test_cli_maps_overrides_from_config(ws_config, tmp_path, capsys):
     assert code == 0
     payload = json.loads(out.out)
     assert payload["tasks"][0]["status"] == "validation"
-    assert payload["suggestions"] == []
+    assert "suggestions" not in payload
     assert payload["stuck"] == []
 
 
@@ -230,7 +134,7 @@ def test_cli_without_config_exits_2(ws_config, tmp_path, capsys):
     assert "config.toml" in capsys.readouterr().err
 
 
-def test_cli_stuck_and_suggestion_use_the_configured_window(ws_config, tmp_path, capsys):
+def test_cli_stuck_uses_the_configured_window(ws_config, tmp_path, capsys):
     cards = [
         make_card(key="TS-101", updated="2026-10-19T09:00:00+00:00"),
         make_card(key="TS-103", updated="2026-10-21T09:00:00+00:00"),
@@ -256,29 +160,7 @@ def test_cli_stuck_and_suggestion_use_the_configured_window(ws_config, tmp_path,
     assert payload["stuck"] == [
         {"key": "TS-101", "last_activity": None, "updated": "2026-10-19", "workdays": 5}
     ]
-    assert [(s["key"], s["rule"], s["evidence"]) for s in payload["suggestions"]] == [
-        ("TS-102", "R1", "abc123")
-    ]
-
-
-def test_review_with_merged_pr_suggests_validation_from_review():
-    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
-    result = evaluate([make_task("TS-101", Status.REVIEW)], activity, TODAY, 3)
-    assert result["suggestions"] == [
-        {
-            "key": "TS-101",
-            "from": "review",
-            "to": "validation",
-            "rule": "R2",
-            "evidence": "app#7",
-        }
-    ]
-
-
-def test_ready_deploy_with_merged_pr_gets_no_suggestion():
-    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
-    result = evaluate([make_task("TS-101", Status.READY_DEPLOY)], activity, TODAY, 3)
-    assert result == {"suggestions": [], "stuck": []}
+    assert "suggestions" not in payload
 
 
 def test_review_without_activity_and_old_update_is_stuck():
@@ -287,7 +169,7 @@ def test_review_without_activity_and_old_update_is_stuck():
     assert [item["key"] for item in result["stuck"]] == ["TS-101"]
 
 
-def test_ready_deploy_and_blocked_are_never_stuck_nor_suggested():
+def test_ready_deploy_and_blocked_are_never_stuck():
     old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
     activity = make_activity(
         commits=[
@@ -304,4 +186,4 @@ def test_ready_deploy_and_blocked_are_never_stuck_nor_suggested():
         make_task("TS-101", Status.READY_DEPLOY, updated=old),
         make_task("TS-102", Status.BLOCKED, updated=old),
     ]
-    assert evaluate(tasks, activity, TODAY, 3) == {"suggestions": [], "stuck": []}
+    assert evaluate(tasks, activity, TODAY, 3) == {"stuck": []}

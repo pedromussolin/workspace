@@ -1,0 +1,4 @@
+epics = ["TS-5278"]
+
+[prefixes]
+TS-5278 = "ARTEMIS V2"

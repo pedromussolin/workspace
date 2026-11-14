@@ -1,3 +1,16 @@
++++
+card = "TS-5359"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Low"
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 02 — Temas claro e escuro
 
 - **TS:** TS-5359 · **Branch:** `feature/TS-5359-temas-claro-escuro` (da 01)

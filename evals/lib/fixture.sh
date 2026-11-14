@@ -31,8 +31,33 @@ build_fixture() {
 site = "https://example.atlassian.net"
 email = "dev@example.com"
 
+[jira.status_overrides]
+"Em validação" = "validation"
+"Ready Deploy" = "ready_deploy"
+
 [standup]
 repo_roots = ["~/repos"]
+
+[board]
+fetch = false
+default_profile = "trunk"
+
+[[board.profiles.trunk.environments]]
+name = "sandbox"
+status = "validation"
+proof = "branch"
+branches = ["sandbox"]
+
+[[board.profiles.trunk.environments]]
+name = "master"
+status = "ready_deploy"
+proof = "branch"
+branches = ["main"]
+
+[board.statuses]
+in_progress = "Em andamento"
+validation = "Em validação"
+ready_deploy = "Ready Deploy"
 TOML
 
   new_repo demo-front
@@ -63,4 +88,13 @@ JSON
 
 Revisar a rota de exemplo (TS-102) e abrir o PR.
 MD
+}
+
+# TS-103 is only on demo-api's sandbox branch of the remote (not on its main), so it proves
+# validation; TS-102 stays a local branch and proves in progress.
+add_sandbox_remote() {
+  git init -q --bare "$HOME/remotes/demo-api.git"
+  git -C "$HOME/repos/demo-api" remote add origin "$HOME/remotes/demo-api.git"
+  git -C "$HOME/repos/demo-api" push -q origin main:sandbox
+  git -C "$HOME/repos/demo-api" fetch -q origin
 }

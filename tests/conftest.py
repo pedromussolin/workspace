@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -188,6 +189,18 @@ class FakeJira:
         self.delay = 0.0
         self.write_delay = 0.0
         self.truncate = False
+        self.honour_fields = False
+        """When set, an issue read answers only the fields its `fields` parameter names, as Jira
+        does, so a rule that reads a field it did not ask for fails in the tests too."""
+
+    def only_asked_fields(self, path: str, query: dict, body: str) -> str:
+        if not (self.honour_fields and re.fullmatch(r"/rest/api/3/issue/[^/]+", path)):
+            return body
+        issue = json.loads(body)
+        wanted = set(query.get("fields", "").split(","))
+        fields = issue.get("fields") or {}
+        issue["fields"] = {name: value for name, value in fields.items() if name in wanted}
+        return json.dumps(issue)
 
     @property
     def site(self) -> str:
@@ -237,6 +250,8 @@ def fake_jira(monkeypatch):
                 body, status = json.dumps(fake.pages[query.get("nextPageToken")]), 200
             else:
                 body, status = "{}", 404
+            if method == "GET" and status == 200:
+                body = fake.only_asked_fields(parsed.path, query, body)
             payload = body.encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")

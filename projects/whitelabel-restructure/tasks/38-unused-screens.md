@@ -1,3 +1,17 @@
++++
+card = "TS-5440"
+type = "task"
+epic = "TS-5357"
+assignee = "dev-ae95329f82"
+reporter = "dev-ae95329f82"
+
+[tracker]
+status = "done"
+priority = "Medium"
+due = 2026-10-28
+sprint = "TETRIS - Sprint 16.6.40"
+synced = 2026-11-13
++++
 # 38 — Telas sem uso removidas
 
 - **TS:** TS-5440 (épico TS-5357) · **Branch:** juntada na `release/20261027` (front e BFF)

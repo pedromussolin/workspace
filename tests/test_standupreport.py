@@ -58,7 +58,7 @@ def make_activity(**overrides) -> dict:
     return activity
 
 
-def test_key_with_commits_and_merged_pr_is_one_entry_with_r2_suggestion():
+def test_key_with_commits_and_merged_pr_is_one_entry_without_suggestion():
     commits = [make_commit(f"s{n}", "2026-10-26", f"passo {n}", ["TS-101"]) for n in range(7)]
     commits[3] = make_commit("s3", "2026-10-27", "passo recente", ["TS-101"])
     activity = make_activity(commits=commits, prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
@@ -73,8 +73,7 @@ def test_key_with_commits_and_merged_pr_is_one_entry_with_r2_suggestion():
     assert entry["prs"] == [{"ref": "app#7", "state": "merged", "title": "PR 7"}]
     assert entry["status"] == "in_progress"
     assert entry["url"] == "https://example.atlassian.net/browse/TS-101"
-    assert entry["suggestion"]["rule"] == "R2"
-    assert set(entry["suggestion"]) == {"from", "to", "rule", "evidence"}
+    assert entry["suggestion"] is None
     assert [(e["key"], e["suggestion"]) for e in report["today"]] == [("TS-101", None)]
 
 
@@ -152,17 +151,14 @@ def test_stuck_card_is_a_blocker_and_not_in_today():
     assert report["today"] == []
 
 
-def test_r1_through_a_branch_only_adds_a_today_entry():
-    activity = make_activity(
-        branches=[{"repo": "app", "name": "feature/TS-101-x", "keys": ["TS-101"]}]
+def test_board_move_without_activity_adds_a_today_entry():
+    board = make_board(moves=[make_move("TS-101", to="in_progress", environment=None)])
+    report = build_report(
+        make_activity(), [make_task("TS-101", Status.TODO)], TODAY, 3, board=board
     )
-    report = build_report(activity, [make_task("TS-101", Status.TODO)], TODAY, 3)
     assert report["yesterday"] == []
     assert len(report["today"]) == 1
-    entry = report["today"][0]
-    assert entry["next_step"] is None
-    assert entry["suggestion"]["rule"] == "R1"
-    assert entry["suggestion"]["evidence"] == "feature/TS-101-x"
+    assert report["today"][0]["suggestion"]["rule"] == "board"
 
 
 def test_keyless_counts_commits_and_sorted_unique_repos():
@@ -290,22 +286,13 @@ def test_yesterday_orders_by_local_day_then_by_first_appearance(sao_paulo):
     ]
 
 
-def test_card_with_r2_and_stale_update_gets_the_suggestion_and_no_blocker():
+def test_card_with_board_move_and_stale_update_gets_the_suggestion_and_no_blocker():
     old = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
-    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-24T12:00:00Z")])
     tasks = [make_task("TS-101", Status.IN_PROGRESS, updated=old)]
-    report = build_report(activity, tasks, TODAY, 3)
+    board = make_board(moves=[make_move("TS-101")])
+    report = build_report(make_activity(), tasks, TODAY, 3, board=board)
     assert report["blockers"] == []
-    assert report["yesterday"] == []
-    assert [(e["key"], e["suggestion"]["rule"]) for e in report["today"]] == [("TS-101", "R2")]
-
-
-def test_full_sha_evidence_is_shortened_to_seven_characters():
-    sha = "0123456789abcdef0123456789abcdef01234567"
-    activity = make_activity(commits=[make_commit(sha, "2026-10-26", "inicio", ["TS-101"])])
-    report = build_report(activity, [make_task("TS-101", Status.TODO)], TODAY, 3)
-    assert report["yesterday"][0]["suggestion"]["rule"] == "R1"
-    assert report["yesterday"][0]["suggestion"]["evidence"] == sha[:7]
+    assert [(e["key"], e["suggestion"]["rule"]) for e in report["today"]] == [("TS-101", "board")]
 
 
 def test_card_key_repeated_in_tasks_gives_one_today_entry():
@@ -322,7 +309,8 @@ def four_yesterday_activity():
 
 def test_report_without_top_keeps_whole_lists_and_zero_more():
     tasks = [make_task("TS-104", Status.IN_PROGRESS)]
-    report = build_report(four_yesterday_activity(), tasks, TODAY, 3)
+    board = make_board(moves=[make_move("TS-104")])
+    report = build_report(four_yesterday_activity(), tasks, TODAY, 3, board=board)
     assert len(report["yesterday"]) == 4
     assert report["more"] == {"yesterday": 0, "today": 0}
     assert [move["key"] for move in report["moves"]] == ["TS-104"]
@@ -330,7 +318,8 @@ def test_report_without_top_keeps_whole_lists_and_zero_more():
 
 def test_report_top_cuts_yesterday_but_moves_keep_the_cut_suggestion():
     tasks = [make_task("TS-104", Status.IN_PROGRESS)]
-    report = build_report(four_yesterday_activity(), tasks, TODAY, 3, top=2)
+    board = make_board(moves=[make_move("TS-104")])
+    report = build_report(four_yesterday_activity(), tasks, TODAY, 3, top=2, board=board)
     assert [entry["key"] for entry in report["yesterday"]] == ["TS-101", "TS-102"]
     assert report["more"] == {"yesterday": 2, "today": 0}
     assert len(report["moves"]) == 1
@@ -418,3 +407,104 @@ def test_blockers_list_blocked_first_then_stuck_each_in_card_order():
         ("TS-103", "stuck"),
     ]
     assert report["today"] == []
+
+
+def make_board(**overrides) -> dict:
+    board = {"moves": [], "held": [], "limited": [], "to_confirm": [], "warnings": []}
+    board.update(overrides)
+    return board
+
+
+def make_move(key: str, to: str = "validation", environment: str | None = "dev") -> dict:
+    return {
+        "key": key,
+        "title": "Titulo de exemplo",
+        "from": "in_progress",
+        "to": to,
+        "to_name": "Validation",
+        "environment": environment,
+        "stale": False,
+    }
+
+
+def test_board_move_becomes_the_suggestion_with_its_environment_as_evidence():
+    commits = [make_commit("abc1234", "2026-10-26", "ajuste", ["TS-101"])]
+    board = make_board(moves=[make_move("TS-101")])
+    report = build_report(
+        make_activity(commits=commits),
+        [make_task("TS-101", Status.IN_PROGRESS)],
+        TODAY,
+        3,
+        board=board,
+    )
+    assert report["yesterday"][0]["suggestion"] == {
+        "from": "in_progress",
+        "to": "validation",
+        "rule": "board",
+        "evidence": "dev",
+    }
+    assert report["moves"] == [{"key": "TS-101", "from": "in_progress", "to": "validation"}]
+
+
+def test_board_move_without_environment_has_commit_as_evidence():
+    board = make_board(moves=[make_move("TS-101", to="in_progress", environment=None)])
+    report = build_report(
+        make_activity(), [make_task("TS-101", Status.TODO)], TODAY, 3, board=board
+    )
+    assert report["today"][0]["suggestion"]["evidence"] == "commit"
+
+
+def test_board_wins_over_the_activity_rules():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    board = make_board(moves=[make_move("TS-101", to="ready_deploy", environment="prod")])
+    report = build_report(
+        activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3, board=board
+    )
+    assert report["yesterday"][0]["suggestion"]["rule"] == "board"
+    assert report["yesterday"][0]["suggestion"]["to"] == "ready_deploy"
+
+
+def test_board_with_no_moves_drops_the_activity_suggestions():
+    activity = make_activity(prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
+    report = build_report(
+        activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3, board=make_board()
+    )
+    assert report["yesterday"][0]["suggestion"] is None
+    assert report["moves"] == []
+
+
+def test_board_moves_list_every_move_even_cut_by_top_or_not_shown():
+    moves = [make_move(f"TS-10{n}") for n in range(1, 4)] + [make_move("TS-999")]
+    commits = [make_commit(f"s{n}", "2026-10-26", "x", [f"TS-10{n}"]) for n in range(1, 4)]
+    tasks = [make_task(f"TS-10{n}", Status.IN_PROGRESS) for n in range(1, 4)]
+    report = build_report(
+        make_activity(commits=commits), tasks, TODAY, 3, top=1, board=make_board(moves=moves)
+    )
+    assert len(report["yesterday"]) == 1
+    assert [move["key"] for move in report["moves"]] == ["TS-101", "TS-102", "TS-103", "TS-999"]
+
+
+def test_board_to_confirm_passes_through_and_warnings_follow_the_activity_ones():
+    confirm = [{"key": "TS-105", "title": "Titulo de exemplo", "since": "2026-10-20"}]
+    board = make_board(to_confirm=confirm, warnings=["fetch demo-api: boom"])
+    report = build_report(make_activity(warnings=["a"]), None, TODAY, 3, board=board)
+    assert report["to_confirm"] == confirm
+    assert report["warnings"] == ["a", "fetch demo-api: boom"]
+
+
+def test_report_without_board_has_empty_to_confirm():
+    assert build_report(make_activity(), None, TODAY, 3)["to_confirm"] == []
+
+
+def test_cli_board_flag_reads_the_file_and_rejects_bad_ones(ws_config, tmp_path, capsys):
+    args = write_files(tmp_path, make_activity())
+    board_file = tmp_path / "board.json"
+    board_file.write_text(json.dumps(make_board(warnings=["w"])))
+    assert main([*args, "--board", str(board_file)]) == 0
+    assert json.loads(capsys.readouterr().out)["warnings"] == ["w"]
+    board_file.write_text("{}")
+    assert main([*args, "--board", str(board_file)]) == 2
+    assert "invalid input" in capsys.readouterr().err
+    board_file.write_text("not json")
+    assert main([*args, "--board", str(board_file)]) == 2
+    assert "invalid input" in capsys.readouterr().err

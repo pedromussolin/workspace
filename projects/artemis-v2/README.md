@@ -10,6 +10,9 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
   platform-cessao, ou seja, todo o fechamento e a conciliação dos lotes.
 - Ponto principal: **performance**. A DBA revisa as queries; a parte de
   aplicação fica com a gente.
+- Desde 04/11/2026: absorver a liquidação do Mercato Libero, que o Rafael
+  Frankl rodava sozinho fora dos repositórios e que passa para nós com a
+  saída dele ([tarefa 13](../vm-migration/tasks/13-mercato-libero-settlement.md)).
 
 ## Como ler esta pasta
 
@@ -23,6 +26,7 @@ funcionou. O objetivo é estressar as ideias **antes** de abrir branch.
 | [evidence/baseline-datadog-2026-10-05.md](evidence/baseline-datadog-2026-10-05.md) | Números de produção antes de qualquer mudança, e as consultas para medir de novo |
 | [evidence/real-batches-datadog-2026-10-14.md](evidence/real-batches-datadog-2026-10-14.md) | Lotes reais depois da réplica: 19,5% de 500, causa nos lotes irmãos |
 | [evidence/sweep-datadog-2026-10-14.md](evidence/sweep-datadog-2026-10-14.md) | Varredura com 4 chaves e 1 rodada: fim das chamadas longas, saldo ainda inconclusivo |
+| [evidence/mercato-libero-ec2-calls-2026-11-04.md](evidence/mercato-libero-ec2-calls-2026-11-04.md) | O que a EC2 de automações chama na cessão (14 dias até 04/11): ponto de partida da tarefa 13 |
 | [bugs-found.md](bugs-found.md) | Bugs achados no mapeamento que ainda não viraram tarefa |
 | [after-v2.md](after-v2.md) | Melhorias adiadas para depois da V2, com o que falta para retomar |
 | `tasks/` | Uma tarefa por arquivo (lista abaixo) |
@@ -52,8 +56,49 @@ Todas as referências de código (`arquivo:linha`) apontam para estes commits:
 | 07 | [Filtro por identificador de contrato](tasks/07-contract-identifier-filter.md) | cessão, BFF, front | — | mapeado | a definir |
 | 08 | [Genius: reenvio e logs de erro](tasks/08-genius-resend-and-logs.md) | cessão, westworld, listener | D12–D16 | mapeado (revisado 13/10) | a definir |
 | 09 | [Lote automático da Voltis](tasks/09-voltis-automatic-batch.md) | cessão | configs do produto | aguardando dados | a definir |
-| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia | a definir |
+| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | cessão, BFF, front | 02, D8 | ideia; núcleo da 13 desde 04/11 | a definir |
 | 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | cessão, westworld | APIs Dayvale, TS-5207 | aguardando descoberta | a definir |
+| 13 | [Absorver a liquidação do Mercato Libero](../vm-migration/tasks/13-mercato-libero-settlement.md) | cessão (do sistema em diante; a chegada dos dados fica com o time) | 11, D25 | cards com planos em `tasks/13-plan.md`; quase todos com branch enviada; TS-5620 em andamento; release única quando todos estiverem prontos (13/11) | a definir |
+| 14 | [Esteira de baixa que não aguenta lote gigante](tasks/14-giant-batch-pipeline.md) | cessão, argocd | pré-requisito da migração da 13 | desenho da Fase 0 em `tasks/14-phase0-design.md` (12/11); teto em rodadas decidido; D39 aberta; sem card | a definir |
+
+<!-- ws:items -->
+| # | Tarefa | Card | Tipo | Responsável | Status |
+|---|---|---|---|---|---|
+| 01 | [Réplica de leitura no init do SQLAlchemy](tasks/01-read-replica.md) | TS-5279 | Tarefa | dev-ae95329f82 | concluída |
+| 02 | [Dois modos de fechamento: por chave ou por proc_id](tasks/02-close-batch-by-proc-id.md) | TS-5435 | Tarefa | dev-ae95329f82 | concluída |
+| 03 | [Fechamento de lote: mais rápido, sem espera e sem 429](tasks/03-async-closing-and-429.md) | TS-5377 | Tarefa | dev-ae95329f82 | concluída |
+| 04 | [Performance das listagens de lotes](tasks/04-listing-performance.md) | TS-5733 | Melhoria | dev-ae95329f82 | a fazer |
+| 05 | [Tipo de baixa na tabela de pagamentos](tasks/05-settlement-type.md) | TS-5734 | Melhoria | dev-ae95329f82 | a fazer |
+| 06 | [Nome do CNAB na tela](tasks/06-cnab-name-on-screen.md) | TS-5735 | Melhoria | dev-ae95329f82 | a fazer |
+| 07 | [Filtro por identificador de contrato](tasks/07-contract-identifier-filter.md) | TS-5736 | Melhoria | dev-ae95329f82 | a fazer |
+| 08 | [Genius: reenvio e logs de erro](tasks/08-genius-resend-and-logs.md) | TS-5379 | Melhoria | dev-a0893bc9a2 | a fazer |
+| 09 | [Lote de liquidação automático da Voltis](tasks/09-voltis-automatic-batch.md) | — | — | — | cancelada |
+| 10 | [Fluxo da Genius para a Dayvale](tasks/10-dayvale-administrator.md) | — | — | — | a fazer |
+| 11 | [Fechamento automático por horário de corte, com bypass](tasks/11-closing-by-cutoff-time.md) | — | — | — | cancelada |
+| 12 | [Lotes reais: buscar os lotes antes dos valores](tasks/12-real-batches-before-values.md) | TS-5383 | Tarefa | dev-ae95329f82 | concluída |
+| 13 | [TS-5624: tela de configuração do produto (Cessão e Liquidação) — plano de implementação](tasks/13-plan-tela-config-produto.md) | TS-5624 | Nova função | dev-ae95329f82 | a fazer |
+| 13 | [TS-5567: lote aberto como padrão (D34) — plano de implementação](tasks/13-plan-ts-5567.md) | TS-5567 | Melhoria | dev-ae95329f82 | a fazer |
+| 13 | [TS-5568: `POST /liquidacao/` no fechamento novo (rota única de fechamento) — plano de implementação](tasks/13-plan-ts-5568.md) | TS-5568 | Melhoria | dev-ae95329f82 | a fazer |
+| 13 | [TS-5569: scheduler da cessão em tabela — plano de implementação](tasks/13-plan-ts-5569.md) | TS-5569 | Nova função | dev-ae95329f82 | em andamento |
+| 13 | [TS-5570: fechamento automático por horário por produto — plano de implementação](tasks/13-plan-ts-5570.md) | TS-5570 | Nova função | dev-ae95329f82 | a fazer |
+| 13 | [TS-5571: aprovação de lote antes do corte da conciliação — plano de implementação](tasks/13-plan-ts-5571.md) | TS-5571 | Nova função | dev-ae95329f82 | a fazer |
+| 13 | [TS-5572: fechamento automático em tempo de execução no fluxo novo — plano de implementação](tasks/13-plan-ts-5572.md) | TS-5572 | Melhoria | dev-ae95329f82 | a fazer |
+| 13 | [TS-5583: fechamento de lote em duas colunas (gatilho × agrupamento) — plano de implementação](tasks/13-plan-ts-5583.md) | TS-5583 | Melhoria | dev-ae95329f82 | em andamento |
+| 13 | [TS-5584: Excel anexo gerado pela shared a partir de dados no envio de e-mails — plano de implementação](tasks/13-plan-ts-5584.md) | TS-5584 | Nova função | dev-ae95329f82 | em andamento |
+| 13 | [TS-5585: resumo diário dos lotes de liquidação por e-mail com Excel e aviso de horário depois do corte — plano de implementação](tasks/13-plan-ts-5585.md) | TS-5585 | Nova função | dev-ae95329f82 | a fazer |
+| 14 | [Esteira de baixa que não aguenta lote gigante](tasks/14-giant-batch-pipeline.md) | TS-5737 | Melhoria | dev-ae95329f82 | a fazer |
+| 15 | [Entender e resolver lotes de liquidação parados](tasks/15-ts-5150-plan.md) | TS-5150 | Bug | dev-ae95329f82 | a fazer |
+| 16 | [Desenvolver rota para reprocessar pagamentos](tasks/16-ts-5151.md) | TS-5151 | Melhoria | dev-a0893bc9a2 | a fazer |
+| 17 | [Investigar comportamento da geração de CNAB de liquidação](tasks/17-ts-5152.md) | TS-5152 | Melhoria | dev-ae95329f82 | a fazer |
+| 18 | [Contrato com cedente concluído não sai de liberando por título sem callbacks](tasks/18-ts-5537.md) | TS-5537 | Bug | dev-ae95329f82 | em validação |
+| 19 | [Documentação do fechamento de lotes de liquidação no repositório](tasks/19-ts-5566.md) | TS-5566 | Tarefa | dev-ae95329f82 | a fazer |
+| 20 | [Impedir que lotes de liquidação vazios sigam na esteira](tasks/20-ts-5582-plan.md) | TS-5582 | Bug | dev-ae95329f82 | em andamento |
+| 21 | [Limpar os lotes de liquidação vazios que já existem](tasks/21-ts-5596-plan.md) | TS-5596 | Tarefa | dev-ae95329f82 | a fazer |
+| 22 | [Limpeza pós-deploy do fechamento de lotes de liquidação](tasks/22-ts-5612-plan.md) | TS-5612 | Tarefa | dev-ae95329f82 | a fazer |
+| 23 | [Operar liquidação de Omnis e Lemans 2 sem o Atlas](tasks/23-ts-5620.md) | TS-5620 | Nova função | dev-ae95329f82 | a fazer |
+| 24 | [Fechar as parcelas restantes de contrato cancelado](tasks/24-ts-5748.md) | TS-5748 | Nova função | dev-ae95329f82 | a fazer |
+| 25 | [Baixa automática de parcelas de valor zero](tasks/25-ts-5749.md) | TS-5749 | Nova função | dev-ae95329f82 | a fazer |
+<!-- /ws:items -->
 
 ## Fases propostas
 
@@ -75,6 +120,10 @@ A ordem prioriza o que tira carga do banco e o que causa erro em produção.
    - 05 Tipo de baixa, 06 nome do CNAB, 07 filtro por contrato.
 4. **Integrações com as ADMs**
    - 08 Reenvio da Genius, 09 Voltis, 10 Dayvale.
+5. **Absorver a liquidação do Mercato Libero (desde 04/11)**
+   - 13 com a 11: o fechamento automático por horário de corte substitui a
+     varredura do Rafael Frankl; a chegada dos dados fica com o time. O prazo
+     é a saída dele.
 
 ## Glossário
 

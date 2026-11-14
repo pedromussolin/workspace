@@ -1,10 +1,29 @@
-# Continuar em outro chat ou no Codex (28/10)
+# Continuar em outro chat ou no Codex (04/11)
 
 Leia antes: o `CLAUDE.md` desta pasta, o `~/repos/CLAUDE.md` (regras de git; o `~/repos/AGENTS.md` tem o
 mesmo), o README (tabela de Tarefas), o `decisions.md` (D108 a D137) e o
 `~/.config/workspace/private/whitelabel-restructure.md` (nomes reais).
 
-## Onde está (28/10)
+## Onde parei
+
+### 04/11/2026
+
+**Release 20261104 em produção** (GMUD no portal: GDM-351, "Portal de Crédito: POLI redesenhada e
+portal adaptado ao celular"). O roteiro do dia está em `~/repos/.reestrutura_whitelabel/HANDOFF-20261104.md`
+e a GMUD em `~/repos/.reestrutura_whitelabel/deploy/gmud-20261104.md`, ambos fora do repo.
+- 18h53: apl-ai-service `prod-6d2fe96` (catálogo de modelos da POLI).
+- 18h57: BFF `prod-9444f05` (PR #263) e, logo depois, o Portal `prod-3c973a5` (PR #285) nas três
+  marcas. O BFF sobe sempre antes do front.
+- 19h22: a release da Artemis por cima (BFF `prod-f0511cb`, Portal `prod-2ff9802`; projeto
+  `artemis-v2`).
+- Entraram também a TS-5549 etapa 2 (motivo do botão desligado no balão) e as 14 roles novas dos
+  Lastros (TS-5500), criadas no Azure pelo `lastros-roles.sh` (na pasta da GMUD), que também copia
+  as atribuições das 6 antigas. As antigas só saem depois do período de rollback.
+- Na sandbox: o balão do motivo foi validado; a sessão de mais de 1 h se confere pelo Datadog.
+- Achado novo: A35 (role `engineering` fora do padrão, só para o Swagger).
+
+### 28/10/2026
+
 
 A release 20261027 está em produção desde 27/10 e foi conferida em 28/10 (tarefa 24). No Jira, o épico TS-5357 e
 os cards dele estão concluídos; os novos (39, 30 e 40) entraram no mesmo épico.
@@ -23,6 +42,15 @@ os cards dele estão concluídos; os novos (39, 30 e 40) entraram no mesmo épic
   novos em `~/repos/.reestrutura_whitelabel/arquivo-worktrees/`, commit em `refs/archive/wt/*` de cada repo). As do
   Artemis ficaram.
 - **Releases antigas no GitHub** (`release/20261026` e `-sdbx`): ficam por enquanto, por escolha do Pietro.
+
+## Próximo passo
+
+1. **Pós-janela de 04/11:** rulesets nos repositórios, aviso ao time e hotspots do Sonar.
+2. **Cards a abrir:** smoke visual que abre os diálogos (o teto de largura passou pelos testes sem
+   ninguém notar); os da seção 5 do `HANDOFF-20261104.md` (PR do mixin de aspas do BFF, OCR v2 na
+   sandbox, skeleton da coluna de seleção, Safari no WSL).
+3. **Depois do período de rollback:** apagar as 6 roles antigas dos Lastros no Azure.
+4. **A35:** tarefa para trocar a `engineering` do `/docs` por `api-docs:read`.
 
 ## Onde estava (26/10)
 
