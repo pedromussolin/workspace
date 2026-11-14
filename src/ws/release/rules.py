@@ -188,11 +188,18 @@ def mirror(
     return problems, differs
 
 
-def template_headings(entry: RepoEntry, tip: str | None) -> list[str]:
-    content = gitops.read_at(entry.path, tip or f"{gitops.REMOTE}/master", TEMPLATE_PATH)
+def template_headings(entry: RepoEntry, tip: str | None, base_branch: str = "master") -> list[str]:
+    content = gitops.read_at(entry.path, tip or f"{gitops.REMOTE}/{base_branch}", TEMPLATE_PATH)
     if content is None:
         return list(DEFAULT_HEADINGS)
-    found = [line.rstrip() for line in content.splitlines() if line.startswith("## ")]
+    found: list[str] = []
+    fence: str | None = None
+    for line in content.splitlines():
+        marker = line.lstrip()[:3]
+        if marker in ("```", "~~~"):
+            fence = None if fence == marker else fence or marker
+        elif fence is None and line.startswith("## "):
+            found.append(line.rstrip())
     return found or list(DEFAULT_HEADINGS)
 
 
@@ -302,11 +309,18 @@ def assess(
         state.problems.append(
             f"{name}: master moved, merge it ({state.behind} commits of origin/master missing)"
         )
-    state.headings = template_headings(entry, tip)
+    state.headings = template_headings(entry, tip, config.base_branch)
 
     tree: str | None = None
     conflicts: list[str] = []
-    if gitops.rev(repo, sandbox):
+    has_sandbox = gitops.rev(repo, sandbox) is not None
+    if not has_sandbox:
+        state.problems.append(
+            f"{name}: {gitops.REMOTE}/{config.sandbox_branch} does not exist; "
+            "the sandbox side cannot be checked"
+        )
+        sdbx_ref = None
+    else:
         tree, conflicts = gitops.merge_tree(repo, tip, sandbox)
     if sdbx_ref and conflicts:
         state.sandbox_head = sdbx_name

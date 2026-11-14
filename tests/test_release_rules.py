@@ -409,3 +409,41 @@ def test_as_json_is_plain_data(world: World):
     assert data["repo"] == "repo-a"
     assert data["includes"] == [ONE]
     assert isinstance(data["sdbx_differs"], list)
+
+
+def drop_origin_sandbox(world: World) -> None:
+    world.git("repo-a", "update-ref", "-d", "refs/remotes/origin/sandbox")
+
+
+def test_missing_sandbox_on_origin_is_a_problem_without_sdbx(world: World):
+    build_release(world)
+    drop_origin_sandbox(world)
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert any("repo-a: origin/sandbox does not exist" in p for p in state.problems)
+    assert not state.ready
+
+
+def test_missing_sandbox_on_origin_with_sdbx_does_not_crash_or_warn(world: World):
+    build_release(world)
+    build_sdbx(world)
+    drop_origin_sandbox(world)
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert any("repo-a: origin/sandbox does not exist" in p for p in state.problems)
+    assert not any("is not needed" in w for w in state.warnings)
+    assert not state.ready
+
+
+def test_template_headings_follow_the_configured_base_branch(world: World):
+    world.branch("repo-b", "trunk", "master")
+    path = ".github/pull_request_template.md"
+    world.commit("repo-b", "trunk", path, "## Trunk\n", "chore: t")
+    entry = load_release_config().entry("repo-b")
+    assert rules.template_headings(entry, None, "trunk") == ["## Trunk"]
+    assert rules.template_headings(entry, None) == ["## Tarefa", "## Como validei"]
+
+
+def test_template_headings_ignore_fenced_code(world: World):
+    text = "## Real\n```\n## in fence\n```\n~~~\n## in tilde\n~~~\n## Also real\n"
+    world.commit("repo-b", "master", ".github/pull_request_template.md", text, "chore: t")
+    entry = load_release_config().entry("repo-b")
+    assert rules.template_headings(entry, "master") == ["## Real", "## Also real"]
