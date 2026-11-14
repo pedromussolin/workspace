@@ -5,6 +5,7 @@ Read-only: the only git write is the `fetch --prune` of remote-tracking refs. Br
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 from ws import items
@@ -16,28 +17,27 @@ SDBX = "-sdbx"
 CLOSED = {"done", "cancelled"}
 
 
+def _refs(project: items.Project, item, kind: str) -> list[str]:
+    refs = []
+    for target in item.links[kind]:
+        try:
+            ref = items.link_ref(repo_root(), project, target)
+        except items.ItemError as error:
+            print(f"ws release branches: {item.card} {kind} {target}: {error}", file=sys.stderr)
+            continue
+        if ref:
+            refs.append(ref)
+    return refs
+
+
 def _item_rows(project: items.Project) -> list[dict]:
     rows = []
     for item in project.items:
         status = item.cache.get("status")
         if not item.card or not item.tracked or status in CLOSED:
             continue
-        blocks = []
-        for target in item.links["blocks"]:
-            try:
-                ref = items.link_ref(repo_root(), project, target)
-            except items.ItemError:
-                continue
-            if ref:
-                blocks.append(ref)
-        blocked_by = []
-        for target in item.links["blocked_by"]:
-            try:
-                ref = items.link_ref(repo_root(), project, target)
-            except items.ItemError:
-                continue
-            if ref:
-                blocked_by.append(ref)
+        blocks = _refs(project, item, "blocks")
+        blocked_by = _refs(project, item, "blocked_by")
         rows.append(
             {
                 "card": item.card,
@@ -157,7 +157,7 @@ def _repo_report(
             except migrations.MigrationUnreadable as error:
                 problems.append(f"{name}: {error}")
         revs_of[name] = {m["revision"] for m in row["migrations"]}
-        downs_of[name] = {d for m in row["migrations"] for d in m["down"]}
+        downs_of[name] = {d for m in row["migrations"] for d in m["down"]} - revs_of[name]
         rows.append(row)
 
     names = [row["branch"] for row in rows]

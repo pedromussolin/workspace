@@ -33,6 +33,15 @@ def _stack(world: World) -> None:
     world.git("repo-a", "checkout", "-q", "master")
 
 
+def _items(world: World, fronts: dict[str, tuple[str, str, str]]) -> None:
+    tasks = world.root / "root" / "projects" / "demo" / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks.parent / "project.toml").write_text("epics = []\n", encoding="utf-8")
+    for name, (card, status, extra) in fronts.items():
+        text = f'+++\ncard = "{card}"\n{extra}\n[tracker]\nstatus = "{status}"\n+++\n# {card}\n'
+        (tasks / name).write_text(text, encoding="utf-8")
+
+
 def test_branches_finds_task_branches_by_key(world, capsys):
     code, out = _run(capsys, tasks=["TS-101"])
     assert code == 0
@@ -85,17 +94,14 @@ def test_branches_lists_migrations(world, capsys):
 
 
 def test_branches_from_items(world, capsys):
-    tasks = world.root / "root" / "projects" / "demo" / "tasks"
-    tasks.mkdir(parents=True)
-    (tasks.parent / "project.toml").write_text("epics = []\n", encoding="utf-8")
-    fronts = {
-        "01-a.md": ("TS-101", "validation", 'blocks = ["TS-102"]\n'),
-        "02-b.md": ("TS-102", "in_progress", ""),
-        "03-c.md": ("TS-103", "done", ""),
-    }
-    for name, (card, status, extra) in fronts.items():
-        text = f'+++\ncard = "{card}"\n{extra}\n[tracker]\nstatus = "{status}"\n+++\n# {card}\n'
-        (tasks / name).write_text(text, encoding="utf-8")
+    _items(
+        world,
+        {
+            "01-a.md": ("TS-101", "validation", 'blocks = ["TS-102"]\n'),
+            "02-b.md": ("TS-102", "in_progress", ""),
+            "03-c.md": ("TS-103", "done", ""),
+        },
+    )
     code, out = _run(capsys, items=["demo"])
     assert code == 0
     assert [i["card"] for i in out["items"]] == ["TS-101", "TS-102"]
@@ -112,3 +118,41 @@ def test_branches_is_read_only(world, fake_gh, capsys):  # noqa: F811
     _run(capsys, tasks=["TS-101", "TS-102", "TS-201"])
     assert {n: world.refs(n) for n in ("repo-a", "repo-b")} == before
     assert fake_gh.calls == []
+
+
+def test_branches_orders_stacked_branches_with_chained_migrations(world, capsys):
+    world.git("repo-a", "push", "-q", "origin", "--delete", "feature/TS-102-two")
+    world.git("repo-a", "branch", "-q", "-D", "feature/TS-102-two")
+    world.migration("repo-a", "feature/TS-101-one", "a1000000001", "aaa000000001")
+    world.migration("repo-a", "feature/TS-101-one", "a2000000002", "a1000000001")
+    world.branch("repo-a", "feature/TS-102-two", "feature/TS-101-one")
+    world.migration("repo-a", "feature/TS-102-two", "b1000000003", "a2000000002")
+    world.git("repo-a", "checkout", "-q", "master")
+    code, out = _run(capsys, tasks=["TS-102", "TS-101"])
+    repo = _repo(out, "repo-a")
+    assert repo["suggested_order"] == ["feature/TS-101-one", "feature/TS-102-two"]
+    assert repo["problems"] == []
+
+
+def test_branches_reports_a_real_cycle(world, capsys):
+    _stack(world)
+    _items(
+        world,
+        {
+            "01-a.md": ("TS-101", "in_progress", 'blocked_by = ["TS-102"]\n'),
+            "02-b.md": ("TS-102", "in_progress", ""),
+        },
+    )
+    code, out = _run(capsys, items=["demo"])
+    assert code == 0
+    assert any("cycle" in p for p in _repo(out, "repo-a")["problems"])
+
+
+def test_branches_warns_on_a_dangling_link(world, capsys):
+    _items(world, {"01-a.md": ("TS-101", "in_progress", 'blocks = ["../nope/tasks/x.md"]\n')})
+    args = argparse.Namespace(project=None, tasks=[], items=["demo"], repos=[])
+    assert branches.run_branches(args) == 0
+    captured = capsys.readouterr()
+    err, out = captured.err, json.loads(captured.out)
+    assert "TS-101 blocks ../nope/tasks/x.md" in err
+    assert out["items"][0]["blocks"] == []
