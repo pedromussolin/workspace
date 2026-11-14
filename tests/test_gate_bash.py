@@ -22,6 +22,9 @@ def env(tmp_path):
     folder = tmp_path / "data" / "cards" / "pending"
     folder.mkdir(parents=True)
     (folder / f"{CODE}.json").write_text(json.dumps({"summary": ["TS-9: mover"]}), "utf-8")
+    release = tmp_path / "data" / "release" / "pending"
+    release.mkdir(parents=True)
+    (release / f"{CODE}.json").write_text(json.dumps({"summary": ["repo-a: envia"]}), "utf-8")
     return {
         "PATH": os.environ["PATH"],
         "HOME": str(tmp_path / "home"),
@@ -2605,3 +2608,70 @@ def test_without_the_policy_a_pr_merge_runs_no_lookup(env, tmp_path):
 
     assert "Base:" not in box("gh pr merge 7 -R o/app", gh_env)
     assert not log.exists()
+
+
+RELEASE_ASKS = [
+    "ws release publish 20261120 --approve abcdef012345",
+    "uv run ws release publish d --approve=abcdef012345",
+    "python3 -m ws release move a b --reason x --approve abcdef012345",
+    "bash -c 'ws release publish d --approve abcdef012345'",
+    "ws release pu''blish d",
+    "ws release pub$(true)lish d",
+    "ws release move a b --appr${x}ove c",
+    "eval ws release pu\\blish d",
+    "python3 -c 'from ws.release import publish; publish.run_publish(1)'",
+]
+
+
+@pytest.mark.parametrize("command", RELEASE_ASKS)
+def test_any_way_of_publishing_a_release_asks(command, env):
+    assert box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws release preview publish 20261120",
+        "ws release preview move a b --reason x",
+        "ws release status --links",
+        "ws release branches --task TS-1",
+        "ws release new 20261120",
+    ],
+)
+def test_release_reads_and_previews_pass(command, env):
+    assert box(command, env) is None
+
+
+def write_release_pending(env, code, record):
+    folder = Path(env["WS_DATA_DIR"]) / "release" / "pending"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{code}.json").write_text(json.dumps(record), encoding="utf-8")
+
+
+def test_release_box_shows_the_pending_summary(env):
+    write_release_pending(env, CODE, {"summary": ["repo-a: envia release/20261120 para o origin"]})
+
+    assert box(f"ws release publish 20261120 --approve {CODE}", env).splitlines() == [
+        f"Publica a prévia {CODE} no GitHub",
+        "repo-a: envia release/20261120 para o origin",
+    ]
+    assert box(f"ws release move a b --approve {CODE}", env).splitlines()[0] == (
+        f"Move a release (prévia {CODE}) no GitHub"
+    )
+
+
+def test_release_without_a_record_is_denied(env):
+    (Path(env["WS_DATA_DIR"]) / "release" / "pending" / f"{CODE}.json").unlink()
+    found = decision(f"ws release publish d --approve {CODE}", env)
+
+    assert found["permissionDecision"] == "deny"
+    assert found["permissionDecisionReason"] == (
+        f"Blocked: no pending release preview with code {CODE}; "
+        "run ws release preview publish first."
+    )
+    moved = decision(f"ws release move a b --approve {CODE}", env)
+    assert moved["permissionDecisionReason"].endswith("run ws release preview move first.")
+
+
+def test_release_without_approve_says_the_ws_will_refuse(env):
+    assert "Falta o --approve" in box("ws release publish d", env)

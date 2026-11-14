@@ -4,8 +4,9 @@
 heredocs are looked at) and returns one decision. A variable the command assigns a literal value
 (`A="git -C x"; $A log`) is resolved first by `variables.worlds`, and every resolved text is
 judged; the strictest decision wins. Families, each with its own PT-BR box: `git push` (and what
-redirects it), `gh`, `curl`/`wget`, `ws card apply`, the protection of the Claude Code settings
-and hooks, and commands the gate cannot read with certainty. Everything else passes.
+redirects it), `gh`, `curl`/`wget`, `ws card apply`, `ws release publish|move`,
+the protection of the Claude Code settings and hooks, and commands the gate cannot read with
+certainty. Everything else passes.
 
 "Unquoted" for the obfuscation rule: an expansion that the shell does not keep as one literal
 argument, that is a `$`, a backtick or a brace expansion (`{a,b}`, `{1..3}`) outside every quote.
@@ -1347,34 +1348,34 @@ def _http(program: str, args: list[Word]) -> list[Finding]:
     return [Finding(title, lines, brief=title)]
 
 
-def _pending_summary(code: str) -> Finding:
-    """The box for applying the pending preview `code`; a record that is not there is denied.
+def _pending_summary(folder: str, title: str, preview: str, code: str) -> Finding:
+    """The box for applying the pending preview `code` kept in the store `folder`.
 
-    Denied, not asked: a box that cannot show what `apply` will write is a rubber stamp.
+    `preview` is the command that makes the record. A record that is not there is denied, not
+    asked: a box that cannot show what the write will do is a rubber stamp.
     """
-    path = _data_dir() / "cards" / "pending" / f"{code}.json"
+    path = _data_dir() / folder / "pending" / f"{code}.json"
+    kind = "release preview" if folder == "release" else "preview"
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        where = "" if folder == "release" else " in the default store"
         return Finding(
-            TITLE_JIRA,
+            title,
             (),
-            f"Blocked: no pending preview with code {code} in the default store; "
-            "run ws card preview first.",
+            f"Blocked: no pending {kind} with code {code}{where}; run {preview} first.",
         )
     except (OSError, ValueError):
         return Finding(
-            TITLE_JIRA,
+            title,
             (),
-            f"Blocked: the pending preview with code {code} could not be read; "
-            "run ws card preview again.",
+            f"Blocked: the pending {kind} with code {code} could not be read; run {preview} again.",
         )
     summary = record.get("summary") if isinstance(record, dict) else None
     if not isinstance(summary, list) or not summary or not all(isinstance(s, str) for s in summary):
-        line = "A prévia não tem resumo; veja antes com `ws card preview`"
-        return Finding(f"Aplica a prévia {code} no Jira", (line,))
-    brief = f"Aplica a prévia {code} no Jira ({len(summary)} mudanças)"
-    return Finding(f"Aplica a prévia {code} no Jira", tuple(summary), brief=brief)
+        line = f"A prévia não tem resumo; veja antes com `{preview}`"
+        return Finding(title, (line,))
+    return Finding(title, tuple(summary), brief=f"{title} ({len(summary)} mudanças)")
 
 
 def _store_change(scan: Scan) -> str | None:
@@ -1425,21 +1426,34 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
         return [_found(TITLE_PROTECTION, reason, _snippet(texts), alert=True)]
     if names == ["gate", "catalog"]:
         return _gate_catalog(texts, args, top)
-    if names != ["card", "apply"]:
+    if names == ["card", "apply"]:
+        kind = "card"
+    elif names[:1] == ["release"] and names[1:] in (["publish"], ["move"]):
+        kind = names[1]
+    else:
         return []
+    jira = kind == "card"
+    title_fallback = TITLE_JIRA if jira else TITLE_GITHUB
     code = None
     for index, word in enumerate(args):
         flag, equals, value = word.text.partition("=")
         if len(flag) > 2 and "--approve".startswith(flag):
             code = value if equals else (args[index + 1].text if index + 1 < len(args) else "")
     if code is None:
-        return [_found(TITLE_JIRA, "Falta o --approve; o ws vai recusar", _snippet(texts))]
+        return [_found(title_fallback, "Falta o --approve; o ws vai recusar", _snippet(texts))]
     if not APPROVE_CODE.fullmatch(code):
-        return [_found(TITLE_JIRA, "Código de aprovação inválido; o ws vai recusar", code)]
+        return [_found(title_fallback, "Código de aprovação inválido; o ws vai recusar", code)]
     if changed := _store_change(scan):
         reason = "Pode mudar a pasta de onde o ws lê a prévia; não sei o que será aplicado"
         return [_found(TITLE_UNSURE, reason, changed)]
-    return [_pending_summary(code)]
+    if jira:
+        title = f"Aplica a prévia {code} no Jira"
+        return [_pending_summary("cards", title, "ws card preview", code)]
+    if kind == "publish":
+        title = f"Publica a prévia {code} no GitHub"
+    else:
+        title = f"Move a release (prévia {code}) no GitHub"
+    return [_pending_summary("release", title, f"ws release preview {kind}", code)]
 
 
 def _python_ws(args: list[Word]) -> list[tuple[str, list[Word]]]:
@@ -1808,8 +1822,25 @@ def _applies_card(code: str) -> bool:
     return bool(WS_IMPORT.search(code)) and "card" in code and "apply" in code
 
 
+def _writes_release(code: str) -> bool:
+    """Python that may publish or move a release: it names `run_publish` or `run_move`, or
+    imports `ws` and names `release` with `publish` or `move`."""
+    if "run_publish" in code or "run_move" in code:
+        return True
+    return (
+        bool(WS_IMPORT.search(code)) and "release" in code and ("publish" in code or "move" in code)
+    )
+
+
 def _script_findings(scan: Scan) -> list[Finding]:
     found = []
+    for code in scan.scripts:
+        if _writes_release(code):
+            found.append(
+                _found(
+                    TITLE_GITHUB, "Python que chama o ws e pode publicar ou mover uma release", code
+                )
+            )
     for code in scan.scripts:
         if _applies_card(code):
             found.append(
