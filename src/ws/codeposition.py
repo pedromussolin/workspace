@@ -55,7 +55,7 @@ def _has_remote(repo: Path, remote: str) -> bool:
     return run_git(repo, "remote", "get-url", remote).returncode == 0
 
 
-def _fetch_env(repo: Path) -> dict[str, str]:
+def fetch_env(repo: Path) -> dict[str, str]:
     """Never wait for a password; ssh in batch mode unless the user chose the ssh program."""
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     if "GIT_SSH_COMMAND" in env or "GIT_SSH" in env:
@@ -76,7 +76,7 @@ def _fetch_one(repo: Path, cfg: BoardConfig) -> str | None:
             tags,
             cfg.remote,
             timeout=FETCH_TIMEOUT_SECONDS,
-            env=_fetch_env(repo),
+            env=fetch_env(repo),
         )
     except subprocess.TimeoutExpired:
         return f"timeout after {FETCH_TIMEOUT_SECONDS}s"
