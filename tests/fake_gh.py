@@ -88,11 +88,19 @@ ALLOWED_FLAGS = {{
     "pr comment": {{"-R", "--body"}},
 }}
 if verb in ALLOWED_FLAGS:
-    for arg in argv[2:]:
-        if arg.startswith("-") and arg.split("=")[0] not in ALLOWED_FLAGS[verb]:
-            fail("unknown flag: " + arg)
-        if arg.startswith("--") and "=" in arg:
+    position = 2
+    while position < len(argv):
+        arg = argv[position]
+        if not arg.startswith("-"):
+            position += 1
+            continue
+        if "=" in arg and arg.startswith("--"):
             fail("unsupported form: " + arg)
+        if arg not in ALLOWED_FLAGS[verb]:
+            fail("unknown flag: " + arg)
+        if position + 1 >= len(argv):
+            fail("flag needs an argument: " + arg)
+        position += 2
 if option("--json"):
     for name in option("--json").split(","):
         if name not in JSON_FIELDS:

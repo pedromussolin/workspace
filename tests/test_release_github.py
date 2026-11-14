@@ -179,3 +179,12 @@ def test_fake_rejects_unknown_json_field_and_state(fake_gh):  # noqa: F811
         ["pr", "list", "-R", SLUG, "--state", "bogus"],
     ):
         assert subprocess.run(["gh", *args], capture_output=True).returncode == 1
+
+
+def test_fake_takes_a_dash_value_for_a_known_flag(fake_gh):  # noqa: F811
+    Gh().write(("pr", "create", "-R", SLUG, "--title", "-x"), "corpo")
+    fake_gh.add_pr(SLUG, 5, "h", "master")
+    Gh().write(("pr", "comment", "5", "-R", SLUG, "--body", "- item"), None)
+    assert Gh().pr(SLUG, 1).title == "-x"
+    with pytest.raises(GhFailed, match="unknown flag"):
+        Gh().write(("pr", "comment", "5", "-R", SLUG, "--nope", "x"), None)
