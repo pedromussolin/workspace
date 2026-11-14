@@ -323,17 +323,21 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 HARNESS = """\
 const fs = require("fs");
 const input = JSON.parse(fs.readFileSync(0, "utf8"));
-const script = fs.readFileSync(process.argv[2], "utf8").split("// ws:entry")[0];
+const full = fs.readFileSync(process.argv[2], "utf8");
+const script = full.split("// ws:entry")[0].replace(/^import .*$/m, "");
 const lib = new Function(script + "\\nreturn { summarize, run };")();
 
+const seen = [];
 function answer(tool, attrs) {
+  seen.push({ tool, attrs });
   const query = attrs.filter.query;
   const agg = attrs.compute[0].aggregation;
   for (const r of input.rules || []) {
     if (r.tool !== tool) continue;
     if (r.contains && !query.includes(r.contains)) continue;
     if (r.agg ? r.agg !== agg : agg === "pc95") continue;
-    if (r.from_ms && String(r.from_ms) !== attrs.filter.from) continue;
+    if (r.from_iso && r.from_iso !== attrs.filter.from) continue;
+
     if (r.grouped !== undefined && Boolean(attrs.groupBy) !== r.grouped) continue;
     if (r.throw) throw new Error(r.throw);
     return r.response;
@@ -348,7 +352,7 @@ const api = {
 (async () => {
   const failed = input.failed || {};
   const out = input.op === "run" ? await lib.run(api) : lib.summarize(input.raw, failed);
-  process.stdout.write(JSON.stringify(out));
+  process.stdout.write(JSON.stringify(input.show_seen ? { out, seen } : out));
 })();
 """
 
@@ -434,7 +438,7 @@ def test_verdict_from_a_zero_base_and_worst_check_wins(tmp_path, settings):
 
 @needs_node
 def test_verdict_sem_dados_under_min_requests(tmp_path, settings):
-    got = summarize(tmp_path, settings, {"traffic.a": 49, "errors.a": 40, "p95.a": 900.0})
+    got = summarize(tmp_path, settings, {"traffic.b": 49, "errors.a": 40, "p95.a": 900.0})
     for name in ("traffic", "errors", "http_5xx", "p95"):
         assert got["checks"][name]["status"] == "sem_dados"
     assert got["verdict"] == "ok"  # the log and version checks still speak
@@ -452,14 +456,14 @@ def logs_total(value):
 
 def spans_rules(settings):
     found = deploycheck.windows(T, settings, NOW)
-    before, after = found["before"]["from_ms"], found["after"]["from_ms"]
+    before, after = found["before"]["from"], found["after"]["from"]
     versions = [
         {"attributes": {"by": {"version": "abc1234"}, "computes": {"c0": 99}}},
         {"attributes": {"by": {"version": "old"}, "computes": {"c0": 1}}},
     ]
     return [
-        {"tool": "spans", "agg": "pc95", "from_ms": before, "response": spans_total(200e6)},
-        {"tool": "spans", "agg": "pc95", "from_ms": after, "response": spans_total(210e6)},
+        {"tool": "spans", "agg": "pc95", "from_iso": before, "response": spans_total(200e6)},
+        {"tool": "spans", "agg": "pc95", "from_iso": after, "response": spans_total(210e6)},
         {"tool": "spans", "contains": "status:error", "grouped": True, "response": {"data": []}},
         {"tool": "spans", "grouped": True, "response": {"data": versions}},
         {"tool": "spans", "grouped": False, "response": spans_total(1000)},
@@ -582,12 +586,19 @@ values = {{ sandbox = "envs/svc-x.yaml" }}
 def test_entry_section_references_only_the_known_sdk_surface(settings):
     entry = script_for(settings).split("// ws:entry")[1]
     used = set(re.findall(r"\bsdk\.[\w.]+", entry))
-    assert used == {
-        "sdk.client.createConfiguration",
-        "sdk.v2.SpansApi",
-        "sdk.v2.LogsApi",
-        "sdk.v2.RUMApi",
+    assert used == set()
+    assert set(re.findall(r"\b(?:client|v2)\.[\w.]+", entry)) == {
+        "client.createConfiguration",
+        "v2.SpansApi",
+        "v2.LogsApi",
+        "v2.RUMApi",
     }
+    lines = script_for(settings).splitlines()
+    imports = [line for line in lines if line.startswith("import ")]
+    assert imports == ['import { client, v2 } from "@datadog/datadog-api-client";']
+    assert lines.index(imports[0]) < next(
+        i for i, line in enumerate(lines) if line.startswith("const P")
+    )
     assert set(re.findall(r"\b(?:spansApi|logsApi|rumApi)\.\w+", entry)) == {
         "spansApi.aggregateSpans",
         "logsApi.aggregateLogs",
@@ -665,12 +676,74 @@ def test_version_check_is_gated_by_min_requests(tmp_path, settings):
 
 
 @needs_node
-def test_version_without_the_facet_is_sem_dados_naming_it(tmp_path, settings):
+def test_version_without_the_facet_counts_as_sem_versao(tmp_path, settings):
     rules = spans_rules(settings)
     unusable = {"data": [{"attributes": {"by": {}, "computes": {"c0": 100}}}]}
     rules[3] = {"tool": "spans", "grouped": True, "response": unusable}
     got = node_run(tmp_path, script_for(settings), {"op": "run", "rules": rules})
     version = got["checks"]["version"]
-    assert version["status"] == "sem_dados"
-    assert "version" in version["note"]
+    assert version["status"] == "atencao"
+    assert got["version_share_pct"] == 0.0
     assert got["checks"]["traffic"]["status"] == "ok"
+
+
+@needs_node
+def test_traffic_drop_and_short_after_window(tmp_path, settings):
+    def traffic(**raw):
+        return summarize(tmp_path, settings, raw)["checks"]["traffic"]["status"]
+
+    assert traffic(**{"traffic.a": 499}) == "piorou"
+    assert traffic(**{"traffic.a": 500}) == "ok"
+    assert traffic(**{"traffic.a": 60}) == "piorou"
+    assert traffic(**{"traffic.b": 49, "traffic.a": 5}) == "sem_dados"
+
+
+@needs_node
+def test_short_after_window_is_atencao_and_empty_window_is_sem_dados(tmp_path, settings):
+    def checks(minutes_ago):
+        script = deploycheck.build_script(
+            settings, "bff", "sandbox", at=NOW - timedelta(minutes=minutes_ago), now=NOW
+        )
+        payload = {"op": "summarize", "raw": BASE_RAW, "failed": {}}
+        return node_run(tmp_path, script, payload)["checks"]
+
+    assert checks(7)["traffic"]["status"] == "atencao"
+    empty = checks(5)
+    assert empty["traffic"]["status"] == "sem_dados"
+    assert empty["error_logs"]["status"] == "sem_dados"
+
+
+@needs_node
+def test_requests_use_the_documented_shapes(tmp_path, settings):
+    payload = {"op": "run", "rules": spans_rules(settings), "show_seen": True}
+    seen = node_run(tmp_path, script_for(settings), payload)["seen"]
+    spans = [item["attrs"] for item in seen if item["tool"] == "spans"]
+    assert spans
+    for attrs in spans:
+        compute = attrs["compute"][0]
+        assert "type" not in compute
+        assert compute["metric"] in {"*", "@duration"}
+        for group in attrs.get("groupBy", []):
+            if "sort" in group:
+                assert group["sort"] == {
+                    "aggregation": "count", "metric": "*", "order": "desc", "type": "measure"
+                }  # fmt: skip
+    found = deploycheck.windows(T, settings, NOW)
+    froms = {attrs["filter"]["from"] for attrs in spans}
+    assert froms >= {found["before"]["from"], found["after"]["from"]}
+    assert all(attrs["filter"]["to"].endswith("Z") for attrs in spans)
+
+
+def test_skill_names_the_tool_and_the_rules():
+    skill = (Path(__file__).parent.parent / "skills" / "deploy-check" / "SKILL.md").read_text()
+    for needle in (
+        "mcp__plugin_engineering_datadog__execute_code",
+        "execute_code_write",
+        "ddsetup",
+        'telemetry: {intent: "..."}',
+        "search_datadog_sdk",
+        "override",
+        "span counts",
+    ):
+        assert needle in skill
+    assert "do not search the SDK" not in skill
