@@ -1472,6 +1472,7 @@ def test_scan_warnings_are_reported(scenario, git, capsys):
 
 
 def test_no_values_file_for_the_env_is_a_warning(scenario, capsys):
+    scenario.set_store(["/realm/sbx/app/CFG_DB_URL"])
     _, result, _ = scenario.check_json(capsys, env="sandbox")
     assert result["warnings"] == ["apps/app/sbx.yaml: values file not found; argocd not checked"]
     assert result["in_argocd"] == []
@@ -1555,6 +1556,20 @@ def test_ignore_names_are_never_reported(scenario, git, capsys):
     for name in ("DD_AGENT_HOST", "DD_ENV", "DD_SERVICE", "DD.BAD"):
         assert name not in every
     assert names_of(result["in_argocd"]) == ["CFG_DB_URL"]
+
+
+def test_zero_store_names_is_a_warning(scenario, capsys):
+    scenario.set_store(["/realm/other/app/CFG_DB_URL"])
+    code, result, err = scenario.check_json(capsys)
+    assert code == 1
+    assert result["counts"]["store"] == 0
+    (warning,) = [w for w in result["warnings"] if "0 names" in w]
+    assert "prefix.prod" in warning and "[env_check.repos.api]" in warning
+    assert warning in err
+    code, out, err = scenario.check(capsys)
+    assert "0 names" in err and "0 names" in out
+    scenario.set_store(DEFAULT_STORE)
+    assert "0 names" not in scenario.check(capsys)[2]
 
 
 def use_script_source(scenario, script: Path) -> None:

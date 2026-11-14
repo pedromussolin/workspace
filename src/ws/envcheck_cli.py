@@ -99,6 +99,13 @@ def _check(args: argparse.Namespace) -> dict:
         scan = envcheck.scan_shell(files, list(profile.shell_files))
     argocd_names, warnings = _argocd(profile, args.env)
     store = envcheck.store_names(settings, profile, args.env)
+    if not store:
+        warning = (
+            f"the Parameter Store returned 0 names under prefix.{args.env} of "
+            f"[env_check.repos.{args.repo}]: check the prefix (or the script's output format)"
+        )
+        print(f"ws env check: warning: {warning}", file=sys.stderr)
+        warnings.insert(0, warning)
     repo_strict = profile.strict if profile.strict is not None else settings.strict
 
     compared = envcheck.compare(
