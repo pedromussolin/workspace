@@ -26,6 +26,14 @@ def test_env_check_help_lists_its_flags(capsys):
         assert flag in out
 
 
+def test_env_help_does_not_claim_no_value_is_read(capsys):
+    with pytest.raises(SystemExit):
+        main(["env", "--help"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "no value of the Parameter Store is ever printed or kept" in out
+    assert "ever read" not in out
+
+
 def test_env_check_needs_an_environment(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["env", "check", "api", "--ref", "HEAD"])

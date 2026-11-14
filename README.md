@@ -247,6 +247,34 @@ done = "Concluído"
   name must map back to its own status through `[jira.status_overrides]`.
 - A bad value exits 2 with the key path.
 
+### `[env_check]`
+
+`ws env check` reads only names: no value of the Parameter Store is ever printed or kept.
+
+```toml
+[env_check]
+source = "aws"                     # or "script" (then `script = "<path>"`)
+role_vars = ["POD_ROLE", "AWS_*"]  # set by the pod's role: fine in argocd, never missing
+strict = false                     # true: a missing name with a default also fails
+
+[env_check.repos.my-api]
+path = "~/repos/my-api"
+argocd = "~/repos/my-argocd"
+prefix = { sandbox = "/realm/sbx/my-api", prod = "/realm/prd/my-api" }
+values = { sandbox = ["apps/my-api/sbx.yaml"], prod = ["apps/my-api/prd.yaml"] }
+profile = { sandbox = "my-sbx-profile", prod = "my-prd-profile" }   # source = "aws" only
+always_required = ["APP_ENVIRONMENT"]
+exclude_globs = ["**/tests/**", "scripts/**"]   # not scanned; replaces the default
+ignore = ["DD_*"]                  # set by the platform: never reported
+strict = true                      # overrides the global value for this repo
+```
+
+- `exclude_globs` defaults to `["**/tests/**"]`; setting it replaces that default.
+- `--strict` on the command line wins over both `strict` keys; the `Resultado` line and the JSON
+  `counts` always give the number of missing names with a default.
+- A store that returns 0 names (a wrong prefix, or a script whose output changed) is a warning on
+  stderr and in `warnings`.
+
 ## What protects the repo
 
 Protection starts after `ws setup`: a fresh clone has no git hooks. From then on, the hooks call
@@ -367,6 +395,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
 | `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints `tasks` (the neutral tasks) and `stuck` (active cards with no activity for the configured workdays) |
+| `ws env check REPO --env ENV (--ref REF \| --deployed) [--strict] [--json]` | Compares the env var names the code reads at that commit (never the working tree) with the Parameter Store names under the environment's prefix and the argocd values (`[env_check]`); names only, never a value; exit 0 nothing to fix, 1 a required name missing or a name left in argocd (with `--strict`, also a name with a default), 2 setup, 3 the store cannot be listed or read |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
 | `ws git merge-rehearsal --repo R --base B BRANCH…` | Merges the branches over B in a throwaway worktree (a fresh checkout with no dependencies installed), applies known conflict resolutions, runs an optional check |
 | `ws checkpoint check SLUG` | Validates the project's `CONTINUE.md` (required sections `## Onde parei` and `## Próximo passo` filled in, size limit on the next step) and `decisions.md`; prints a JSON verdict, exit 0 when ok, 1 otherwise |

@@ -1,7 +1,8 @@
 """`ws env check`: the env var names a repo reads, against the Parameter Store and argocd.
 
-Exit codes: 0 nothing to fix, 1 a name is missing or still set in argocd, 2 setup (config,
-credentials, commit not found), 3 the Parameter Store could not be listed.
+Exit codes: 0 nothing to fix, 1 a name is missing or still set in argocd (with `--strict`, also
+a name with a default), 2 setup (config, credentials, commit not found), 3 the Parameter Store
+could not be listed or read.
 """
 
 import argparse
@@ -21,7 +22,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
         "env",
         help="Env var names a repo reads against the Parameter Store.",
         description=(
-            "Names only: no value of the Parameter Store is ever read, printed or kept. "
+            "Names only: no value of the Parameter Store is ever printed or kept. "
             "Configured in the [env_check] table of config.toml."
         ),
     )
@@ -32,8 +33,9 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
         description=(
             "Reads the code at a commit (never the working tree), lists the Parameter Store "
             "names under the environment's prefix and reads the argocd values. Exit 0 when no "
-            "required name is missing and no name is left in argocd, 1 otherwise, 2 for a setup "
-            "problem, 3 when the store cannot be listed."
+            "required name is missing and no name is left in argocd (with --strict, also no name "
+            "with a default), 1 otherwise, 2 for a setup problem, 3 when the store cannot be "
+            "listed or read."
         ),
     )
     check.add_argument("repo", help="a key of [env_check.repos]")
