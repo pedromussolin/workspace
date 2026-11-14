@@ -649,7 +649,9 @@ expected to be "Update image tag in values.yaml"), and the image tag and `DD_VER
 (the version Datadog should show). A local argocd repo behind its upstream (last fetch) → a warning
 to pull first; `ws` never pulls. Windows: before `[T − 30 min, T)`, after `[T + 5 min, T + 35 min)`,
 baseline for new errors `[T − 24 h, T)`; `complete` false with `ready_at` when the after window has
-not ended (the check then compares rates over the elapsed part and says so).
+not ended (the check then compares rates over the elapsed part and says so). A naive `--at` (no
+offset) is local time of the machine, converted to UTC. A missing `DD_VERSION` in the values file is
+a warning (the version check will be `sem_dados`).
 
 ### `ws deploy-check script KEY --env ENV [--at ISO]` and `queries`
 
@@ -667,7 +669,9 @@ with `Promise.allSettled` so one failed query still returns the others:
 | version | spans grouped by `version` in the after window | share of the expected version |
 
 Each check returns `ok`, `atencao`, `piorou` or `sem_dados` by fixed thresholds (an error or 5xx
-rate up more than 50% with at least `min_requests` in both windows; p95 up more than 30% and 50 ms;
+rate up more than 50% with at least `min_requests` in both windows is `piorou` only when it also
+means at least `min_extra_errors` (default 10) more errors than the before rate gives for the after
+window, otherwise `atencao`; the same for error logs; p95 up more than 30% and 50 ms;
 a new error signature → `atencao`, 10 or more occurrences → `piorou`; under `min_requests` →
 `sem_dados`), with the numbers, and a top-level verdict. A front service of `kind = "rum"` uses RUM
 error events instead of spans; `kind = "logs"` only the log checks. The filters and the version tag
@@ -713,6 +717,7 @@ window_minutes = 30
 settle_minutes = 5
 baseline_hours = 24
 min_requests = 50
+min_extra_errors = 10
 
 [deploy_check.env_tags]
 sandbox = "<env tag>"
