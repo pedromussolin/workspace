@@ -3,13 +3,39 @@ import pytest
 from ws.cli import main
 
 
-def test_env_stub_is_registered_and_not_implemented(capsys):
-    """Step 0 stub; part C of the session automations replaces this file's tests with its own."""
-    assert main(["env"]) == 2
-    assert "ws env: not implemented yet" in capsys.readouterr().err
+def test_env_needs_a_subcommand(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["env"])
+    assert exc.value.code == 2
+    assert "check" in capsys.readouterr().err
 
 
-def test_env_stub_has_help():
+def test_env_has_help(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["env", "--help"])
     assert exc.value.code == 0
+    assert "check" in capsys.readouterr().out
+
+
+def test_env_check_help_lists_its_flags(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["env", "check", "--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    for flag in ("--env", "--ref", "--deployed", "--strict", "--json"):
+        assert flag in out
+
+
+def test_env_help_does_not_claim_no_value_is_read(capsys):
+    with pytest.raises(SystemExit):
+        main(["env", "--help"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "no value of the Parameter Store is ever printed or kept" in out
+    assert "ever read" not in out
+
+
+def test_env_check_needs_an_environment(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["env", "check", "api", "--ref", "HEAD"])
+    assert exc.value.code == 2
+    assert "--env" in capsys.readouterr().err
