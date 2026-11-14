@@ -77,6 +77,16 @@ def _check_setup(
         where = gitops.checked_out_at(repo, branch) if local else None
         if where and gitops.merging(where):
             raise ReleaseSetup(f"{name}: a merge is in progress in {where}; finish it first")
+        if where and not gitops.clean(where) and _will_merge(config, entry, includes, branch):
+            raise ReleaseSetup(f"{name}: {where} has uncommitted changes; commit or stash them")
+
+
+def _will_merge(config: ReleaseConfig, entry: RepoEntry, includes: tuple[str, ...], branch: str):
+    """False only for a single-include branch that master has not moved past: nothing is merged."""
+    if len(includes) > 1 or branch != includes[0]:
+        return True
+    ref = _ref(entry.path, branch)
+    return gitops.count(entry.path, f"{ref}..{_origin(config.base_branch)}") > 0
 
 
 def _worktree(release: Path, entry: RepoEntry, branch: str, suffix: str, start: str | None) -> Path:
@@ -116,10 +126,7 @@ def _build_code(
         if gitops.count(repo, f"{_ref(repo, branch)}..{base}") == 0:
             return
         start = None if gitops.rev(repo, _local(branch)) else _origin(branch)
-        wt = gitops.checked_out_at(repo, branch)
-        if wt and not gitops.clean(wt):
-            raise ReleaseSetup(f"{entry.name}: {wt} has uncommitted changes; commit or stash them")
-        wt = wt or _worktree(release, entry, branch, "", start)
+        wt = _worktree(release, entry, branch, "", start)
         _merge_base(entry, wt, base, _keys(includes))
         return
     code = f"release/{text.compact(day)}"
@@ -181,6 +188,7 @@ def run_new(args: argparse.Namespace) -> int:
             _check_setup(config, config.entry(name), wanted.include[name], day, published)
 
         states: list[dict] = []
+        built: list[str] = []
         suggested: dict[str, list[str]] = {}
         payload: dict = {"date": text.compact(day), "repos": states, "warnings": warnings}
         for name in selected:
@@ -200,9 +208,16 @@ def run_new(args: argparse.Namespace) -> int:
                         "merging": gitops.merging(stop.worktree),
                         "files": stop.files,
                     }
+                    payload["built"] = built
+                    payload["not_started"] = selected[selected.index(name) + 1 :]
                     return payload, 3
                 except gitops.GitFailed as error:
-                    raise ReleaseSetup(f"{name}: {error}") from None
+                    left = selected[selected.index(name) + 1 :]
+                    raise ReleaseSetup(
+                        f"{name}: {error}; built before it: {', '.join(built) or 'none'}; "
+                        f"not started: {', '.join(left) or 'none'}"
+                    ) from None
+                built.append(name)
             states.append(rules.assess(config, entry, includes, day, release).as_json())
         if suggested:
             payload["suggested_order"] = suggested

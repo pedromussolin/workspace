@@ -267,3 +267,94 @@ def test_new_refuses_a_local_branch_behind_origin(world, fixed_today, capsys, tm
         f"repo-a: local {ONE} is behind origin/{ONE}; pull it first" in out["repos"][0]["problems"]
     )
     assert world.git("repo-a", "branch", "--list", CODE) == ""
+
+
+def _all_refs(world: World) -> dict:
+    return {
+        n: (world.refs(n), world.git(n, "for-each-ref", "--format=%(refname) %(objectname)"))
+        for n in ("repo-a", "repo-b")
+    }
+
+
+def _dirty(path: Path, name: str) -> None:
+    (path / name).write_text("uncommitted\n")
+
+
+def test_new_refuses_a_dirty_single_worktree_before_touching_anything(world, fixed_today, capsys):
+    _setup(world)
+    world.commit("repo-b", "master", "moved.txt", "m\n", "chore: master moves")
+    world.git("repo-b", "checkout", "-q", ONLY)
+    _dirty(world.clone("repo-b"), "only.txt")
+    before = _all_refs(world)
+    code, _, err = _new(capsys)
+    assert code == 2 and "uncommitted changes" in err
+    assert _all_refs(world) == before
+
+
+def test_new_refuses_a_dirty_release_worktree_before_touching_anything(world, fixed_today, capsys):
+    _setup(world)
+    _new(capsys)
+    world.commit("repo-b", "master", "moved.txt", "m\n", "chore: master moves")
+    world.git("repo-b", "checkout", "-q", "master")
+    _dirty(world.release_dir() / "repo-a", "one.txt")
+    before = _all_refs(world)
+    code, _, err = _new(capsys)
+    assert code == 2 and "uncommitted changes" in err
+    assert _all_refs(world) == before
+
+
+def test_new_refuses_a_dirty_sdbx_worktree_before_touching_anything(world, fixed_today, capsys):
+    _setup(world)
+    _conflict_with_sandbox(world)
+    _new(capsys)
+    sdbx = world.release_dir() / "repo-a-sdbx"
+    (sdbx / "shared.txt").write_text("resolved\n")
+    world.git("repo-a", "-C", str(sdbx), "add", "shared.txt")
+    world.git("repo-a", "-C", str(sdbx), "commit", "-q", "--no-edit")
+    _dirty(sdbx, "shared.txt")
+    before = _all_refs(world)
+    code, _, err = _new(capsys)
+    assert code == 2 and "uncommitted changes" in err
+    assert _all_refs(world) == before
+
+
+def test_new_names_the_built_repos_on_a_late_git_failure(world, fixed_today, capsys, monkeypatch):
+    _setup(world)
+    original = build._build_code
+
+    def failing(config, entry, includes, day, release):
+        if entry.name == "repo-b":
+            raise build.gitops.GitFailed("boom")
+        original(config, entry, includes, day, release)
+
+    monkeypatch.setattr(build, "_build_code", failing)
+    code, _, err = _new(capsys)
+    assert code == 2
+    assert "repo-b: boom; built before it: repo-a; not started: none" in err
+
+
+def _second_repo_b_branch(world: World) -> str:
+    branch = "feature/TS-202-other"
+    world.branch("repo-b", branch, "master")
+    world.commit("repo-b", ONLY, "shared.txt", "one\n", "feat: shared one")
+    world.commit("repo-b", branch, "shared.txt", "two\n", "feat: shared two")
+    world.git("repo-b", "checkout", "-q", "master")
+    return branch
+
+
+def test_new_conflict_in_the_second_repo_lists_built_and_not_started(world, fixed_today, capsys):
+    other = _second_repo_b_branch(world)
+    world.write_release({"repo-a": [ONE, TWO], "repo-b": [ONLY, other]})
+    code, out, _ = _new(capsys)
+    assert code == 3
+    assert out["conflict"]["repo"] == "repo-b"
+    assert [r["repo"] for r in out["repos"]] == ["repo-a"]
+    assert out["built"] == ["repo-a"] and out["not_started"] == []
+
+
+def test_new_conflict_in_the_first_repo_lists_the_one_not_started(world, fixed_today, capsys):
+    other = _second_repo_b_branch(world)
+    world.write_release({"repo-b": [ONLY, other], "repo-a": [ONE, TWO]})
+    code, out, _ = _new(capsys)
+    assert code == 3
+    assert out["built"] == [] and out["not_started"] == ["repo-a"]
