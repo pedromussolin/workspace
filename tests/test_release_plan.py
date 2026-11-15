@@ -190,11 +190,11 @@ def test_approve_sends_and_pushes_to_the_origin(ready, fake_gh):  # noqa: F811
 
 
 def test_approve_deletes_the_record_before_sending(ready, fake_gh):  # noqa: F811
-    path_holder = {}
+    seen = []
+    holder = {}
 
     def first_send():
-        assert not path_holder["path"].exists()
-        raise RuntimeError("stop here")
+        seen.append(holder["path"].exists())
 
     def build():
         plan = make_plan(ready)
@@ -203,11 +203,11 @@ def test_approve_deletes_the_record_before_sending(ready, fake_gh):  # noqa: F81
 
     code = build().code
     writeplan.show_preview(build(), NEXT)
-    path_holder["path"] = writeplan.store() / f"{code}.json"
-    assert path_holder["path"].exists()
+    holder["path"] = writeplan.store() / f"{code}.json"
+    assert holder["path"].exists()
     payload, exit_code = approve(ready, code, build=build, local={"first": first_send})
-    assert exit_code == 1 and payload["failed"] == "primeiro"
-    assert fake_gh.writes == []
+    assert exit_code == 0 and seen == [False]
+    fake_gh.fail("pr create", "HTTP 422")
     with pytest.raises(ReleaseRefused, match="no pending"):
         approve(ready, code, build=build)
 
@@ -245,10 +245,51 @@ def test_git_timeout_is_uncertain(ready, monkeypatch, capsys):
 
 
 def test_git_rejected_push_is_a_plain_failure(ready):
-    plan = make_plan(ready)
-    plan.calls[0] = git_call_in(ready, "push", "-u", "origin", "release/20261199")
+    world = ready
+    world.commit("repo-a", BRANCH, "ahead.txt", "x\n", "feat: ahead")
+    world.git("repo-a", "reset", "-q", "--hard", "HEAD~1")
+    world.commit("repo-a", BRANCH, "other.txt", "y\n", "feat: other", push=False)
+    plan = make_plan(world)
     payload, exit_code = writeplan.execute(plan, Gh())
     assert exit_code == 1 and payload["uncertain"] is False and payload["done"] == []
+    assert payload["failed"] == "enviar a branch da release"
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "error: RPC failed; curl 56 Recv failure\nfatal: the remote end hung up unexpectedly",
+        "client_loop: send disconnect: Broken pipe\nfatal: early EOF",
+        "Connection was reset by peer",
+    ],
+)
+def test_git_mid_push_drop_is_uncertain(ready, monkeypatch, stderr):
+    done = subprocess.CompletedProcess(["git"], 128, stdout="", stderr=stderr)
+    monkeypatch.setattr(writeplan, "run_git", lambda *args, **kwargs: done)
+    payload, exit_code = writeplan.execute(make_plan(ready), Gh())
+    assert exit_code == 1 and payload["uncertain"] is True
+
+
+def test_git_rejection_wins_over_a_drop_word(ready, monkeypatch):
+    stderr = " ! [remote rejected] x -> x (hook declined)\nerror: failed to push; RPC failed"
+    done = subprocess.CompletedProcess(["git"], 1, stdout="", stderr=stderr)
+    monkeypatch.setattr(writeplan, "run_git", lambda *args, **kwargs: done)
+    payload, exit_code = writeplan.execute(make_plan(ready), Gh())
+    assert exit_code == 1 and payload["uncertain"] is False
+
+
+def test_an_unexpected_error_in_a_send_is_reported_as_that_call_failing(ready, capsys):
+    def boom():
+        raise ValueError("embedded null byte")
+
+    plan = make_plan(ready)
+    plan.calls.insert(1, Call(repo="repo-a", program="local", args=("boom",), line="estoura"))
+    payload, exit_code = writeplan.execute(plan, Gh(), {"boom": boom})
+    assert exit_code == 1
+    assert payload["done"] == ["enviar a branch da release"]
+    assert payload["failed"] == "estoura"
+    assert len(payload["not_sent"]) == 2
+    assert "embedded null byte" in capsys.readouterr().err
 
 
 def test_git_push_never_waits_for_a_password(ready, monkeypatch):
