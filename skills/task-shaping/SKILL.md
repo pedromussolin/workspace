@@ -31,6 +31,9 @@ the AI or the conversation. These instructions are in English.
    - **People:** `assignee` develops, `reporter` writes the card and answers for it. Items hold dev ids
      (`dev-` plus 10 hex), never `me`. `ws people me` prints the user's id; for a colleague,
      `ws people add EMAIL [--account ID]` prints the config block to paste (and the id).
+   - **Repos:** `repos`, the repo names (folders under the configured roots, such as
+     `acme-api`) where the work happens. `ws card start` makes the branches there. Propose it from
+     the task's scope; `repos = []` means no repo, only the card moves.
    - **Links:** `blocks`, `blocked_by`, `relates`, each to a card ref or to another item's
      relative path (`../<project>/tasks/<file>.md` for another project). One direction per pair.
 3. **Wait for the user's yes** on the proposal (or the corrections).
@@ -39,7 +42,7 @@ the AI or the conversation. These instructions are in English.
      --heading "..." --slug <english-slug>`. It prints the repo-relative path. `--epic` is
      optional; `--slug` is the file's English name.
    - Existing: edit only the contract keys of the front matter (`card`, `type`, `epic`,
-     `assignee`, `reporter`, `blocks`, `blocked_by`, `relates`, `docs`). Never touch the
+     `assignee`, `reporter`, `repos`, `blocks`, `blocked_by`, `relates`, `docs`). Never touch the
      `[tracker]` table (the cache that `ws item sync` owns), never write `me`, and never change
      `card` by hand (`/card` writes it back; `ws item set-card` fixes an uncertain one).
    - The item's prose (heading and body) in PT-BR, only about the task.
