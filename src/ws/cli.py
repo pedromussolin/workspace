@@ -12,6 +12,7 @@ from ws import (
     board_cli,
     bootstrap,
     card,
+    cardstart,
     checkpoint,
     config,
     deploycheck_cli,
@@ -815,6 +816,34 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     apply.add_argument("path", help="The same draft file or folder that was previewed.")
     apply.add_argument("--approve", metavar="CODE", help="The code `ws card preview` printed.")
     apply.set_defaults(handler=lambda args: card.run_apply(args.path, args.approve))
+    start = commands.add_parser(
+        "start",
+        help="Start a task: a branch in each of its repos, then the preview of the card's move "
+        "(JSON; never sends, commits or pushes).",
+    )
+    start.add_argument("ref", help="The card, like TS-123.")
+    start.add_argument(
+        "--repo",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="A repo of the task (repeatable); replaces the item's repos and the title prefix.",
+    )
+    start.add_argument(
+        "--kind", choices=cardstart.KINDS, help="Branch kind; default: fix for a bug, else feature."
+    )
+    start.add_argument("--desc", metavar="SLUG", help="Branch slug instead of the title's.")
+    start.add_argument(
+        "--worktree",
+        action="store_true",
+        help="Put the branch in <root>/.worktrees/<repo>-<REF>; the checkout is not touched.",
+    )
+    start.add_argument("--dry-run", action="store_true", help="Only the checks and the plan.")
+    start.set_defaults(
+        handler=lambda args: cardstart.run_start(
+            args.ref, args.repo, args.kind, args.desc, args.worktree, args.dry_run
+        )
+    )
 
 
 def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
