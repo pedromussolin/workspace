@@ -10,6 +10,7 @@ out of the plan."""
 import argparse
 import re
 import shlex
+import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -104,13 +105,24 @@ def _taken(
             problems.append(f"{entry.name}: {target} exists on origin at another commit")
     for suffix in ("", "-sdbx"):
         target = f"release/{new}{suffix}"
-        if gitops.rev(entry.path, f"refs/heads/{target}"):
+        if gitops.rev(entry.path, f"refs/heads/{target}") and not _renamed(entry, old, new, suffix):
             problems.append(f"{entry.name}: the local branch {target} exists")
         ours = {pr.base for pr in old_prs if pr.head == f"release/{old}{suffix}"}
         for pr in gh.prs(entry.slug, head=target, state="open"):
             if pr.base not in ours:
                 problems.append(f"{entry.name}: PR #{pr.number} already uses {target}")
     return problems
+
+
+def _renamed(entry: RepoEntry, old: str, new: str, suffix: str) -> bool:
+    """The local `release/NEW` is what an earlier run renamed: `release/OLD` is gone and it sits
+    at the commit `origin` has for the new branch."""
+    mine = gitops.rev(entry.path, f"refs/heads/release/{new}{suffix}")
+    return (
+        not gitops.rev(entry.path, f"refs/heads/release/{old}{suffix}")
+        and mine is not None
+        and mine == gitops.rev(entry.path, _origin(f"release/{new}{suffix}"))
+    )
 
 
 def _old_prs(entry: RepoEntry, gh: Gh, heads: list[str]) -> list[PullRequest]:
@@ -378,9 +390,12 @@ def build_plan(
     if new_day < text.today():
         raise ReleaseRefused(f"{new} is in the past")
     names = tuple(entry.name for entry in config.repos)
-    wanted = release_folder.read_release(release_folder.release_dir(slug, old_day), names)
-    if release_folder.release_dir(slug, new_day).exists():
-        raise ReleaseRefused(f"{release_folder.release_dir(slug, new_day)} already exists")
+    old_dir = release_folder.release_dir(slug, old_day)
+    new_dir = release_folder.release_dir(slug, new_day)
+    moved = not (old_dir / "release.toml").exists() and (new_dir / "release.toml").exists()
+    wanted = release_folder.read_release(new_dir if moved else old_dir, names)
+    if not _new_folder_free(old_dir, new_dir, names):
+        raise ReleaseRefused(f"{new_dir} already exists")
 
     entries = [entry for entry in config.repos if entry.name in wanted.repos]
     multi = [entry for entry in entries if len(wanted.include[entry.name]) > 1]
@@ -433,6 +448,50 @@ def build_plan(
     calls += writeplan.second_pass(calls)
     calls += _fix_calls(items, old, new, new_day, renumber, known)
     problems += _title_problems(calls, known)
+    closing = {int(call.args[2]) for call in calls if call.args[:2] == ("pr", "close")}
+    if delete_old:
+        for entry in multi:
+            deletes, found = _delete_calls(entry, gh, old, branches[entry.name], closing)
+            calls += deletes
+            problems += found
+    local, moves = [], []
+    for entry in multi:
+        renames, moving = _local_calls(entry, old, new, old_dir, new_dir, branches[entry.name])
+        local += renames + moving
+        moves += moving
+    if old_dir.exists():
+        shown = f"release.toml, pr/ e published.json de release-{old} para release-{new}"
+        if moves:
+            calls.append(
+                _folder_call(
+                    old_dir,
+                    new_dir,
+                    old,
+                    new,
+                    "files",
+                    f"mover {shown} e trocar a data nos rascunhos",
+                )
+            )
+            calls += local
+            calls.append(
+                _folder_call(
+                    old_dir, new_dir, old, new, "finish", f"remover a pasta release-{old}, se vazia"
+                )
+            )
+        else:
+            calls += local
+            calls.append(
+                _folder_call(
+                    old_dir,
+                    new_dir,
+                    old,
+                    new,
+                    "all",
+                    f"mover {shown}, trocar a data nos rascunhos e remover a pasta antiga se vazia",
+                )
+            )
+    else:
+        calls += local
     return WritePlan(
         action="move",
         slug=slug,
@@ -449,6 +508,157 @@ def build_plan(
         },
         problems=problems,
     )
+
+
+def _delete_calls(
+    entry: RepoEntry, gh: Gh, old: str, branches: Branches, closing: set[int]
+) -> tuple[list[Call], list[str]]:
+    """`release/OLD[-sdbx]` leaves `origin` only when no PR from it stays open and no open PR has
+    it as base; the PRs this plan closes count as closed."""
+    calls, problems = [], []
+    for source in branches:
+        open_from = [
+            pr.number
+            for pr in gh.prs(entry.slug, head=source, state="open")
+            if pr.number not in closing
+        ]
+        open_base = [pr.number for pr in gh.prs(entry.slug, base=source, state="open")]
+        if open_from:
+            problems.append(
+                f"{entry.name}: {source} stays: PR #{open_from[0]} from it is still open"
+            )
+        elif open_base:
+            problems.append(f"{entry.name}: {source} stays: it is the base of PR #{open_base[0]}")
+        else:
+            calls.append(
+                Call(
+                    repo=entry.name,
+                    program="git",
+                    args=("push", "origin", "--delete", source),
+                    line=f"{entry.name}: apagar {source} na origin",
+                    cwd=str(entry.path),
+                )
+            )
+    return calls, problems
+
+
+def _upstream_set(entry: RepoEntry, branch: str) -> bool:
+    def config(key: str) -> str:
+        return gitops.git(
+            entry.path, "config", "--get", f"branch.{branch}.{key}", check=False
+        ).stdout.strip()
+
+    return config("remote") == gitops.REMOTE and config("merge") == f"refs/heads/{branch}"
+
+
+def _registered(entry: RepoEntry) -> set[Path]:
+    out = gitops.git(entry.path, "worktree", "list", "--porcelain").stdout
+    return {
+        Path(line[len("worktree ") :]).resolve()
+        for line in out.splitlines()
+        if line.startswith("worktree ")
+    }
+
+
+def _local_calls(
+    entry: RepoEntry, old: str, new: str, old_dir: Path, new_dir: Path, branches: Branches
+) -> tuple[list[Call], list[Call]]:
+    """The branch renames and upstreams, and the worktree moves, still to do for `entry`; what
+    the live state shows done is left out, so a rerun finishes."""
+    branch_calls, moves = [], []
+    for suffix in ("", "-sdbx"):
+        source, target = f"release/{old}{suffix}", f"release/{new}{suffix}"
+        on_origin = source in branches or gitops.rev(entry.path, _origin(target))
+        if gitops.rev(entry.path, f"refs/heads/{source}") and on_origin:
+            branch_calls.append(
+                Call(
+                    repo=entry.name,
+                    program="git",
+                    args=("branch", "-m", source, target),
+                    line=f"{entry.name}: renomear a branch local {source} para {target}",
+                    cwd=str(entry.path),
+                )
+            )
+        if on_origin and (
+            gitops.rev(entry.path, f"refs/heads/{source}")
+            or (gitops.rev(entry.path, f"refs/heads/{target}") and not _upstream_set(entry, target))
+        ):
+            branch_calls.append(
+                Call(
+                    repo=entry.name,
+                    program="git",
+                    args=("branch", "-u", f"origin/{target}", target),
+                    line=f"{entry.name}: apontar {target} para origin/{target}",
+                    cwd=str(entry.path),
+                )
+            )
+    registered = _registered(entry)
+    for name in (entry.name, f"{entry.name}-sdbx"):
+        if (old_dir / name).resolve() in registered:
+            moves.append(
+                Call(
+                    repo=entry.name,
+                    program="git",
+                    args=("worktree", "move", str(old_dir / name), str(new_dir / name)),
+                    line=f"{entry.name}: mover o worktree release-{old}/{name} para release-{new}",
+                    cwd=str(entry.path),
+                )
+            )
+    return branch_calls, moves
+
+
+FOLDER_FILES = ("release.toml", "pr", "published.json")
+
+
+def _folder_call(old_dir: Path, new_dir: Path, old: str, new: str, mode: str, line: str) -> Call:
+    return Call(
+        repo="release",
+        program="local",
+        args=("move-folder", str(old_dir), str(new_dir), old, new, mode),
+        line=line,
+    )
+
+
+def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> None:
+    """The local handler of `move-folder`. `files` moves `release.toml`, `pr/` and
+    `published.json` to the new folder and gives the drafts the new date; `finish` removes the old
+    folder when it is empty and says what stays; `all` is both. It can run again after a failure."""
+    source, target = Path(old_dir), Path(new_dir)
+    if (
+        source.name != f"release-{old}"
+        or target.name != f"release-{new}"
+        or source.parent != target.parent
+    ):
+        raise ValueError(f"{source} and {target} are not the release folders of {old} and {new}")
+    if mode in ("files", "all"):
+        for name in FOLDER_FILES:
+            if (source / name).exists():
+                if (target / name).exists():
+                    raise FileExistsError(f"{target / name} already exists")
+                release_folder.ensure_dir(target)
+                (source / name).rename(target / name)
+        for draft in sorted((target / "pr").glob("*.md")):
+            before = draft.read_bytes().decode()
+            after = _swap(before, old, new)
+            if after != before:
+                draft.write_bytes(after.encode())
+    if mode in ("finish", "all") and source.is_dir():
+        try:
+            source.rmdir()
+        except OSError:
+            stays = ", ".join(sorted(path.name for path in source.iterdir()))
+            print(f"{source} stays, it still holds: {stays}", file=sys.stderr)
+
+
+def _new_folder_free(old_dir: Path, new_dir: Path, names: tuple[str, ...]) -> bool:
+    """`release-NEW/` is free, or holds only what an earlier run of this move put there."""
+    if not new_dir.exists():
+        return True
+    held = {path.name for path in new_dir.iterdir()}
+    mine = set(FOLDER_FILES) | {f"{name}{suffix}" for name in names for suffix in ("", "-sdbx")}
+    if not held or not held <= mine:
+        return False
+    return not any((old_dir / name).exists() and (new_dir / name).exists() for name in FOLDER_FILES)
 
 
 def _next_command(args: argparse.Namespace, slug: str) -> str:
@@ -507,7 +717,12 @@ def run_move(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         config, gh, slug, warnings = _setup(args)
         payload, code = writeplan.approve(
-            args.approve, "move", lambda: _build(args, config, slug, gh), gh, config
+            args.approve,
+            "move",
+            lambda: _build(args, config, slug, gh),
+            gh,
+            config,
+            {"move-folder": move_folder},
         )
         payload["warnings"] = warnings
         return payload, code

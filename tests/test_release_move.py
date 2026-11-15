@@ -1,7 +1,6 @@
 import argparse
 import itertools
 import json
-import shutil
 from datetime import UTC, datetime
 
 import pytest
@@ -367,9 +366,6 @@ def test_rerun_after_a_failed_close_fixes_the_reference_in_the_repo(ready, capsy
 def test_move_back_creates_new_prs_instead_of_reusing_closed_ones(ready, capsys):
     standard(ready)
     assert run(capsys)[0] == 0
-    shutil.move(str(ready.release_dir(DAY)), str(ready.release_dir(NEW)))
-    ready.git("repo-a", "branch", "-m", f"release/{DAY}", f"release/{NEW}")
-    ready.git("repo-a", "branch", "-m", f"release/{DAY}-sdbx", f"release/{NEW}-sdbx")
     assert run(capsys, old=NEW, new=DAY)[0] == 0
     states = {pr["number"]: pr["state"] for pr in ready.gh.prs(A)}
     assert states[74] == states[75] == "CLOSED"
@@ -618,3 +614,153 @@ def test_rerun_keeps_a_merged_pr_comment_only_once_a_later_pr_is_closed(ready, c
     assert new_of(ready.gh, A, f"release/{NEW}")["body"] == "cita #73\n"
     sdbx = new_of(ready.gh, A, f"release/{NEW}-sdbx")
     assert f"acme/repo-b#{new_of(ready.gh, B, f'release/{NEW}')['number']}" in sdbx["body"]
+
+
+def add_worktrees(ready, day=DAY):
+    for suffix in ("", "-sdbx"):
+        ready.git(
+            "repo-a",
+            "worktree",
+            "add",
+            "-q",
+            str(ready.release_dir(day) / f"repo-a{suffix}"),
+            f"release/{day}{suffix}",
+        )
+        ready.git(
+            "repo-a",
+            "branch",
+            "-u",
+            f"origin/release/{day}{suffix}",
+            f"release/{day}{suffix}",
+        )
+
+
+def upstream(ready, branch):
+    return ready.git("repo-a", "rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}")
+
+
+def local_branches(ready):
+    return set(ready.git("repo-a", "branch", "--format=%(refname:short)").split())
+
+
+def worktree_paths(ready):
+    out = ready.git("repo-a", "worktree", "list", "--porcelain")
+    return {line.split(" ", 1)[1] for line in out.splitlines() if line.startswith("worktree ")}
+
+
+def test_old_branches_stay_without_the_flag(ready, capsys):
+    standard(ready)
+    assert run(capsys)[0] == 0
+    refs = ready.refs("repo-a")
+    for suffix in ("", "-sdbx"):
+        assert f"refs/heads/release/{DAY}{suffix}" in refs
+        assert f"refs/heads/release/{NEW}{suffix}" in refs
+
+
+def test_old_branches_deleted_with_the_flag_when_every_pr_is_closed(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 60, f"release/{DAY}", "master", state="CLOSED", body="antiga\n")
+    code, payload = run(capsys, delete=True)
+    assert code == 0
+    refs = ready.refs("repo-a")
+    for suffix in ("", "-sdbx"):
+        assert f"refs/heads/release/{DAY}{suffix}" not in refs
+        assert f"refs/heads/release/{NEW}{suffix}" in refs
+    assert any("apagar release/" in line for line in payload["done"])
+
+
+def test_delete_refused_while_a_pr_from_the_head_stays_open(ready, capsys):
+    standard(ready)
+
+    class Racing(Gh):
+        def prs(self, slug, *, head=None, base=None, state="all"):
+            found = super().prs(slug, head=head, base=base, state=state)
+            if slug == A and head == f"release/{DAY}" and state == "open":
+                ready.gh.add_pr(A, 99, f"release/{DAY}", "master", title="Aberta depois")
+                found = super().prs(slug, head=head, base=base, state=state)
+            return found
+
+    plan = move.build_plan(load_release_config(), "demo", DAY, NEW, REASON, True, Racing())
+    assert any(
+        f"release/{DAY} stays: PR #99 from it is still open" in problem for problem in plan.problems
+    )
+    deleted = [
+        call.args[3] for call in plan.calls if call.args[:3] == ("push", "origin", "--delete")
+    ]
+    assert f"release/{DAY}" not in deleted
+
+
+def test_delete_refused_when_it_is_a_base(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 80, "feature/TS-101-one", f"release/{DAY}", title="Empilhada")
+    code, payload = preview(capsys, delete=True)
+    assert code == 1 and ready.gh.writes == []
+    assert any(
+        f"release/{DAY} stays: it is the base of PR #80" in problem
+        for problem in payload["problems"]
+    )
+    code, _ = preview(capsys)
+    assert code == 0
+
+
+def test_local_rename_and_worktree_move(ready, capsys):
+    standard(ready)
+    add_worktrees(ready)
+    old_tree = ready.release_dir(DAY) / "repo-a"
+    assert run(capsys)[0] == 0
+    new_tree = ready.release_dir(NEW) / "repo-a"
+    assert local_branches(ready) >= {f"release/{NEW}", f"release/{NEW}-sdbx"}
+    assert not local_branches(ready) & {f"release/{DAY}", f"release/{DAY}-sdbx"}
+    assert upstream(ready, f"release/{NEW}") == f"origin/release/{NEW}"
+    assert upstream(ready, f"release/{NEW}-sdbx") == f"origin/release/{NEW}-sdbx"
+    assert str(new_tree.resolve()) in worktree_paths(ready)
+    assert str((ready.release_dir(NEW) / "repo-a-sdbx").resolve()) in worktree_paths(ready)
+    assert not old_tree.exists() and not ready.release_dir(DAY).exists()
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+    assert ready.git("repo-a", "-C", str(new_tree), "symbolic-ref", "--short", "HEAD") == (
+        f"release/{NEW}"
+    )
+
+
+def test_drafts_move_with_the_new_date(ready, capsys):
+    standard(ready)
+    ready.write_pr("repo-a", f"release {DAY}: entrega", ["TS-101"], f"corpo {DAY}\n")
+    (ready.release_dir(DAY) / "published.json").write_text("{}\n")
+    assert run(capsys)[0] == 0
+    draft = (ready.release_dir(NEW) / "pr" / "repo-a.md").read_text()
+    assert f'title = "release {NEW}: entrega"' in draft and f"corpo {NEW}\n" in draft
+    assert DAY not in draft
+    assert (ready.release_dir(NEW) / "published.json").is_file()
+
+
+def test_rerun_finishes_when_local_steps_are_already_done(ready, capsys):
+    standard(ready)
+    add_worktrees(ready)
+    ready.gh.fail("pr create", "HTTP 422", repo=A)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    ready.git("repo-a", "branch", "-m", f"release/{DAY}", f"release/{NEW}")
+    ready.release_dir(NEW).mkdir()
+    ready.git(
+        "repo-a",
+        "worktree",
+        "move",
+        str(ready.release_dir(DAY) / "repo-a"),
+        str(ready.release_dir(NEW) / "repo-a"),
+    )
+    assert run(capsys, delete=True)[0] == 0
+    assert upstream(ready, f"release/{NEW}") == f"origin/release/{NEW}"
+    assert not ready.release_dir(DAY).exists()
+    assert f"refs/heads/release/{DAY}" not in ready.refs("repo-a")
+    code, payload = preview(capsys, delete=True)
+    assert code == 0 and payload["calls"] == []
+
+
+def test_old_folder_stays_when_it_still_holds_files(ready, capsys):
+    standard(ready)
+    (ready.release_dir(DAY) / "anotacoes.txt").write_text("minhas notas\n")
+    code, _ = run(capsys)
+    assert code == 0
+    assert (ready.release_dir(DAY) / "anotacoes.txt").read_text() == "minhas notas\n"
+    assert not (ready.release_dir(DAY) / "release.toml").exists()
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
