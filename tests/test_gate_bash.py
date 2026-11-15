@@ -3208,7 +3208,7 @@ PYTHON_WRITES = [
     ),
     ("python3 -c \"import pkgutil; pkgutil.resolve_name('w'+'s.cli:main')()\" {A}", "two"),
     ("python3 -c \"import pydoc; pydoc.locate('w'+'s.cli').main()\" {A}", "two"),
-    ("python3 -c \"import pickle; pickle.loads(b'cws.cli\\nmain\\n(tR.')\" {A}", "two"),
+    ("python3 -c \"import pickle; pickle.loads(b'cws.cli\\nmain\\n(tR.')\" {A}", "box"),
     (
         "python3 -c \"import timeit; timeit.timeit('import w'+'s.cli as c; c.main()', number=1)\" "
         "{A}",
@@ -3220,6 +3220,26 @@ PYTHON_WRITES = [
         "two",
     ),
     ('python3 - {A} <<< \'import runpy; runpy.run_module("ws", run_name="__main__")\'', "two"),
+    ("python3 -c \"import runpy; runpy.run_path('/dev/stdin')\" <<< '{P}'", "static"),
+    (
+        "python3 -c \"import runpy; runpy.run_path('/dev/fd/0', run_name='__main__')\" <<< '{P}'",
+        "static",
+    ),
+    ("python3 -c \"import runpy; runpy.run_path('//dev/./stdin')\" <<< '{P}'", "static"),
+    ("python3 -c \"import runpy; runpy.run_path(path_name='/dev/stdin')\" <<< '{P}'", "two"),
+    ("python3 -m doctest /dev/stdin <<< '>>> {P}'", "static"),
+    ("echo '{P}' | python3 -c \"import runpy; runpy.run_path('/dev/stdin')\"", "unsure"),
+    ("echo '{P}' | python3 -c \"import runpy; runpy.run_path('/proc/self/fd/0')\"", "unsure"),
+    ("echo '{P}' | python3 -m doctest /dev/stdin", "unsure"),
+    ("echo '{P}' | python3 -c \"import sys; exec(sys.stdin.read())\"", "unsure"),
+    ("python3 -c \"exec(open('/dev/stdin').read())\" <<< '{P}'", "two"),
+    ("uv run --python-preference only-managed -m ws.__main__ {A}", "box"),
+    ("uv run --python-preference only-managed -m ws.cli {A}", "box"),
+    ("uv run --python-downloads never -m ws {A}", "box"),
+    ("uv run --option-uv-adds-later value -m ws.cli {A}", "box"),
+    ("python3 -c \"import os,sys; os.system(sys.argv[1])\" 'ws {A}'", "box"),
+    ("python3 -c \"import subprocess,sys; subprocess.run(sys.argv[1:])\" bash -c 'ws {A}'", "box"),
+    ("python3 script.py 'cd /x && ws {A}'", "box"),
 ]
 
 
@@ -3241,6 +3261,8 @@ def test_a_python_write_without_a_record_is_denied(env):
         "uv run -m -q ws.__main__ {A}",
         "python3 -c \"import subprocess; subprocess.run(['ws',{L}])\"",
         'python3 -c "from 𝐰𝐬.cli import main; main()" {A}',
+        "uv run --python-preference only-managed -m ws.cli {A}",
+        "python3 -c \"import os,sys; os.system(sys.argv[1])\" 'ws {A}'",
     ):
         assert decision(template.format(**values), env)["permissionDecision"] == "deny"
 
@@ -3271,16 +3293,21 @@ def test_a_python_write_without_a_record_is_denied(env):
             "Python que chama o main ou o parser do ws com argumentos",
         ),
         (
-            "python3 -c \"import pickle; pickle.loads(b'cws.cli\\nmain\\n(tR.')\"",
-            "Python que monta nomes ou código na execução; não sei o que ele roda",
-        ),
-        (
             "python3 -c \"import timeit; timeit.timeit('import w'+'s.cli as c; c.main()')\"",
             "Python que monta nomes ou código na execução; não sei o que ele roda",
         ),
         (
-            'python3 -c "from pickle import loads; loads(data)"',
+            'python3 -c "import builtins; builtins.exec(x)"',
             "Python que monta nomes ou código na execução; não sei o que ele roda",
+        ),
+        (
+            "python3 -c \"import pkgutil; pkgutil.walk_packages(['src'])\"",
+            "Python que monta nomes ou código na execução; não sei o que ele roda",
+        ),
+        ("python3 -m doctest /dev/stdin < f", "O Python recebe o código de um arquivo"),
+        (
+            "cat run.py | python3 -c \"import runpy; runpy.run_path('/dev/stdin')\"",
+            "O Python recebe o código por pipe",
         ),
     ],
 )
@@ -3367,6 +3394,20 @@ def test_the_arguments_after_python_code_are_judged_as_paths(command, env):
         "python3 script.py release status",
         "python3 -c 'import json' card list",
         "python3 -c 'import os, sys; print(os.sep, sys.argv)' a b",
+        "python3 -c \"import pickle; print(pickle.load(open('m.pkl','rb')))\"",
+        'python3 - <<\'EOF\'\nimport pickle\nwith open("m.pkl", "rb") as f:\n'
+        "    model = pickle.load(f)\nprint(model)\nEOF",
+        'python3 -c "from pickle import loads; loads(data)"',
+        "python3 -c \"import pkgutil; print([m.name for m in pkgutil.iter_modules(['src'])])\"",
+        'python3 -c "import builtins; print(dir(builtins))"',
+        'python3 -c "from ws.cli import build_parser; print(build_parser().format_help())"',
+        "python3 -c \"import runpy; runpy.run_path('tools/x.py')\" < data.txt",
+        "python3 -c \"import runpy; runpy.run_path('/dev/stdin')\"",
+        "python3 -c \"import json, sys; print(json.load(open('/dev/stdin')))\" < x.json",
+        "python3 -m doctest README.md",
+        "uv run --python-preference only-managed -m pytest -m slow",
+        'python3 tools/commit.py "fix ws bug"',
+        'python3 tools/notes.py "ws release notes"',
     ],
 )
 def test_python_that_cannot_write_through_ws_stays_silent(command, env):

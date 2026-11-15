@@ -302,10 +302,17 @@ PYTHON_STDIN_SCRIPT = re.compile(r"/dev/stdin|/dev/fd/\d+|/proc/(?:self|thread-s
 # Modules that read stdin as code (a REPL, debugger commands) or run code from it, and modules
 # that run another module or script named in their own arguments.
 STDIN_CODE_MODULES = frozenset({"code", "asyncio", "pdb", "cProfile", "profile", "trace", "timeit"})
-RUNNER_MODULES = frozenset({"pdb", "cProfile", "profile", "trace", "runpy"})
+RUNNER_MODULES = frozenset({"pdb", "cProfile", "profile", "trace", "runpy", "doctest"})
 STDIN_CODE_CALLS = re.compile(
     r"\b(?:interact|InteractiveConsole|InteractiveInterpreter|breakpoint|set_trace)\b"
 )
+STDIN_FD = re.compile(r"(?:^|/)fd/\d+$")
+PATH_LITERAL = r"""\s*\(\s*(?:\w+\s*=\s*)?[rbuRBU]{0,2}(['"])([^'"\\]*)\1"""
+RUN_PATH_CALL = re.compile(r"\brun_path" + PATH_LITERAL)
+OPEN_CALL = re.compile(r"\bopen" + PATH_LITERAL)
+# `exec`, `eval` and `compile` as bare calls (not `re.compile`), with a read of stdin to feed them.
+RUNS_TEXT = re.compile(r"(?<![.\w'\"])(?:exec|eval|compile)\s*\(")
+READS_STDIN = re.compile(r"\bstdin\b")
 MAX_RUNNER_WORDS = 8
 MAX_RUNNER_DEPTH = 2
 UV_RUN_VALUES = frozenset(
@@ -317,7 +324,7 @@ UV_RUN_VALUES = frozenset(
     "--reinstall-package --link-mode -C --config-setting --config-settings-package "
     "--no-build-isolation-package --no-build-package --no-binary-package --cache-dir "
     "--refresh-package -p --python --color --allow-insecure-host --directory --project "
-    "--config-file".split()
+    "--config-file --python-preference --python-downloads --python-fetch".split()
 )
 
 
@@ -349,6 +356,29 @@ def lexical_path(text: str) -> str:
     if not text.startswith("/"):
         return text
     return posixpath.normpath(re.sub("/+", "/", text))
+
+
+def stdin_path(text: str) -> bool:
+    """A path that may be the standard input: under `/dev` or `/proc`, `…/stdin` or `…fd/N`."""
+    return (
+        lexical_path(text).startswith(("/dev/", "/proc/"))
+        or posixpath.basename(text) == "stdin"
+        or bool(STDIN_FD.search(text))
+    )
+
+
+def code_reads_stdin(code: str) -> bool:
+    """`-c` code that runs what comes in stdin: a REPL or debugger, `runpy.run_path('/dev/stdin')`,
+    or `exec`/`eval`/`compile` with `sys.stdin` or `open('/dev/stdin')`."""
+    if STDIN_CODE_CALLS.search(code):
+        return True
+    if any(stdin_path(found.group(2)) for found in RUN_PATH_CALL.finditer(code)):
+        return True
+    if not RUNS_TEXT.search(code):
+        return False
+    return bool(READS_STDIN.search(code)) or any(
+        stdin_path(found.group(2)) for found in OPEN_CALL.finditer(code)
+    )
 
 
 def _python_target(rest: list[Word], inspect: bool) -> PythonProgram:
@@ -407,12 +437,27 @@ def uv_modules(args: list[Word]) -> list[PythonProgram]:
 
     In uv, `-m/--module` is a flag: the module is the first positional word after the options,
     so `-m -q ws.cli` and `-qm ws.cli` run `ws.cli`. A `-m` after that word belongs to the program.
-    The text after `m` in a short group (`-mws`) is a candidate too, as an older reading of it.
+    The text after `m` in a short group (`-mws`) and the word after any `-m` are candidates too,
+    as older readings: an option whose value the table does not know would hide the module.
     """
     texts = [word.text for word in args]
     if "run" not in texts:
         return []
-    index = texts.index("run") + 1
+    start = texts.index("run") + 1
+    found = _uv_first_module(args, start)
+    for index in range(start, len(texts) - 1):
+        text = texts[index]
+        if text == "--module" or (
+            text.startswith("-") and not text.startswith("--") and text.endswith("m")
+        ):
+            candidate = PythonProgram("module", args[index + 1], tuple(args[index + 2 :]))
+            if candidate not in found:
+                found.append(candidate)
+    return found
+
+
+def _uv_first_module(args: list[Word], index: int) -> list[PythonProgram]:
+    """The module `uv run -m` runs as uv reads its options (from `index`), and `-mws`."""
     module = False
     found: list[PythonProgram] = []
     while index < len(args):
@@ -536,7 +581,7 @@ def reads_stdin_code(program: PythonProgram, inspect: bool = False) -> bool:
     if program.kind == "module" and program.word is not None:
         return program.word.text in STDIN_CODE_MODULES
     if program.kind == "code" and program.word is not None:
-        return bool(STDIN_CODE_CALLS.search(python_source(program.word.text)))
+        return code_reads_stdin(python_source(program.word.text))
     return False
 
 
@@ -571,7 +616,8 @@ class Heredoc:
 
 @dataclass
 class Scan:
-    """What `scan` found. `overrun`: it gave up on a command too big or too nested to read."""
+    """What `scan` found. `overrun`: it gave up on a command too big or too nested to read.
+    `depth`: set by the caller, how many command lines inside Python led to this one."""
 
     commands: list[Command] = field(default_factory=list)
     unparsed: list[str] = field(default_factory=list)
@@ -580,6 +626,7 @@ class Scan:
     overrun: bool = False
     walks: int = 0
     deadline: float = 0.0
+    depth: int = 0
 
 
 HEREDOC_TAG = re.compile(r"""(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)""")
