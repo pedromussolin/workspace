@@ -86,7 +86,7 @@ WS_WORD = re.compile(r"\bws\b")
 WS_IMPORT = re.compile(r"\b(?:from|import)\s+ws\b|(?:import_module|__import__)\(\s*['\"]ws\b")
 WS_MODULES = {"ws", "ws.cli", "ws.__main__"}
 WS_WRITES = {("card", "apply"), ("release", "publish"), ("release", "move")}
-STDIN_FD = re.compile(r"(?:^|/)fd/\d+$")
+WRITE_WORDS = re.compile(r"\b(?:card\s+apply|release\s+(?:publish|move))\b")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
 CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
@@ -1511,23 +1511,33 @@ def _script_place(word: Word, cwd: str, scan: Scan) -> str:
         if text.startswith("/")
         else [posixpath.join(folder, text) for folder in _folders_walked(cwd, scan)]
     )
-    inside = any(shell.lexical_path(place).startswith(("/dev/", "/proc/")) for place in places)
-    if inside or posixpath.basename(text) == "stdin" or STDIN_FD.search(text):
+    if any(shell.stdin_path(place) for place in places):
         return "O Python roda um arquivo de /dev ou /proc, que pode ser a entrada padrão"
     return ""
 
 
-def _program_arguments(command: Command, program: shell.PythonProgram, scan: Scan) -> list[Finding]:
+def _program_arguments(
+    command: Command, program: shell.PythonProgram, cwd: str, scan: Scan
+) -> list[Finding]:
     """The program's own arguments as `ws` ones when they read a write, whatever the code says.
 
-    `_ws`, not `_invocation`: a `$FILE` among the arguments of a script is not obfuscation.
+    `_ws`, not `_invocation`: a `$FILE` among the arguments of a script is not obfuscation. An
+    argument that holds a whole `ws` write (`os.system(sys.argv[1])`) is judged as a command line.
     """
     args = list(program.args)
     texts = [word.text for word in args]
+    code = program.word.text if program.kind == "code" and program.word else ""
+    changed = ENVIRONMENT.search(code) or _store_change(scan)
+    found = [
+        finding
+        for text in texts
+        if len(text.split()) > 1 and WS_WORD.search(text) and WRITE_WORDS.search(text)
+        for finding in _text_findings(("env " if changed else "") + text, cwd, scan.depth + 1)
+    ]
     for index in range(len(texts) - 1):
         if (texts[index], texts[index + 1]) in WS_WRITES:
-            return _ws(command, args[index:] + args[:index], scan)
-    return []
+            return found + _ws(command, args[index:] + args[:index], scan)
+    return found
 
 
 def _mentions_ws(program: shell.PythonProgram, scan: Scan) -> bool:
@@ -1571,7 +1581,7 @@ def _python_program_findings(
         found += _invocation(command, "ws", [Word(module.split(".")[1]), *program.args], cwd, scan)
     elif _mentions_ws(program, scan):
         found += _ws(command, list(program.args), scan)
-    return found + _program_arguments(command, program, scan)
+    return found + _program_arguments(command, program, cwd, scan)
 
 
 def _python_findings(
@@ -1974,21 +1984,26 @@ MAIN_WITH_ARGUMENTS = re.compile(r"\bmain\s*\(\s*[^)\s]|\bws\.cli\b[^;\n]*\(\s*[
 CLI_IMPORT = re.compile(
     r"\bfrom\s+ws\.cli\s+import\b|\bimport\s+ws\.cli\b|\bfrom\s+ws\s+import\b[^;\n]*\bcli\b"
 )
-CALL_WITH_ARGUMENTS = re.compile(r"[\w)\]]\s*\(\s*[^)\s]")
+# `print(build_parser().format_help())`: `print` hands nothing to the ws.
+CALL_WITH_ARGUMENTS = re.compile(r"(?:(?<=\w)(?<!\bprint)|(?<=[)\]]))\s*\(\s*[^)\s]")
 CLI_CALLS = re.compile(r"\b(?:parse_args|parse_known_args|parse_intermixed_args)\b|\.handler\b")
 SYS_ARGV = re.compile(r"\bsys\.argv\b|\bargv\b")
 IMPORT_CALLS = ("__import__", "import_module", "run_module", "run_path", "resolve_name")
+# Without `ws` in the code; `pickle` counts only with it (its opcodes are out of reach).
 DYNAMIC_MODULES = (
     "importlib",
     "runpy",
     "pkgutil",
     "pydoc",
-    "pickle",
     "marshal",
     "builtins",
     "__builtins__",
 )
-DYNAMIC_IMPORT_FROM = re.compile(r"\bfrom\s+(?:pkgutil|pydoc|pickle|marshal|builtins)\s+import\b")
+DYNAMIC_IMPORT_FROM = re.compile(r"\bfrom\s+(?:pkgutil|pydoc|marshal|builtins)\s+import\b")
+# Uses of those modules that import or run nothing: listing modules, looking at a module.
+LISTS_MODULES = re.compile(r"\.(?:iter_modules|extend_path)\s*\(")
+LOOKS_AT = re.compile(r"\b(?:dir|help|repr|type|print)\s*\(\s*$")
+CLOSING = re.compile(r"\s*\)")
 LITERAL = r"""[rbuRBU]{0,2}(?:'(?!ws)[^'\\]*'|"(?!ws)[^"\\]*")"""
 LITERAL_CALL = re.compile(rf"\s*\(\s*(?:\)|{LITERAL}\s*[,)])")
 MODULE_LITERAL_CALL = re.compile(rf"(?:\.\w+)+{LITERAL_CALL.pattern}")
@@ -2047,11 +2062,17 @@ def _runs_built_code(code: str) -> bool:
             return True
     for name in DYNAMIC_MODULES:
         for found in re.finditer(rf"\b{name}\b", code):
-            if not _in_import(code, found.start()) and not MODULE_LITERAL_CALL.match(
-                code, found.end()
-            ):
+            if not _in_import(code, found.start()) and not _plain_module_use(code, found):
                 return True
     return bool(DYNAMIC_IMPORT_FROM.search(code))
+
+
+def _plain_module_use(code: str, found: re.Match[str]) -> bool:
+    """`module.attr('literal')`, `pkgutil.iter_modules(...)` or `dir(module)`."""
+    if MODULE_LITERAL_CALL.match(code, found.end()) or LISTS_MODULES.match(code, found.end()):
+        return True
+    closed = CLOSING.match(code, found.end())
+    return bool(closed and LOOKS_AT.search(code, 0, found.start()))
 
 
 def _dynamic_reason(code: str) -> str:
@@ -2232,6 +2253,7 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
     if depth > MAX_CODE_DEPTH or any(len(part) > MAX_WORD for part in command.split()):
         return [_found(TITLE_UNSURE, "Python que roda comandos que não consigo ler", command)]
     scan = shell.scan(command)
+    scan.depth = depth
     findings: list[Finding] = []
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
     for each in scan.commands:
