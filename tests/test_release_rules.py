@@ -44,6 +44,15 @@ def build_sdbx(world: World, *extra: str) -> None:
     )
 
 
+def conflicting_sdbx(world: World) -> None:
+    """ONE and sandbox change the same file; `-sdbx` resolves it with ours: the sdbx is used."""
+    world.commit("repo-a", ONE, "shared.txt", "one\n", "feat: shared")
+    world.commit("repo-a", "sandbox", "shared.txt", "sandbox\n", "chore: shared")
+    world.git("repo-a", "fetch", "-q", "origin")
+    build_release(world)
+    build_sdbx(world, "-X", "ours")
+
+
 def stack_migrations(world: World) -> None:
     """TWO contains ONE and both add a migration, chained on the base one."""
     world.migration("repo-a", ONE, REV_B, REV_BASE)
@@ -113,8 +122,7 @@ def test_r3_release_current_with_master_has_no_problem(world: World):
 
 
 def test_r4_sdbx_with_a_commit_of_its_own_is_refused(world: World):
-    build_release(world)
-    build_sdbx(world)
+    conflicting_sdbx(world)
     world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "feat: own", push=False)
     state = assess(world, "repo-a", (ONE, TWO))
     assert any("has commits of its own" in p for p in state.problems)
@@ -133,12 +141,59 @@ def test_r4_sdbx_file_that_sandbox_does_not_change_is_refused(world: World):
 
 
 def test_r4_clean_mirror_lists_the_sandbox_only_file(world: World):
-    build_release(world)
-    build_sdbx(world)
+    conflicting_sdbx(world)
     state = assess(world, "repo-a", (ONE, TWO))
     assert state.problems == []
     assert state.sdbx == f"{CODE}-sdbx"
     assert state.sdbx_differs == ("sandbox-only.txt",)
+
+
+def test_r4_r5_skip_an_sdbx_that_is_not_the_sandbox_head(world: World):
+    build_release(world)
+    build_sdbx(world)
+    world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "own work", push=False)
+    world.git("repo-a", "branch", "--set-upstream-to=origin/sandbox", f"{CODE}-sdbx")
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert state.sandbox_head == CODE and state.sdbx_differs == ()
+    assert state.problems == [] and state.ready
+
+
+def test_sandbox_conflict_without_sdbx_is_a_problem(world: World):
+    build_release(world)
+    world.commit("repo-a", "sandbox", "one.txt", "other\n", "chore: sandbox touches one")
+    world.git("repo-a", "fetch", "-q", "origin")
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert (
+        f"repo-a: {CODE} conflicts with origin/sandbox in one.txt; run ws release new"
+        in state.problems
+    )
+    assert not state.ready
+
+
+def test_sdbx_already_merged_into_sandbox_draws_no_warning(world: World):
+    conflicting_sdbx(world)
+    world.git("repo-a", "checkout", "-q", "sandbox")
+    world.git("repo-a", "merge", "-q", "--no-ff", "-m", "Merge pull request #11", f"{CODE}-sdbx")
+    world.git("repo-a", "push", "-q", "origin", "sandbox")
+    world.git("repo-a", "fetch", "-q", "origin")
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert state.sandbox_head == CODE
+    assert state.warnings == [] and state.ready
+
+
+def test_release_branch_behind_its_origin_copy_is_refused(world: World):
+    build_release(world)
+    world.git("repo-a", "push", "-q", "origin", CODE)
+    world.git("repo-a", "reset", "-q", "--hard", "HEAD~1")
+    world.git("repo-a", "fetch", "-q", "origin")
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert f"repo-a: local {CODE} is behind origin/{CODE}; pull it first" in state.problems
+
+
+def test_multi_release_with_nothing_ahead_of_master_is_refused(world: World):
+    world.branch("repo-a", CODE, BASE, push=False)
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert f"repo-a: {CODE} has no commits ahead of origin/master" in state.problems
 
 
 def test_r5_release_merge_with_a_co_authored_by_trailer_is_refused(world: World):
@@ -224,7 +279,8 @@ def test_r6_multi_with_a_clean_draft_passes(world: World):
 def test_r6_multi_title_with_a_key_is_refused(world: World):
     state = multi_state(world)
     tasks = ["TS-101", "TS-102"]
-    draft = draft_for(world, "repo-a", "feat(TS-101): x", tasks, good_body(state, tasks))
+    title = f"release {DAY}: feat(TS-101): x"
+    draft = draft_for(world, "repo-a", title, tasks, good_body(state, tasks))
     assert any("title must be 'release" in p for p in r6(state, "code", draft))
 
 
@@ -393,11 +449,7 @@ def test_assess_sandbox_head_is_the_code_branch_without_a_conflict(world: World)
 
 
 def test_assess_sandbox_head_is_the_sdbx_while_sandbox_conflicts(world: World):
-    world.commit("repo-a", ONE, "shared.txt", "one\n", "feat: shared")
-    world.commit("repo-a", "sandbox", "shared.txt", "sandbox\n", "chore: shared")
-    world.git("repo-a", "fetch", "-q", "origin")
-    build_release(world)
-    build_sdbx(world, "-X", "ours")
+    conflicting_sdbx(world)
     state = assess(world, "repo-a", (ONE, TWO))
     assert state.sandbox_head == f"{CODE}-sdbx"
     assert state.warnings == []
