@@ -1,25 +1,22 @@
 """`ws release preview publish` and `ws release publish`: pushes the branches and opens the PRs.
 
-`build_plan` only reads (git refs and `gh` lists). The preview stores the plan under a code and
-`publish --approve CODE` rebuilds it, checks it is the same plan and sends it through
-`ws.release.plan`, the one place that writes to GitHub.
+Each command first fetches the repos it publishes; `build_plan` then only reads (git refs and `gh`
+lists). The preview stores the plan under a code and `publish --approve CODE` rebuilds it, checks
+it is the same plan and sends it through `ws.release.plan`, the one place that writes to GitHub.
 """
 
 import argparse
-import json
-import os
-from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
-from ws.release import ReleaseRefused, ReleaseSetup, gitops, plan, rules, status, text
+from ws.release import ReleaseSetup, gitops, plan, rules, status, text
 from ws.release import folder as release_folder
 from ws.release import run as run_release
-from ws.release.build import PUBLISHED, load_published
-from ws.release.github import Gh, GhFailed, GhMissing, GhUncertain, PullRequest
+from ws.release.build import load_published
+from ws.release.github import Gh, PullRequest
 from ws.release.plan import Call, WritePlan
-from ws.release.settings import ReleaseConfig, RepoEntry, load_release_config
+from ws.release.settings import ReleaseConfig, RepoEntry
 
 SANDBOX_PARAGRAPH = "Leva este código para a sandbox, para validar antes da master."
 
@@ -47,7 +44,67 @@ def _origin(branch: str) -> str:
 
 
 def _known(entry: RepoEntry, pr: PullRequest) -> list:
-    return [f"{entry.slug}#{pr.number}", pr.url, pr.number]
+    return plan.known_entry(entry.slug, pr.number, pr.url)
+
+
+def _latest(prs: list[PullRequest]) -> PullRequest | None:
+    return max(prs, key=lambda pr: pr.number) if prs else None
+
+
+def _day(raw: str) -> date:
+    try:
+        return text.parse_day(raw)
+    except ValueError as error:
+        raise ReleaseSetup(str(error)) from None
+
+
+def _selected(
+    config: ReleaseConfig, folder: Path, repos: list[str]
+) -> tuple[release_folder.ReleaseFile, list[str]]:
+    """The release file and the repos this run publishes, in config order. A `--repo` outside
+    `release.toml` means the run cannot be evaluated (exit 2)."""
+    wanted = plan.read_release(folder, tuple(entry.name for entry in config.repos))
+    unknown = [name for name in repos if name not in wanted.repos]
+    if unknown:
+        raise ReleaseSetup(f"{', '.join(unknown)} not in {folder / 'release.toml'}")
+    return wanted, [
+        entry.name
+        for entry in config.repos
+        if entry.name in wanted.repos and (not repos or entry.name in repos)
+    ]
+
+
+def _others_known(
+    config: ReleaseConfig,
+    wanted: release_folder.ReleaseFile,
+    selected: list[str],
+    day: date,
+    gh: Gh,
+    known: dict,
+) -> None:
+    """The PRs already open (or the merged code PR) of the release's repos outside `--repo`, so a
+    draft can cite them. Reads only: nothing is planned for those repos."""
+    for entry in config.repos:
+        includes = wanted.include.get(entry.name, ())
+        if entry.name not in wanted.repos or entry.name in selected or not includes:
+            continue
+        code_branch = _code_branch(includes, day)
+        code_prs = gh.prs(entry.slug, head=code_branch, base=config.base_branch)
+        code = _latest([pr for pr in code_prs if pr.state == "OPEN"]) or _latest(
+            [pr for pr in code_prs if pr.merged_at]
+        )
+        if code:
+            known[entry.name] = _known(entry, code)
+        sandbox = _latest(
+            [
+                pr
+                for head in (f"{code_branch}-sdbx", code_branch)
+                for pr in gh.prs(entry.slug, head=head, base=config.sandbox_branch)
+                if pr.state == "OPEN"
+            ]
+        )
+        if sandbox:
+            known[f"{entry.name}-sandbox"] = _known(entry, sandbox)
 
 
 def _push(entry: RepoEntry, branch: str, note: str, problems: list[str]) -> Call | None:
@@ -203,21 +260,24 @@ def _create_call(config: ReleaseConfig, create: _Create, body: str) -> Call:
     return Call(repo=entry.name, program="gh", args=args, line=line, body=body, answers=create.ref)
 
 
-def _completions(config: ReleaseConfig, state: dict, refs: set[str], gh: Gh) -> list[Call]:
-    """An edit for each open PR whose body still names a PR that is known by now."""
+def _completions(
+    state: dict, refs: set[str], known: dict, gh: Gh, warnings: list[str]
+) -> list[Call]:
+    """An edit for each open PR whose body still names a PR that is known by now; a warning for a
+    placeholder this publish cannot fill (a move stopped halfway leaves `{pr:repo-N}`)."""
     edits = []
     for entry, number in state["open"]:
         body = gh.pr(entry.slug, number).body
-        if refs.intersection(release_folder.pending_refs(body)):
-            edits.append(
-                Call(
-                    repo=entry.name,
-                    program="gh",
-                    args=("pr", "edit", str(number), "-R", entry.slug),
-                    line=f"segunda passada: {entry.name}: completar as referências da PR #{number}",
-                    body=body,
-                )
+        stray = [ref for ref in release_folder.pending_refs(body) if ref not in refs]
+        if stray:
+            warnings.append(
+                f"{entry.name}: PR #{number} cites {', '.join(stray)}, which this publish cannot "
+                "fill; if a move left it, run the move again"
             )
+        line = f"segunda passada: {entry.name}: completar as referências da PR #{number}"
+        edit = plan.refresh_edit(entry.name, entry.slug, number, body, body, known, refs, line)
+        if edit:
+            edits.append(edit)
     return edits
 
 
@@ -230,22 +290,10 @@ def build_plan(
     warnings: list[str] | None = None,
     loaded: dict | None = None,
 ) -> WritePlan:
-    """Reads the release; fetch failures go to `warnings`, `published.json` to `loaded`."""
+    """Reads the release (the fetch is the caller's); notes go to `warnings`, `published.json` to
+    `loaded`."""
     folder = release_folder.release_dir(slug, day)
-    names = tuple(entry.name for entry in config.repos)
-    wanted = release_folder.read_release(folder, names)
-    unknown = [name for name in repos if name not in wanted.repos]
-    if unknown:
-        raise ReleaseRefused(f"{', '.join(unknown)} not in {folder / 'release.toml'}")
-    selected = [
-        entry.name
-        for entry in config.repos
-        if entry.name in wanted.repos and (not repos or entry.name in repos)
-    ]
-    for name in selected:
-        error = gitops.fetch(config.entry(name).path)
-        if error and warnings is not None:
-            warnings.append(f"{name}: fetch failed: {error}")
+    wanted, selected = _selected(config, folder, repos)
     published = load_published(folder)
     if loaded is not None:
         loaded.clear()
@@ -255,6 +303,7 @@ def build_plan(
     for name in selected:
         entry = config.entry(name)
         items += _repo_items(config, entry, wanted.include[name], day, folder, gh, state)
+    _others_known(config, wanted, selected, day, gh, state["known"])
     creates = [item for item in items if isinstance(item, _Create)]
     refs = set(state["known"]) | {create.ref for create in creates}
     slugs = {entry.name: entry.slug for entry in config.repos}
@@ -273,13 +322,13 @@ def build_plan(
         path = f"pr/{item.draft.path.name}"
         drafts[path] = {"path": path, "sha256": item.draft.sha256}
     calls += plan.second_pass(calls)
-    calls += _completions(config, state, refs, gh)
+    calls += _completions(state, refs, known, gh, warnings if warnings is not None else [])
     facts = {
         "known": state["known"],
         "skipped": state["skipped"],
         "repos": state["repos"],
     }
-    built = WritePlan(
+    return WritePlan(
         action="publish",
         slug=slug,
         days=(text.compact(day),),
@@ -289,10 +338,6 @@ def build_plan(
         facts=facts,
         problems=list(dict.fromkeys(state["problems"])),
     )
-    refused = plan.guard(built, config)
-    if refused:
-        built.problems.append(f"call outside the allowed shapes: {refused}")
-    return built
 
 
 @dataclass
@@ -302,12 +347,13 @@ class _Context:
     day: date
     names: list[str]
     gh: Gh
-    warnings: list[str]
-    loaded: dict
+    fetched: list[str]
+    warnings: list[str] = field(default_factory=list)
+    loaded: dict = field(default_factory=dict)
     built: WritePlan | None = None
 
     def build(self) -> WritePlan:
-        self.warnings.clear()
+        self.warnings[:] = self.fetched
         self.built = build_plan(
             self.config, self.slug, self.day, self.names, self.gh, self.warnings, self.loaded
         )
@@ -315,30 +361,14 @@ class _Context:
 
 
 def _context(args: argparse.Namespace) -> _Context:
-    config = load_release_config()
-    try:
-        day = text.parse_day(args.day)
-    except ValueError as error:
-        raise ReleaseRefused(str(error)) from None
-    slug = release_folder.resolve_slug(args.project, Path.cwd())
-    gh = Gh()
-    try:
-        gh.require_auth()
-    except GhMissing as error:
-        raise ReleaseSetup(f"gh: {error}") from error
-    return _Context(config, slug, day, list(args.repos), gh, [], {})
+    day = _day(args.day)
+    repos = list(args.repos)
 
+    def fetched(config: ReleaseConfig, slug: str) -> list[str]:
+        return _selected(config, release_folder.release_dir(slug, day), repos)[1]
 
-def _guarded(action: Callable[[], tuple[dict, int]]) -> Callable[[], tuple[dict, int]]:
-    def wrapped() -> tuple[dict, int]:
-        try:
-            return action()
-        except (GhFailed, GhUncertain) as error:
-            raise ReleaseSetup(f"gh: {error}") from error
-        except gitops.GitFailed as error:
-            raise ReleaseSetup(f"git: {error}") from error
-
-    return wrapped
+    config, gh, slug, warnings = plan.session(args.project, fetched)
+    return _Context(config, slug, day, repos, gh, warnings, list(warnings))
 
 
 def run_preview(args: argparse.Namespace) -> int:
@@ -347,20 +377,12 @@ def run_preview(args: argparse.Namespace) -> int:
         next_command = f"ws release publish {text.compact(context.day)} --project {context.slug}"
         if args.repos:
             next_command += f" --repo {' '.join(args.repos)}"
-        try:
-            payload, code = plan.show_preview(context.build(), next_command)
-        except ReleaseRefused as error:
-            if error.payload is not None:
-                error.payload["warnings"] = context.warnings
-            raise
+        with plan.warnings_on_refusal(context.warnings):
+            payload, code = plan.show_preview(context.build(), next_command, context.config)
         payload["warnings"] = context.warnings
         return payload, code
 
-    return run_release("preview publish", _guarded(action))
-
-
-def _number(url: str) -> int:
-    return int(url.rsplit("/", 1)[-1])
+    return run_release("preview publish", action)
 
 
 def _record(folder: Path, built: WritePlan, data: dict, known: dict) -> None:
@@ -374,42 +396,41 @@ def _record(folder: Path, built: WritePlan, data: dict, known: dict) -> None:
             if ref in known:
                 row[key] = known[ref][2]
     data["repos"] = repos
-    release_folder.ensure_dir(folder)
-    path = folder / PUBLISHED
-    temporary = path.with_name(PUBLISHED + ".tmp")
-    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
+    plan.write_published(folder, data)
+
+
+def _save(context: _Context, known: dict) -> None:
+    """`published.json` after a send, whole or partial. GitHub already has the PRs, so a failed
+    write is a warning and the result is still printed."""
+    assert context.built is not None
+    folder = release_folder.release_dir(context.slug, context.day)
+    try:
+        _record(folder, context.built, context.loaded, known)
+    except OSError as error:
+        context.warnings.append(f"{folder / plan.PUBLISHED} was not written: {error}")
 
 
 def _finish(context: _Context, result: dict) -> dict:
     built = context.built
     assert built is not None
-    config, folder = context.config, release_folder.release_dir(context.slug, context.day)
-    known = {ref: (v[0], v[1], int(v[2])) for ref, v in built.facts["known"].items()}
-    for ref, url in result["prs"].items():
-        slug = config.entry(ref.removesuffix("-sandbox")).slug
-        known[ref] = (f"{slug}#{_number(url)}", url, _number(url))
-    _record(folder, built, context.loaded, known)
+    known = result["known"]
+    _save(context, known)
     found: dict[str, PullRequest] = {}
     rows = []
     for name in built.facts["repos"]:
-        sandbox = f"{name}-sandbox"
-        for ref in (name, sandbox):
+        row: dict = {"repo": name}
+        for key, ref in (("code", name), ("sandbox", f"{name}-sandbox")):
             if ref in known:
                 number, url = known[ref][2], known[ref][1]
                 found[ref] = PullRequest(number, "OPEN", "", "", "", url, None)
-        rows.append(
-            {
-                "repo": name,
-                "code_pr": known[name][2] if name in known else None,
-                "sandbox_pr": known[sandbox][2] if sandbox in known else None,
-                "skipped": name in built.facts["skipped"],
-            }
-        )
+            row[f"{key}_pr"] = known[ref][2] if ref in known else None
+            row[f"{key}_url"] = known[ref][1] if ref in known else None
+        row["skipped"] = name in built.facts["skipped"]
+        rows.append(row)
     return {
         "date": text.compact(context.day),
         "repos": rows,
-        "gmud": status.links(config, found),
+        "gmud": status.links(context.config, found),
         "warnings": context.warnings,
     }
 
@@ -417,17 +438,14 @@ def _finish(context: _Context, result: dict) -> dict:
 def run_publish(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         context = _context(args)
-        try:
+        with plan.warnings_on_refusal(context.warnings):
             result, code = plan.approve(
                 args.approve, "publish", context.build, context.gh, context.config
             )
-        except ReleaseRefused as error:
-            if error.payload is not None:
-                error.payload["warnings"] = context.warnings
-            raise
         if code != 0:
+            _save(context, result.pop("known"))
             result["warnings"] = context.warnings
             return result, code
         return _finish(context, result), 0
 
-    return run_release("publish", _guarded(action))
+    return run_release("publish", action)

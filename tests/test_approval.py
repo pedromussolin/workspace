@@ -2,6 +2,8 @@ import os
 import stat
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from ws import approval
 
 NOW = datetime(2026, 11, 13, 12, 0, tzinfo=UTC)
@@ -69,10 +71,8 @@ def test_pending_unreadable(tmp_path):
 
 def test_write_removes_a_half_written_file(tmp_path):
     folder = _store(tmp_path)
-    try:
+    with pytest.raises(TypeError):
         approval.write_pending(folder, "abc", {"bad": object()})
-    except TypeError:
-        pass
     assert not (folder / "abc.json").exists()
 
 

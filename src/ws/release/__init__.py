@@ -20,10 +20,22 @@ class ReleaseRefused(Exception):
 
 
 def run(name: str, action: Callable[[], tuple[dict, int]]) -> int:
+    """Runs a command and prints its JSON. A `gh` or `git` that cannot answer while the command
+    reads is exit 2, the same as any missing precondition; imported here so `ws.release` stays
+    light for the CLI."""
+    from ws.release.github import GhFailed, GhUncertain
+    from ws.release.gitops import GitFailed
+
     try:
         payload, code = action()
     except ReleaseSetup as error:
         print(f"ws release {name}: {error}", file=sys.stderr)
+        return EXIT_SETUP
+    except (GhFailed, GhUncertain) as error:
+        print(f"ws release {name}: gh: {error}", file=sys.stderr)
+        return EXIT_SETUP
+    except GitFailed as error:
+        print(f"ws release {name}: git: {error}", file=sys.stderr)
         return EXIT_SETUP
     except ReleaseRefused as error:
         if error.payload is not None:

@@ -256,7 +256,7 @@ def test_move_refuses_a_past_new_or_the_same_day(ready, day, capsys):
 
 def test_move_refuses_a_missing_release_folder(ready, capsys):
     code, _ = preview(capsys, old="20261125", new="20261126")
-    assert code == 1
+    assert code == 2
 
 
 def test_move_failure_in_the_second_repo_then_rerun_finishes(ready, capsys):
@@ -508,7 +508,7 @@ def test_a_completed_move_plans_nothing_on_the_next_preview(ready, capsys):
     ready.gh.add_pr(A, 60, f"release/{DAY}", "master", state="CLOSED", body="corpo abandonado\n")
     assert run(capsys)[0] == 0
     code, payload = preview(capsys)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
 
 
 def test_a_hand_edit_on_the_new_pr_survives_the_rerun(ready, capsys):
@@ -579,7 +579,7 @@ def test_crlf_and_the_trailing_newline_do_not_plan_an_edit(ready, capsys):
     body = new_of(ready.gh, A, f"release/{NEW}")["body"]
     edit_pr(ready.gh, A, number, body=body.replace("\n", "\r\n").rstrip("\r\n"))
     code, payload = preview(capsys)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
 
 
 def test_a_url_prefix_does_not_make_pr_7_the_replacement_of_pr_74(ready):
@@ -765,7 +765,7 @@ def fail_folder_once(monkeypatch, mode):
 
 def run_once(capsys, **kwargs):
     code, payload = preview(capsys, **kwargs)
-    if code != 0:
+    if code != 0 or payload.get("nothing_to_send"):
         return code, payload
     moved = move.run_move(args(approve=payload["code"], **kwargs))
     out = capsys.readouterr()
@@ -808,7 +808,7 @@ def test_rerun_finishes_after_a_failure_at_each_git_step(ready, capsys, monkeypa
     assert code == 0, payload
     finished_state(ready)
     code, payload = preview(capsys, delete=True)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
 
 
 @pytest.mark.parametrize("mode", ["files", "finish"])
@@ -822,7 +822,7 @@ def test_rerun_finishes_after_a_failure_at_each_folder_phase(ready, capsys, monk
     assert code == 0, payload
     finished_state(ready)
     code, payload = preview(capsys, delete=True)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
 
 
 @pytest.mark.parametrize("ahead", [False, True])
@@ -890,7 +890,7 @@ def test_a_single_branch_repo_worktree_moves_too(ready, capsys):
     assert "feature/TS-201-only" in ready.git("repo-b", "branch", "--format=%(refname:short)")
     assert not ready.release_dir(DAY).exists()
     code, payload = preview(capsys)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
 
 
 def worktree_paths_of(ready, name):
@@ -926,7 +926,7 @@ def test_leftovers_are_reported_and_the_folder_is_not_planned_again(ready, capsy
     draft = ready.release_dir(NEW) / "pr" / "repo-a.md"
     draft.write_text(draft.read_text() + f"\ndata {DAY} de proposito\n")
     code, payload = preview(capsys)
-    assert code == 0 and payload["calls"] == []
+    assert code == 0 and payload["nothing_to_send"] is True
     assert payload["left_in_old"] == ["anotacoes.txt"]
     assert run_once(capsys)[0] == 0
     assert f"data {DAY} de proposito" in draft.read_text()
@@ -966,3 +966,119 @@ def test_a_stale_local_new_branch_without_the_old_one_is_refused(ready, capsys):
     code, payload = preview(capsys)
     assert code == 1 and ready.gh.writes == []
     assert any(f"the local branch release/{NEW} exists" in p for p in payload["problems"])
+
+
+def mixed(ready, b_body):
+    release_file(ready)
+    publish_branches(ready)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"release {DAY}: a", body="a\n")
+    ready.gh.add_pr(B, 5, "feature/TS-201-only", "master", title="feat(TS-201): b", body=b_body)
+
+
+def test_a_mixed_shape_move_points_the_single_branch_pr_at_the_new_pr(ready, capsys):
+    mixed(ready, "Release: 20/11/2026\n\nDepende de acme/repo-a#70\n")
+    code, payload = preview(capsys)
+    assert code == 0
+    create = next(
+        i for i, call in enumerate(payload["calls"]) if "pr create -R acme/repo-a" in call
+    )
+    edit = next(i for i, call in enumerate(payload["calls"]) if "pr edit 5 -R acme/repo-b" in call)
+    assert create < edit
+    assert run(capsys)[0] == 0
+    number = new_of(ready.gh, A, f"release/{NEW}")["number"]
+    assert ready.gh.bodies[5] == f"Release: 21/11/2026\n\nDepende de acme/repo-a#{number}\n"
+
+
+def test_a_mixed_shape_rerun_fills_the_single_branch_pr_from_the_known_pr(ready, capsys):
+    mixed(ready, "Release: 20/11/2026\n\nDepende de acme/repo-a#70, revisão de 20/11\n")
+    ready.gh.fail("pr edit", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    number = new_of(ready.gh, A, f"release/{NEW}")["number"]
+    code, payload = preview(capsys)
+    assert code == 0
+    text = f"Depende de acme/repo-a#{number}, revisão de 20/11"
+    assert {"repo": "repo-b", "pr": 5, "text": text} in payload["residual_dates"]
+    assert run(capsys)[0] == 0
+    assert f"acme/repo-a#{number}, revisão de 20/11" in ready.gh.bodies[5]
+    assert "{pr:" not in ready.gh.bodies[5]
+
+
+def test_an_old_pr_into_another_base_is_not_recreated(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 50, f"release/{DAY}", "staging", title=f"release {DAY}: stg", body="x\n")
+    code, payload = preview(capsys)
+    assert code == 0
+    assert not any("--base staging" in call for call in payload["calls"])
+    assert not any("pr close 50" in call for call in payload["calls"])
+    code, payload = preview(capsys, delete=True)
+    assert code == 1 and ready.gh.writes == []
+    assert f"repo-a: release/{DAY} stays: PR #50 from it is still open" in payload["problems"]
+
+
+def write_published(ready, rows):
+    path = ready.release_dir(DAY) / "published.json"
+    path.write_text(json.dumps({"repos": rows}), encoding="utf-8")
+
+
+def test_published_json_follows_the_move(ready, capsys):
+    standard(ready)
+    code_branch, sandbox_branch = f"release/{DAY}", f"release/{DAY}-sdbx"
+    a_row = {"shape": "multi", "code_branch": code_branch, "sandbox_branch": sandbox_branch}
+    write_published(ready, {"repo-a": {**a_row, "code_pr": 70, "sandbox_pr": 73}})
+    assert run(capsys)[0] == 0
+    record = json.loads((ready.release_dir(NEW) / "published.json").read_text())
+    row = record["repos"]["repo-a"]
+    assert row["code_branch"] == f"release/{NEW}" and row["sandbox_branch"] == f"release/{NEW}-sdbx"
+    assert row["code_pr"] == new_of(ready.gh, A, f"release/{NEW}")["number"]
+    assert row["sandbox_pr"] == new_of(ready.gh, A, f"release/{NEW}-sdbx")["number"]
+
+
+def test_a_failed_published_json_write_is_a_warning(ready, capsys, monkeypatch):
+    standard(ready)
+    write_published(ready, {"repo-a": {"shape": "multi", "code_branch": f"release/{DAY}"}})
+
+    def refuse(folder, data):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(writeplan, "write_published", refuse)
+    code, payload = run(capsys)
+    assert code == 0 and payload["failed"] is None
+    assert any("published.json was not updated: read-only" in w for w in payload["warnings"])
+
+
+def test_the_recorded_shape_wins_over_the_include_count(ready, capsys):
+    release_file(ready, b_multi=True)
+    publish_branches(ready)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"release {DAY}: a", body="a\n")
+    ready.gh.add_pr(B, 5, "feature/TS-201-only", "master", body="Release: 20/11/2026\n")
+    single = {"shape": "single", "code_branch": "feature/TS-201-only", "code_pr": 5}
+    write_published(ready, {"repo-b": single})
+    assert run(capsys)[0] == 0
+    assert ready.gh.bodies[5] == "Release: 21/11/2026\n"
+    assert creates(ready.gh, B) == []
+
+
+def test_move_fetches_only_the_release_repos(ready, capsys, monkeypatch):
+    ready.write_release({"repo-a": ["feature/TS-101-one", "feature/TS-102-two"]})
+    publish_branches(ready)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"release {DAY}: a", body="a\n")
+    fetched = []
+    monkeypatch.setattr(gitops, "fetch", lambda repo: fetched.append(repo.name))
+    code, _ = preview(capsys)
+    assert code == 0 and fetched == ["repo-a"]
+
+
+def test_preview_move_names_itself_and_a_refusal_keeps_the_warnings(ready, capsys, monkeypatch):
+    assert move.run_preview(args(old="20261125", new="20261126")) == 2
+    assert capsys.readouterr().err.startswith("ws release preview move: ")
+    standard(ready)
+    monkeypatch.setattr(gitops, "fetch", lambda repo: "boom")
+    ready.git("repo-a", "branch", f"release/{NEW}", "origin/master")
+    code, payload = preview(capsys)
+    assert code == 1 and "repo-a: fetch failed: boom" in payload["warnings"]
+
+
+def test_a_malformed_day_cannot_be_evaluated(ready, capsys):
+    standard(ready)
+    assert preview(capsys, new="2026-1-21")[0] == 2

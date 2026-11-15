@@ -14,7 +14,8 @@ from ws import humans
 from ws.config import data_dir
 from ws.release import ReleaseRefused, ReleaseSetup, run
 from ws.release import plan as writeplan
-from ws.release.github import Gh
+from ws.release.github import Gh, GhFailed, GhUncertain
+from ws.release.gitops import GitFailed
 from ws.release.plan import Call, WritePlan
 from ws.release.settings import load_release_config
 
@@ -83,7 +84,7 @@ def make_plan(world, tip="t1", body="corpo", action="publish", first_body=None):
 
 
 def preview(world, **kwargs) -> str:
-    payload, code = writeplan.show_preview(make_plan(world, **kwargs), NEXT)
+    payload, code = writeplan.show_preview(make_plan(world, **kwargs), NEXT, load_release_config())
     assert code == 0
     return payload["code"]
 
@@ -94,7 +95,7 @@ def approve(world, code, action="publish", build=None, local=None):
 
 
 def test_preview_stores_a_private_record(ready):
-    payload, _ = writeplan.show_preview(make_plan(ready), NEXT)
+    payload, _ = writeplan.show_preview(make_plan(ready), NEXT, load_release_config())
     path = writeplan.store() / f"{payload['code']}.json"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert payload["next"] == f"{NEXT} --approve {payload['code']}"
@@ -106,7 +107,7 @@ def test_preview_with_problems_writes_nothing(ready):
     broken = make_plan(ready)
     broken.problems = ["falta o rascunho"]
     with pytest.raises(ReleaseRefused) as error:
-        writeplan.show_preview(broken, NEXT)
+        writeplan.show_preview(broken, NEXT, load_release_config())
     assert error.value.payload == {"problems": ["falta o rascunho"]}
     assert not list(data_dir().glob("release/pending/*.json"))
 
@@ -171,7 +172,7 @@ def test_approve_refuses_a_move_code_for_publish(ready, fake_gh):  # noqa: F811
 
 def test_approve_refuses_when_the_state_changed(ready, fake_gh):  # noqa: F811
     code = preview(ready)
-    with pytest.raises(ReleaseRefused, match="o estado mudou desde a prévia"):
+    with pytest.raises(ReleaseRefused, match="the plan differs from the preview"):
         approve(ready, code, build=lambda: make_plan(ready, tip="t2"))
     assert fake_gh.writes == []
 
@@ -202,7 +203,7 @@ def test_approve_deletes_the_record_before_sending(ready, fake_gh):  # noqa: F81
         return plan
 
     code = build().code
-    writeplan.show_preview(build(), NEXT)
+    writeplan.show_preview(build(), NEXT, load_release_config(), ("first",))
     holder["path"] = writeplan.store() / f"{code}.json"
     assert holder["path"].exists()
     payload, exit_code = approve(ready, code, build=build, local={"first": first_send})
@@ -223,14 +224,42 @@ def test_approve_refuses_an_edited_summary(ready, fake_gh):  # noqa: F811
     assert fake_gh.writes == []
 
 
-def test_approve_refuses_what_guard_refuses(ready, fake_gh):  # noqa: F811
+def test_preview_refuses_what_guard_refuses(ready, fake_gh):  # noqa: F811
     bad = make_plan(ready)
     bad.calls.append(gh_call("pr", "merge", "5"))
-    writeplan.show_preview(bad, NEXT)
+    with pytest.raises(ReleaseRefused, match="outside the allowed shapes: gh pr merge 5") as error:
+        writeplan.show_preview(bad, NEXT, load_release_config())
+    assert error.value.payload == {"problems": ["call outside the allowed shapes: gh pr merge 5"]}
+    assert not list(data_dir().glob("release/pending/*.json"))
+
+
+def test_approve_refuses_what_guard_refuses(ready, fake_gh, monkeypatch):  # noqa: F811
+    bad = make_plan(ready)
+    bad.calls.append(gh_call("pr", "merge", "5"))
+    with monkeypatch.context() as patched:
+        patched.setattr(writeplan, "guard", lambda *args: None)
+        writeplan.show_preview(bad, NEXT, load_release_config())
     with pytest.raises(ReleaseRefused, match="outside the allowed shapes: gh pr merge 5"):
         approve(ready, bad.code, build=lambda: bad)
     assert fake_gh.writes == []
     assert BRANCH not in "".join(ready.refs("repo-a"))
+
+
+def test_an_empty_plan_gets_no_code(ready):
+    empty = make_plan(ready)
+    empty.calls = []
+    payload, code = writeplan.show_preview(empty, NEXT, load_release_config())
+    assert (payload, code) == ({"nothing_to_send": True}, 0)
+    assert not list(data_dir().glob("release/pending/*.json"))
+
+
+def test_a_store_that_cannot_be_written_is_a_setup_problem(ready, monkeypatch):
+    def refuse(*args):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(writeplan.approval, "write_pending", refuse)
+    with pytest.raises(ReleaseSetup, match="cannot store the pending preview"):
+        writeplan.show_preview(make_plan(ready), NEXT, load_release_config())
 
 
 def test_git_timeout_is_uncertain(ready, monkeypatch, capsys):
@@ -309,7 +338,7 @@ def test_a_non_json_plan_is_refused_clearly(ready):
     plan = make_plan(ready)
     plan.facts = {"renumber": {("repo-a", 1): "x"}}
     with pytest.raises(ReleaseRefused, match="not JSON-safe"):
-        writeplan.show_preview(plan, NEXT)
+        writeplan.show_preview(plan, NEXT, load_release_config())
 
 
 def test_execute_stops_at_the_first_failure(ready, fake_gh):  # noqa: F811
@@ -440,19 +469,25 @@ def test_guard_allows_the_known_shapes(ready):
 
 def test_release_code_never_merges_a_pr_or_forces():
     folder = Path(writeplan.__file__).parent
-    forbidden = re.compile(r"""["']pr["'],\s*["']merge["']|--force|["']-f["']|["']\+""")
-    assert list(folder.glob("*.py"))
-    for path in folder.glob("*.py"):
+    forbidden = re.compile(
+        r"""["']pr["'],\s*["']merge["']|pr\s+merge|--force|["']-f["']|["']\+(?!["'])"""
+    )
+    sources = [*folder.rglob("*.py"), folder.parent / "release_cli.py"]
+    assert len(sources) > 2 and all(path.is_file() for path in sources)
+    for path in sources:
         assert not forbidden.search(path.read_text(encoding="utf-8")), path.name
+    for sample in ('"pr", "merge"', "gh pr merge 5", '"--force-with-lease"', '"-f"', 'f"+{ref}"'):
+        assert forbidden.search(sample), sample
 
 
-def test_by_hand_asks_s_n(ready, monkeypatch, fake_gh):  # noqa: F811
+def test_by_hand_asks_s_n(ready, monkeypatch, fake_gh, capsys):  # noqa: F811
     code = preview(ready)
     monkeypatch.setattr(humans, "by_hand", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
     with pytest.raises(ReleaseRefused, match="nothing was sent"):
         approve(ready, code)
     assert fake_gh.writes == []
+    assert "Publicar no GitHub? [s/N]" in capsys.readouterr().err
     monkeypatch.setattr("builtins.input", lambda prompt="": "s")
     payload, exit_code = approve(ready, code)
     assert exit_code == 0 and len(fake_gh.writes) == 2
@@ -463,7 +498,7 @@ def test_local_handlers_run_when_named(ready):
     plan = make_plan(ready)
     plan.calls = [Call(repo="repo-a", program="local", args=("mark", "x"), line="marcar")]
     code = plan.code
-    writeplan.show_preview(plan, NEXT)
+    writeplan.show_preview(plan, NEXT, load_release_config(), ("mark",))
     payload, exit_code = approve(
         ready, code, build=lambda: plan, local={"mark": lambda *args: seen.append(args)}
     )
@@ -475,3 +510,39 @@ def test_run_prints_the_failed_json(ready, fake_gh, capsys):  # noqa: F811
     fake_gh.fail("pr create", "HTTP 422")
     assert run("publish", lambda: approve(ready, code)) == 1
     assert json.loads(capsys.readouterr().out)["failed"] == "abrir a PR de repo-a"
+
+
+def test_by_hand_names_the_move(ready, monkeypatch, fake_gh, capsys):  # noqa: F811
+    code = preview(ready, action="move")
+    monkeypatch.setattr(humans, "by_hand", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    with pytest.raises(ReleaseRefused, match="nothing was sent"):
+        approve(ready, code, action="move", build=lambda: make_plan(ready, action="move"))
+    assert "Mover a release no GitHub? [s/N]" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("error", "said"),
+    [
+        (GhFailed("HTTP 404"), "gh: HTTP 404"),
+        (GhUncertain("timed out"), "gh: timed out"),
+        (GitFailed("not a git repository"), "git: not a git repository"),
+    ],
+)
+def test_run_turns_gh_and_git_failures_into_exit_2(capsys, error, said):
+    def action():
+        raise error
+
+    assert run("status", action) == 2
+    assert capsys.readouterr().err == f"ws release status: {said}\n"
+
+
+def test_a_refusal_carries_the_warnings():
+    with pytest.raises(ReleaseRefused) as plain:
+        with writeplan.warnings_on_refusal(["repo-a: fetch failed: boom"]):
+            raise ReleaseRefused("the plan differs from the preview")
+    assert plain.value.payload == {"warnings": ["repo-a: fetch failed: boom"]}
+    with pytest.raises(ReleaseRefused) as quiet:
+        with writeplan.warnings_on_refusal([]):
+            raise ReleaseRefused("x")
+    assert quiet.value.payload is None

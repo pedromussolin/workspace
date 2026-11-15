@@ -1,14 +1,18 @@
 """The write plan of `ws release publish|move`: preview, approval and the one place that sends.
 
 A command builds a `WritePlan` (the git pushes, `gh` writes and local steps it wants);
-`show_preview` stores it under a code, `approve` rebuilds it live, checks it is still the same
-plan and that every call is inside the shapes `guard` allows, and `execute` sends it. `guard` is
-an allowlist: what it does not name is refused, so nothing here spells out the forbidden forms."""
+`show_preview` checks every call is inside the shapes `guard` allows and stores the plan under a
+code, `approve` rebuilds it live, checks it is still the same plan and guards it again, and
+`execute` sends it. `guard` is an allowlist: what it does not name is refused, so nothing here
+spells out the forbidden forms."""
 
+import json
+import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,8 +23,8 @@ from ws.codeposition import fetch_env
 from ws.config import claude_settings_path, data_dir
 from ws.release import ReleaseRefused, ReleaseSetup, gitops
 from ws.release import folder as release_folder
-from ws.release.github import UNCERTAIN_STDERR, Gh, GhFailed, GhUncertain
-from ws.release.settings import ReleaseConfig
+from ws.release.github import UNCERTAIN_STDERR, Gh, GhFailed, GhMissing, GhUncertain
+from ws.release.settings import ReleaseConfig, load_release_config
 
 RELEASE_BRANCH = r"release/\d{8}(-sdbx)?"
 TASK_BRANCH = r"(feature|chore|refact|hotfix|fix|test)/TS-\d+-[A-Za-z0-9._-]+"
@@ -35,6 +39,8 @@ GIT_DROPPED = re.compile(
     re.IGNORECASE,
 )
 PR_NUMBER = re.compile(r"\d+|\{num:[^{}\s]+\}")
+PUBLISHED = "published.json"
+QUESTIONS = {"publish": "Publicar no GitHub?", "move": "Mover a release no GitHub?"}
 
 
 def now() -> datetime:
@@ -92,6 +98,98 @@ class WritePlan:
     @property
     def code(self) -> str:
         return approval.digest(self.material())
+
+
+def known_entry(slug: str, number: int, url: str) -> list:
+    """How a placeholder `{pr:REF}`, `{url:REF}` or `{num:REF}` is filled: `slug#N`, url, N."""
+    return [f"{slug}#{number}", url, int(number)]
+
+
+def fetch_repos(config: ReleaseConfig, names: Iterable[str]) -> list[str]:
+    """Fetches each repo; a failure is a warning, never a stop."""
+    warnings = []
+    for name in names:
+        error = gitops.fetch(config.entry(name).path)
+        if error:
+            warnings.append(f"{name}: fetch failed: {error}")
+    return warnings
+
+
+def session(
+    project: str | None, repo_names: Callable[[ReleaseConfig, str], Iterable[str]]
+) -> tuple[ReleaseConfig, Gh, str, list[str]]:
+    """What a write command starts with: the config, a logged-in `gh`, the project slug, and the
+    fetch of the repos `repo_names(config, slug)` gives (failures as warnings)."""
+    config = load_release_config()
+    gh = Gh()
+    try:
+        gh.require_auth()
+    except GhMissing as error:
+        raise ReleaseSetup(f"gh: {error}") from error
+    slug = release_folder.resolve_slug(project, Path.cwd())
+    return config, gh, slug, fetch_repos(config, repo_names(config, slug))
+
+
+def read_release(folder: Path, names: tuple[str, ...]) -> release_folder.ReleaseFile:
+    """`release.toml` of `folder`; a missing one means the release cannot be evaluated (exit 2)."""
+    if not (folder / "release.toml").is_file():
+        raise ReleaseSetup(f"{folder / 'release.toml'} not found")
+    return release_folder.read_release(folder, names)
+
+
+def write_published(folder: Path, data: dict) -> None:
+    """Writes `published.json` whole, through a temporary file, so a reader never sees half."""
+    release_folder.ensure_dir(folder)
+    path = folder / PUBLISHED
+    temporary = path.with_name(PUBLISHED + ".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+@contextmanager
+def warnings_on_refusal(warnings: list[str]) -> Iterator[None]:
+    """A refusal raised inside carries the warnings, so a failed fetch is not hidden behind it."""
+    try:
+        yield
+    except ReleaseRefused as error:
+        if error.payload is not None:
+            error.payload["warnings"] = warnings
+        elif warnings:
+            error.payload = {"warnings": warnings}
+        raise
+
+
+def _same_body(left: str, right: str) -> bool:
+    def norm(value: str) -> str:
+        return value.replace("\r\n", "\n").rstrip("\n")
+
+    return norm(left) == norm(right)
+
+
+def refresh_edit(
+    repo: str,
+    slug: str,
+    number: int,
+    current: str,
+    wanted: str,
+    known: dict,
+    refs: set[str],
+    line: str,
+) -> Call | None:
+    """The `pr edit` that turns the body PR `number` has now into `wanted`: the placeholders of
+    PRs known by now are filled in and those of `refs` still to be created wait for the send.
+    `None` when that would leave the body as it is."""
+    body = release_folder.resolve_refs(wanted, known)
+    waiting = refs.intersection(release_folder.pending_refs(body))
+    if not waiting and _same_body(body, current):
+        return None
+    return Call(
+        repo=repo,
+        program="gh",
+        args=("pr", "edit", str(number), "-R", slug),
+        line=line,
+        body=body,
+    )
 
 
 def create_slug(call: Call) -> str | None:
@@ -198,17 +296,23 @@ def preview_command(action: str) -> str:
     return f"ws release preview {action}"
 
 
-def show_preview(plan: WritePlan, next_command: str) -> tuple[dict, int]:
+def show_preview(
+    plan: WritePlan, next_command: str, config: ReleaseConfig, local_names: tuple[str, ...] = ()
+) -> tuple[dict, int]:
+    """Stores the plan under its code. The guard runs here as at the approval, so no preview hands
+    out a code the approval would refuse; an empty plan gets no code."""
+    if (refused := guard(plan, config, local_names)) is not None:
+        plan.problems.append(f"call outside the allowed shapes: {refused}")
     if plan.problems:
         raise ReleaseRefused("; ".join(plan.problems), {"problems": plan.problems})
+    if not plan.calls:
+        return {"nothing_to_send": True}, 0
     try:
         code = plan.code
     except (TypeError, ValueError) as error:
         raise ReleaseRefused(
             f"the plan holds a value that is not JSON-safe (string keys, no tuples): {error}"
         ) from None
-    approval.ensure_store(store())
-    approval.purge_expired(store(), now=now(), preview=preview_command(plan.action))
     record = {
         "code": code,
         "action": plan.action,
@@ -217,7 +321,12 @@ def show_preview(plan: WritePlan, next_command: str) -> tuple[dict, int]:
         "material": plan.material(),
         "summary": plan.summary,
     }
-    approval.write_pending(store(), code, record)
+    try:
+        approval.ensure_store(store())
+        approval.purge_expired(store(), now=now(), preview=preview_command(plan.action))
+        approval.write_pending(store(), code, record)
+    except OSError as error:
+        raise ReleaseSetup(f"cannot store the pending preview in {store()}: {error}") from None
     calls = [f"{call.repo}: {call.program} {' '.join(call.args)}" for call in plan.calls]
     payload = {
         "code": code,
@@ -228,9 +337,9 @@ def show_preview(plan: WritePlan, next_command: str) -> tuple[dict, int]:
     return payload, 0
 
 
-def _confirm(summary: list[str]) -> bool:
+def _confirm(summary: list[str], action: str) -> bool:
     print("\n".join(summary), file=sys.stderr)
-    print("Publicar no GitHub? [s/N] ", end="", file=sys.stderr, flush=True)
+    print(f"{QUESTIONS[action]} [s/N] ", end="", file=sys.stderr, flush=True)
     try:
         answer = input()
     except (EOFError, KeyboardInterrupt):
@@ -291,10 +400,12 @@ def approve(
     if live.problems:
         raise ReleaseRefused("; ".join(live.problems), {"problems": live.problems})
     if live.code != code:
-        raise ReleaseRefused("o estado mudou desde a prévia; rode a prévia de novo")
+        raise ReleaseRefused(
+            "the plan differs from the preview (state or flags changed); run the preview again"
+        )
     if (refused := guard(live, config, tuple(local or {}))) is not None:
         raise ReleaseRefused(f"call outside the allowed shapes: {refused}")
-    if by_hand and not _confirm(live.summary):
+    if by_hand and not _confirm(live.summary, action):
         raise ReleaseRefused("nothing was sent")
     try:
         (store() / f"{code}.json").unlink()
@@ -354,21 +465,28 @@ def _send(
 def execute(
     plan: WritePlan, gh: Gh, local: dict[str, Callable[..., None]] | None = None
 ) -> tuple[dict, int]:
-    """Sends the calls in order and stops at the first failure. Nothing is retried."""
+    """Sends the calls in order and stops at the first failure. Nothing is retried. `known` in the
+    result is every PR a placeholder can name after the run: the plan's and the ones it made."""
     known = {
-        ref: (value[0], value[1], int(value[2]))
+        ref: [value[0], value[1], int(value[2])]
         for ref, value in plan.facts.get("known", {}).items()
     }
     done: list[str] = []
     prs: dict[str, str] = {}
-    result = {"done": done, "failed": None, "not_sent": [], "uncertain": False, "prs": prs}
+    result = {
+        "done": done,
+        "failed": None,
+        "not_sent": [],
+        "uncertain": False,
+        "prs": prs,
+        "known": known,
+    }
     for index, call in enumerate(plan.calls):
         try:
             url, answers = _send(call, gh, local or {}, known)
             if answers:
-                number = _pr_number(url)
-                known[answers] = (f"{create_slug(call)}#{number}", url, number)
-                prs[answers] = url
+                known[answers] = known_entry(create_slug(call) or "", _pr_number(url), url or "")
+                prs[answers] = url or ""
         except GhUncertain as error:
             print(f"resultado incerto: confira no GitHub ({error})", file=sys.stderr)
             result["uncertain"] = True
