@@ -4,7 +4,6 @@ from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ws import jira
-from ws.cardrules import adf_text
 from ws.jira import JiraClient, JiraError
 from ws.tracker.port import Card, CardQuery, Link, TrackerError
 from ws.userconfig import JiraConfig
@@ -34,6 +33,29 @@ _BASE_FIELDS = [
     "issuetype",
     "issuelinks",
 ]
+
+
+def _plain(node: dict) -> str:
+    kind = node.get("type")
+    attrs = node.get("attrs") or {}
+    if kind == "text":
+        return node.get("text", "")
+    if kind == "hardBreak":
+        return "\n"
+    if kind == "mention":
+        return attrs.get("text") or ""
+    if kind == "inlineCard":
+        return attrs.get("url") or ""
+    children = [_plain(child) for child in node.get("content", [])]
+    if kind == "heading":
+        return f"{'#' * attrs.get('level', 2)} {''.join(children)}"
+    if kind == "listItem":
+        return "- " + "\n  ".join(children)
+    if kind == "codeBlock":
+        return "```\n" + "".join(children) + "\n```"
+    if kind == "paragraph":
+        return "".join(children)
+    return "\n".join(children)
 
 
 def _now() -> datetime:
@@ -139,7 +161,7 @@ class JiraTracker:
             raise TrackerError(str(error)) from None
         try:
             document = ((issue or {}).get("fields") or {}).get("description")
-            text = adf_text(document).strip() if isinstance(document, dict) else ""
+            text = _plain(document).strip() if isinstance(document, dict) else ""
         except (TypeError, AttributeError) as error:
             raise TrackerError(str(error)) from None
         return text or None

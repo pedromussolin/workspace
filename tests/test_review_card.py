@@ -54,3 +54,18 @@ def test_card_context_warns_when_there_is_no_section():
 
 def test_card_context_absent_card():
     assert card_context(FakeTracker(), "TS-9") == (None, [])
+
+
+def test_done_when_keeps_a_code_block_with_a_comment():
+    text = "## Pronto quando\n- a\n```\n# comment\nx = 1\n```\n- b\n## Outro\ny"
+
+    assert done_when(text) == "- a\n```\n# comment\nx = 1\n```\n- b"
+
+
+def test_card_context_with_an_empty_description_warns():
+    tracker = FakeTracker([make_card("TS-1")], descriptions={"TS-1": ""})
+
+    context, warnings = card_context(tracker, "TS-1")
+
+    assert context["done_when"] is None
+    assert warnings == ["TS-1 has no Pronto quando section"]

@@ -342,3 +342,30 @@ def test_fake_tracker_has_description():
     assert "description" in tracker.capabilities
     assert tracker.description("TS-1") == "## Pronto quando\n- a"
     assert tracker.description("TS-2") is None
+
+
+def test_jira_description_keeps_code_fences_mentions_and_cards(world):  # noqa: F811
+    doc = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Fale com "},
+                    {"type": "mention", "attrs": {"id": "acc-other", "text": "@Ana"}},
+                    {"type": "text", "text": " em "},
+                    {"type": "inlineCard", "attrs": {"url": "https://example.test/x"}},
+                ],
+            },
+            {
+                "type": "codeBlock",
+                "content": [{"type": "text", "text": "# comment\nx = 1"}],
+            },
+        ],
+    }
+    world.set_card("TS-104", description=doc)
+
+    assert _tracker().description("TS-104") == (
+        "Fale com @Ana em https://example.test/x\n```\n# comment\nx = 1\n```"
+    )

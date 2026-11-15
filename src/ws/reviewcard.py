@@ -12,8 +12,14 @@ _SECTION = "pronto quando"
 def done_when(text: str) -> str | None:
     lines: list[str] = []
     inside = False
+    fenced = False
     for line in text.splitlines():
-        heading = _HEADING.match(line.strip())
+        if line.strip().startswith("```"):
+            fenced = not fenced
+            if inside:
+                lines.append(line)
+            continue
+        heading = None if fenced else _HEADING.match(line.strip())
         if heading:
             if inside:
                 break

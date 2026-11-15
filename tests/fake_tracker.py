@@ -77,4 +77,4 @@ class FakeTracker:
         return self._names.get(account, account)
 
     def description(self, ref: str) -> str | None:
-        return self._descriptions.get(ref)
+        return self._descriptions.get(ref) or None
