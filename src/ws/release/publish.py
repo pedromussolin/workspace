@@ -13,16 +13,15 @@ from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
-from ws.release import ReleaseSetup, gitops, plan, rules, status, text
+from ws.release import ReleaseRefused, ReleaseSetup, gitops, plan, rules, status, text
 from ws.release import folder as release_folder
 from ws.release import run as run_release
-from ws.release.build import PUBLISHED, _published
+from ws.release.build import PUBLISHED, load_published
 from ws.release.github import Gh, GhFailed, GhMissing, GhUncertain, PullRequest
 from ws.release.plan import Call, WritePlan
 from ws.release.settings import ReleaseConfig, RepoEntry, load_release_config
 
 SANDBOX_PARAGRAPH = "Leva este código para a sandbox, para validar antes da master."
-SDBX_TITLE = " (sdbx)"
 
 
 @dataclass
@@ -99,7 +98,7 @@ def _sandbox_draft(
         problems.append(f"{name}: pr/{name}.md not found")
         return None, False
     code = drafts["code"]
-    return replace(code, title=code.title + SDBX_TITLE), True
+    return replace(code, title=code.title + rules.SANDBOX_SUFFIX), True
 
 
 def _repo_items(
@@ -137,7 +136,9 @@ def _repo_items(
         if push:
             items.append(push)
     if open_code:
-        plan_["known"][name] = _known(entry, max(open_code, key=lambda pr: pr.number))
+        latest = max(open_code, key=lambda pr: pr.number)
+        plan_["known"][name] = _known(entry, latest)
+        plan_["open"].append((entry, latest.number))
     elif "code" not in drafts:
         plan_["problems"].append(f"{name}: pr/{name}.md not found")
     else:
@@ -148,9 +149,9 @@ def _repo_items(
     open_sandbox = [pr for pr in sandbox_prs if pr.state == "OPEN"]
     head_ref = _head_ref(repo, state.sandbox_head)
     if open_sandbox:
-        plan_["known"][f"{name}-sandbox"] = _known(
-            entry, max(open_sandbox, key=lambda pr: pr.number)
-        )
+        latest = max(open_sandbox, key=lambda pr: pr.number)
+        plan_["known"][f"{name}-sandbox"] = _known(entry, latest)
+        plan_["open"].append((entry, latest.number))
     elif head_ref and gitops.count(repo, f"{_origin(config.sandbox_branch)}..{head_ref}") > 0:
         done = sum(1 for pr in sandbox_prs if pr.merged_at)
         draft, fallback = _sandbox_draft(name, drafts, done, plan_["problems"])
@@ -202,12 +203,54 @@ def _create_call(config: ReleaseConfig, create: _Create, body: str) -> Call:
     return Call(repo=entry.name, program="gh", args=args, line=line, body=body, answers=create.ref)
 
 
-def build_plan(config: ReleaseConfig, slug: str, day: date, repos: list[str], gh: Gh) -> WritePlan:
+def _completions(config: ReleaseConfig, state: dict, refs: set[str], gh: Gh) -> list[Call]:
+    """An edit for each open PR whose body still names a PR that is known by now."""
+    edits = []
+    for entry, number in state["open"]:
+        body = gh.pr(entry.slug, number).body
+        if refs.intersection(release_folder.pending_refs(body)):
+            edits.append(
+                Call(
+                    repo=entry.name,
+                    program="gh",
+                    args=("pr", "edit", str(number), "-R", entry.slug),
+                    line=f"segunda passada: {entry.name}: completar as referências da PR #{number}",
+                    body=body,
+                )
+            )
+    return edits
+
+
+def build_plan(
+    config: ReleaseConfig,
+    slug: str,
+    day: date,
+    repos: list[str],
+    gh: Gh,
+    warnings: list[str] | None = None,
+    loaded: dict | None = None,
+) -> WritePlan:
+    """Reads the release; fetch failures go to `warnings`, `published.json` to `loaded`."""
     folder = release_folder.release_dir(slug, day)
     names = tuple(entry.name for entry in config.repos)
     wanted = release_folder.read_release(folder, names)
-    selected = [name for name in wanted.repos if not repos or name in repos]
-    state: dict = {"known": {}, "skipped": [], "repos": {}, "problems": [], "tips": {}}
+    unknown = [name for name in repos if name not in wanted.repos]
+    if unknown:
+        raise ReleaseRefused(f"{', '.join(unknown)} not in {folder / 'release.toml'}")
+    selected = [
+        entry.name
+        for entry in config.repos
+        if entry.name in wanted.repos and (not repos or entry.name in repos)
+    ]
+    for name in selected:
+        error = gitops.fetch(config.entry(name).path)
+        if error and warnings is not None:
+            warnings.append(f"{name}: fetch failed: {error}")
+    published = load_published(folder)
+    if loaded is not None:
+        loaded.clear()
+        loaded.update(published)
+    state: dict = {"known": {}, "skipped": [], "repos": {}, "problems": [], "tips": {}, "open": []}
     items: list[Call | _Create] = []
     for name in selected:
         entry = config.entry(name)
@@ -230,12 +273,13 @@ def build_plan(config: ReleaseConfig, slug: str, day: date, repos: list[str], gh
         path = f"pr/{item.draft.path.name}"
         drafts[path] = {"path": path, "sha256": item.draft.sha256}
     calls += plan.second_pass(calls)
+    calls += _completions(config, state, refs, gh)
     facts = {
         "known": state["known"],
         "skipped": state["skipped"],
         "repos": state["repos"],
     }
-    return WritePlan(
+    built = WritePlan(
         action="publish",
         slug=slug,
         days=(text.compact(day),),
@@ -245,6 +289,10 @@ def build_plan(config: ReleaseConfig, slug: str, day: date, repos: list[str], gh
         facts=facts,
         problems=list(dict.fromkeys(state["problems"])),
     )
+    refused = plan.guard(built, config)
+    if refused:
+        built.problems.append(f"call outside the allowed shapes: {refused}")
+    return built
 
 
 @dataclass
@@ -255,14 +303,14 @@ class _Context:
     names: list[str]
     gh: Gh
     warnings: list[str]
+    loaded: dict
     built: WritePlan | None = None
 
     def build(self) -> WritePlan:
-        for name in self.names:
-            error = gitops.fetch(self.config.entry(name).path)
-            if error:
-                self.warnings.append(f"{name}: fetch failed: {error}")
-        self.built = build_plan(self.config, self.slug, self.day, self.names, self.gh)
+        self.warnings.clear()
+        self.built = build_plan(
+            self.config, self.slug, self.day, self.names, self.gh, self.warnings, self.loaded
+        )
         return self.built
 
 
@@ -271,17 +319,14 @@ def _context(args: argparse.Namespace) -> _Context:
     try:
         day = text.parse_day(args.day)
     except ValueError as error:
-        raise ReleaseSetup(str(error)) from error
+        raise ReleaseRefused(str(error)) from None
     slug = release_folder.resolve_slug(args.project, Path.cwd())
     gh = Gh()
     try:
         gh.require_auth()
     except GhMissing as error:
         raise ReleaseSetup(f"gh: {error}") from error
-    unknown = [name for name in args.repos if name not in {r.name for r in config.repos}]
-    if unknown:
-        raise ReleaseSetup(f"unknown repo {', '.join(unknown)}")
-    return _Context(config, slug, day, list(args.repos), gh, [])
+    return _Context(config, slug, day, list(args.repos), gh, [], {})
 
 
 def _guarded(action: Callable[[], tuple[dict, int]]) -> Callable[[], tuple[dict, int]]:
@@ -290,6 +335,8 @@ def _guarded(action: Callable[[], tuple[dict, int]]) -> Callable[[], tuple[dict,
             return action()
         except (GhFailed, GhUncertain) as error:
             raise ReleaseSetup(f"gh: {error}") from error
+        except gitops.GitFailed as error:
+            raise ReleaseSetup(f"git: {error}") from error
 
     return wrapped
 
@@ -297,11 +344,15 @@ def _guarded(action: Callable[[], tuple[dict, int]]) -> Callable[[], tuple[dict,
 def run_preview(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         context = _context(args)
-        built = context.build()
         next_command = f"ws release publish {text.compact(context.day)} --project {context.slug}"
         if args.repos:
             next_command += f" --repo {' '.join(args.repos)}"
-        payload, code = plan.show_preview(built, next_command)
+        try:
+            payload, code = plan.show_preview(context.build(), next_command)
+        except ReleaseRefused as error:
+            if error.payload is not None:
+                error.payload["warnings"] = context.warnings
+            raise
         payload["warnings"] = context.warnings
         return payload, code
 
@@ -312,13 +363,8 @@ def _number(url: str) -> int:
     return int(url.rsplit("/", 1)[-1])
 
 
-def _record(folder: Path, built: WritePlan, known: dict[str, tuple[str, str, int]]) -> None:
-    path = folder / PUBLISHED
-    try:
-        data = json.loads(path.read_text())
-    except (FileNotFoundError, ValueError):
-        data = {}
-    repos = _published(folder)
+def _record(folder: Path, built: WritePlan, data: dict, known: dict) -> None:
+    repos = data.get("repos") if isinstance(data.get("repos"), dict) else {}
     for name, facts in built.facts["repos"].items():
         row = repos.setdefault(name, {})
         row["shape"], row["code_branch"] = facts["shape"], facts["code_branch"]
@@ -329,6 +375,7 @@ def _record(folder: Path, built: WritePlan, known: dict[str, tuple[str, str, int
                 row[key] = known[ref][2]
     data["repos"] = repos
     release_folder.ensure_dir(folder)
+    path = folder / PUBLISHED
     temporary = path.with_name(PUBLISHED + ".tmp")
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(temporary, path)
@@ -342,7 +389,7 @@ def _finish(context: _Context, result: dict) -> dict:
     for ref, url in result["prs"].items():
         slug = config.entry(ref.removesuffix("-sandbox")).slug
         known[ref] = (f"{slug}#{_number(url)}", url, _number(url))
-    _record(folder, built, known)
+    _record(folder, built, context.loaded, known)
     found: dict[str, PullRequest] = {}
     rows = []
     for name in built.facts["repos"]:
@@ -363,16 +410,23 @@ def _finish(context: _Context, result: dict) -> dict:
         "date": text.compact(context.day),
         "repos": rows,
         "gmud": status.links(config, found),
+        "warnings": context.warnings,
     }
 
 
 def run_publish(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         context = _context(args)
-        result, code = plan.approve(
-            args.approve, "publish", context.build, context.gh, context.config
-        )
+        try:
+            result, code = plan.approve(
+                args.approve, "publish", context.build, context.gh, context.config
+            )
+        except ReleaseRefused as error:
+            if error.payload is not None:
+                error.payload["warnings"] = context.warnings
+            raise
         if code != 0:
+            result["warnings"] = context.warnings
             return result, code
         return _finish(context, result), 0
 
