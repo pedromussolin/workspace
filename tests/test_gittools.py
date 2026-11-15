@@ -635,6 +635,40 @@ def test_add_worktree_track_sets_the_upstream_whatever_the_config_and_remotes(cl
     assert git(work, "rev-parse", "--abbrev-ref", "feat/remote@{upstream}") == "origin/feat/remote"
 
 
+def stop_in(repo: Path, *args: str) -> None:
+    """Run a git command expected to stop half-way (a conflict, a failing exec)."""
+    subprocess.run(["git", *args], cwd=repo, capture_output=True, check=False)
+
+
+@pytest.mark.parametrize(
+    ("setup", "operation"),
+    [
+        ([("switch", "-q", "feat/one"), ("rebase", "feat/two")], "a rebase"),
+        ([("switch", "-q", "feat/one"), ("rebase", "--apply", "feat/two")], "a rebase"),
+        ([("switch", "-q", "feat/one"), ("merge", "feat/two")], "a merge"),
+        ([("switch", "-q", "feat/one"), ("cherry-pick", "feat/two")], "a cherry-pick"),
+        ([("switch", "-q", "feat/one"), ("revert", "--no-edit", "feat/two")], "a revert"),
+        ([("bisect", "start")], "a bisect"),
+    ],
+)
+def test_operation_in_progress_names_what_the_repo_is_in_the_middle_of(
+    repo, conflicting_branches, setup, operation
+):
+    assert gittools.operation_in_progress(repo) is None
+    for args in setup:
+        stop_in(repo, *args)
+
+    assert gittools.operation_in_progress(repo) == operation
+
+
+def test_operation_in_progress_sees_a_rebase_stopped_on_a_clean_tree(repo):
+    commit(repo, "b.txt", "b\n", "feat: b")
+    stop_in(repo, "rebase", "--exec", "false", "--root")
+
+    assert gittools.dirty(repo) is False
+    assert gittools.operation_in_progress(repo) == "a rebase"
+
+
 def test_worktree_of_finds_the_checkout(cloned, tmp_path):
     _, work = cloned
     linked = tmp_path / "wt"

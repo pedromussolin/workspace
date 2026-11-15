@@ -114,6 +114,30 @@ def dirty(repo: Path) -> bool:
     return bool(_git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip())
 
 
+OPERATIONS = (
+    ("rebase-merge", "a rebase"),
+    ("rebase-apply", "a rebase"),
+    ("MERGE_HEAD", "a merge"),
+    ("CHERRY_PICK_HEAD", "a cherry-pick"),
+    ("REVERT_HEAD", "a revert"),
+    ("BISECT_LOG", "a bisect"),
+)
+
+
+def operation_in_progress(repo: Path) -> str | None:
+    """The rebase, merge, cherry-pick, revert or bisect the work tree is in the middle of, or None.
+
+    `git switch` refuses during most of them even on a clean tree, so a caller checks this before
+    switching any repo.
+    """
+    paths = [arg for marker, _ in OPERATIONS for arg in ("--git-path", marker)]
+    found = _git(repo, "rev-parse", *paths).stdout.splitlines()
+    for path, (_, name) in zip(found, OPERATIONS, strict=True):
+        if (repo / path).exists():
+            return name
+    return None
+
+
 FETCH_TIMEOUT_SECONDS = 60
 
 

@@ -420,7 +420,11 @@ def _choose_branch(run: _Run, computed: str) -> str | None:
 
 
 def _plan(run: _Run, repo: _Repo, remote: str, use_worktree: bool) -> None:
-    """The repo's action, decided before any change; a dirty tree only matters when it switches."""
+    """The repo's action, decided before any change.
+
+    A dirty tree, or a rebase, merge, cherry-pick, revert or bisect half done, only matters when
+    the repo switches: a rerun on the task branch (`current`) or a worktree leaves it alone.
+    """
     branch = run.branch
     try:
         where = gittools.worktree_of(repo.path, branch)
@@ -446,7 +450,15 @@ def _plan(run: _Run, repo: _Repo, remote: str, use_worktree: bool) -> None:
             repo.track = True
         else:
             repo.action, repo.start_point = "create", f"refs/remotes/{remote}/{repo.base}"
-        if repo.action in SWITCHING and gittools.dirty(repo.path):
+        if repo.action not in SWITCHING:
+            return
+        operation = gittools.operation_in_progress(repo.path)
+        if operation is not None:
+            run.problems.append(
+                f"{repo.name} is in the middle of {operation} in {repo.path}; finish or abort it "
+                "first, or rerun with --worktree"
+            )
+        elif gittools.dirty(repo.path):
             run.problems.append(
                 f"{repo.name} has uncommitted changes in {repo.path}; commit or stash them, "
                 "or rerun with --worktree"

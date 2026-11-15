@@ -365,6 +365,28 @@ def test_start_two_task_branches_is_a_problem(env, capsys):
     assert env.previews == []
 
 
+def test_start_repo_in_the_middle_of_a_rebase_changes_nothing(env, capsys):
+    front = env.path("acme-front")
+    env.git(front, "rebase", "--exec", "false", "--root", check=False)
+    argv = ["TS-5", "--repo", "acme-api", "--repo", "acme-front"]
+
+    code, out, _ = start(capsys, *argv)
+
+    assert code == 1
+    [problem] = out["problems"]
+    assert problem.startswith(f"acme-front is in the middle of a rebase in {front}")
+    assert "--worktree" in problem
+    assert (env.current("acme-api"), env.branches("acme-api")) == ("master", ["master"])
+    assert env.branches("acme-front") == ["master"]
+    assert env.previews == []
+    assert not draft_path().exists()
+
+    code, out, _ = start(capsys, *argv, "--worktree")
+
+    assert code == 0, out["problems"]
+    assert actions(out) == [("acme-api", "worktree"), ("acme-front", "worktree")]
+
+
 def test_start_in_progress_with_a_start_date_writes_no_draft(env, capsys):
     card = make_card("TS-5", title=TITLE, status=Status.IN_PROGRESS, start=date(2026, 11, 10))
     env.tracker = FakeTracker([card])
