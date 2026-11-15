@@ -4,8 +4,9 @@
 heredocs are looked at) and returns one decision. A variable the command assigns a literal value
 (`A="git -C x"; $A log`) is resolved first by `variables.worlds`, and every resolved text is
 judged; the strictest decision wins. Families, each with its own PT-BR box: `git push` (and what
-redirects it), `gh`, `curl`/`wget`, `ws card apply`, the protection of the Claude Code settings
-and hooks, and commands the gate cannot read with certainty. Everything else passes.
+redirects it), `gh`, `curl`/`wget`, `ws card apply`, `ws release publish|move`,
+the protection of the Claude Code settings and hooks, and commands the gate cannot read with
+certainty. Everything else passes.
 
 "Unquoted" for the obfuscation rule: an expansion that the shell does not keep as one literal
 argument, that is a `$`, a backtick or a brace expansion (`{a,b}`, `{1..3}`) outside every quote.
@@ -22,8 +23,14 @@ the write families (`push`, `remote`, `config` of the push destination, `gh` wri
 own arguments. `gh api` also asks for a word that starts with an expansion or a dash and is not
 the endpoint (`$FLAGS`, `-X$M`, `-X $M`), since it could inject a method or fields.
 
-Text rules cannot see a script file the command runs, text piped to `python` or `node`, programs
-that start other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude Code reports stale.
+Text rules cannot see a script file the command runs, text piped to `node`, programs that start
+other programs (`xargs`, `find -exec`, `ssh`) or a `cwd` that Claude Code reports stale.
+Python is read from its own argv (`shell.parse_python`), runner modules (`-m cProfile -m ws`)
+included: the code in `-c`, heredocs, static here-strings and `timeit`/`pdb -c` arguments is
+scanned; code that comes from a pipe, a file or an expansion asks, also behind `-i`, a REPL module
+or `code.interact()`; the program's own arguments that read a `ws` write are judged as `ws`; and a
+`subprocess`/`os.system`/`os.exec*` call with a literal command that names `ws` is judged as
+that command line.
 Credential reads from code are found by the path written in it, or by the home plus a credential
 name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
 (`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
@@ -44,10 +51,13 @@ push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatc
 query asks, and the box shows the real push URL and the names (never the values) of the keys.
 """
 
+import ast
 import fnmatch
 import json
 import os
+import posixpath
 import re
+import shlex
 import subprocess
 import time
 import tomllib
@@ -72,7 +82,11 @@ TITLE_CREDENTIAL = "Lê uma credencial"
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
 APPROVE_CODE = re.compile(r"[0-9a-f]{12}")
+WS_WORD = re.compile(r"\bws\b")
 WS_IMPORT = re.compile(r"\b(?:from|import)\s+ws\b|(?:import_module|__import__)\(\s*['\"]ws\b")
+WS_MODULES = {"ws", "ws.cli", "ws.__main__"}
+WS_WRITES = {("card", "apply"), ("release", "publish"), ("release", "move")}
+STDIN_FD = re.compile(r"(?:^|/)fd/\d+$")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
 CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
@@ -1347,34 +1361,34 @@ def _http(program: str, args: list[Word]) -> list[Finding]:
     return [Finding(title, lines, brief=title)]
 
 
-def _pending_summary(code: str) -> Finding:
-    """The box for applying the pending preview `code`; a record that is not there is denied.
+def _pending_summary(folder: str, title: str, preview: str, code: str) -> Finding:
+    """The box for applying the pending preview `code` kept in the store `folder`.
 
-    Denied, not asked: a box that cannot show what `apply` will write is a rubber stamp.
+    `preview` is the command that makes the record. A record that is not there is denied, not
+    asked: a box that cannot show what the write will do is a rubber stamp.
     """
-    path = _data_dir() / "cards" / "pending" / f"{code}.json"
+    path = _data_dir() / folder / "pending" / f"{code}.json"
+    kind = "release preview" if folder == "release" else "preview"
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        where = "" if folder == "release" else " in the default store"
         return Finding(
-            TITLE_JIRA,
+            title,
             (),
-            f"Blocked: no pending preview with code {code} in the default store; "
-            "run ws card preview first.",
+            f"Blocked: no pending {kind} with code {code}{where}; run {preview} first.",
         )
     except (OSError, ValueError):
         return Finding(
-            TITLE_JIRA,
+            title,
             (),
-            f"Blocked: the pending preview with code {code} could not be read; "
-            "run ws card preview again.",
+            f"Blocked: the pending {kind} with code {code} could not be read; run {preview} again.",
         )
     summary = record.get("summary") if isinstance(record, dict) else None
     if not isinstance(summary, list) or not summary or not all(isinstance(s, str) for s in summary):
-        line = "A prévia não tem resumo; veja antes com `ws card preview`"
-        return Finding(f"Aplica a prévia {code} no Jira", (line,))
-    brief = f"Aplica a prévia {code} no Jira ({len(summary)} mudanças)"
-    return Finding(f"Aplica a prévia {code} no Jira", tuple(summary), brief=brief)
+        line = f"A prévia não tem resumo; veja antes com `{preview}`"
+        return Finding(title, (line,))
+    return Finding(title, tuple(summary), brief=f"{title} ({len(summary)} mudanças)")
 
 
 def _store_change(scan: Scan) -> str | None:
@@ -1403,6 +1417,7 @@ def _gate_catalog(texts: list[str], args: list[Word], top: Parsed) -> list[Findi
 
 
 def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
+    """`ws` with `args`; `card apply` and `release publish|move` show the pending record."""
     texts = [word.text for word in command.words]
     top = parse_flags(args, set())
     names = [word.text for word in top.positionals[:2]]
@@ -1425,35 +1440,148 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
         return [_found(TITLE_PROTECTION, reason, _snippet(texts), alert=True)]
     if names == ["gate", "catalog"]:
         return _gate_catalog(texts, args, top)
-    if names != ["card", "apply"]:
+    if names == ["card", "apply"]:
+        kind = "card"
+    elif names[:1] == ["release"] and names[1:] in (["publish"], ["move"]):
+        kind = names[1]
+    else:
         return []
+    jira = kind == "card"
+    title_fallback = TITLE_JIRA if jira else TITLE_GITHUB
     code = None
+    code_expands = False
     for index, word in enumerate(args):
         flag, equals, value = word.text.partition("=")
         if len(flag) > 2 and "--approve".startswith(flag):
-            code = value if equals else (args[index + 1].text if index + 1 < len(args) else "")
+            if equals:
+                code, code_expands = value, word.expands
+            elif index + 1 < len(args):
+                code, code_expands = args[index + 1].text, args[index + 1].expands
+            else:
+                code, code_expands = "", False
     if code is None:
-        return [_found(TITLE_JIRA, "Falta o --approve; o ws vai recusar", _snippet(texts))]
+        return [_found(title_fallback, "Falta o --approve; o ws vai recusar", _snippet(texts))]
+    if code_expands or any(char in code for char in "?*["):
+        done = "aplicado" if jira else "publicado"
+        reason = f"O código vem de uma variável ou comando; não sei o que será {done}"
+        return [_found(TITLE_UNSURE, reason, _snippet(texts))]
     if not APPROVE_CODE.fullmatch(code):
-        return [_found(TITLE_JIRA, "Código de aprovação inválido; o ws vai recusar", code)]
+        return [_found(title_fallback, "Código de aprovação inválido; o ws vai recusar", code)]
     if changed := _store_change(scan):
         reason = "Pode mudar a pasta de onde o ws lê a prévia; não sei o que será aplicado"
         return [_found(TITLE_UNSURE, reason, changed)]
-    return [_pending_summary(code)]
+    if jira:
+        title = f"Aplica a prévia {code} no Jira"
+        return [_pending_summary("cards", title, "ws card preview", code)]
+    if kind == "publish":
+        title = f"Publica a prévia {code} no GitHub"
+    else:
+        title = f"Move a release (prévia {code}) no GitHub"
+    return [_pending_summary("release", title, f"ws release preview {kind}", code)]
 
 
-def _python_ws(args: list[Word]) -> list[tuple[str, list[Word]]]:
-    for index, word in enumerate(args):
-        if word.text == "-m" and index + 1 < len(args):
-            module, rest = args[index + 1].text, args[index + 2 :]
-            if module in ("ws", "ws.cli", "ws.__main__"):
-                return [("ws", rest)]
-            if module.startswith("ws."):
-                return [("ws", [Word(module.split(".")[1]), *rest])]
-            return []
-        if not word.text.startswith("-"):
-            break
+def _python_stdin_problem(command: Command, args: list[Word], program: shell.PythonProgram) -> str:
+    """Why the code a Python reads from stdin cannot be read here, or an empty string."""
+    if program.procsub or any(word.text.startswith("<(") for word in args):
+        return "O Python recebe o código por substituição de processo"
+    if command.piped:
+        return "O Python recebe o código por pipe"
+    if any(read != "/dev/null" for read in command.reads):
+        return "O Python recebe o código de um arquivo"
+    if command.here_string is not None and command.here_string_expands:
+        return "O código do Python vem de uma variável ou comando"
+    return ""
+
+
+def _folders_walked(cwd: str, scan: Scan) -> list[str]:
+    """The cwd and each folder the `cd` commands lead to, relative ones joined in order."""
+    current = cwd or "/"
+    found = [current]
+    for folder in _entered_folders(scan):
+        current = posixpath.join(current, folder)
+        found.append(current)
+    return found
+
+
+def _script_place(word: Word, cwd: str, scan: Scan) -> str:
+    """Why a script path may be stdin: `//dev/stdin`, `../../dev/stdin`, `stdin` after `cd /dev`."""
+    text = word.text
+    places = (
+        [text]
+        if text.startswith("/")
+        else [posixpath.join(folder, text) for folder in _folders_walked(cwd, scan)]
+    )
+    inside = any(shell.lexical_path(place).startswith(("/dev/", "/proc/")) for place in places)
+    if inside or posixpath.basename(text) == "stdin" or STDIN_FD.search(text):
+        return "O Python roda um arquivo de /dev ou /proc, que pode ser a entrada padrão"
+    return ""
+
+
+def _program_arguments(command: Command, program: shell.PythonProgram, scan: Scan) -> list[Finding]:
+    """The program's own arguments as `ws` ones when they read a write, whatever the code says.
+
+    `_ws`, not `_invocation`: a `$FILE` among the arguments of a script is not obfuscation.
+    """
+    args = list(program.args)
+    texts = [word.text for word in args]
+    for index in range(len(texts) - 1):
+        if (texts[index], texts[index + 1]) in WS_WRITES:
+            return _ws(command, args[index:] + args[:index], scan)
     return []
+
+
+def _mentions_ws(program: shell.PythonProgram, scan: Scan) -> bool:
+    """The `-c` code, or the code read from stdin, names `ws`."""
+    if program.kind == "code" and program.word is not None:
+        return bool(WS_WORD.search(shell.python_source(program.word.text)))
+    return program.kind == "stdin" and any(WS_WORD.search(code) for code in scan.scripts)
+
+
+def _python_program_findings(
+    command: Command,
+    program: shell.PythonProgram,
+    cwd: str,
+    scan: Scan,
+    args: list[Word],
+) -> list[Finding]:
+    """One program a Python command line runs; `args` are the words after `python` or `uv`."""
+    texts = [word.text for word in command.words]
+    word = program.word
+    if program.kind == "unknown":
+        return [_unsure(texts, "Opção do Python que não conheço")]
+    place = _script_place(word, cwd, scan) if program.kind == "script" and word else ""
+    if place:
+        return [_unsure(texts, place)]
+    if program.kind == "code" and word is not None and word.expands:
+        return [_unsure(texts, "O código do Python vem de uma variável ou comando")]
+    if program.kind == "module" and word is not None and word.expands:
+        return [_unsure(texts, "O módulo do Python vem de uma variável ou comando")]
+    inspect = shell.inspect_variable(scan.commands)
+    if shell.reads_stdin_code(program, inspect) and (
+        problem := _python_stdin_problem(command, args, program)
+    ):
+        return [_unsure(texts, problem)]
+    module = word.text if program.kind == "module" and word is not None else ""
+    found = []
+    if module in WS_MODULES:
+        found += _invocation(command, "ws", list(program.args), cwd, scan)
+    elif module.startswith("ws."):
+        if module.count(".") > 1:
+            return [_unsure(texts, "Módulo do ws chamado direto; não sei o que será feito")]
+        found += _invocation(command, "ws", [Word(module.split(".")[1]), *program.args], cwd, scan)
+    elif _mentions_ws(program, scan):
+        found += _ws(command, list(program.args), scan)
+    return found + _program_arguments(command, program, scan)
+
+
+def _python_findings(
+    command: Command, name: str, args: list[Word], cwd: str, scan: Scan
+) -> list[Finding]:
+    return [
+        finding
+        for program in shell.python_programs(name, args)
+        for finding in _python_program_findings(command, program, cwd, scan, args)
+    ]
 
 
 def _reads_unseen_commands(command: Command, name: str, args: list[Word]) -> str | None:
@@ -1479,12 +1607,8 @@ def _invocation(
     texts = [word.text for word in command.words]
     if reason := _reads_unseen_commands(command, name, args):
         return [_unsure(texts, reason)]
-    if shell.PYTHON.fullmatch(name):
-        return [
-            finding
-            for inner, inner_args in _python_ws(args)
-            for finding in _invocation(command, inner, inner_args, cwd, scan)
-        ]
+    if shell.PYTHON.fullmatch(name) or name == "uv":
+        return _python_findings(command, name, args, cwd, scan)
     if name not in WATCHED:
         return []
     if name in ("curl", "wget", "ws") and any(word.bare for word in args):
@@ -1498,14 +1622,24 @@ def _invocation(
     return _http(name, args)
 
 
-def _python_code(command: Command) -> set[str]:
-    """The `-c` code of the Python the command runs: `_script_findings` judges it, not paths."""
+def _python_code(command: Command) -> set[int]:
+    """Positions of the `-c` code of a Python and of the options before it.
+
+    `_script_findings` judges the code, so the path it cites is not a write. The words after the
+    code are the program's own arguments (`--out=~/.claude/settings.json`) and are judged as paths.
+    """
     found = set()
     for name, words in shell.invocations(command):
-        if shell.PYTHON.fullmatch(name):
-            code = shell.shell_script([word.text for word in words])
-            if code is not None:
-                found.add(code)
+        if not shell.PYTHON.fullmatch(name):
+            continue
+        program = shell.parse_python(words)
+        if program.kind != "code":
+            continue
+        start = len(command.words) - len(words)
+        for position in range(start, start + len(words) - len(program.args)):
+            word = command.words[position]
+            if word.text.startswith("-") or word is program.word:
+                found.add(position)
     return found
 
 
@@ -1513,15 +1647,16 @@ def _protection(command: Command) -> list[Finding]:
     texts = [word.text for word in command.words]
     index = shell.locate_program(texts)
     program = "" if index is None else program_name(texts[index])
-    args = texts if index is None else texts[index + 1 :]
+    first = 0 if index is None else index + 1
+    args = texts[first:]
     if program in READ_ONLY | NAVIGATION:
         args = []
     elif program == "git" and next((t for t in args if not t.startswith("-")), "") in READ_ONLY_GIT:
         args = []
     hits = [path for path in command.writes if PROTECTED_PATH.search(path)]
     code = _python_code(command)
-    for text in args:
-        if text in code:
+    for position, text in enumerate(args, start=first):
+        if position in code:
             continue
         if " " not in text and PROTECTED_PATH.search(text):
             hits.append(text)
@@ -1761,6 +1896,18 @@ def _names_watched_program(text: str) -> bool:
     return name in WATCHED and (text == name or text.endswith("/bin/" + name))
 
 
+def _runner_positions(command: Command, index: int) -> range:
+    """Positions of the words a runner module (`python3 -m runpy ws ...`) runs as a program:
+    `_python_findings` judges each one, so they are not hidden."""
+    program = shell.parse_python(command.words[index + 1 :])
+    if program.kind != "module" or program.word is None:
+        return range(0)
+    if program.word.text not in shell.RUNNER_MODULES:
+        return range(0)
+    start = len(command.words) - len(program.args)
+    return range(start, start + shell.runner_word_positions(program))
+
+
 def _hidden_program(command: Command) -> list[Finding]:
     """A watched program named as an argument of a program that may run it (`xargs git push`).
 
@@ -1781,10 +1928,11 @@ def _hidden_program(command: Command) -> list[Finding]:
         or (program == "sed" and "-n" in args and not any(a.startswith("-i") for a in args))
     ):
         return []
+    judged = _runner_positions(command, index) if shell.PYTHON.fullmatch(program) else range(0)
     for position, text in enumerate(texts[1:], start=1):
         if position == index or not _names_watched_program(text):
             continue
-        if shell.PYTHON.fullmatch(program) and texts[position - 1] == "-m":
+        if (shell.PYTHON.fullmatch(program) and texts[position - 1] == "-m") or position in judged:
             continue
         return [
             _unsure(texts, f"{cut(program, 20)} pode rodar {cut(text, 20)}, que vem como argumento")
@@ -1808,13 +1956,237 @@ def _applies_card(code: str) -> bool:
     return bool(WS_IMPORT.search(code)) and "card" in code and "apply" in code
 
 
-def _script_findings(scan: Scan) -> list[Finding]:
-    found = []
-    for code in scan.scripts:
-        if _applies_card(code):
-            found.append(
-                _found(TITLE_JIRA, "Python que chama o ws e pode aplicar uma prévia", code)
-            )
+RELEASE_WRITE_NAME = re.compile(r"(?<![A-Za-z])(?:run_publish|run_move)")
+RELEASE_WRITE_WORD = re.compile(r"(?<![A-Za-z])(?:publish|move)")
+RELEASE_WORD = re.compile(r"(?<![A-Za-z])release")
+# `exec`, `eval` and `compile` count only as bare names: `re.compile(...)` and `m.eval()` are
+# methods of other objects.
+BARE_DYNAMIC = r"(?<![.\w])(?:exec|eval|compile)\b"
+# Without `ws` in the code, only a call or a handed-over name counts: `print('compile done')`
+# names no function.
+BARE_CALL = re.compile(r"(?<![.\w'\"])(?:exec|eval|compile)\s*(?=\()")
+BARE_ALIAS = re.compile(r"[=(,]\s*(?:exec|eval|compile)\s*(?:[,);\n]|$)")
+DYNAMIC_NAMES = re.compile(
+    r"\b(?:getattr|import_module|importlib|__import__|runpy|vars|__dict__|attrgetter|globals"
+    r"|locals|pkgutil|pydoc|pickle|marshal|builtins|__builtins__)\b|" + BARE_DYNAMIC
+)
+MAIN_WITH_ARGUMENTS = re.compile(r"\bmain\s*\(\s*[^)\s]|\bws\.cli\b[^;\n]*\(\s*[^)\s]")
+CLI_IMPORT = re.compile(
+    r"\bfrom\s+ws\.cli\s+import\b|\bimport\s+ws\.cli\b|\bfrom\s+ws\s+import\b[^;\n]*\bcli\b"
+)
+CALL_WITH_ARGUMENTS = re.compile(r"[\w)\]]\s*\(\s*[^)\s]")
+CLI_CALLS = re.compile(r"\b(?:parse_args|parse_known_args|parse_intermixed_args)\b|\.handler\b")
+SYS_ARGV = re.compile(r"\bsys\.argv\b|\bargv\b")
+IMPORT_CALLS = ("__import__", "import_module", "run_module", "run_path", "resolve_name")
+DYNAMIC_MODULES = (
+    "importlib",
+    "runpy",
+    "pkgutil",
+    "pydoc",
+    "pickle",
+    "marshal",
+    "builtins",
+    "__builtins__",
+)
+DYNAMIC_IMPORT_FROM = re.compile(r"\bfrom\s+(?:pkgutil|pydoc|pickle|marshal|builtins)\s+import\b")
+LITERAL = r"""[rbuRBU]{0,2}(?:'(?!ws)[^'\\]*'|"(?!ws)[^"\\]*")"""
+LITERAL_CALL = re.compile(rf"\s*\(\s*(?:\)|{LITERAL}\s*[,)])")
+MODULE_LITERAL_CALL = re.compile(rf"(?:\.\w+)+{LITERAL_CALL.pattern}")
+CODE_STRING_CALL = re.compile(r"(?<![\w])timeit\s*(?=\()")
+RUNS_PROGRAMS = re.compile(r"\b(?:subprocess|os|pty|asyncio)\b")
+RUNNER_FUNCTIONS = {
+    "subprocess": frozenset(
+        "run call check_call check_output Popen getoutput getstatusoutput".split()
+    ),
+    "os": frozenset(
+        "system popen execl execle execlp execlpe execv execve execvp execvpe spawnl spawnle "
+        "spawnlp spawnlpe spawnv spawnve spawnvp spawnvpe posix_spawn posix_spawnp".split()
+    ),
+    "pty": frozenset({"spawn"}),
+    "asyncio": frozenset({"create_subprocess_exec", "create_subprocess_shell"}),
+}
+ENVIRONMENT = re.compile(r"\benviron\b|\bputenv\b")
+MAX_CODE_DEPTH = 3
+
+
+def _writes_release(code: str) -> bool:
+    """Python that may publish or move a release: it names `run_publish` or `run_move`, or
+    imports `ws` and names `release` with `publish` or `move`."""
+    if RELEASE_WRITE_NAME.search(code):
+        return True
+    return (
+        bool(WS_IMPORT.search(code))
+        and bool(RELEASE_WORD.search(code))
+        and bool(RELEASE_WRITE_WORD.search(code))
+    )
+
+
+def _in_import(code: str, start: int) -> bool:
+    """The name at `start` sits in an `import` or `from ... import` statement."""
+    begin = max(code.rfind("\n", 0, start), code.rfind(";", 0, start)) + 1
+    return code[begin:start].lstrip().startswith(("import ", "from "))
+
+
+def _runs_built_code(code: str) -> bool:
+    """Python that imports or runs code by a name or text that is not a plain literal.
+
+    The first argument of the call must be a literal that does not start with `ws`: `exec('x')`,
+    `importlib.import_module('json')` and `importlib.metadata.version('pytest')` pass.
+    """
+    for name in IMPORT_CALLS:
+        for found in re.finditer(rf"\b{name}\b", code):
+            if not LITERAL_CALL.match(code, found.end()):
+                return True
+    for found in BARE_CALL.finditer(code):
+        if not LITERAL_CALL.match(code, found.end()):
+            return True
+    if BARE_ALIAS.search(code):
+        return True
+    for found in CODE_STRING_CALL.finditer(code):
+        if not LITERAL_CALL.match(code, found.end()):
+            return True
+    for name in DYNAMIC_MODULES:
+        for found in re.finditer(rf"\b{name}\b", code):
+            if not _in_import(code, found.start()) and not MODULE_LITERAL_CALL.match(
+                code, found.end()
+            ):
+                return True
+    return bool(DYNAMIC_IMPORT_FROM.search(code))
+
+
+def _dynamic_reason(code: str) -> str:
+    """Why the gate cannot follow what the code runs, or an empty string."""
+    ws = WS_WORD.search(code)
+    if ws and (
+        MAIN_WITH_ARGUMENTS.search(code)
+        or CLI_CALLS.search(code)
+        or (CLI_IMPORT.search(code) and CALL_WITH_ARGUMENTS.search(code))
+    ):
+        return "Python que chama o main ou o parser do ws com argumentos"
+    if ws and (DYNAMIC_NAMES.search(code) or SYS_ARGV.search(code)):
+        return "Python que chama o ws com nomes montados na execução"
+    if _runs_built_code(code):
+        return "Python que monta nomes ou código na execução; não sei o que ele roda"
+    return ""
+
+
+def _runner_names(tree: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
+    """Names that stand for `subprocess`, `os`, `pty`, `asyncio`, and for their run functions."""
+    modules = {name: name for name in RUNNER_FUNCTIONS}
+    functions: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in RUNNER_FUNCTIONS:
+                    modules[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module in RUNNER_FUNCTIONS:
+            module = node.module
+            for alias in node.names:
+                if alias.name == "*":
+                    functions.update(
+                        {name: f"{module}.{name}" for name in RUNNER_FUNCTIONS[module]}
+                    )
+                elif alias.name in RUNNER_FUNCTIONS[module]:
+                    functions[alias.asname or alias.name] = f"{module}.{alias.name}"
+    return modules, functions
+
+
+def _runner_function(node: ast.expr, modules: dict[str, str], functions: dict[str, str]) -> str:
+    """`module.function` for a call of a function that runs a program, or an empty string."""
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        module = modules.get(node.value.id)
+        if module and node.attr in RUNNER_FUNCTIONS[module]:
+            return f"{module}.{node.attr}"
+        return ""
+    return functions.get(node.id, "") if isinstance(node, ast.Name) else ""
+
+
+def _call_command(call: ast.Call, function: str) -> tuple[str, bool, bool]:
+    """The command line a call runs, from its literal arguments; whether every argument is a
+    literal; and whether it passes its own environment."""
+    args = list(call.args) + [keyword.value for keyword in call.keywords if keyword.arg == "args"]
+    env = any(keyword.arg == "env" for keyword in call.keywords)
+    launches = function.startswith(("os.exec", "os.spawn", "os.posix_spawn"))
+    if function.startswith("os.posix_spawn"):
+        env, args = True, args[:2]
+    elif launches and function.endswith("e"):
+        env, args = True, args[:-1]
+    if function.startswith("os.spawn"):
+        args = args[1:]
+    words: list[str] = []
+    literal = True
+    for arg in args:
+        items = arg.elts if isinstance(arg, (ast.List, ast.Tuple)) else [arg]
+        for item in items:
+            if isinstance(item, ast.Constant) and isinstance(item.value, str):
+                words.append(item.value)
+            elif not isinstance(item, ast.Constant):
+                literal = False
+    if len(words) == 1 and not launches:
+        return words[0], literal, env
+    if launches:
+        # exec and spawn take the path, then an argv whose first word is only the name shown.
+        words = words[:1] + words[2:]
+    return shlex.join(words), literal, env
+
+
+def _program_runs(code: str, scan: Scan, cwd: str, depth: int) -> tuple[list[Finding], bool]:
+    """What the code's `subprocess`, `os.system`, `os.exec*`, `os.spawn*` and `pty.spawn` calls run.
+
+    A literal command that names `ws` is judged like a command line. Returns the findings and
+    whether the code cites `ws` and runs a program the gate cannot read.
+    """
+    if not RUNS_PROGRAMS.search(code):
+        return [], False
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return [], bool(WS_WORD.search(code))
+    modules, functions = _runner_names(tree)
+    found: list[Finding] = []
+    opaque = False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        function = _runner_function(node.func, modules, functions)
+        if not function:
+            continue
+        text, literal, env = _call_command(node, function)
+        if not literal:
+            opaque = True
+            continue
+        if not WS_WORD.search(text):
+            continue
+        # `env` makes the store a variable for `_ws`, which then cannot name the record.
+        changed = env or ENVIRONMENT.search(code) or _store_change(scan)
+        found += _text_findings(("env " if changed else "") + text, cwd, depth + 1)
+    return found, opaque and bool(WS_WORD.search(code))
+
+
+def _code_findings(code: str, scan: Scan, cwd: str, depth: int) -> list[Finding]:
+    found, opaque = _program_runs(code, scan, cwd, depth)
+    writes = []
+    if _writes_release(code):
+        reason = "Python que chama o ws e pode publicar ou mover uma release"
+        writes.append(_found(TITLE_GITHUB, reason, code))
+    if _applies_card(code):
+        writes.append(_found(TITLE_JIRA, "Python que chama o ws e pode aplicar uma prévia", code))
+    if not writes:
+        reason = _dynamic_reason(code)
+        if not reason and opaque:
+            reason = "Python que roda um programa com argumentos montados e cita o ws"
+        if reason:
+            found.append(_found(TITLE_UNSURE, reason, code))
+    return found + writes
+
+
+def _script_findings(scan: Scan, cwd: str, depth: int) -> list[Finding]:
+    found = [
+        _found(TITLE_UNSURE, "Python com código que vem de uma expansão", body)
+        for body in scan.opaque_python
+    ]
+    for code in dict.fromkeys(scan.scripts):
+        found += _code_findings(code, scan, cwd, depth)
         if reading := _credential_in_code(code):
             found.append(
                 _found(TITLE_CREDENTIAL, "Python que cita um arquivo de credencial", reading, True)
@@ -1852,6 +2224,13 @@ def _decide_text(command: str, cwd: str) -> Decision:
     # Checked before any parser or regex runs: a huge word could make them slow past the deadline.
     if any(len(part) > MAX_WORD for part in command.split()):
         return ask(TITLE_UNSURE, ["Uma palavra do comando passa de 4 KB; não a leio"])
+    return _combine(_text_findings(command, cwd))
+
+
+def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
+    """Everything a command line asks for; `depth` counts command lines found inside Python."""
+    if depth > MAX_CODE_DEPTH or any(len(part) > MAX_WORD for part in command.split()):
+        return [_found(TITLE_UNSURE, "Python que roda comandos que não consigo ler", command)]
     scan = shell.scan(command)
     findings: list[Finding] = []
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
@@ -1864,7 +2243,7 @@ def _decide_text(command: str, cwd: str) -> Decision:
         for name, args in shell.invocations(each):
             findings += _invocation(each, name, args, cwd, scan)
     findings += _after_entering_protection(scan)
-    findings += _script_findings(scan)
+    findings += _script_findings(scan, cwd, depth)
     if scan.overrun:
         findings.append(
             _found(TITLE_UNSURE, "É grande ou aninhado demais para ler a tempo", command)
@@ -1877,7 +2256,7 @@ def _decide_text(command: str, cwd: str) -> Decision:
                 command,
             )
         )
-    return _combine(findings)
+    return findings
 
 
 def decide(command: str, cwd: str) -> Decision:
