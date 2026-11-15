@@ -627,3 +627,26 @@ def test_worktree_of_finds_the_checkout(cloned, tmp_path):
     assert gittools.worktree_of(work, "feat/wt") == linked.resolve()
     assert gittools.worktree_of(work, "main") == work.resolve()
     assert gittools.worktree_of(work, "feat/none") is None
+
+
+def test_fetch_times_out_as_a_git_error_without_prompting(repo, monkeypatch):
+    seen = {}
+
+    def fake_run(*args, **kwargs):
+        seen.update(kwargs)
+        raise subprocess.TimeoutExpired(cmd="git fetch", timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(gittools.GitError, match="timed out"):
+        gittools.fetch(repo, "origin")
+    assert seen["timeout"] == 60
+    assert seen["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert seen["env"]["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes"
+
+
+def test_switch_refuses_a_branch_name_that_looks_like_an_option(repo):
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.switch(repo, "--detach")
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.switch_new(repo, "-x", "main", track=False)
+    assert gittools.head(repo) == ("main", False)

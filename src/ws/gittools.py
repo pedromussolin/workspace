@@ -39,11 +39,26 @@ class SubjectTooLong(Exception):
 
 
 def _git(
-    cwd: Path, *args: str, check: bool = True, input: str | None = None
+    cwd: Path,
+    *args: str,
+    check: bool = True,
+    input: str | None = None,
+    timeout: float | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False, input=input
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            input=input,
+            timeout=timeout,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise GitError(f"git {' '.join(args)}: timed out after {error.timeout:g}s") from error
     if check and result.returncode != 0:
         raise GitError(f"git {' '.join(args)}: {result.stderr.strip()}")
     return result
@@ -99,8 +114,18 @@ def dirty(repo: Path) -> bool:
     return bool(_git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip())
 
 
+FETCH_TIMEOUT_SECONDS = 60
+
+
 def fetch(repo: Path, remote: str) -> None:
-    _git(repo, "fetch", "--quiet", remote)
+    """Fetch without ever prompting (credentials, ssh host keys) and give up after 60 s."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+    _git(repo, "fetch", "--quiet", remote, timeout=FETCH_TIMEOUT_SECONDS, env=env)
+
+
+def _refuse_option_like(name: str) -> None:
+    if name.startswith("-"):
+        raise GitError(f"invalid branch name {name!r}: it would be read as an option")
 
 
 def has_ref(repo: Path, ref: str) -> bool:
@@ -132,10 +157,12 @@ def remote_branches(repo: Path, remote: str) -> list[str]:
 
 
 def switch(repo: Path, branch: str) -> None:
+    _refuse_option_like(branch)
     _git(repo, "switch", branch)
 
 
 def switch_new(repo: Path, branch: str, start: str, track: bool) -> None:
+    _refuse_option_like(branch)
     _git(repo, "switch", "-c", branch, "--track" if track else "--no-track", start)
 
 
