@@ -619,6 +619,22 @@ def test_add_worktree_new_and_existing_branch(cloned, tmp_path):
     assert git(old, "branch", "--show-current") == "feat/old"
 
 
+def test_add_worktree_track_sets_the_upstream_whatever_the_config_and_remotes(cloned, tmp_path):
+    origin, work = cloned
+    git(work, "push", "-q", "origin", "main:feat/remote")
+    second = tmp_path / "second.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(origin), str(second)], check=True)
+    git(work, "remote", "add", "second", str(second))
+    git(work, "fetch", "-q", "--all")
+    git(work, "config", "branch.autoSetupMerge", "false")
+    tree = tmp_path / "wt"
+
+    gittools.add_worktree(work, tree, "feat/remote", "refs/remotes/origin/feat/remote", track=True)
+
+    assert git(tree, "branch", "--show-current") == "feat/remote"
+    assert git(work, "rev-parse", "--abbrev-ref", "feat/remote@{upstream}") == "origin/feat/remote"
+
+
 def test_worktree_of_finds_the_checkout(cloned, tmp_path):
     _, work = cloned
     linked = tmp_path / "wt"

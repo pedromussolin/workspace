@@ -151,6 +151,7 @@ class _Repo:
     action: str | None = None
     worktree: Path | None = None
     start_point: str | None = None
+    track: bool = False
     local: list[str] = field(default_factory=list)
     remote: list[str] = field(default_factory=list)
     previous: str = ""
@@ -442,6 +443,7 @@ def _plan(run: _Run, repo: _Repo, remote: str, use_worktree: bool) -> None:
             repo.action = "reuse"
         elif branch in repo.remote:
             repo.action, repo.start_point = "track", f"refs/remotes/{remote}/{branch}"
+            repo.track = True
         else:
             repo.action, repo.start_point = "create", f"refs/remotes/{remote}/{repo.base}"
         if repo.action in SWITCHING and gittools.dirty(repo.path):
@@ -469,10 +471,12 @@ def _plan_worktree(run: _Run, repo: _Repo, remote: str, where: Path | None) -> N
         )
     elif branch in repo.local:
         repo.action, repo.worktree = "reuse", target
+    elif branch in repo.remote:
+        repo.action, repo.worktree = "worktree", target
+        repo.start_point, repo.track = f"refs/remotes/{remote}/{branch}", True
     else:
         repo.action, repo.worktree = "worktree", target
-        if branch not in repo.remote:
-            repo.start_point = f"refs/remotes/{remote}/{repo.base}"
+        repo.start_point = f"refs/remotes/{remote}/{repo.base}"
 
 
 def _make_branches(run: _Run) -> bool:
@@ -495,11 +499,11 @@ def _make_branch(repo: _Repo, branch: str) -> None:
     if repo.action in ("current", "elsewhere"):
         return
     if repo.worktree is not None:
-        gittools.add_worktree(repo.path, repo.worktree, branch, repo.start_point)
+        gittools.add_worktree(repo.path, repo.worktree, branch, repo.start_point, repo.track)
     elif repo.action == "reuse":
         gittools.switch(repo.path, branch)
     else:
-        gittools.switch_new(repo.path, branch, repo.start_point, track=repo.action == "track")
+        gittools.switch_new(repo.path, branch, repo.start_point, repo.track)
 
 
 def _undo(steps: list[RepoStep], branch: str) -> list[str]:

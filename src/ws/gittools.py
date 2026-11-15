@@ -166,11 +166,20 @@ def switch_new(repo: Path, branch: str, start: str, track: bool) -> None:
     _git(repo, "switch", "-c", branch, "--track" if track else "--no-track", start)
 
 
-def add_worktree(repo: Path, path: Path, branch: str, start: str | None) -> None:
+def add_worktree(
+    repo: Path, path: Path, branch: str, start: str | None, track: bool = False
+) -> None:
+    """Check `branch` out in a new work tree: as it is (no `start`), or new from `start`.
+
+    `track` sets `start` (a remote branch's full ref) as the upstream explicitly, so neither
+    `branch.autoSetupMerge` nor a second remote holding the same name changes the result.
+    """
+    _refuse_option_like(branch)
     if start is None:
         _git(repo, "worktree", "add", str(path), branch)
     else:
-        _git(repo, "worktree", "add", "-b", branch, "--no-track", str(path), start)
+        mode = "--track" if track else "--no-track"
+        _git(repo, "worktree", "add", mode, "-b", branch, str(path), start)
 
 
 def worktree_of(repo: Path, branch: str) -> Path | None:

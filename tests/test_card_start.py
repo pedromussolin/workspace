@@ -523,15 +523,35 @@ def test_start_worktree_on_an_existing_branch_never_deletes_it(env, capsys):
     assert out["undo"] == [git_c(api, f"worktree remove {shlex.quote(str(tree))}")]
 
 
-def test_start_worktree_tracks_a_branch_only_on_origin(env, capsys):
-    env.push_branch("acme-api", BRANCH)
+def without_auto_setup(env: StartWorld) -> None:
+    env.git(env.path("acme-api"), "config", "branch.autoSetupMerge", "false")
+
+
+def with_a_second_remote(env: StartWorld) -> None:
+    """A fork remote holding the same branch, so git cannot guess the remote from the name."""
+    fork = env.tmp / "remotes" / "fork.git"
+    env.git(env.tmp, "clone", "-q", "--bare", str(env.tmp / "remotes" / "acme-api.git"), str(fork))
+    env.git(env.path("acme-api"), "remote", "add", "fork", str(fork))
+    env.git(env.path("acme-api"), "fetch", "-q", "fork")
+
+
+@pytest.mark.parametrize("setup", [without_auto_setup, with_a_second_remote])
+def test_start_worktree_tracks_a_branch_only_on_origin(env, capsys, setup):
+    pushed = env.push_commit("acme-api", file="other.txt", branch=BRANCH)
+    setup(env)
 
     code, out, _ = start(capsys, "TS-5", "--worktree")
 
-    assert code == 0
+    assert code == 0, out["problems"]
+    tree = env.worktree("acme-api")
     assert actions(out) == [("acme-api", "worktree")]
-    assert env.current(env.worktree("acme-api")) == BRANCH
+    assert (env.current(tree), env.sha(tree)) == (BRANCH, pushed)
     assert env.upstream("acme-api", BRANCH) == f"origin/{BRANCH}"
+    api = env.path("acme-api")
+    assert out["undo"] == [
+        git_c(api, f"worktree remove {shlex.quote(str(tree))}"),
+        git_c(api, f"branch -D {BRANCH}"),
+    ]
 
 
 def test_start_worktree_folder_taken_is_a_problem(env, capsys):
