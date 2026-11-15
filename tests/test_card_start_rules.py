@@ -132,6 +132,9 @@ def test_undo_commands():
         "git -C /r/acme-api worktree remove /r/.worktrees/x",
         f"git -C /r/acme-api branch -D {b}",
     ]
+    assert undo_commands([step("reuse", worktree=wt)], b) == [
+        "git -C /r/acme-api worktree remove /r/.worktrees/x"
+    ]
     assert undo_commands([step("reuse", previous="abc123", detached=True)], b) == [
         "git -C /r/acme-api switch --detach abc123"
     ]

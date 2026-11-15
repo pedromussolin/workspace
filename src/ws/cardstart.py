@@ -124,14 +124,16 @@ class RepoStep:
 
 
 def undo_commands(steps: list[RepoStep], branch: str) -> list[str]:
+    """Git lines that revert what the steps made; a branch that already existed is never deleted."""
     lines: list[str] = []
     for step in steps:
         repo = f"git -C {shlex.quote(str(step.path))}"
         if step.action in ("current", "elsewhere"):
             continue
-        if step.action == "worktree" and step.worktree is not None:
+        if step.action in ("worktree", "reuse") and step.worktree is not None:
             lines.append(f"{repo} worktree remove {shlex.quote(str(step.worktree))}")
-            lines.append(f"{repo} branch -D {branch}")
+            if step.action == "worktree":
+                lines.append(f"{repo} branch -D {branch}")
             continue
         flag = "--detach " if step.detached else ""
         lines.append(f"{repo} switch {flag}{shlex.quote(step.previous)}")
@@ -510,10 +512,10 @@ def _make_branches(run: _Run) -> bool:
             run.problems.append(
                 f"{repo.name}: {error} (stopped here; undo lists what this run changed)"
             )
-            run.undo = _undo(done, run.branch)
+            run.undo = undo_commands(done, run.branch)
             return False
         done.append(repo.step())
-    run.undo = _undo(done, run.branch)
+    run.undo = undo_commands(done, run.branch)
     return True
 
 
@@ -526,18 +528,6 @@ def _make_branch(repo: _Repo, branch: str) -> None:
         gittools.switch(repo.path, branch)
     else:
         gittools.switch_new(repo.path, branch, repo.start_point, repo.track)
-
-
-def _undo(steps: list[RepoStep], branch: str) -> list[str]:
-    """`undo_commands`, except that a worktree on a branch that already existed keeps the branch."""
-    lines: list[str] = []
-    for step in steps:
-        if step.action == "reuse" and step.worktree is not None:
-            repo = f"git -C {shlex.quote(str(step.path))}"
-            lines.append(f"{repo} worktree remove {shlex.quote(str(step.worktree))}")
-        else:
-            lines.extend(undo_commands([step], branch))
-    return lines
 
 
 def _card_draft(run: _Run, board: BoardConfig) -> int:
