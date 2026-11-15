@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ws import gittools, reviewdiff
+from ws import reviewdiff
 from ws.reviewdiff import Checkout, Commit, ReviewRefused
 
 BRANCH = "feature/TS-5-fechar-lote"
@@ -259,11 +259,6 @@ def test_collect_commits_oldest_first(clone):
     assert [commit.subject for commit in collected.commits] == ["feat: one", "feat: two"]
 
 
-def test_collect_failure_raises_git_error(clone):
-    with pytest.raises(gittools.GitError):
-        reviewdiff.collect(clone, Checkout(BRANCH, clone), "nope")
-
-
 def test_diff_command_quotes_paths(tmp_path):
     repo = tmp_path / "my repo"
     worktree = tmp_path / "my tree"
@@ -273,3 +268,72 @@ def test_diff_command_quotes_paths(tmp_path):
     assert reviewdiff.diff_command(repo, Checkout("b", None), "abc") == (
         f"git -C '{repo}' diff -M abc b"
     )
+
+
+def test_collect_big_untracked_file_is_read_in_chunks(clone, monkeypatch):
+    sizes = []
+    real_open = open
+
+    class Spy:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.handle.close()
+
+        def read(self, size=-1):
+            sizes.append(size)
+            return self.handle.read(size)
+
+    monkeypatch.setattr(reviewdiff, "open", lambda *a, **k: Spy(real_open(*a, **k)), raising=False)
+    write(clone, "big.txt", "linha\n" * 700_000 + "sem fim")
+    [change] = reviewdiff.collect(clone, Checkout(BRANCH, clone), "master").files
+    assert (change.added, change.binary) == (700_001, False)
+    assert sizes
+    assert all(0 < size <= reviewdiff.CHUNK_BYTES for size in sizes)
+
+
+def test_collect_untracked_edge_entries(clone, tmp_path):
+    write(clone, "empty.txt", "")
+    (clone / "link").symlink_to(tmp_path)
+    nested = clone / "nested"
+    nested.mkdir()
+    subprocess.run(["git", "init", "-q", str(nested)], check=True)
+    configure(nested)
+    commit(nested, "x", **{"f": "f\n"})
+    changes = files_by_path(reviewdiff.collect(clone, Checkout(BRANCH, clone), "master"))
+    assert (changes["empty.txt"].added, changes["empty.txt"].hunks) == (0, ())
+    assert (changes["link"].added, changes["link"].hunks) == (1, (1,))
+    assert changes["nested/"].binary is True
+    assert changes["nested/"].added is None
+
+
+def test_collect_ignored_folder_is_not_listed(clone):
+    commit(clone, "chore: ignore", **{".gitignore": "build/\n"})
+    write(clone, "build/out.py", "o\n")
+    paths = [c.path for c in reviewdiff.collect(clone, Checkout(BRANCH, clone), "master").files]
+    assert paths == [".gitignore"]
+
+
+def test_collect_path_with_a_newline(clone):
+    write(clone, "a\nb.py", "x\n")
+    commit(clone, "feat: n", **{"c\nd.py": "y\n"})
+    paths = {c.path for c in reviewdiff.collect(clone, Checkout(BRANCH, clone), "master").files}
+    assert paths == {"a\nb.py", "c\nd.py"}
+
+
+def test_collect_refuses_a_missing_base(clone):
+    with pytest.raises(ReviewRefused) as error:
+        reviewdiff.collect(clone, Checkout(BRANCH, clone), "nope")
+    assert str(error.value) == "origin/nope not found; fetch first"
+
+
+def test_collect_refuses_no_common_ancestor(clone):
+    git(clone, "switch", "-q", "--orphan", "feature/TS-9-orfa")
+    commit(clone, "feat: orphan", **{"o.txt": "o\n"})
+    with pytest.raises(ReviewRefused) as error:
+        reviewdiff.collect(clone, Checkout("feature/TS-9-orfa", clone), "master")
+    assert str(error.value) == "no common ancestor between feature/TS-9-orfa and origin/master"

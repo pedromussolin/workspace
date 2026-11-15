@@ -12,6 +12,7 @@ from ws.gittools import GitError
 MAX_BLOCKS = 20
 STAGES = ("committed", "staged", "unstaged", "untracked")
 BINARY_SNIFF_BYTES = 8000
+CHUNK_BYTES = 1024 * 1024
 STATUS_NAMES = {
     "A": "added",
     "M": "modified",
@@ -59,7 +60,7 @@ class Collected:
 
 
 def _git(cwd: Path, *args: str) -> bytes:
-    command = ["git", "-c", "core.quotePath=false", *args]
+    command = ["git", "--no-optional-locks", "-c", "core.quotePath=false", *args]
     try:
         result = subprocess.run(command, cwd=cwd, capture_output=True, check=False)
     except OSError as error:
@@ -71,7 +72,7 @@ def _git(cwd: Path, *args: str) -> bytes:
 
 
 def _diff(cwd: Path, *args: str) -> bytes:
-    return _git(cwd, "diff", "--no-ext-diff", "--no-color", *args)
+    return _git(cwd, "diff", "--no-ext-diff", "--no-textconv", "--no-color", *args)
 
 
 def _text(raw: bytes) -> str:
@@ -105,7 +106,12 @@ def find_checkout(repo: Path, ref: str) -> Checkout:
 
 def _merge_base(repo: Path, checkout: Checkout, base_ref: str) -> str:
     base = base_ref if base_ref.startswith("origin/") else f"origin/{base_ref}"
-    return _text(_git(repo, "merge-base", base, checkout.branch)).strip()
+    if not gittools.has_ref(repo, base):
+        raise ReviewRefused(f"{base} not found; fetch first")
+    try:
+        return _text(_git(repo, "merge-base", base, checkout.branch)).strip()
+    except GitError as error:
+        raise ReviewRefused(f"no common ancestor between {checkout.branch} and {base}") from error
 
 
 def _status_entries(raw: bytes) -> list[tuple[str, str | None, str]]:
@@ -154,17 +160,24 @@ def _names(raw: bytes) -> set[str]:
 
 
 def _untracked(worktree: Path, path: str) -> tuple[int | None, bool]:
+    if path.endswith("/"):
+        return None, True
+    full = worktree / path
     try:
-        with open(worktree / path, "rb") as handle:
-            head = handle.read(BINARY_SNIFF_BYTES)
-            if b"\0" in head:
+        if full.is_symlink():
+            return 1, False
+        with open(full, "rb") as handle:
+            chunk = handle.read(CHUNK_BYTES)
+            if b"\0" in chunk[:BINARY_SNIFF_BYTES]:
                 return None, True
-            lines = head.count(b"\n")
-            rest = handle.read()
+            lines = 0
+            last = b""
+            while chunk:
+                lines += chunk.count(b"\n")
+                last = chunk[-1:]
+                chunk = handle.read(CHUNK_BYTES)
     except OSError:
         return 0, False
-    lines += rest.count(b"\n")
-    last = rest[-1:] or head[-1:]
     return lines + (1 if last and last != b"\n" else 0), False
 
 
@@ -216,7 +229,7 @@ def collect(repo: Path, checkout: Checkout, base_ref: str) -> Collected:
                     deleted=None if binary else 0,
                     binary=binary,
                     stages=("untracked",),
-                    hunks=() if binary else (1,),
+                    hunks=(1,) if added else (),
                 )
             )
     log = _git(repo, "log", "--reverse", "--format=%H%x1f%s", f"{merge_base}..{branch}")
