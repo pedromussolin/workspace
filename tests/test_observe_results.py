@@ -63,3 +63,17 @@ def test_load_rows_absent_and_bad_line(tmp_path):
     with pytest.raises(Invalid) as caught:
         observeresults.load_rows(path)
     assert str(caught.value) == f"{path} line 2: not JSON"
+
+
+def test_put_row_refuses_a_row_without_day_or_check(tmp_path):
+    with pytest.raises(Invalid):
+        observeresults.put_row(tmp_path / "TS-5.results.jsonl", {"day": "2026-12-09"})
+
+
+def test_make_row_refuses_a_value_of_the_wrong_kind():
+    manual = Check(id="m", kind="manual", question="ok?")
+    with pytest.raises(Invalid):
+        row(manual, date(2026, 12, 9), Decimal(1))
+    counted = Check(id="a", kind="database", sql="s", expect="== 0", database="replica")
+    with pytest.raises(Invalid):
+        row(counted, date(2026, 12, 9), True)

@@ -163,3 +163,37 @@ def test_load_plan_names_the_path(env):
     with pytest.raises(Invalid) as caught:
         observedef.load_plan(path)
     assert str(path) in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    ("project", "task"), [("../x", "TS-5"), ("demo", "TS-5/../.."), ("a/b", "TS-5")]
+)
+def test_names_that_escape_the_folder_are_refused(env, project, task):
+    with pytest.raises(Invalid):
+        observedef.write_new(project, task, "x")
+    with pytest.raises(Invalid):
+        observedef.plan_path(project, task)
+    with pytest.raises(Invalid):
+        observedef.find_plan(task, project)
+    if project != "demo":
+        with pytest.raises(Invalid):
+            observedef.all_plans(project)
+    assert not (env / "data").exists()
+
+
+def test_unknown_keys_and_version_are_refused():
+    document = observedef.plan_document(bad(lambda t: t["checks"][0].update(querry="x")))
+    with pytest.raises(Invalid, match=r"checks\[0\]\.querry: unknown key"):
+        observedef.parse_plan(document, "p")
+    document = observedef.plan_document(bad(lambda t: t.update(jobb="x")))
+    with pytest.raises(Invalid, match="jobb: unknown key"):
+        observedef.parse_plan(document, "p")
+    document = observedef.plan_document(bad(lambda t: t.update(version=2)))
+    with pytest.raises(Invalid, match="version"):
+        observedef.parse_plan(document, "p")
+
+
+def test_write_new_removes_the_file_when_the_write_fails(env):
+    with pytest.raises(UnicodeEncodeError):
+        observedef.write_new("demo", "TS-5", "\ud800")
+    assert not observedef.plan_path("demo", "TS-5").exists()

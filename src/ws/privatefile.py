@@ -33,6 +33,8 @@ def private_file(target: Path) -> Iterator[BinaryIO]:
     try:
         with os.fdopen(handle, "wb") as stream:
             yield stream
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(temporary, target)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)

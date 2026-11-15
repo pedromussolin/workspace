@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from ws import userconfig
 from ws.config import data_dir
 from ws.privatefile import PRIVATE_FOLDER, private_folder
+from ws.project import SLUG_PATTERN
 from ws.tracker.vocab import REF
 
 KINDS = ("observability", "database", "manual")
@@ -96,6 +97,10 @@ def parse_check(raw: object, index: int, where: str, seen: set[str]) -> Check:
     if check_id in seen:
         raise Invalid(f"{where}: {prefix}.id: duplicate {check_id}")
     seen.add(check_id)
+    known = {field.name for field in fields(Check)}
+    for name in raw:
+        if name not in known:
+            raise Invalid(f"{where}: {prefix}.{name}: unknown key")
     for name in KIND_FIELDS:
         if name in raw and name not in NEEDS[kind]:
             raise Invalid(f"{where}: {prefix}.{name}: not allowed for {kind}")
@@ -111,11 +116,18 @@ def parse_check(raw: object, index: int, where: str, seen: set[str]) -> Check:
         raise Invalid(f"{where}: {prefix}.signal: must be one of {', '.join(SIGNALS)}")
     if kind == "database" and not DATABASE_NAME.fullmatch(raw["database"]):
         raise Invalid(f"{where}: {prefix}.database: must match {DATABASE_NAME.pattern}")
-    known = {field.name for field in fields(Check)}
-    return Check(**{name: value for name, value in raw.items() if name in known})
+    return Check(**raw)
+
+
+PLAN_KEYS = ("version", "task", "job", "switched_off", "days", "timezone", "checks")
 
 
 def parse_plan(document: dict, where: str) -> Plan:
+    for name in document:
+        if name not in PLAN_KEYS:
+            raise Invalid(f"{where}: {name}: unknown key")
+    if document.get("version") != 1 or isinstance(document.get("version"), bool):
+        raise Invalid(f"{where}: version: must be 1")
     task = text_of(document.get("task"), where, "task")
     if not REF.fullmatch(task):
         raise Invalid(f"{where}: task: must look like TS-123")
@@ -173,13 +185,28 @@ def projects_root() -> Path:
     return data_dir() / "projects"
 
 
+def valid_project(project: str) -> str:
+    if not isinstance(project, str) or not SLUG_PATTERN.fullmatch(project):
+        raise Invalid(f"project: {project!r} must be a slug (a-z, 0-9 and '-')")
+    return project
+
+
+def valid_task(task: str) -> str:
+    if not isinstance(task, str) or not REF.fullmatch(task):
+        raise Invalid(f"task: {task!r} must look like TS-123")
+    return task
+
+
 def plan_path(project: str, task: str) -> Path:
+    valid_project(project)
+    valid_task(task)
     return projects_root() / project / "observations" / f"{task}.toml"
 
 
 def all_plans(project: str | None) -> list[tuple[str, Path]]:
     root = projects_root()
     if project is not None:
+        valid_project(project)
         folders = [root / project]
     else:
         folders = sorted(root.iterdir()) if root.is_dir() else []
@@ -192,6 +219,7 @@ def all_plans(project: str | None) -> list[tuple[str, Path]]:
 
 
 def find_plan(task: str, project: str | None) -> tuple[str, Path]:
+    valid_task(task)
     matches = [(name, path) for name, path in all_plans(project) if path.stem == task]
     if not matches:
         raise Invalid(f"no observation plan for {task}; run ws observe new {task} --project <slug>")
@@ -246,9 +274,13 @@ def write_new(project: str, task: str, text: str) -> Path:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, PRIVATE_FILE)
     except FileExistsError:
         raise Invalid(f"{path} exists; edit it or delete it first") from None
-    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-        stream.write(text)
-    path.chmod(PRIVATE_FILE)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(text)
+        path.chmod(PRIVATE_FILE)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
     return path
 
 

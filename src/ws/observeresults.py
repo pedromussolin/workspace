@@ -49,6 +49,8 @@ def make_row(
     times: str,
     by: str | None = None,
 ) -> dict:
+    if (check.kind == "manual") != isinstance(value, bool):
+        raise Invalid(f"{check.id}: a {check.kind} check cannot take {value!r}")
     if isinstance(value, bool):
         stored: int | float | bool = value
         passed = value is True
@@ -75,11 +77,13 @@ def make_row(
 
 
 def put_row(path: Path, row: dict) -> None:
+    if "day" not in row or "check" not in row:
+        raise Invalid("row: day and check are required")
     rows = [
         r for r in load_rows(path) if (r.get("day"), r.get("check")) != (row["day"], row["check"])
     ]
     rows.append(row)
-    rows.sort(key=lambda r: (r["day"], r["check"]))
+    rows.sort(key=lambda r: (str(r.get("day", "")), str(r.get("check", ""))))
     with private_file(path) as stream:
         for each in rows:
             stream.write((json.dumps(each, ensure_ascii=False, sort_keys=True) + "\n").encode())
