@@ -231,6 +231,15 @@ BACK = ["acme-api"]
 FRONT = ["acme-front"]
 ```
 
+Categories for `ws review pack`, per repo, checked before the defaults (first match wins; `*` stays in a
+folder, `**` crosses folders). Valid names: `test`, `migration`, `contract`, `model`, `config`, `front`,
+`other`:
+
+```toml
+[board.repos."acme-front"]
+review_categories = { front = ["src/app/models/**"], contract = ["src/app/api/**"] }
+```
+
 An exact `[board.repos."<name>"]` table wins over every glob table and is not merged with them:
 adding `base` there hides a matching glob's `ignore`, `profile` and `inactive` from `ws board`, so
 repeat what still applies. `ignore = true` must stand alone, so an ignored repo cannot carry `base`.
@@ -482,6 +491,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
 | `ws card start REF [--repo NAME]... [--kind K] [--desc SLUG] [--worktree] [--dry-run]` | Prepares a task to start: checks the card and every repo first (clean tree and no rebase or merge half done in the repos it switches, remote base), then makes the branch `<kind>/REF-<slug>` from `<remote>/<base>` in each repo (or a worktree under `<root>/.worktrees/`), reusing the task's only existing branch unless `--kind` or `--desc` name another (then a problem), writes the move-to-in-progress draft and prints the preview, its code and the `ws card apply` line; never applies, commits or pushes; prints `undo` lines after every run that made branches; `--repo` replaces the item's repos and the title prefix; a failing check stops the whole run before any change; exit 1 a problem, 2 setup, 3 tracker refused or unreachable |
 | `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the approval gate, whose box shows the preview's summary), exit 2 when those are not set up; on a real terminal it shows the summary and asks `Gravar no Jira? [s/N]` instead; a failed or uncertain draft goes to `cards/uncertain/` |
+| `ws review pack REF [--repo NAME]... [--project SLUG]` | Collects the review package of a task into `~/.local/share/workspace/projects/<slug>/reviews/<REF>/pack.json`: per repo, every change of the task branch against its merge base with the remote base (committed, staged, unstaged and untracked), by category, plus new migrations, env vars added or removed, test files, the task's "Pronto quando" and `flags`; prints the same JSON; the skill `card-review` turns it into `review.md`. Reads git only (`fetch` is the one write), never commits, pushes or writes to the tracker; with `--repo`, the project still comes from the card's item, else `standalone`; exit 1 problems (the pack is written with them, except when the REF, `--repo` or `--project` is invalid: then nothing is written and `pack_path`, `folder` and `review_path` are null), 2 setup, 3 tracker refused or unreachable |
 | `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
 | `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints `tasks` (the neutral tasks) and `stuck` (active cards with no activity for the configured workdays) |

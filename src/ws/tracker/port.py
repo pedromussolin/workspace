@@ -21,6 +21,7 @@ CAPABILITIES = (
     "set_reporter",
     "change_type",
     "link_types",
+    "description",
 )
 
 
@@ -80,6 +81,10 @@ class Tracker(Protocol):
     def cards(self, query: CardQuery) -> list[Card]: ...
 
     def display_name(self, account: str) -> str: ...
+
+    def description(self, ref: str) -> str | None:
+        """The card description as plain text, headings as `## `; None when empty or absent."""
+        ...
 
 
 class People:

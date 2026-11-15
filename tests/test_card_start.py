@@ -774,6 +774,35 @@ def test_start_item_repos_that_is_not_a_list_is_a_problem(env, capsys):
     untouched(env)
 
 
+def test_start_item_repos_with_a_bad_name_is_a_problem(env, capsys):
+    env.item('repos = ["acme-api", "../acme-front"]\n')
+
+    code, out, _ = start(capsys, "TS-5")
+
+    assert code == 1
+    assert out["problems"] == [
+        "projects/demo/tasks/01-close-batch.md: repos has '../acme-front', not a repo name; "
+        "run ws item check"
+    ]
+    assert out["repos_from"] is None
+    untouched(env)
+
+
+def test_start_two_items_for_the_card_is_a_problem(env, capsys):
+    env.item('repos = ["acme-api"]\n')
+    (env.tasks / "02-again.md").write_text('+++\ncard = "TS-5"\n+++\n\n# De novo\n')
+
+    code, out, _ = start(capsys, "TS-5")
+
+    assert code == 1
+    assert out["problems"] == [
+        "TS-5 is the card of two items: projects/demo/tasks/01-close-batch.md, "
+        "projects/demo/tasks/02-again.md; run ws item check"
+    ]
+    assert out["repos_from"] is None
+    untouched(env)
+
+
 def test_start_without_a_card_change_removes_an_old_draft(env, capsys):
     start(capsys, "TS-5")
     assert draft_path().exists()
