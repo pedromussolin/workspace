@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ws import userconfig
 from ws.config import REPO_NAME, config_dir
+from ws.reviewpaths import CATEGORIES
 from ws.taskmodel import RUNG, STATUS_AT_RUNG, Status
 from ws.userconfig import ConfigInvalid
 
@@ -29,7 +30,7 @@ BOARD_KEYS = (
 )
 FIRST_VERSION_KEYS = ("environments", "ignore_repos", "direct_deploy_repos")
 FIRST_VERSION_REPO_KEYS = ("branches", "deploy_repo")
-REPO_KEYS = ("ignore", "profile", "inactive", "base")
+REPO_KEYS = ("ignore", "profile", "inactive", "base", "review_categories")
 _BASE = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+")
 _PREFIX_KEY = re.compile(r"[^\[\]\s]+")
 FIRST_VERSION = 'is from the first version; use [board.profiles.<name>] and [board.repos."<glob>"]'
@@ -97,6 +98,7 @@ class RepoSettings:
     profile: str | None
     inactive: tuple[str, ...]
     base: str | None = None
+    review_categories: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +122,10 @@ class BoardConfig:
     def base_for(self, repo: str) -> str:
         settings = self.settings_for(repo)
         return (settings and settings.base) or DEFAULT_BASE
+
+    def review_categories_for(self, repo: str) -> dict[str, tuple[str, ...]]:
+        settings = self.settings_for(repo)
+        return dict((settings and settings.review_categories) or {})
 
     def ignored(self, repo: str) -> bool:
         settings = self.settings_for(repo)
@@ -293,6 +299,20 @@ def _profiles(table: dict, path: Path) -> dict[str, Profile]:
     return {name: _profile(name, value, path) for name, value in raw.items()}
 
 
+def _review_categories(value: object, path: Path, where: str) -> dict[str, tuple[str, ...]]:
+    table = _table(value, path, where)
+    for category in table:
+        if category not in CATEGORIES:
+            raise _invalid(
+                path,
+                f"{where}.{category}",
+                f"is not a category; use one of {', '.join(CATEGORIES)}",
+            )
+    return {
+        category: _strings(globs, path, f"{where}.{category}") for category, globs in table.items()
+    }
+
+
 def _repo(
     key: str, raw: object, profiles: dict[str, Profile], default: str, path: Path
 ) -> RepoSettings:
@@ -328,7 +348,12 @@ def _repo(
     base = table.get("base")
     if "base" in table and (not isinstance(base, str) or not _BASE.fullmatch(base)):
         raise _invalid(path, f"{where}.base", "must be a branch name")
-    return RepoSettings(key, ignore, profile, inactive, base)
+    review_categories = None
+    if "review_categories" in table:
+        review_categories = _review_categories(
+            table["review_categories"], path, f"{where}.review_categories"
+        )
+    return RepoSettings(key, ignore, profile, inactive, base, review_categories)
 
 
 def _prefix_repos(table: dict, path: Path) -> dict[str, tuple[str, ...]]:

@@ -285,7 +285,7 @@ def _parse(path: str, content: bytes, warnings: list[str]) -> ast.Module | None:
 
 
 def _python_files(files: dict[str, bytes], exclude_globs: tuple[str, ...]) -> list[str]:
-    excluded = [_glob_regex(g) for g in exclude_globs]
+    excluded = [glob_regex(g) for g in exclude_globs]
     return sorted(p for p in files if p.endswith(".py") and not any(e.match(p) for e in excluded))
 
 
@@ -356,7 +356,7 @@ class _Hierarchy:
         return list(merged.values())
 
 
-def _glob_regex(pattern: str) -> re.Pattern[str]:
+def glob_regex(pattern: str) -> re.Pattern[str]:
     """`*` stays inside a folder, `**` crosses folders, `**/` also matches no folder at all."""
     out = []
     i = 0
@@ -386,7 +386,7 @@ class _Sinks:
         self.regular = _Names()
         self.migration = _Names()
         self.unresolved: list[Unresolved] = []
-        self._migration = [_glob_regex(g) for g in profile.migration_globs]
+        self._migration = [glob_regex(g) for g in profile.migration_globs]
 
     def for_path(self, path: str) -> tuple[_Names, str]:
         if any(m.match(path) for m in self._migration):
