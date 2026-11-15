@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "database": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string"
+    },
+    "bounds": {
+      "type": "object",
+      "properties": {
+        "day": {
+          "type": "string"
+        },
+        "day_from": {
+          "type": "string"
+        },
+        "day_to": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "timeout_seconds": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "database",
+    "sql",
+    "bounds",
+    "timeout_seconds"
+  ],
+  "additionalProperties": false
+}
