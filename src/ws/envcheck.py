@@ -5,6 +5,7 @@ Names only. A value from the store never gets here: the sources keep the text be
 """
 
 import ast
+import functools
 import json
 import os
 import re
@@ -356,6 +357,7 @@ class _Hierarchy:
         return list(merged.values())
 
 
+@functools.cache
 def glob_regex(pattern: str) -> re.Pattern[str]:
     """`*` stays inside a folder, `**` crosses folders, `**/` also matches no folder at all."""
     out = []
