@@ -132,21 +132,33 @@ branch.
 2. **Exit 1** lists `problems` (texts in English): show each one in PT-BR. Ask only what the user
    can settle: which repos (a numbered list, with the names under `[board.prefix_repos]` in
    `config.toml` as options) or a short slug in English for the branch (`--desc`). Then run the
-   command again with `--repo` and `--desc`. When the repos came from the user's answer, offer to
+   command again with `--repo` and `--desc`. With two or more branches of the task, the command
+   refuses and asks for `--kind` and `--desc`. A computed branch or a `--desc` ending in `-sdbx` is
+   refused: pick another `--desc`. When the repos came from the user's answer, offer to
    write `repos = ["acme-api"]` in the item's front matter, so the next start needs no question.
    Exit 2 is setup (`[board]` or the tracker settings): say so, as in "Exit codes". Exit 3: show the
    tracker's message.
 3. **Exit 0.** Show, in PT-BR and short: each repo in `repos` with its branch and `action`
    (`create` made from the remote base, `track` taken from the remote branch, `reuse` or `current`
-   already there, `elsewhere` checked out in another worktree), then the `warnings`. Then show
-   `preview` exactly as printed, with the `code`.
-4. When `card_change` is null, say the card was already started: there is no preview and nothing
-   to apply. Stop.
+   already there, `elsewhere` checked out in another worktree, `worktree` a new branch in its own
+   folder), and the repo's `worktree` key (the folder, set with `--worktree`) whenever it is not
+   null: always show the folder. Then the `warnings`. When the task already had one branch, it is
+   reused even if `--kind` or `--desc` differ; the warning says "already has the branch X; using
+   it instead of Y": show it. Then show `preview` exactly as printed, with the `code`.
+4. When `card_change` is null, there is no preview and nothing to apply. Do not say "already
+   started" alone: it has three causes. The tracker cannot set a start date (a warning says so; the
+   card is left as is), the card is already in progress with a start date, or there is nothing to
+   change. Name the cause from the `warnings` and the card's status. Stop.
+   With `--dry-run`, `preview`, `code`, `draft` and `apply` are null: show the plan and
+   `card_change`, and say nothing was changed. There is no apply step.
 5. Otherwise run the `apply` command exactly as printed, as its own Bash call (`ws card apply
    <draft> --approve <CODE>`). The approval box is the user's yes (step 4 of "Steps"); never
    run it in the same command line as another command, and never ask for a yes in chat instead.
    Afterwards say the card moved and give the link.
-6. `undo` (git lines that revert the branches made) is shown to the user and offered. Run it only
+6. **Exit 1 after branches were made**: `ws card preview` refused the draft, and the `problems`
+   say the branches stay. Show the `undo` lines and the problems to the user, and fix the cause
+   before running again. Never rerun blindly.
+7. `undo` (git lines that revert the branches made) is shown to the user and offered. Run it only
    on the user's yes.
 
 ## The draft
