@@ -797,6 +797,27 @@ def test_start_through_jira_without_a_start_date_field_drafts_nothing(
     assert world.writes() == []
 
 
+@pytest.mark.parametrize("zone", [None, ""])
+def test_start_through_jira_without_a_time_zone_exits_3(
+    world,  # noqa: F811
+    ws_config,
+    tmp_path,
+    git,
+    monkeypatch,
+    capsys,
+    zone,
+):
+    world.set_card("TS-101", status={"name": "Tarefas", "statusCategory": {"key": "new"}})
+    world.set_myself(zone)
+    roots = jira_roots(ws_config, tmp_path, git, monkeypatch)
+
+    code, out, err = start(capsys, "TS-101")
+
+    assert (code, out) == (3, None)
+    assert err.startswith("ws card start: unusable tracker time zone")
+    assert roots.branches("acme-front") == ["master"]
+
+
 def test_start_through_the_jira_adapter_and_the_real_preview(
     world,  # noqa: F811
     ws_config,

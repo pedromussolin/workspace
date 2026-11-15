@@ -123,10 +123,11 @@ def test_jira_today_is_in_the_users_time_zone(world, monkeypatch):  # noqa: F811
     assert _tracker().today() == date(2026, 11, 15)
 
 
-def test_jira_today_refuses_a_bad_time_zone(world):  # noqa: F811
-    world.set_myself("Not/AZone")
+@pytest.mark.parametrize("zone", ["Not/AZone", None, ""])
+def test_jira_today_refuses_a_bad_or_missing_time_zone(world, zone):  # noqa: F811
+    world.set_myself(zone)
 
-    with pytest.raises(TrackerError):
+    with pytest.raises(TrackerError, match="time zone"):
         _tracker().today()
 
 
