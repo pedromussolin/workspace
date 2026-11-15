@@ -6,6 +6,7 @@ plan and that every call is inside the shapes `guard` allows, and `execute` send
 an allowlist: what it does not name is refused, so nothing here spells out the forbidden forms."""
 
 import re
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -13,18 +14,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ws import approval, bootstrap, humans
+from ws.boardproofs import first_line, run_git
+from ws.codeposition import fetch_env
 from ws.config import claude_settings_path, data_dir
 from ws.release import ReleaseRefused, ReleaseSetup, gitops
 from ws.release import folder as release_folder
-from ws.release.github import Gh, GhFailed, GhUncertain
+from ws.release.github import UNCERTAIN_STDERR, Gh, GhFailed, GhUncertain
 from ws.release.settings import ReleaseConfig
 
 RELEASE_BRANCH = r"release/\d{8}(-sdbx)?"
 TASK_BRANCH = r"(feature|chore|refact|hotfix|fix|test)/TS-\d+-[A-Za-z0-9._-]+"
 PUSHABLE = re.compile(rf"{RELEASE_BRANCH}|{TASK_BRANCH}")
 RELEASE_ONLY = re.compile(RELEASE_BRANCH)
-RELEASE_REF = re.compile(r"refs/remotes/origin/(release/\d{8}(?:-sdbx)?):refs/heads/\1")
-RELEASE_PATH = re.compile(r"[^-].*release[-/]\d{8}")
+RELEASE_REF = re.compile(r"refs/remotes/origin/release/\d{8}(-sdbx|):refs/heads/release/\d{8}\1")
+RELEASE_PATH = re.compile(r"(/[^/\s]+)*/?release-\d{8}(-sdbx)?(/[^/\s]+)?")
+GIT_TIMEOUT_SECONDS = 120
 PR_NUMBER = re.compile(r"\d+|\{num:[^{}\s]+\}")
 
 
@@ -151,8 +155,12 @@ def _git_allowed(args: tuple[str, ...], protected: set[str]) -> bool:
                 and RELEASE_ONLY.fullmatch(branch) is not None
             )
         case ("worktree", "move", source, target):
-            return all(RELEASE_PATH.match(path) for path in (source, target))
+            return all(_release_path(path) for path in (source, target))
     return False
+
+
+def _release_path(path: str) -> bool:
+    return ".." not in path.split("/") and RELEASE_PATH.fullmatch(path) is not None
 
 
 def _gh_allowed(args: tuple[str, ...], slugs: set[str], protected: set[str]) -> bool:
@@ -181,12 +189,21 @@ def _create_extras(rest: tuple[str, ...]) -> bool:
     return all(rest[i] in ("--label", "--assignee") and rest[i + 1] for i in range(0, len(rest), 2))
 
 
+def preview_command(action: str) -> str:
+    return f"ws release preview {action}"
+
+
 def show_preview(plan: WritePlan, next_command: str) -> tuple[dict, int]:
     if plan.problems:
         raise ReleaseRefused("; ".join(plan.problems), {"problems": plan.problems})
+    try:
+        code = plan.code
+    except (TypeError, ValueError) as error:
+        raise ReleaseRefused(
+            f"the plan holds a value that is not JSON-safe (string keys, no tuples): {error}"
+        ) from None
     approval.ensure_store(store())
-    approval.purge_expired(store(), now=now(), preview="ws release preview")
-    code = plan.code
+    approval.purge_expired(store(), now=now(), preview=preview_command(plan.action))
     record = {
         "code": code,
         "action": plan.action,
@@ -207,9 +224,10 @@ def show_preview(plan: WritePlan, next_command: str) -> tuple[dict, int]:
 
 
 def _confirm(summary: list[str]) -> bool:
-    print("\n".join(summary))
+    print("\n".join(summary), file=sys.stderr)
+    print("Publicar no GitHub? [s/N] ", end="", file=sys.stderr, flush=True)
     try:
-        answer = input("Publicar no GitHub? [s/N] ")
+        answer = input()
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -217,20 +235,23 @@ def _confirm(summary: list[str]) -> bool:
 
 
 def _record_for(code: str, action: str) -> dict:
-    record, refusal = approval.read_pending(store(), code, now=now(), preview="ws release preview")
+    preview = preview_command(action)
+    record, refusal = approval.read_pending(store(), code, now=now(), preview=preview)
     if refusal:
         raise ReleaseRefused(refusal)
     if record is None:
-        raise ReleaseRefused(f"no pending preview for code {code}; run ws release preview first")
+        raise ReleaseRefused(f"no pending preview for code {code}; run {preview} first")
     if now() - record["_created"] > approval.APPROVAL_WINDOW:
         (store() / f"{code}.json").unlink(missing_ok=True)
-        raise ReleaseRefused("the preview expired (30 minutes); run the preview again")
+        raise ReleaseRefused(f"the preview expired (30 minutes); run {preview} again")
     try:
-        matches = approval.digest(record["material"]) == code
+        matches = approval.digest(record["material"]) == code and record["summary"] == [
+            call["line"] for call in record["material"]["calls"]
+        ]
     except (KeyError, TypeError):
         matches = False
     if not matches:
-        raise ReleaseRefused("o registro pendente foi alterado; rode a prévia de novo")
+        raise ReleaseRefused(f"the pending record was changed; run {preview} again")
     if record.get("action") != action:
         raise ReleaseRefused(
             f"the code {code} belongs to a {record.get('action')} preview, not {action}"
@@ -258,8 +279,8 @@ def approve(
     record = _record_for(code, action)
     if not by_hand and (record.get("sid") is None or record.get("sid") == session_id()):
         raise ReleaseRefused(
-            "a prévia e a aprovação precisam ser passos separados "
-            "(rode a aprovação em outro comando, depois de mostrar a prévia)"
+            "the preview and the approval must be separate steps "
+            "(run the approval in another command, after showing the preview)"
         )
     live = build()
     if live.problems:
@@ -269,7 +290,7 @@ def approve(
     if (refused := guard(live, config, tuple(local or {}))) is not None:
         raise ReleaseRefused(f"call outside the allowed shapes: {refused}")
     if by_hand and not _confirm(live.summary):
-        raise ReleaseRefused("Nada foi enviado.")
+        raise ReleaseRefused("nothing was sent")
     try:
         (store() / f"{code}.json").unlink()
     except FileNotFoundError:
@@ -277,24 +298,44 @@ def approve(
     return execute(live, gh, local)
 
 
-def _resolve(text: str, known: dict[str, tuple[str, str, int]]) -> str:
-    return release_folder.resolve_refs(text, known)
+class LocalFailed(Exception):
+    """A local handler raised."""
+
+
+def _git(call: Call, args: tuple[str, ...]) -> None:
+    repo = Path(call.cwd)
+    try:
+        done = run_git(repo, *args, timeout=GIT_TIMEOUT_SECONDS, env=fetch_env(repo))
+    except subprocess.TimeoutExpired:
+        raise GhUncertain(f"git {args[0]} timed out") from None
+    if done.returncode != 0:
+        message = first_line(done.stderr or done.stdout)
+        if UNCERTAIN_STDERR.search(message):
+            raise GhUncertain(message)
+        raise gitops.GitFailed(message)
+
+
+def _pr_number(url: str | None) -> int:
+    try:
+        return int((url or "").rsplit("/", 1)[-1])
+    except ValueError:
+        raise GhUncertain("gh did not print a PR URL") from None
 
 
 def _send(
     call: Call, gh: Gh, local: dict[str, Callable[..., None]], known: dict
 ) -> tuple[str | None, str | None]:
     """Sends one call; returns (the URL a create printed, the ref it answers)."""
-    args = tuple(_resolve(arg, known) for arg in call.args)
-    body = _resolve(call.body, known) if call.body is not None else None
+    args = tuple(release_folder.resolve_refs(arg, known) for arg in call.args)
+    body = release_folder.resolve_refs(call.body, known) if call.body is not None else None
     if call.program == "local":
         try:
             local[args[0]](*args[1:])
         except Exception as error:
-            raise GhFailed(str(error)) from error
+            raise LocalFailed(str(error)) from error
         return None, None
     if call.program == "git":
-        gitops.git(Path(call.cwd or "."), *args)
+        _git(call, args)
         return None, None
     if any(release_folder.pending_refs(arg) for arg in args):
         raise GhFailed("a placeholder in the arguments has no PR to point to")
@@ -317,20 +358,14 @@ def execute(
         try:
             url, answers = _send(call, gh, local or {}, known)
             if answers:
-                number = int((url or "").rsplit("/", 1)[-1])
+                number = _pr_number(url)
                 known[answers] = (f"{create_slug(call)}#{number}", url, number)
                 prs[answers] = url
         except GhUncertain as error:
             print(f"resultado incerto: confira no GitHub ({error})", file=sys.stderr)
             result["uncertain"] = True
             return _stopped(result, plan, index, call), 1
-        except ValueError:
-            print(
-                "resultado incerto: confira no GitHub (gh did not print a PR URL)", file=sys.stderr
-            )
-            result["uncertain"] = True
-            return _stopped(result, plan, index, call), 1
-        except (GhFailed, gitops.GitFailed, KeyError, OSError) as error:
+        except (GhFailed, gitops.GitFailed, LocalFailed, KeyError, OSError) as error:
             print(f"ws release: {call.line}: {error}", file=sys.stderr)
             return _stopped(result, plan, index, call), 1
         done.append(call.line)

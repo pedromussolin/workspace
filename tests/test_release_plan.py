@@ -2,12 +2,13 @@ import itertools
 import json
 import re
 import stat
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fake_gh import fake_gh  # noqa: F401
-from release_helpers import DAY, World  # noqa: F401
+from release_helpers import DAY
 
 from ws import humans
 from ws.config import data_dir
@@ -128,7 +129,7 @@ def test_approve_refuses_a_wrong_code(ready):
     code = preview(ready)
     forged = "f" * 12
     (writeplan.store() / f"{code}.json").rename(writeplan.store() / f"{forged}.json")
-    with pytest.raises(ReleaseRefused, match="alterado"):
+    with pytest.raises(ReleaseRefused, match="was changed"):
         approve(ready, forged)
     with pytest.raises(ReleaseRefused, match="not an approval code"):
         approve(ready, "../x")
@@ -146,12 +147,13 @@ def test_approve_refuses_after_30_minutes(ready, monkeypatch, fake_gh):  # noqa:
     with pytest.raises(ReleaseRefused, match="expired"):
         approve(ready, code)
     assert fake_gh.writes == []
+    assert not (writeplan.store() / f"{code}.json").exists()
 
 
 def test_approve_refuses_in_the_same_session(ready, monkeypatch, fake_gh):  # noqa: F811
     monkeypatch.setattr(writeplan, "session_id", lambda: 7)
     code = preview(ready)
-    with pytest.raises(ReleaseRefused, match="passos separados"):
+    with pytest.raises(ReleaseRefused, match="separate steps"):
         approve(ready, code)
     assert fake_gh.writes == []
 
@@ -188,13 +190,85 @@ def test_approve_sends_and_pushes_to_the_origin(ready, fake_gh):  # noqa: F811
 
 
 def test_approve_deletes_the_record_before_sending(ready, fake_gh):  # noqa: F811
-    code = preview(ready)
-    fake_gh.fail("pr create", "HTTP 422")
-    _, exit_code = approve(ready, code)
-    assert exit_code == 1
-    assert not (writeplan.store() / f"{code}.json").exists()
+    path_holder = {}
+
+    def first_send():
+        assert not path_holder["path"].exists()
+        raise RuntimeError("stop here")
+
+    def build():
+        plan = make_plan(ready)
+        plan.calls.insert(0, Call(repo="repo-a", program="local", args=("first",), line="primeiro"))
+        return plan
+
+    code = build().code
+    writeplan.show_preview(build(), NEXT)
+    path_holder["path"] = writeplan.store() / f"{code}.json"
+    assert path_holder["path"].exists()
+    payload, exit_code = approve(ready, code, build=build, local={"first": first_send})
+    assert exit_code == 1 and payload["failed"] == "primeiro"
+    assert fake_gh.writes == []
     with pytest.raises(ReleaseRefused, match="no pending"):
+        approve(ready, code, build=build)
+
+
+def test_approve_refuses_an_edited_summary(ready, fake_gh):  # noqa: F811
+    code = preview(ready)
+    path = writeplan.store() / f"{code}.json"
+    record = json.loads(path.read_text())
+    record["summary"] = ["inofensivo"]
+    path.write_text(json.dumps(record))
+    with pytest.raises(ReleaseRefused, match="was changed"):
         approve(ready, code)
+    assert fake_gh.writes == []
+
+
+def test_approve_refuses_what_guard_refuses(ready, fake_gh):  # noqa: F811
+    bad = make_plan(ready)
+    bad.calls.append(gh_call("pr", "merge", "5"))
+    writeplan.show_preview(bad, NEXT)
+    with pytest.raises(ReleaseRefused, match="outside the allowed shapes: gh pr merge 5"):
+        approve(ready, bad.code, build=lambda: bad)
+    assert fake_gh.writes == []
+    assert BRANCH not in "".join(ready.refs("repo-a"))
+
+
+def test_git_timeout_is_uncertain(ready, monkeypatch, capsys):
+    def slow(*args, **kwargs):
+        raise subprocess.TimeoutExpired("git", 1)
+
+    monkeypatch.setattr(writeplan, "run_git", slow)
+    payload, exit_code = writeplan.execute(make_plan(ready), Gh())
+    assert exit_code == 1 and payload["uncertain"] is True
+    assert payload["failed"] == "enviar a branch da release"
+    assert "resultado incerto" in capsys.readouterr().err
+
+
+def test_git_rejected_push_is_a_plain_failure(ready):
+    plan = make_plan(ready)
+    plan.calls[0] = git_call_in(ready, "push", "-u", "origin", "release/20261199")
+    payload, exit_code = writeplan.execute(plan, Gh())
+    assert exit_code == 1 and payload["uncertain"] is False and payload["done"] == []
+
+
+def test_git_push_never_waits_for_a_password(ready, monkeypatch):
+    seen = {}
+    real = writeplan.run_git
+
+    def spy(repo, *args, **kwargs):
+        seen.update(kwargs)
+        return real(repo, *args, **kwargs)
+
+    monkeypatch.setattr(writeplan, "run_git", spy)
+    writeplan.execute(make_plan(ready), Gh())
+    assert seen["env"]["GIT_TERMINAL_PROMPT"] == "0" and seen["timeout"] > 0
+
+
+def test_a_non_json_plan_is_refused_clearly(ready):
+    plan = make_plan(ready)
+    plan.facts = {"renumber": {("repo-a", 1): "x"}}
+    with pytest.raises(ReleaseRefused, match="not JSON-safe"):
+        writeplan.show_preview(plan, NEXT)
 
 
 def test_execute_stops_at_the_first_failure(ready, fake_gh):  # noqa: F811
@@ -235,6 +309,12 @@ def gh_call(*args):
     return Call(repo="repo-a", program="gh", args=args, line="x", cwd=None)
 
 
+def git_call_in(world, *args):
+    return Call(
+        repo="repo-a", program="git", args=args, line="enviar", cwd=str(world.clone("repo-a"))
+    )
+
+
 def git_call(*args):
     return Call(repo="repo-a", program="git", args=args, line="x", cwd="/somewhere")
 
@@ -245,6 +325,11 @@ REFUSED = [
     git_call("push", "-u", "origin", "master"),
     git_call("push", "-u", "origin", "sandbox"),
     git_call("push", "origin", f"+{BRANCH}"),
+    git_call(
+        "push", "origin", f"refs/remotes/origin/{BRANCH}-sdbx:refs/heads/{BRANCH[:-8]}20261121"
+    ),
+    git_call("worktree", "move", f"/w/x/../../etc/release-{DAY}x", f"/w/release-{DAY}"),
+    git_call("worktree", "move", f"release-{DAY}/repo-a", "../release-20261121"),
     gh_call(
         "pr", "create", "-R", "other/repo", "--base", "master", "--head", BRANCH, "--title", "t"
     ),
@@ -266,13 +351,24 @@ REFUSED = [
 def test_guard_refuses(ready, call):
     plan = make_plan(ready)
     plan.calls = [call]
-    assert writeplan.guard(plan, load_release_config()) is not None
+    refused = writeplan.guard(plan, load_release_config())
+    assert refused == f"{call.program} {' '.join(call.args)}"
 
 
 def test_guard_allows_the_known_shapes(ready):
     plan = make_plan(ready)
     plan.calls += [
-        git_call("push", "origin", f"refs/remotes/origin/{BRANCH}:refs/heads/{BRANCH}"),
+        git_call("push", "origin", f"refs/remotes/origin/{BRANCH}:refs/heads/release/20261121"),
+        git_call(
+            "push", "origin", f"refs/remotes/origin/{BRANCH}-sdbx:refs/heads/release/20261121-sdbx"
+        ),
+        git_call("worktree", "move", f"release-{DAY}/repo-a", "release-20261121/repo-a"),
+        git_call(
+            "worktree",
+            "move",
+            f"/d/projects/demo/release-{DAY}",
+            "/d/projects/demo/release-20261121",
+        ),
         git_call("push", "origin", "--delete", BRANCH),
         git_call("branch", "-m", BRANCH, f"{BRANCH}-sdbx"),
         git_call("branch", "-u", f"origin/{BRANCH}", BRANCH),
@@ -313,7 +409,7 @@ def test_by_hand_asks_s_n(ready, monkeypatch, fake_gh):  # noqa: F811
     code = preview(ready)
     monkeypatch.setattr(humans, "by_hand", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
-    with pytest.raises(ReleaseRefused, match="Nada foi enviado"):
+    with pytest.raises(ReleaseRefused, match="nothing was sent"):
         approve(ready, code)
     assert fake_gh.writes == []
     monkeypatch.setattr("builtins.input", lambda prompt="": "s")
