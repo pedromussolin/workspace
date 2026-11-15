@@ -231,6 +231,10 @@ BACK = ["acme-api"]
 FRONT = ["acme-front"]
 ```
 
+An exact `[board.repos."<name>"]` table wins over every glob table and is not merged with them:
+adding `base` there hides a matching glob's `ignore`, `profile` and `inactive` from `ws board`, so
+repeat what still applies. `ignore = true` must stand alone, so an ignored repo cannot carry `base`.
+
 - Each commit takes the highest environment that contains it; the card takes the lowest of its
   commits. The statuses of a profile must rise along its list.
 - Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent

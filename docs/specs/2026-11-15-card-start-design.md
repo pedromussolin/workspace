@@ -158,6 +158,15 @@ Decided while building; they refine "Order" and "Failure and rerun" above.
 - A branch only on the remote is tracked with an explicit `--track` and its full ref
   (`refs/remotes/<remote>/<branch>`), never by git guessing from the bare name: the upstream does
   not depend on `branch.autoSetupMerge` nor on a second remote holding the same branch.
+- A title that gives no slug is a problem only when the task has no branch yet: a rerun without
+  `--desc` reuses the task's only existing branch, with a warning.
+- An item `repos` that is not a list is a problem (`run ws item check`), never ignored.
+- A refused preview puts its reasons (the preview's problem lines) in `problems`, after the line
+  saying the branches stay.
+- With no card change, the draft `start-REF.md` of an earlier run is deleted and a warning says
+  so: it was never applied and no longer matches the card.
+- Jira has the `start_date` capability only when `[jira] start_date_field` is set; without it a
+  card in progress gets the "cannot set a start date" warning and no draft.
 - The fetch never prompts (`GIT_TERMINAL_PROMPT=0`, 60 s timeout). It keeps the user's ssh command
   (`GIT_SSH_COMMAND`, then `core.sshCommand`, then `GIT_SSH`, as git picks them) and adds `-o
   BatchMode=yes` only to OpenSSH (`ssh`, `ssh.exe`) on a plain command line.
