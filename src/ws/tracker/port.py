@@ -52,6 +52,7 @@ class Card:
     priority: str | None
     sprint: str | None
     links: tuple[Link, ...] = ()
+    start: date | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,10 @@ class Tracker(Protocol):
     capabilities: frozenset[str]
 
     def me(self) -> str: ...
+
+    def today(self) -> date:
+        """Today in the time zone of the user's tracker account."""
+        ...
 
     def card(self, ref: str) -> Card | None:
         """None: the card is absent from the configured project."""
