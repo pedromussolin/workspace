@@ -1,0 +1,126 @@
+---
+name: release
+description: Builds, publishes, moves and reports the release of the company repos (release branches, the merge into the sandbox, the PRs, a new date, the PR links for the GMUD) through the `ws release` commands, with a preview and an approval prompt before any GitHub write. Use only when the user types /release, for example "/release monta a release de 20/11 com TS-101 e TS-102", "/release publica", "/release move a de 20/11 para 27/11" or "/release status".
+disable-model-invocation: true
+---
+
+# Release
+
+A release is the set of PRs, one per repo, that takes the finished tasks to production on a date. The
+order is fixed: understand, build, validate, write the PR texts, preview, approval (the write).
+The model decides, asks and writes the PR prose; `ws release` builds the branches, checks the rules,
+calls `gh` and `git push`. Nothing goes to GitHub through the GitHub MCP, ever. Never run
+`gh pr merge`, never push to `master` or `sandbox`: the user merges the PRs on GitHub. Never wrap or
+disguise a command to avoid the approval prompt.
+
+Terms: the release branch `release/YYYYMMDD` merges the task branches of a repo; a `-sdbx` branch
+is a copy of it that also merges `origin/sandbox`, made only when the code branch conflicts with the
+sandbox; GMUD is the change record of the deploy (skill `change-request`). A repo with one include
+is single-branch (the PR comes from the task branch itself); with more, multi-branch (a
+`release/DATE` branch is built).
+
+Every command prints JSON on stdout and messages on stderr. Exit codes: 0 ok, 1 a rule failed, 2 a
+precondition is missing (config, `gh`, gate settings, a merge in progress), 3 a merge conflict that
+needs the user. Dates go in as `YYYYMMDD` or `YYYY-MM-DD`; the texts say `DD/MM/YYYY`. Add
+`--project SLUG` when the current folder is not under the project. Exit 2 naming the config or the
+gate: tell the user to read the README section "Release" and run `ws setup`.
+
+## Steps
+
+1. **Understand the request.** Ask only what is missing: the date, the tasks (keys such as
+   `TS-101`), the repos, the task branches. Run `ws release status` (releases already found:
+   `releases[]` with `date`, `folder`, `open_prs`). Then
+   `ws release branches --task TS-101 TS-102 [--from-items SLUG] [--repo NAME ...]` (read-only;
+   `--from-items` adds the tasks of that planning project and uses their `blocks`/`blocked_by` as
+   order hints). Per repo it prints `branches[]` (`branch`, `key`, `local`, `remote`, `ahead`,
+   `merged`, `sdbx`, `contains`, `migrations`), `suggested_order` and `problems`; also `unmatched`
+   (keys with no branch). Show the user `suggested_order` and every `contains` line (this branch
+   already holds those) and `migrations` line (each Alembic revision and its `down` revision),
+   and the `problems` (a local branch behind its `origin` copy: ask the user to pull it). Propose the
+   include list of each repo in that order and say which repos end up single-branch and which
+   multi-branch. The order is the merge order: a branch that holds another goes after it, and
+   chained migrations must follow their `down_revision`. The user confirms or changes it.
+2. **Build.** Write `release.toml` in `~/.local/share/workspace/projects/<slug>/release-YYYYMMDD/`
+   (`mkdir -p` first; Write tool):
+
+   ```toml
+   repos = ["shared", "bff", "front"]
+
+   [include]
+   shared = ["feature/TS-101-example"]
+   bff = ["feature/TS-102-first", "feature/TS-103-second"]
+   ```
+
+   `repos` is the deploy order; `[include]` lists the task branches of each repo in the confirmed
+   merge order; no task id or title goes in the file. Run `ws release new DATE`. It builds locally
+   only (branches, worktrees, merge commits); it never pushes. Read the JSON:
+   - `repos[]`: per repo `shape`, `code_branch`, `tip`, `worktree`, `ahead`, `behind`, `sdbx`,
+     `sdbx_differs` (files where the `-sdbx` differs from the code branch), `problems`, `warnings`,
+     `ready`. Exit 0 means every repo is `ready: true`; exit 1, some is not: fix each problem.
+   - `suggested_order` (repo name to branches) appears when the order or the Alembic chain is
+     wrong; that repo was not built. Say in one sentence why (for example "`feature/TS-103` already
+     holds `feature/TS-102`, so it must come after it", or "two includes add a migration on the same
+     parent revision"), propose the fixed `[include]` and, on the user's yes, rewrite it and rerun.
+     Never reorder silently.
+   - Exit 3: a merge conflict. `conflict` has `repo`, `worktree`, `merging` and `files`; `built` and
+     `not_started` say how far it got. Resolve it in that worktree with the user: show the diff
+     grouped by planned commit and commit only after the user's review (`chore(TS-N): ...`, up to 72
+     characters, PT-BR, no co-author). Then rerun `ws release new DATE` until `ready: true` in
+     every repo.
+   - A single-branch repo that was already published and now has two includes stops with exit 2: the
+     open PRs come from the task branch; the user decides how to move on.
+   - Say where a `-sdbx` was needed (a real conflict with `sandbox`) and which files differ from the
+     code branch and why.
+3. **Validate before publishing.** Ask whether the local validation was done; if not, offer it
+   (the validation command of the repo; `ws validate` once it exists). The numbers in "Como validei"
+   come only from runs the user or you made, never invented.
+4. **Write the PR drafts** in `release-DATE/pr/`, in PT-BR, in the user's style, following
+   [references/pr-shapes.md](references/pr-shapes.md): the front matter, the titles per shape, the
+   sections (the repo's template when it has one, else the four), the placeholders and the sandbox
+   PR. Summarize from the task cards and the diff; say what could not be exercised and what must
+   exist before (Parameter Store, app roles). Show the user the drafts and fix them until they are
+   right.
+5. **Publish.** `ws release preview publish DATE [--repo NAME ...]`. It writes no repo and no
+   GitHub; on exit 1 it prints `problems` (a rule, a draft, a repo not `ready`): fix and run it
+   again. Otherwise it prints `code`, `summary` (PT-BR lines), `calls` (every `git`/`gh` call),
+   `next` and `warnings`. Show the `summary` lines as printed, every `warnings` line and the code. Then run
+   `ws release publish DATE --approve CODE` (the same `--repo`/`--project` flags) as its own Bash
+   call, never in the same command line as the preview (it refuses in the same shell session). The
+   approval gate stops it and shows the user the summary; the user's yes in that box is the
+   approval. Never ask the user to type the code or say "ok" in chat instead. The preview is valid
+   for 30 minutes and only for the plan it printed: if the state changes, `publish` refuses and a
+   new preview is needed.
+   Read the result: `done` (calls sent), `failed`, `not_sent`, `uncertain`, `prs` (the URLs). On
+   success also `repos[]` (`repo`, `code_pr`, `sandbox_pr`, `skipped`), `gmud` and `warnings`. Give
+   the user the PR links and show the `warnings`.
+   - `failed` set: say which call failed and what was not sent, then run the preview again; it plans
+     only what is still missing.
+   - `uncertain: true` (a timeout or a 5xx after sending): tell the user to check GitHub for the
+     PR. Never retry blindly: rerun the preview and show what it now plans.
+   - A repo whose code PR is already merged is reported as `skipped`.
+6. **GMUD.** When the user asks for it, run `ws release status DATE --links`. `links` has one line
+   per repo in deploy order, code PRs first and sandbox PRs after (`apl-shared-service, PR #76:
+   <url>`). Give it to the `change-request` skill. A `warnings` line "no code PR" means the links
+   are incomplete.
+7. **A new change after the release exists.** It goes to the task branch first, then to the code
+   branch (`ws release new DATE` merges it in), then into the `-sdbx` when there is one (`new`
+   syncs it with `origin/sandbox` first). When the previous sandbox PR is already merged, write
+   `pr/<repo>-sandbox-2.md` (then `-3`, ...) and publish. A new task branch in a repo that was
+   single-branch changes its shape: `new` stops with exit 2 and the user decides.
+8. **Move to another date.** Follow [references/moving.md](references/moving.md): ask the new date
+   and the reason in one sentence; preview, show the `summary` and every `residual_dates` line,
+   approval in its own call, then tell the user what changed. Only a new date in the past is
+   refused; the old one may be past.
+9. **Status.** `ws release status [DATE]` is read-only and needs no approval. With a date it prints
+   per repo the shape, the worktree, the remote branches, `ahead`/`behind`, the `-sdbx` check and
+   `prs[]` (`kind`, `number`, `state`, `base`, `url`, `mergeable`, `checks`); exit 1 when a rule
+   fails. Show it short, in plain words.
+
+## Never
+
+- Merge a PR, push to `master` or `sandbox`, force-push, or write to GitHub by any route other
+  than `ws release publish|move --approve`.
+- Delete a branch without `--delete-old-branches` and the user's yes (see the moving reference).
+- Run the preview and the approval in the same Bash call, or hide the approval command in a
+  script, a variable, `eval` or a background process.
+- Invent numbers for "Como validei", or leave a placeholder or a task link out of a draft.

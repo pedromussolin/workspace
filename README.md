@@ -247,6 +247,78 @@ done = "Concluído"
   name must map back to its own status through `[jira.status_overrides]`.
 - A bad value exits 2 with the key path.
 
+## Release
+
+`ws release` builds, publishes, moves and reports the release of the company repos: the release
+branch `release/YYYYMMDD` of each repo (merging its task branches in order), the PRs to `master` and
+to `sandbox`, a new date for a release already published, and the PR links for the GMUD. The skill
+`/release` drives it; the commands do the checks and the git and `gh` work. Every command prints
+JSON on stdout and messages on stderr; exit 0 ok, 1 a rule failed, 2 a precondition is missing,
+3 a merge conflict that needs you. `--project SLUG` is needed when the current folder is not under
+the project. Dates go in as `YYYYMMDD` or `YYYY-MM-DD`.
+
+| Command | What it does |
+|---|---|
+| `ws release branches --task TS-N… [--from-items SLUG…] [--repo NAME…]` | Read-only. Per repo, the task branches of those keys with `ahead`, `merged`, the `-sdbx` copy, `contains` (the other branches each one already holds) and `migrations` (Alembic revisions it adds), and `suggested_order`, the order that keeps stacked branches and chained migrations valid; `--from-items` adds the tasks of a planning project and uses their `blocks`/`blocked_by` as hints |
+| `ws release new DATE [--repo NAME…]` | Local only: reads `release-DATE/release.toml`, builds `release/DATE` per multi-branch repo (one merge commit per task branch, in the `[include]` order, then `origin/master`), checks the single-branch ones, tests the merge with `origin/sandbox` and makes a `-sdbx` branch only on a conflict; prints per repo the shape, tip, `sdbx_differs`, `problems` and `ready`; exit 3 leaves the merge in progress in its worktree; never pushes |
+| `ws release preview publish DATE [--repo NAME…]` | Checks every rule and the PR drafts, prints `code`, `summary` (PT-BR), `calls`, `next` and `warnings`, and stores a pending record; writes nothing to a repo or GitHub |
+| `ws release publish DATE [--repo NAME…] --approve CODE` | The write: pushes the branches (never forced) and opens the PRs, in deploy order; prints `done`, `failed`, `not_sent`, `uncertain`, `prs` and the `gmud` links; Claude Code asks you first (the `ask` rule and the gate) |
+| `ws release preview move OLD NEW --reason TEXT [--delete-old-branches]` | Plans moving a release to another date: copies the branches, opens new PRs and closes the old ones (multi-branch), changes the `Release:` line (single-branch), renames the local branches, worktrees and folder; prints `code`, `summary`, `calls`, `next`, `warnings`, `residual_dates` (old-date text left in the new bodies) and `left_in_old` (what stays in the old folder) |
+| `ws release move OLD NEW --reason TEXT [--delete-old-branches] --approve CODE` | The write of the move; with the flag it also deletes `release/OLD[-sdbx]` on `origin`, only when every PR from it is closed or merged and none has it as base; prints `left_in_old` on success, `not_moved_yet` (what is still in the old folder) after a failed run |
+| `ws release status [DATE] [--links]` | Read-only. Without a date, the releases found (folders, and `release/*` branches with open PRs); with one, per repo the shape, worktree, branches, `ahead`/`behind`, the `-sdbx` check and the PRs with their checks; `--links` adds `links`, one line per repo for the GMUD (`apl-shared-service, PR #76: <url>`), code PRs first, sandbox PRs after; exit 1 when a rule fails |
+
+The working files are under `~/.local/share/workspace/projects/<slug>/release-YYYYMMDD/`:
+`release.toml` (`repos` in deploy order, and `[include]` with the task branches of each repo in merge
+order), `pr/<repo>.md`, `pr/<repo>-sandbox.md` and `pr/<repo>-sandbox-N.md` (the PR drafts: TOML
+front matter between `+++` lines, then the body) and the worktrees. The drafts are checked by
+`preview publish`; the skill `release` explains their shape.
+
+### The preview and the approval
+
+The preview and the write are separate commands, run as separate Bash calls: `--approve` refuses
+(exit 1) in the same shell session as the preview, so one command line cannot do both. The code is
+the first 12 hex characters of the SHA-256 of the plan; the pending record
+(`~/.local/share/workspace/release/pending/<code>.json`, mode 600) lasts 30 minutes. The write
+recomputes the plan against the live state and refuses if it changed, deletes the record before
+sending (a second `--approve` finds nothing), stops at the first failure and reports what was done.
+A timeout or a 5xx after sending is reported as `resultado incerto: confira no GitHub`, with no
+retry: check GitHub, then run the preview again. The commands never merge a PR and never push to
+`master` or `sandbox`; nothing here is written through the GitHub MCP.
+
+`ws setup` checks, and prints what to add (it never edits `~/.claude/settings.json`), two
+`permissions.ask` rules, `Bash(ws release publish:*)` and `Bash(ws release move:*)`, and the gate
+hook (`hooks/approval_gate.py`) registered for `Bash`; until they are there, `ws release publish`
+and `move` refuse with exit 2. A rule matches the command text only, so the hook is the barrier: it
+asks for any command that names `release publish` or `release move`, however it is spelled, and
+shows the box with the preview's summary. `branches`, `new`, `status` and the previews stay silent.
+
+### Local config
+
+Add to `~/.config/workspace/config.toml` (the `[jira] site` above is also needed: the PR texts link
+to `<site>/browse/TS-N`). Values are placeholders; a missing or unknown key exits 2 naming it:
+
+```toml
+[release]
+sandbox_branch = "sandbox"
+base_branch = "master"
+
+# the order here is the deploy order: PRs are created, and cross-referenced, in it
+[release.repos.shared]
+slug = "<org>/<repo>"
+path = "~/repos/<repo>"
+
+[release.repos.bff]
+slug = "<org>/<repo>"
+path = "~/repos/<repo>"
+alembic = "<folder of the Alembic versions, relative to the repo>"
+```
+
+- `slug` is the GitHub `owner/name`; `path` is the local clone.
+- `alembic` is optional: the folder of the migrations. A repo that sets it gets the migration rules:
+  every migration an include adds names a `down_revision` that `origin/master` or an earlier include
+  has, and the code branch and the sandbox side each have one Alembic head.
+- `base_branch` and `sandbox_branch` default to `master` and `sandbox`.
+
 ## What protects the repo
 
 Protection starts after `ws setup`: a fresh clone has no git hooks. From then on, the hooks call
@@ -372,6 +444,11 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws checkpoint check SLUG` | Validates the project's `CONTINUE.md` (required sections `## Onde parei` and `## Próximo passo` filled in, size limit on the next step) and `decisions.md`; prints a JSON verdict, exit 0 when ok, 1 otherwise |
 | `ws checkpoint diff SLUG [--include PATH...]` | Shows what a checkpoint commit would take: the project's changed and new files and the diffstat; new binary files, or over-200 KB files under `evidence/` or `attachments/`, are listed as refused unless included |
 | `ws checkpoint commit SLUG -m MESSAGE [--include PATH...] [--amend]` | On `main` only, and only with the repo hooks installed (`ws setup`): validates the message and the check, refuses changes outside `projects/<slug>/` (the one exception is `.known-words`, committed along), refuses unpushed commits touching other paths, refuses new binaries (any folder) and large files (`evidence/`, `attachments/`) without `--include`, commits that folder (`--amend` rewrites the single unpushed checkpoint commit), pulls with rebase (a conflict aborts it and keeps the commit), checks again and pushes, printing `commits_pushed`; network calls time out after 120 s; the skill `checkpoint` runs it |
+| `ws release branches --task TS-N… [--from-items SLUG…]` | Lists the task branches of each release repo with what each contains, its migrations and the suggested merge order; read-only (see "Release") |
+| `ws release new DATE` | Builds the release branches of a date locally, merging the task branches in order; never pushes |
+| `ws release preview publish DATE` / `ws release publish DATE --approve CODE` | Plans, then (after your yes in Claude Code) pushes the branches and opens the PRs |
+| `ws release preview move OLD NEW --reason TEXT` / `ws release move OLD NEW --reason TEXT --approve CODE` | Plans, then moves a published release to another date (new PRs, old ones closed, local rename) |
+| `ws release status [DATE] [--links]` | Reports where a release stands; `--links` prints the PR block for the GMUD |
 
 Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --check`.
 

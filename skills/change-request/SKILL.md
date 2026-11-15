@@ -22,6 +22,8 @@ Everything else in this skill is instructions for you, in English.
    commits (a branch that is already merged leaves `origin/master..<branch>`
    empty); `git diff --stat` of each one. Look in every repo, argocd
    included. Also say what does **not** change.
+   When the deploy is a `ws release`, run `ws release status DATE --links` and take
+   the PR numbers for O que muda and Plano de implantação from its `links`.
 2. **Where the change already is:** versions in Datadog show up as
    `sand-<sha>` / `prod-<sha>` (group by `@version`). Confirm with
    `git merge-base --is-ancestor <commit> <sha>`. Already in production means
