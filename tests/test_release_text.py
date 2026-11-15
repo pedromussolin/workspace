@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from ws.release import ReleaseRefused, text
+from ws.release import ReleaseRefused, ReleaseSetup, text
 from ws.release.text import (
     MASTER_TEXT,
     SUBJECT,
@@ -98,3 +98,30 @@ def test_release_merge_message_keeps_the_whole_text_when_it_fits():
 
     assert subject == "chore(TS-1, TS-2): atualiza com a master"
     assert body == ""
+
+
+def test_day_argument_maps_a_malformed_day_to_a_setup_problem():
+    assert text.day_argument("2026-11-20") == date(2026, 11, 20)
+    with pytest.raises(ReleaseSetup, match="is not a day"):
+        text.day_argument("2026-1120")
+
+
+@pytest.mark.parametrize("count", [5, 6, 7, 9, 12])
+@pytest.mark.parametrize(
+    "words",
+    [MASTER_TEXT, sandbox_text("release/20261120"), copy_text("feature/TS-5416-tela-com-filtro")],
+)
+def test_release_merge_message_never_ends_in_a_function_word(count, words):
+    keys = [f"TS-{5400 + n}" for n in range(count)]
+
+    subject, _ = release_merge_message(keys, words)
+
+    assert len(subject) <= 72 and SUBJECT.match(subject)
+    assert subject.split()[-1] not in {"a", "o", "com", "na", "no", "da", "do", "de", "e"}
+
+
+def test_release_merge_message_drops_the_dangling_words():
+    keys = [f"TS-{5400 + n}" for n in range(5)]
+
+    assert release_merge_message(keys, MASTER_TEXT)[0].endswith("): atualiza")
+    assert release_merge_message(keys, sandbox_text("release/20261120"))[0].endswith("): junta")
