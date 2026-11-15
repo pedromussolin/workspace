@@ -193,6 +193,23 @@ def _item_problems(root: Path, project: Project, item: Item, people: PeopleDirec
     return out + _link_problems(root, project, item)
 
 
+def find_card_item(root: Path, ref: str) -> tuple[Item | None, list[str]]:
+    found: list[Item] = []
+    warnings: list[str] = []
+    for path in sorted(root.glob("projects/*/tasks/*.md")):
+        try:
+            item = read_item(path)
+        except ItemError as error:
+            warnings.append(f"{rel(root, path)}: {error}")
+            continue
+        if item is not None and item.card == ref:
+            found.append(item)
+    if len(found) > 1:
+        where = ", ".join(rel(root, item.path) for item in found)
+        raise ItemError(f"{ref} is the card of two items: {where}; run ws item check")
+    return (found[0] if found else None), warnings
+
+
 def check_offline(projects: list[Project], root: Path, people: PeopleDirectory) -> list[dict]:
     found = [dict(p) for project in projects for p in project.problems]
     cards: dict[str, list[Item]] = {}
