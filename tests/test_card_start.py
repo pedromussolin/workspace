@@ -716,6 +716,13 @@ def test_start_title_without_slug_asks_for_desc(env, capsys):
     assert code == 0
     assert out["branch"] == "feature/TS-5-lote"
 
+    code, out, _ = start(capsys, "TS-5")
+
+    assert code == 0, out["problems"]
+    assert (out["branch"], actions(out)) == ("feature/TS-5-lote", [("acme-api", "current")])
+    [warning] = out["warnings"]
+    assert "feature/TS-5-lote" in warning and "no slug" in warning
+
 
 @pytest.mark.parametrize(
     ("argv", "fragment"),
@@ -743,23 +750,60 @@ def test_start_title_slug_ending_in_sdbx_is_refused(env, capsys):
 
     assert code == 1
     assert out["problems"] == [
-        "the branch feature/TS-5-ajustar-sdbx would end in -sdbx, the sandbox copy's suffix; "
+        "the branch feature/TS-5-ajustar-sdbx ends in -sdbx, the sandbox copy's suffix; "
         "pass another --desc"
     ]
     untouched(env)
 
+    code, out, _ = start(capsys, "TS-5", "--desc", "lote-sdbx")
 
-def test_start_preview_refusal_keeps_the_branches(env, capsys, monkeypatch):
-    monkeypatch.setattr(
-        "ws.card.preview", lambda argument: Preview(1, "Nada foi enviado. Problemas:\n", None)
-    )
+    assert out["problems"] == [
+        "--desc 'lote-sdbx' ends in -sdbx, the sandbox copy's suffix; pass another --desc"
+    ]
+
+
+def test_start_item_repos_that_is_not_a_list_is_a_problem(env, capsys):
+    env.item('repos = "acme-front"\n')
 
     code, out, _ = start(capsys, "TS-5")
 
     assert code == 1
-    assert out["preview"] == "Nada foi enviado. Problemas:\n"
+    assert out["problems"] == [
+        "projects/demo/tasks/01-close-batch.md: repos must be a list; run ws item check"
+    ]
+    untouched(env)
+
+
+def test_start_without_a_card_change_removes_an_old_draft(env, capsys):
+    start(capsys, "TS-5")
+    assert draft_path().exists()
+    card = make_card("TS-5", title=TITLE, status=Status.IN_PROGRESS, start=date(2026, 1, 2))
+    env.tracker = FakeTracker([card])
+
+    code, out, _ = start(capsys, "TS-5")
+
+    assert (code, out["card_change"], out["draft"]) == (0, None, None)
+    assert not draft_path().exists()
+    [warning] = out["warnings"]
+    assert "start-TS-5.md" in warning
+    assert len(env.previews) == 1
+
+
+def test_start_preview_refusal_keeps_the_branches_and_says_why(env, capsys, monkeypatch):
+    refused = (
+        "Nada foi enviado. Problemas encontrados:\n"
+        "  start-TS-5.md: start 2026-11-15 is after due 2026-11-05\n"
+    )
+    monkeypatch.setattr("ws.card.preview", lambda argument: Preview(1, refused, None))
+
+    code, out, _ = start(capsys, "TS-5")
+
+    assert code == 1
+    assert out["preview"] == refused
     assert (out["code"], out["apply"]) == (None, None)
-    assert any("preview" in problem for problem in out["problems"])
+    [refusal, reason] = out["problems"]
+    assert "preview" in refusal
+    assert reason == "start-TS-5.md: start 2026-11-15 is after due 2026-11-05"
     assert env.current("acme-api") == BRANCH
     assert out["draft"] is not None
 

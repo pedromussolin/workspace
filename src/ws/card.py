@@ -171,6 +171,15 @@ def write_draft(name: str, text: str) -> Path:
     return path
 
 
+def remove_draft(name: str) -> bool:
+    """Delete the draft `cards/drafts/<name>` when it is a file; True when one was removed."""
+    path = _draft_path(name)
+    if path.is_symlink() or not path.is_file():
+        return False
+    path.unlink()
+    return True
+
+
 def collect(argument: str, single: bool = False) -> list[Path]:
     """Drafts are real files under `cards/drafts/`: nothing else is read, moved or sent."""
     root = _drafts_root()

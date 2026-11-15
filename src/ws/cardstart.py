@@ -30,6 +30,7 @@ WORKTREES = ".worktrees"
 SWITCHING = ("create", "track", "reuse")
 KINDS = ("feature", "fix", "chore", "refact", "test", "hotfix")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+SANDBOX_SUFFIX = "-sdbx"
 MAX_SLUG = 40
 SLUG_WORDS = 5
 STOP_WORDS = frozenset(
@@ -69,8 +70,16 @@ def branch_name(kind: str, ref: str, slug: str) -> str:
     return f"{kind}/{ref}-{slug}"
 
 
+def ends_in_sandbox(name: str) -> bool:
+    return f"-{name}".endswith(SANDBOX_SUFFIX)
+
+
+def _sandbox_problem(subject: str) -> str:
+    return f"{subject} ends in {SANDBOX_SUFFIX}, the sandbox copy's suffix; pass another --desc"
+
+
 def is_task_branch(name: str, ref: str) -> bool:
-    if name.endswith("-sdbx"):
+    if ends_in_sandbox(name):
         return False
     kind, _, rest = name.partition("/")
     if kind not in KINDS or not rest.startswith(f"{ref}-"):
@@ -271,7 +280,7 @@ def _start(
         _read(repo, board.remote, run.problems)
     if run.problems:
         return 1
-    if computed is not None:
+    if names:
         run.branch = _choose_branch(run, computed, explicit=kind is not None or desc is not None)
     if run.branch is not None:
         for repo in run.repos:
@@ -297,8 +306,8 @@ def _input_problems(ref: str, repos: list[str], kind: str | None, desc: str | No
             f"--desc {desc!r} must be lowercase words joined by hyphens ({SLUG.pattern}), "
             f"at most {MAX_SLUG} characters"
         )
-    elif desc is not None and f"-{desc}".endswith("-sdbx"):
-        problems.append(f"--desc {desc!r} ends in -sdbx, the sandbox copy's suffix; pass another")
+    elif desc is not None and ends_in_sandbox(desc):
+        problems.append(_sandbox_problem(f"--desc {desc!r}"))
     return problems
 
 
@@ -331,6 +340,10 @@ def _repo_names(run: _Run, flag: list[str], board: BoardConfig) -> list[str]:
             run.problems.append(str(error))
             return []
         run.warnings.extend(notes)
+        if item is not None and "repos" in item.front and item.repos is None:
+            where = items.rel(root, item.path)
+            run.problems.append(f"{where}: repos must be a list; run ws item check")
+            return []
         if item is not None:
             item_repos = item.repos
             bad = [
@@ -356,14 +369,12 @@ def _repo_names(run: _Run, flag: list[str], board: BoardConfig) -> list[str]:
 
 
 def _computed_branch(run: _Run, kind: str, slug: str) -> str | None:
+    """The branch name from the kind and the slug; None when the title gives no slug."""
     if not slug:
-        run.problems.append("the title gives no slug; pass --desc")
         return None
     name = branch_name(kind, run.ref, slug)
-    if name.endswith("-sdbx"):
-        run.problems.append(
-            f"the branch {name} would end in -sdbx, the sandbox copy's suffix; pass another --desc"
-        )
+    if ends_in_sandbox(name):
+        run.problems.append(_sandbox_problem(f"the branch {name}"))
         return None
     return name
 
@@ -397,11 +408,12 @@ def _read(repo: _Repo, remote: str, problems: list[str]) -> None:
         problems.append(f"{repo.name}: {error}")
 
 
-def _choose_branch(run: _Run, computed: str, explicit: bool) -> str | None:
+def _choose_branch(run: _Run, computed: str | None, explicit: bool) -> str | None:
     """The computed name when a repo has it, else the task's only existing branch, if any.
 
-    An explicit `--kind` or `--desc` is never overridden in silence: when it names another branch
-    than the task's only one, that is a problem.
+    `computed` is None when the title gives no slug: the only existing branch still serves a
+    rerun. An explicit `--kind` or `--desc` is never overridden in silence: when it names another
+    branch than the task's only one, that is a problem.
     """
     existing = sorted(
         {
@@ -411,8 +423,11 @@ def _choose_branch(run: _Run, computed: str, explicit: bool) -> str | None:
             if is_task_branch(name, run.ref)
         }
     )
-    if computed in existing or not existing:
+    if computed is not None and (computed in existing or not existing):
         return computed
+    if not existing:
+        run.problems.append("the title gives no slug; pass --desc")
+        return None
     if len(existing) == 1 and explicit:
         run.problems.append(
             f"{run.ref} already has the branch {existing[0]}; drop --kind/--desc to reuse it, "
@@ -420,9 +435,8 @@ def _choose_branch(run: _Run, computed: str, explicit: bool) -> str | None:
         )
         return None
     if len(existing) == 1:
-        run.warnings.append(
-            f"{run.ref} already has the branch {existing[0]}; using it instead of {computed}"
-        )
+        instead = f"instead of {computed}" if computed else "(the title gives no slug)"
+        run.warnings.append(f"{run.ref} already has the branch {existing[0]}; using it {instead}")
         return existing[0]
     run.problems.append(
         f"{run.ref} has more than one task branch ({', '.join(existing)}); "
@@ -531,11 +545,18 @@ def _make_branch(repo: _Repo, branch: str) -> None:
 
 
 def _card_draft(run: _Run, board: BoardConfig) -> int:
+    """Write and preview the card's draft; with no change, drop the draft of an earlier run."""
+    name = f"start-{run.ref}.md"
     if run.change is None or run.today is None:
+        try:
+            if cards_store.remove_draft(name):
+                run.warnings.append(f"removed {name} from an earlier run: the card needs no change")
+        except OSError as error:
+            run.warnings.append(f"could not remove {name} from an earlier run: {error}")
         return 0
     text = draft_text(run.ref, run.change, board.statuses[Status.IN_PROGRESS], run.today)
     try:
-        run.draft = cards_store.write_draft(f"start-{run.ref}.md", text)
+        run.draft = cards_store.write_draft(name, text)
     except (OSError, DraftError) as error:
         run.problems.append(f"could not write the card draft: {error}")
         return 1
@@ -544,5 +565,8 @@ def _card_draft(run: _Run, board: BoardConfig) -> int:
         run.problems.append(
             f"ws card preview refused the draft (exit {run.preview.status}); the branches stay, "
             "rerun ws card start after fixing it"
+        )
+        run.problems.extend(
+            line.strip() for line in run.preview.text.splitlines() if line.startswith("  ")
         )
     return run.preview.status
