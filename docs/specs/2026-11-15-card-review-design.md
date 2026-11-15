@@ -20,9 +20,9 @@ command (script first); the skill only reads the diff, judges and writes the pro
   `review.md` (PT-BR) and prints its path. A rerun rebuilds both.
 - **Non-goals.** Running tests, linters or builds (a later version may); other people's pull
   requests or remote branches; comparing two runs; the `-sdbx` copy.
-- **Anti-goals.** No tracker writes; no commit, push, stash, switch or other change to the repos
-  (the only git write is `git fetch`); nothing leaves the machine: the files never enter the
-  workspace repo, an Artifact, the tracker, GitHub or a chat paste.
+- **Anti-goals.** No tracker writes; no commit, push, stash, switch or other change to the repos,
+  not even to `.git/index` (the only git write is `git fetch`); nothing leaves the machine: the
+  files never enter the workspace repo, an Artifact, the tracker, GitHub or a chat paste.
 
 ## Approaches
 
@@ -46,16 +46,28 @@ Who collects:
   else the title's first `[PREFIX]` in `[board.prefix_repos]`, else a problem naming the three
   ways. A repo is the first `<root>/<name>` with `.git` under `[standup] repo_roots`.
 - **Base**: `refs/remotes/<remote>/<base>` with `[board] remote` and `base_for(name)`, after
-  `gittools.fetch`. A failed fetch is a warning (the last fetched base is used, `fetched: false`);
+  `gittools.fetch`. The diff takes that full ref as given, so any remote name works. A failed
+  fetch is a warning (the last fetched base is used, `fetched: false`);
   a missing base ref is a problem naming `[board.repos."<name>"] base`.
 - **Branch**: the current branch when `cardstart.is_task_branch(current, REF)`; else the only local
   task branch. Checked out in another worktree (such as `.worktrees/<repo>-<REF>`): read there.
-  Checked out nowhere: committed changes only, with a warning. None, or two: a problem.
+  Checked out nowhere: committed changes only, with a warning. None, or two: a problem. A work
+  tree in the middle of a merge, rebase, cherry-pick, revert or bisect is read as it is, with a
+  warning for that repo.
 - **Changes**: the work tree against the merge base (`git diff -M <merge_base>`), plus untracked
   files (`git ls-files --others --exclude-standard`). Per file: `path`, `old_path` (rename, copy),
   `abs_path`, `status`, `added`/`deleted` lines (null for a binary), `binary`, `stages` (any of
   `committed`, `staged`, `unstaged`, `untracked`), `hunks` (first new-side line of each hunk, at
   most 20) and `category`. A file changed on the branch and reverted in the work tree is not listed.
+  `abs_path` is null for a deleted file, and for every file when the branch is checked out nowhere.
+  A type change (file to symlink or submodule) is one `type_changed` entry with the new side's
+  hunks; a diff that still cannot be matched file by file is a problem for that repo.
+- **Private index.** `git diff` refreshes stale stat data in the index it reads and writes it back
+  under `index.lock`, even with `--no-optional-locks`, and `diff.autoRefreshIndex=false` would list
+  those files as modified. So every diff of a work tree (against the merge base, `--cached`, plain,
+  numstat, name-status, the hunks) and `ls-files` run with `GIT_INDEX_FILE` on a copy of that
+  tree's index (`git rev-parse --git-path index`, mtime kept), in a 700 temp folder under the data
+  folder, removed afterwards, also on error. The repo's own index is never written.
 - **Commits**: `sha` and `subject` of `<merge_base>..<branch>`, oldest first.
 
 **Categories**, first match wins: the repo's config rules (in the order written), then the
@@ -83,12 +95,13 @@ review_categories = { front = ["src/app/models/**"], contract = ["src/app/api/**
 - `env`: `ws.envcheck.scan_python` (and `scan_shell` for the profile's shell files) over the whole
   Python tree at the merge base and in the new tree, so a settings class whose base lives in an
   unchanged file still resolves; `added` (`name`, `required`, `where`) and `removed`. The profile
-  is `[env_check.repos.<name>]` when present, else a plain one. Skipped when no `.py` or shell file
-  changed.
+  is `[env_check.repos.<name>]` when present, else a plain one. Null when no `.py` or shell file
+  changed. The base tree is read from git once per repo for both signals.
 - `tests`: test files `added` and `changed`.
 - `flags` (top level, each prefixed `<repo>: `): an existing migration changed or deleted; more
   than one Alembic head after the change; a required env var added (check the Parameter Store); code
-  changed with no test file changed.
+  changed with no test file changed (any change with no `test` file, docs-only and config-only
+  included).
 
 **Card context** (read-only): `ref`, `title`, `type`, `status`, `done_when` (the `## Pronto
 quando` section). The port gains the `description` capability and `Tracker.description(ref)` (plain
@@ -98,24 +111,37 @@ text; Jira converts ADF). Without it, or without the section, `done_when` is nul
 `folder`, `pack_path`, `review_path`, `generated_at`, `repos_from`, `repos` (each `name`, `path`,
 `worktree`, `branch`, `base`, `base_ref`, `fetched`, `merge_base`, `diff_command`, `commits`,
 `files`, `by_category` with `files`/`added`/`deleted`, `migrations`, `env`, `tests`), `flags`,
-`problems`, `warnings`. `diff_command` is the exact read-only `git -C ... diff` for the skill.
+`problems`, `warnings`. Each repo also has `diff_file` after `diff_command`.
+
+- `diff_file`: `<repo>.diff` in the review folder (mode 600), the whole diff made on the private
+  index: the work tree against the merge base (or the branch's commits when it is checked out
+  nowhere), then each untracked regular file as a new file (`git diff --no-index /dev/null
+  <file>`). An untracked file over 1 MiB is one `# <path>: untracked, <n> bytes, over ...; not
+  shown` line; untracked symlinks and nested repos are left out. Null on a repo that failed. The
+  skill reads this file and runs no git in the repos.
+- `diff_command`: informational, for the user to rerun by hand: `git -C <tree> -c
+  diff.autoRefreshIndex=false diff --no-ext-diff --no-textconv -M <merge_base> [<branch>]`.
 
 **Files.** `~/.local/share/workspace/projects/<slug>/reviews/<REF>/` (`WS_DATA_DIR` moves the
-root), folders mode 700, `pack.json` mode 600 (temp file and `os.replace`). Slug: `--project`, else
-the item's project, else `standalone`. Each run rewrites `pack.json` and deletes an earlier
-`review.md`, which no longer matches. Absolute paths and real names are fine: never published.
+root), folders mode 700, `pack.json` and `<repo>.diff` mode 600 (temp file and `os.replace`). Slug:
+`--project`, else the item's project, else `standalone`. Each run rewrites `pack.json` and the
+diffs, and deletes an earlier `review.md` and the `.diff` of any repo not in the new pack.
+Absolute paths and real names are fine: never published.
 
 **Exit codes**, as `ws card start`: 0 ok; 1 problems (pack still written, with them); 2 setup (no
 `[board]`, invalid config, tracker setup); 3 tracker refused or unreachable; on 2 and 3 nothing is
-written and stderr says `ws review pack: ...`.
+written and stderr says `ws review pack: ...`. Invalid input (`REF`, `--repo`, `--project`) also
+exits 1, but before any read: nothing is written, `card` is null and `folder`, `pack_path` and
+`review_path` are null.
 
 ## The skill `card-review`
 
 Not `review` nor `code-review` (both exist). Runs `ws review pack REF` (flags only from the user's
 words); on exit 1 shows the problems in PT-BR and asks only what the user settles (repos, the
-project), then reruns. Reads each repo's diff with `diff_command` per file, flagged and
-`migration`, `contract`, `model`, `config` first; lockfiles and generated files by counts only;
-untracked files with Read. Writes `review.md` beside `pack.json` in PT-BR:
+project), then reruns. Reads each repo's `diff_file` (never git in the repos), flagged files and
+`migration`, `contract`, `model`, `config` first; lockfiles and generated files by counts only.
+Per-repo problems, warnings and flags start with `<repo>: `; card-level ones do not. Writes
+`review.md` beside `pack.json` in PT-BR:
 
 1. `# Revisão REF: <title>`, a line with status, repos, branch and `generated_at`;
 2. `## O que mudou e por quê`, per repo, tied to `done_when`;
