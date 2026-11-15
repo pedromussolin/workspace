@@ -1072,6 +1072,24 @@ def test_write_draft_overwrites_in_the_drafts_root(world):
             card.write_draft(name, "x")
 
 
+def test_write_draft_never_writes_through_a_stale_temp_file(world, tmp_path, monkeypatch):
+    drafts = card.write_draft("start.md", "one").parent
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep\n", encoding="utf-8")
+    temporary = drafts / ".start.md.tmp"
+    temporary.symlink_to(outside)
+    synced = []
+    real_fsync = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: synced.append(fd) or real_fsync(fd))
+
+    path = card.write_draft("start.md", "two")
+
+    assert path.read_text(encoding="utf-8") == "two"
+    assert outside.read_text(encoding="utf-8") == "keep\n"
+    assert not temporary.exists() and not temporary.is_symlink()
+    assert len(synced) == 1
+
+
 def test_apply_without_approve_is_an_error_and_there_is_no_dry_run_flag(world, capsys):
     path = create_draft()
 

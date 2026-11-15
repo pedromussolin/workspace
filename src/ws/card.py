@@ -138,20 +138,32 @@ def drafts_folder(name: str) -> Path:
 _DRAFT_NAME = re.compile(r"[A-Za-z0-9._-]+\.md")
 
 
-def write_draft(name: str, text: str) -> Path:
-    """Write `cards/drafts/<name>` (replacing it), private, through a temp file and a rename."""
+def _draft_path(name: str) -> Path:
     if not _DRAFT_NAME.fullmatch(name) or name.startswith("."):
         raise ValueError(f"{name!r} is not a draft file name")
+    return _drafts_root() / name
+
+
+def write_draft(name: str, text: str) -> Path:
+    """Write `cards/drafts/<name>` (replacing it), private, through a temp file and a rename.
+
+    The temp file is always new (`O_EXCL`, a stale one is removed first) and never followed if it
+    is a symlink, and it reaches the disk before the rename.
+    """
+    path = _draft_path(name)
     _ensure_store()
-    path = _drafts_root() / name
     if path.is_symlink() or path.is_dir():
         raise DraftError([f"{name} is a symlink or a folder, not a draft file"])
     temporary = path.with_name(f".{name}.tmp")
+    temporary.unlink(missing_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        descriptor = os.open(temporary, flags, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), 0o600)
             handle.write(text)
-        temporary.chmod(0o600)
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temporary, path)
     except OSError:
         temporary.unlink(missing_ok=True)
