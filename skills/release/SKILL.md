@@ -77,7 +77,7 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
 4. **Write the PR drafts** in `release-DATE/pr/`, in PT-BR, in the user's style, following
    [references/pr-shapes.md](references/pr-shapes.md): the front matter, the titles per shape, the
    sections (the repo's template when it has one, else the four), the placeholders and the sandbox
-   PR. Summarise from the task cards and the diff; say what could not be exercised and what must
+   PR. Summarize from the task cards and the diff; say what could not be exercised and what must
    exist before (Parameter Store, app roles). Show the user the drafts and fix them until they are
    right.
 5. **Publish.** `ws release preview publish DATE [--repo NAME ...]`. It writes no repo and no
