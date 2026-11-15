@@ -12,7 +12,8 @@ user opens in VS Code beside the diff. Lines to the user and `review.md` are PT-
 instructions are in English.
 
 The file carries company code, so it stays on this machine: it lives only under
-`~/.local/share/workspace/projects/<slug>/reviews/<REF>/`, next to `pack.json`.
+`~/.local/share/workspace/projects/<slug>/reviews/<REF>/`, next to `pack.json` and the
+`<repo>.diff` files.
 
 ## Steps
 
@@ -28,18 +29,25 @@ The file carries company code, so it stays on this machine: it lives only under
    stderr (`ws review pack: ...`) as it is and stop.
 3. **Read the pack.** Top level: `flags` (the checks that need a decision), `warnings`, `card`
    (`title`, `status`, `done_when`, the task's "Pronto quando") and `repos`. Per repo: `branch`,
-   `worktree`, `commits`, `files` (each with `path`, `abs_path`, `status`, `stages`, `added`,
-   `deleted`, `binary`, `hunks`, `category`), `by_category`, `migrations`, `env`, `tests`. Every
-   problem, warning and flag starts with `<repo>: `: use it to tie each flag to its repo. `abs_path`
-   is null for a deleted file, and for every file when the branch is checked out nowhere. `env` is
-   null when no `.py` or shell file changed. `migrations` and `tests` can be null on a repo that
-   failed. A failed repo has `diff_command` null and empty `files`: show its problem and skip its
-   diff.
-4. **Read the diff.** Per repo, run its `diff_command` with `-- <path>` for one file (for example
-   `<diff_command> -- app/api/routes/lote.py`), in this order: files named by a flag, then
-   categories `migration`, `contract`, `model`, `config`, then the rest. Files with `stages`
-   `["untracked"]` are not in the diff: use Read on `abs_path`. Never Read a null `abs_path`. Lockfiles and generated files are
-   read by counts only (`added`, `deleted`), and a `binary` file is never read as text.
+   `worktree`, `diff_file`, `commits`, `files` (each with `path`, `old_path`, `abs_path`, `status`,
+   `stages`, `added`, `deleted`, `binary`, `hunks`, `category`), `by_category`, `migrations`,
+   `env`, `tests`. The per-repo problems, warnings and flags start with `<repo>: `: use it to tie
+   each flag to its repo. The card-level ones (the card, its item, the choice of repos) have no
+   prefix. `abs_path` is null for a deleted file, and for every file when the branch is checked out
+   nowhere. `env` is null when no `.py` or shell file changed. `migrations` and `tests` can be null
+   on a repo that failed. A failed repo has `diff_file` null and empty `files`: show its problem
+   and skip its diff.
+4. **Read the diff.** Per repo, use Read on its `diff_file`: the whole diff against the merge base
+   (committed, staged and unstaged), then each untracked text file as a new file. Never run git
+   in the repos, not even `diff_command` (it is there for the user). Each file's part starts with
+   `diff --git a/<path> b/<path>`; a rename starts with `diff --git a/<old_path> b/<path>`, then
+   `rename from` and `rename to`, and shows only the edited lines. For a long `diff_file`, Grep it
+   for the `diff --git` line of a file and Read from there with offset and limit. Read in this
+   order: files named by a flag, then categories `migration`, `contract`, `model`, `config`, then
+   the rest. An untracked file over 1 MiB is one `# <path>: untracked, ... not shown` line, and an
+   untracked symlink or nested repo is not in the file: use the counts.
+   Never Read a null `abs_path`. Lockfiles and generated files are read by counts only (`added`,
+   `deleted`), and a `binary` file is never read as text.
 5. **Write `review.md`** with the Write tool at `review_path`, in PT-BR, with these parts:
    1. `# Revisão REF: <title>`, then one line with the status, the repos, the branch and
       `generated_at`.
@@ -62,8 +70,10 @@ The file carries company code, so it stays on this machine: it lives only under
 - Say "task" and "the task tracker", never a tracker's product name, in these instructions.
 - Say only what the diff and the pack show. When you did not read a file, say so.
 - A dirty work tree is fine: the uncommitted work is what gets reviewed.
-- Rerun any time: `pack.json` is replaced and the earlier `review.md` is deleted, so write it again.
-- Read-only on the repos: never commit, push, stash, switch branches or change a work tree.
-  Do not run tests, linters or builds.
+- Rerun any time: `pack.json` and the `.diff` files are replaced and the earlier `review.md` is
+  deleted, so write it again.
+- Read-only on the repos: never commit, push, stash, switch branches or change a work tree. Run
+  no git command in them: even `git diff` can rewrite the index. Do not run tests, linters or
+  builds.
 - Never write to the task tracker, publish an Artifact, paste the review into a chat, or copy it
   into the workspace repo or anywhere outside the folder above.
