@@ -136,25 +136,45 @@ def _grew(config: ReleaseConfig, entry: RepoEntry, head: str) -> bool:
     return gitops.count(entry.path, f"{sandbox}..{tip}") > 0
 
 
+def _replaced_by(comments: list[str], made: list[PullRequest]) -> PullRequest | None:
+    """The open PR a closed old PR names in its `Substituído por <url>` comment."""
+    for pr in made:
+        if any(comment.startswith(f"Substituído por {pr.url}") for comment in comments):
+            return pr
+    return None
+
+
+def _recreated(config: ReleaseConfig, entry: RepoEntry, prs: list[PullRequest]) -> set[int]:
+    """The merged PRs that get a new sandbox PR: the last merged one of a head and base that
+    has no open PR, and only when its branch has commits the sandbox lacks."""
+    taken = {(pr.head, pr.base) for pr in prs if _is_open(pr)}
+    chosen: dict[tuple[str, str], PullRequest] = {}
+    for pr in prs:
+        if _is_merged(pr) and pr.base == config.sandbox_branch and (pr.head, pr.base) not in taken:
+            chosen[(pr.head, pr.base)] = pr
+    return {pr.number for pr in chosen.values() if _grew(config, entry, pr.head)}
+
+
 def _items(
     config: ReleaseConfig, entry: RepoEntry, gh: Gh, old: str, new: str, prs: list[PullRequest]
 ) -> list[Item]:
     items = []
+    recreated = _recreated(config, entry, prs)
     for pr in prs:
-        if _is_merged(pr):
-            wanted = pr.base == config.sandbox_branch and _grew(config, entry, pr.head)
-        else:
-            wanted = True
+        merged, opened = _is_merged(pr), _is_open(pr)
+        wanted = pr.number in recreated if merged else True
         made = (
             gh.prs(entry.slug, head=_swap(pr.head, old, new), base=pr.base, state="open")
             if wanted
             else []
         )
+        comments = gh.comments(entry.slug, pr.number) if merged or not opened else []
         existing = made[0] if made else None
-        if not (_is_open(pr) or _is_merged(pr)) and existing is None:
-            continue
+        if not (merged or opened):
+            existing = _replaced_by(comments, made)
+            if existing is None:
+                continue
         ref = f"{entry.name}-{pr.number}" if wanted else None
-        comments = gh.comments(entry.slug, pr.number) if _is_merged(pr) else []
         current = gh.pr(entry.slug, existing.number).body if existing else ""
         items.append(
             Item(entry, pr, ref, existing, gh.pr(entry.slug, pr.number), comments, current)
@@ -282,29 +302,56 @@ def _item_calls(
     return calls
 
 
+def _same_body(left: str, right: str) -> bool:
+    def norm(value: str) -> str:
+        return value.replace("\r\n", "\n").rstrip("\n")
+
+    return norm(left) == norm(right)
+
+
 def _fix_calls(
     items: list[Item], old: str, new: str, day: date, renumber: dict, known: dict
 ) -> list[Call]:
-    """An edit for each replacement PR made by an earlier run whose body is not the right one."""
+    """One edit per replacement PR an earlier run made, from the body it has now: the dates,
+    the `Release:` line and the numbers are brought up to date and what a person added stays."""
     calls = []
     for item in items:
         if item.existing is None or item.ref is None:
             continue
-        _, body = _expected(item, old, new, day, renumber)
-        current = item.current
+        slug = item.entry.slug
+        body = replace_numbers(
+            _with_release_line(_swap(item.current, old, new), day), renumber, slug
+        )
         pending = [ref for ref in release_folder.pending_refs(body) if ref not in known]
-        if not pending and current == release_folder.resolve_refs(body, known):
+        body = release_folder.resolve_refs(body, known)
+        if not pending and _same_body(body, item.current):
             continue
         calls.append(
             Call(
                 repo=item.entry.name,
                 program="gh",
-                args=("pr", "edit", str(item.existing.number), "-R", item.entry.slug),
+                args=("pr", "edit", str(item.existing.number), "-R", slug),
                 line=f"segunda passada: {item.entry.name}: corrigir a PR #{item.existing.number}",
                 body=body,
             )
         )
     return calls
+
+
+def _title_problems(calls: list[Call], known: dict) -> list[str]:
+    """A title is an argument: a placeholder in it has to name a PR made before the create."""
+    problems, made = [], set(known)
+    for call in calls:
+        if call.args[:2] != ("pr", "create") or not call.answers:
+            continue
+        title = call.args[call.args.index("--title") + 1]
+        if [ref for ref in release_folder.pending_refs(title) if ref not in made]:
+            number = call.answers.rsplit("-", 1)[-1]
+            problems.append(
+                f"{call.repo}: the title of the new PR for #{number} cites a PR created later"
+            )
+        made.add(call.answers)
+    return problems
 
 
 def build_plan(
@@ -377,6 +424,7 @@ def build_plan(
                     residual.append({"repo": entry.name, "pr": int(call.args[2]), "text": line})
     calls += writeplan.second_pass(calls)
     calls += _fix_calls(items, old, new, new_day, renumber, known)
+    problems += _title_problems(calls, known)
     return WritePlan(
         action="move",
         slug=slug,

@@ -483,3 +483,100 @@ def test_residual_dates_scan_the_recreated_merged_sandbox_pr(ready, capsys):
     code, payload = preview(capsys)
     assert code == 0
     assert {"repo": "repo-a", "pr": 80, "text": "revisão de 20/11"} in payload["residual_dates"]
+
+
+def edit_pr(gh, slug, number, **fields):
+    data = gh._read()
+    for item in data["prs"][slug]:
+        if item["number"] == number:
+            item.update(fields)
+    gh._write(data)
+
+
+def test_abandoned_closed_pr_on_the_same_head_is_not_a_replacement(ready, capsys):
+    two_repos(ready)
+    ready.gh.add_pr(A, 60, f"release/{DAY}", "master", state="CLOSED", body="corpo abandonado\n")
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    assert new_of(ready.gh, A, f"release/{NEW}")["body"] == "a\n"
+
+
+def test_a_completed_move_plans_nothing_on_the_next_preview(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 60, f"release/{DAY}", "master", state="CLOSED", body="corpo abandonado\n")
+    assert run(capsys)[0] == 0
+    code, payload = preview(capsys)
+    assert code == 0 and payload["calls"] == []
+
+
+def test_a_hand_edit_on_the_new_pr_survives_the_rerun(ready, capsys):
+    two_repos(ready)
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    number = new_of(ready.gh, A, f"release/{NEW}")["number"]
+    edit_pr(ready.gh, A, number, body="a\neditado à mão: revisão de 21/11\n")
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    assert "editado à mão" in new_of(ready.gh, A, f"release/{NEW}")["body"]
+
+
+def test_rerun_when_the_create_of_the_second_pr_failed_in_the_repo(ready, capsys):
+    standard(ready)
+    for suffix in ("", "-sdbx"):
+        source = f"refs/remotes/origin/release/{DAY}{suffix}"
+        ready.git("repo-a", "push", "-q", "origin", f"{source}:refs/heads/release/{NEW}{suffix}")
+    ready.gh.add_pr(
+        A,
+        74,
+        f"release/{NEW}",
+        "master",
+        title=f"Release {NEW}",
+        body="Depende de {pr:repo-a-73} e #730, veja {pr:repo-a-73}.\nRelease: 21/11/2026\n",
+    )
+    edit_pr(
+        ready.gh,
+        A,
+        70,
+        state="CLOSED",
+        comments=[{"body": f"Substituído por https://github.com/{A}/pull/74: x"}],
+    )
+    assert run(capsys)[0] == 0
+    body = new_of(ready.gh, A, f"release/{NEW}")["body"]
+    sdbx = new_of(ready.gh, A, f"release/{NEW}-sdbx")["number"]
+    assert "{pr:" not in body and f"acme/repo-a#{sdbx}" in body
+
+
+def test_merged_and_open_sandbox_prs_on_one_head_make_a_single_create(ready, capsys):
+    release_file(ready)
+    publish_branches(ready)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"R {DAY}")
+    ready.gh.add_pr(
+        A, 73, f"release/{DAY}-sdbx", "sandbox", state="MERGED", merged_at="2026-11-12T10:00:00Z"
+    )
+    ready.gh.add_pr(A, 76, f"release/{DAY}-sdbx", "sandbox", title=f"S2 {DAY}")
+    code, payload = preview(capsys)
+    assert code == 0
+    sdbx = [c for c in payload["calls"] if " pr create " in c and f"release/{NEW}-sdbx" in c]
+    assert len(sdbx) == 1
+    assert any(" pr comment 73 " in c for c in payload["calls"])
+
+
+def test_a_title_citing_a_pr_created_later_is_a_problem(ready, capsys):
+    release_file(ready)
+    publish_branches(ready)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title="Depende da #73")
+    ready.gh.add_pr(A, 73, f"release/{DAY}-sdbx", "sandbox", title="s")
+    code, _ = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+
+
+def test_crlf_and_the_trailing_newline_do_not_plan_an_edit(ready, capsys):
+    standard(ready)
+    assert run(capsys)[0] == 0
+    number = new_of(ready.gh, A, f"release/{NEW}")["number"]
+    body = new_of(ready.gh, A, f"release/{NEW}")["body"]
+    edit_pr(ready.gh, A, number, body=body.replace("\n", "\r\n").rstrip("\r\n"))
+    code, payload = preview(capsys)
+    assert code == 0 and payload["calls"] == []
