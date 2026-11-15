@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card iniciar TS-5431" (start the task: branches and the move to in progress), "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
@@ -117,6 +117,37 @@ name `ws item set-card <item> <ref>` (the card exists) or `ws item set-card <ite
 not), then draft again if needed. `ws item drafts` refuses to draft that item until then.
 Items without an epic are not drafted: `by_hand` says so; set `epic` in the item first (the
 `task-shaping` skill helps).
+
+## Start (`/card iniciar TS-N`)
+
+Prepares the work on a task: a branch `<kind>/TS-N-<slug>` in each repo of the task, and the move of
+the card to in progress (with the start date). Git changes only the branches; the card changes
+only through the preview and the apply below. Never push, never commit and never create a `-sdbx`
+branch.
+
+1. Run `ws card start TS-N`. Add `--repo NAME` (repeatable), `--kind K`, `--desc SLUG`,
+   `--worktree` (the branch goes to its own folder, the current checkout stays as is) or
+   `--dry-run` (checks and plan only) only when the user's words ask for them. It prints one JSON
+   object.
+2. **Exit 1** lists `problems` (texts in English): show each one in PT-BR. Ask only what the user
+   can settle: which repos (a numbered list, with the names under `[board.prefix_repos]` in
+   `config.toml` as options) or a short slug in English for the branch (`--desc`). Then run the
+   command again with `--repo` and `--desc`. When the repos came from the user's answer, offer to
+   write `repos = ["acme-api"]` in the item's front matter, so the next start needs no question.
+   Exit 2 is setup (`[board]` or the tracker settings): say so, as in "Exit codes". Exit 3: show the
+   tracker's message.
+3. **Exit 0.** Show, in PT-BR and short: each repo in `repos` with its branch and `action`
+   (`create` made from the remote base, `track` taken from the remote branch, `reuse` or `current`
+   already there, `elsewhere` checked out in another worktree), then the `warnings`. Then show
+   `preview` exactly as printed, with the `code`.
+4. When `card_change` is null, say the card was already started: there is no preview and nothing
+   to apply. Stop.
+5. Otherwise run the `apply` command exactly as printed, as its own Bash call (`ws card apply
+   <draft> --approve <CODE>`). The approval box is the user's yes (step 4 of "Steps"); never
+   run it in the same command line as another command, and never ask for a yes in chat instead.
+   Afterwards say the card moved and give the link.
+6. `undo` (git lines that revert the branches made) is shown to the user and offered. Run it only
+   on the user's yes.
 
 ## The draft
 

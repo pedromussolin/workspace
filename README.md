@@ -218,6 +218,17 @@ ready_deploy = "Ready Deploy"
 done = "Concluído"
 ```
 
+Repos of a task, for `ws card start` (`<name>` is the folder under `[standup] repo_roots`):
+
+```toml
+[board.repos."<name>"]
+base = "master"                     # the branch a task branch is cut from (default "master")
+
+[board.prefix_repos]                # title prefix -> repos, when the item has no `repos`
+BACK = ["acme-api"]
+FRONT = ["acme-front"]
+```
+
 - Each commit takes the highest environment that contains it; the card takes the lowest of its
   commits. The statuses of a profile must rise along its list.
 - Proofs: `branch` (the tip of the first branch that exists on the remote), `tag` (the most recent
@@ -391,6 +402,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws tracker discover` | Prints the `[jira.types]` and `[jira.links]` blocks of the project's Jira, for you to paste in `config.toml` (read only); exit 2 on setup, 3 when Jira refuses |
 | `ws people me` / `ws people add EMAIL [--account ID]` | `me` prints your dev id; `add` prints the `[people."dev-…"]` block of a colleague (searches the account by e-mail unless `--account`; never prints the e-mail; read only) |
 | `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
+| `ws card start REF [--repo NAME]... [--kind K] [--desc SLUG] [--worktree] [--dry-run]` | Prepares a task to start: checks the card and every repo first (clean tree, remote base), then makes the branch `<kind>/REF-<slug>` from `<remote>/<base>` in each repo (or a worktree under `<root>/.worktrees/`), writes the move-to-in-progress draft and prints the preview, its code and the `ws card apply` line; never applies, commits or pushes; prints `undo` lines when a repo fails; exit 1 a problem, 2 setup, 3 tracker refused or unreachable |
 | `ws card apply PATH --approve CODE` | The only command that writes: re-checks against live Jira and sends exactly what the preview showed, once; Claude Code asks you first (the `ask` rule and the approval gate, whose box shows the preview's summary), exit 2 when those are not set up; on a real terminal it shows the summary and asks `Gravar no Jira? [s/N]` instead; a failed or uncertain draft goes to `cards/uncertain/` |
 | `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
 | `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
