@@ -188,3 +188,11 @@ def test_fake_takes_a_dash_value_for_a_known_flag(fake_gh):  # noqa: F811
     assert Gh().pr(SLUG, 1).title == "-x"
     with pytest.raises(GhFailed, match="unknown flag"):
         Gh().write(("pr", "comment", "5", "-R", SLUG, "--nope", "x"), None)
+
+
+def test_comments_reads_the_texts(fake_gh):  # noqa: F811
+    fake_gh.add_pr(SLUG, 7, "h", "master")
+    assert Gh().comments(SLUG, 7) == []
+    argv = ("pr", "comment", "7", "-R", SLUG, "--body", "ola")
+    Gh().write(argv, None)
+    assert Gh().comments(SLUG, 7) == ["ola"]

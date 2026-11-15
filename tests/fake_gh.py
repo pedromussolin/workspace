@@ -61,9 +61,10 @@ def find(slug, number):
 if verb in state["hang"]:
     save()
     time.sleep(30)
-if verb in state["failures"]:
-    stderr, code = state["failures"][verb]
-    fail(stderr, code)
+for key in (verb, verb + " " + str(option("-R"))):
+    if key in state["failures"]:
+        stderr, code = state["failures"][key]
+        fail(stderr, code)
 if verb == "auth status":
     if state["logged_out"]:
         fail("You are not logged into any GitHub hosts. Run gh auth login to authenticate.")
@@ -75,7 +76,7 @@ slug = option("-R")
 
 JSON_FIELDS = {{
     "number", "state", "baseRefName", "headRefName", "title", "url", "mergedAt", "body",
-    "labels", "assignees", "mergeable", "statusCheckRollup",
+    "labels", "assignees", "mergeable", "statusCheckRollup", "comments",
 }}
 ALLOWED_FLAGS = {{
     "pr list": {{"-R", "--state", "--head", "--base", "--json", "--limit"}},
@@ -110,6 +111,7 @@ if option("--state", "all") not in ("open", "closed", "merged", "all"):
 
 
 def project(item, fields):
+    item.setdefault("comments", [])
     return {{name: item[name] for name in fields.split(",") if name in item}}
 
 
@@ -165,9 +167,12 @@ elif verb == "pr edit":
 elif verb == "pr close":
     item = find(slug, int(argv[2]))
     item["state"] = "CLOSED"
+    if option("--comment"):
+        item.setdefault("comments", []).append({{"body": option("--comment")}})
     save()
 elif verb == "pr comment":
-    find(slug, int(argv[2]))
+    item = find(slug, int(argv[2]))
+    item.setdefault("comments", []).append({{"body": option("--body")}})
     save()
 else:
     fail("unsupported: gh " + " ".join(argv))
@@ -237,10 +242,16 @@ class FakeGh:
                 ]
         self._write(data)
 
-    def fail(self, verb: str, stderr: str, code: int = 1) -> None:
-        """Make every call of `verb` (such as "pr create") print `stderr` and exit `code`."""
+    def fail(self, verb: str, stderr: str, code: int = 1, repo: str | None = None) -> None:
+        """Make every call of `verb` (such as "pr create") print `stderr` and exit `code`.
+        With `repo` (a slug) only the calls of `-R repo` fail."""
         data = self._read()
-        data["failures"][verb] = [stderr, code]
+        data["failures"][verb if repo is None else f"{verb} {repo}"] = [stderr, code]
+        self._write(data)
+
+    def clear_failures(self) -> None:
+        data = self._read()
+        data["failures"] = {}
         self._write(data)
 
     def hang(self, verb: str) -> None:
