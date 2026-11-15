@@ -19,7 +19,7 @@ from ws.boardconfig import BoardConfig, BoardMissing, load_board
 from ws.carddraft import DraftError
 from ws.config import REPO_NAME, config_dir, repo_root
 from ws.gittools import GitError
-from ws.itemfile import ItemError
+from ws.itemfile import Item, ItemError
 from ws.taskmodel import Status
 from ws.tracker import port
 from ws.tracker.port import Card, Tracker, TrackerError, TrackerSetup
@@ -330,20 +330,37 @@ def _check_card(run: _Run, tracker: Tracker) -> None:
         run.warnings.append("the tracker cannot set a start date; the card is left as it is")
 
 
-def _repo_names(run: _Run, flag: list[str], board: BoardConfig) -> list[str]:
+@dataclass(frozen=True)
+class RepoChoice:
+    """The task's repos and where they came from; `source` is None when the item was unusable.
+
+    `item` is the item whose `card` is the reference; it is not looked up when `--repo` is given.
+    """
+
+    names: list[str]
+    source: str | None
+    item: Item | None
+    problems: list[str]
+    warnings: list[str]
+
+
+def repos_for_card(
+    root: Path, ref: str, title: str, flag: list[str], prefix_repos: dict[str, tuple[str, ...]]
+) -> RepoChoice:
+    """`--repo`, else the item's `repos`, else the title prefix; else a problem naming the three."""
+    item = None
     item_repos = None
+    warnings: list[str] = []
     if not flag:
-        root = repo_root()
         try:
-            item, notes = items.find_card_item(root, run.ref)
+            item, notes = items.find_card_item(root, ref)
         except ItemError as error:
-            run.problems.append(str(error))
-            return []
-        run.warnings.extend(notes)
+            return RepoChoice([], None, None, [str(error)], warnings)
+        warnings.extend(notes)
         if item is not None and "repos" in item.front and item.repos is None:
             where = items.rel(root, item.path)
-            run.problems.append(f"{where}: repos must be a list; run ws item check")
-            return []
+            problem = f"{where}: repos must be a list; run ws item check"
+            return RepoChoice([], None, item, [problem], warnings)
         if item is not None:
             item_repos = item.repos
             bad = [
@@ -353,19 +370,26 @@ def _repo_names(run: _Run, flag: list[str], board: BoardConfig) -> list[str]:
             ]
             if bad:
                 where = items.rel(root, item.path)
-                run.problems.append(
-                    f"{where}: repos has {bad[0]!r}, not a repo name; run ws item check"
-                )
-                return []
-    names, run.repos_from = resolve_repos(flag, item_repos, run.card.title, board.prefix_repos)
-    if run.repos_from == "none":
-        prefix = title_prefix(run.card.title)
+                problem = f"{where}: repos has {bad[0]!r}, not a repo name; run ws item check"
+                return RepoChoice([], None, item, [problem], warnings)
+    names, source = resolve_repos(flag, item_repos, title, prefix_repos)
+    problems = []
+    if source == "none":
+        prefix = title_prefix(title)
         listed = f'list "{prefix}"' if prefix else "list a title prefix"
-        run.problems.append(
-            f"no repos for {run.ref}: pass --repo NAME, add repos = [...] to its item under "
+        problems.append(
+            f"no repos for {ref}: pass --repo NAME, add repos = [...] to its item under "
             f"projects/<slug>/tasks/, or {listed} in [board.prefix_repos]"
         )
-    return names
+    return RepoChoice(names, source, item, problems, warnings)
+
+
+def _repo_names(run: _Run, flag: list[str], board: BoardConfig) -> list[str]:
+    choice = repos_for_card(repo_root(), run.ref, run.card.title, flag, board.prefix_repos)
+    run.warnings.extend(choice.warnings)
+    run.problems.extend(choice.problems)
+    run.repos_from = choice.source
+    return choice.names
 
 
 def _computed_branch(run: _Run, kind: str, slug: str) -> str | None:
@@ -379,13 +403,17 @@ def _computed_branch(run: _Run, kind: str, slug: str) -> str | None:
     return name
 
 
-def _locate(name: str, board: BoardConfig, roots: tuple[Path, ...], problems: list[str]) -> _Repo:
+def locate_repo(name: str, roots: tuple[Path, ...]) -> Path | None:
     """The first `<root>/<name>` that is a git repo, in the order of `[standup] repo_roots`."""
+    return next((root / name for root in roots if (root / name / ".git").exists()), None)
+
+
+def _locate(name: str, board: BoardConfig, roots: tuple[Path, ...], problems: list[str]) -> _Repo:
     repo = _Repo(name, board.base_for(name))
-    for root in roots:
-        if (root / name / ".git").exists():
-            repo.path, repo.root = root / name, root
-            return repo
+    path = locate_repo(name, roots)
+    if path is not None:
+        repo.path, repo.root = path, path.parent
+        return repo
     listed = ", ".join(str(root) for root in roots)
     problems.append(f"{name} was not found under {listed}; check the name or [standup] repo_roots")
     return repo
