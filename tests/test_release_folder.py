@@ -28,6 +28,12 @@ def test_resolve_slug_explicit_and_from_cwd(roots, tmp_path):
         folder.resolve_slug(None, tmp_path)
 
 
+@pytest.mark.parametrize("bad", ["../x", "a/b", "a_b", "-x"])
+def test_resolve_slug_refuses_a_project_that_is_not_a_slug(roots, tmp_path, bad):
+    with pytest.raises(ReleaseSetup, match="not a project slug"):
+        folder.resolve_slug(bad, tmp_path)
+
+
 def test_release_dir_and_ensure_dir(roots):
     _, data = roots
     path = folder.release_dir("beta", date(2026, 11, 20))
@@ -47,11 +53,61 @@ def test_read_release(tmp_path):
     write(
         tmp_path / "release.toml",
         'repos = ["repo-a", "repo-b"]\n[include]\n'
-        'repo-a = ["feature/TS-101-one", "feature/TS-102-two"]\n',
+        'repo-a = ["feature/TS-101-one", "feature/TS-102-two"]\n'
+        'repo-b = ["feature/TS-201-only"]\n',
     )
     release = folder.read_release(tmp_path, ("repo-a", "repo-b"))
     assert release.repos == ("repo-a", "repo-b")
-    assert release.include == {"repo-a": ("feature/TS-101-one", "feature/TS-102-two")}
+    assert release.include == {
+        "repo-a": ("feature/TS-101-one", "feature/TS-102-two"),
+        "repo-b": ("feature/TS-201-only",),
+    }
+
+
+def test_read_release_missing_is_a_setup_problem(tmp_path):
+    with pytest.raises(ReleaseSetup, match="not found"):
+        folder.read_release(tmp_path / "absent", ("repo-a",))
+    with pytest.raises(ReleaseSetup, match="not found"):
+        folder.read_release(tmp_path, ("repo-a",))
+
+
+def test_read_release_needs_one_include_per_repo_and_no_duplicate(tmp_path):
+    write(
+        tmp_path / "release.toml",
+        'repos = ["repo-a", "repo-b", "repo-a"]\n[include]\nrepo-a = ["feature/TS-1-x"]\n',
+    )
+    with pytest.raises(ReleaseRefused) as info:
+        folder.read_release(tmp_path, ("repo-a", "repo-b"))
+    assert "repo repo-a appears twice in repos" in str(info.value)
+    assert "repo-b is in repos but has no include list" in str(info.value)
+
+
+def test_non_utf8_files_are_refused_cleanly(tmp_path):
+    (tmp_path / "release.toml").write_bytes(b'repos = ["repo-\xe9"]\n')
+    with pytest.raises(ReleaseRefused, match="not UTF-8"):
+        folder.read_release(tmp_path, ("repo-a",))
+    draft = tmp_path / "pr" / "repo-a.md"
+    draft.parent.mkdir()
+    draft.write_bytes(b'+++\ntitle = "T\xe9"\ntasks = ["TS-1"]\n+++\n')
+    with pytest.raises(ReleaseRefused, match="not UTF-8"):
+        folder.read_pr(draft)
+
+
+class _Entry:
+    def __init__(self, name):
+        self.name = name
+
+
+class _Config:
+    repos = (_Entry("repo-a"), _Entry("repo-b"), _Entry("repo-c"))
+
+
+def test_select_repos_follows_the_config_order(tmp_path):
+    wanted = folder.ReleaseFile(("repo-c", "repo-a"), {"repo-c": ("x",), "repo-a": ("y",)})
+    assert folder.select_repos(_Config(), wanted, []) == ["repo-a", "repo-c"]
+    assert folder.select_repos(_Config(), wanted, ["repo-c", "repo-c"]) == ["repo-c"]
+    with pytest.raises(ReleaseSetup, match="--repo repo-b: not in release.toml"):
+        folder.select_repos(_Config(), wanted, ["repo-b"])
 
 
 def test_read_release_problems(tmp_path):
