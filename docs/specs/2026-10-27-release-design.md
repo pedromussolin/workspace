@@ -269,6 +269,12 @@ order, idempotent (a step already done is skipped):
    with `--no-track` in `release-DATE/<repo>-sdbx`, merge `origin/sandbox` there and stop with exit
    3 as above; the user resolves it and commits after review. On a rerun, the existing `-sdbx`
    gets the code branch merged again, then `origin/sandbox`.
+
+   A clean sandbox merge that would leave two Alembic heads is also exit 3: the conflict JSON has
+   `alembic_heads` and `message`, `files: []` and `merging: false`. There is no diff. The user
+   adds one commit in the `-sdbx` worktree: exactly one `.py` migration under the repo's `alembic`
+   folder, `down_revision` set to both heads, subject `chore(TS-N): ...`. The rules refuse
+   anything else in it. Then the user reruns `ws release new`.
 4. Run the rules below and print per repo: shape (`single` or `multi`), the code branch and its
    tip, commits ahead of `master`, the merged branches, whether an `-sdbx` exists and, if so, the
    files where it differs from the code branch, and `ready: true|false`.
@@ -280,7 +286,9 @@ merges of steps 1 and 3.
 
 `publish` is the only step that writes to GitHub besides `move`. Both require `ready: true` for
 every repo and the PR draft files. `preview publish` runs every check and prints the plan and the
-code, writing nothing to any repo; `publish --approve` executes it. Per repo, in config order:
+code, writing nothing to any repo; `publish --approve` executes it. When the plan has no calls,
+`preview` (publish or move) prints `nothing_to_send: true` with exit 0 and no code; there is
+nothing to approve. Per repo, in config order:
 
 | Step | Call | Condition |
 |---|---|---|

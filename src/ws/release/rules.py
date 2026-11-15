@@ -304,6 +304,8 @@ def _alembic_heads(state: RepoState, entry: RepoEntry, tip: str, side: str | Non
         return
     for key, where in (("code", state.code_branch), ("sandbox", "the sandbox merge")):
         problem = heads_problem(entry.name, where, state.heads.get(key, []))
+        if problem and key == "sandbox":
+            problem += "; run ws release new"
         if problem:
             state.problems.append(problem)
 

@@ -19,9 +19,15 @@ sandbox; GMUD is the change record of the deploy (skill `change-request`). A rep
 is single-branch (the PR comes from the task branch itself); with more, multi-branch (a
 `release/DATE` branch is built).
 
-Every command prints JSON on stdout and messages on stderr. Exit codes: 0 ok, 1 a rule failed, 2 a
-precondition is missing (config, `gh`, gate settings, a merge in progress), 3 a merge conflict that
-needs the user. Dates go in as `YYYYMMDD` or `YYYY-MM-DD`; the texts say `DD/MM/YYYY`. Add
+Every command prints JSON on stdout and messages on stderr. Exit codes:
+- 0: ok.
+- 1: it evaluated and a rule failed.
+- 2: it cannot evaluate. Causes: the config, `gh`, the gate settings or a merge in progress; a
+  missing release folder or `release.toml`; a malformed DAY, a `--repo` outside `release.toml` or a
+  bad `--project`; git or `gh` unable to answer.
+- 3: a merge conflict that needs the user. It includes the Alembic stop below.
+
+ Dates go in as `YYYYMMDD` or `YYYY-MM-DD`; the texts say `DD/MM/YYYY`. Add
 `--project SLUG` when the current folder is not under the project. Exit 2 naming the config or the
 gate: tell the user to read the README section "Release" and run `ws setup`.
 
@@ -57,6 +63,8 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
    - `repos[]`: per repo `shape`, `code_branch`, `tip`, `worktree`, `ahead`, `behind`, `sdbx`,
      `sdbx_differs` (files where the `-sdbx` differs from the code branch), `problems`, `warnings`,
      `ready`. Exit 0 means every repo is `ready: true`; exit 1, some is not: fix each problem.
+   - `not_built` lists the repos skipped because the include order or the Alembic chain is wrong
+     (or a stale branch). Their code was not built. It comes with `suggested_order`; exit is 1.
    - `suggested_order` (repo name to branches) appears when the order or the Alembic chain is
      wrong; that repo was not built. Say in one sentence why (for example "`feature/TS-103` already
      holds `feature/TS-102`, so it must come after it", or "two includes add a migration on the same
@@ -67,6 +75,11 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
      grouped by planned commit and commit only after the user's review (`chore(TS-N): ...`, up to 72
      characters, PT-BR, no co-author). Then rerun `ws release new DATE` until `ready: true` in
      every repo.
+   - Exit 3 with `alembic_heads` and `message`, `files: []`, `merging: false`: the sandbox side
+     would end up with two Alembic heads. There is no diff to show. The user fixes it in the
+     `-sdbx` worktree with one commit. It adds exactly one `.py` migration under the repo's
+     `alembic` folder, with `down_revision` set to both heads, and a subject like `chore(TS-N): ...`.
+     The rules refuse anything else in that commit. Then the user reruns `ws release new DATE`.
    - A single-branch repo that was already published and now has two includes stops with exit 2: the
      open PRs come from the task branch; the user decides how to move on.
    - Say where a `-sdbx` was needed (a real conflict with `sandbox`) and which files differ from the
@@ -82,7 +95,8 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
    right.
 5. **Publish.** `ws release preview publish DATE [--repo NAME ...]`. It writes no repo and no
    GitHub; on exit 1 it prints `problems` (a rule, a draft, a repo not `ready`): fix and run it
-   again. Otherwise it prints `code`, `summary` (PT-BR lines), `calls` (every `git`/`gh` call),
+   again. With `nothing_to_send: true` (exit 0, no `code`) nothing is pending: tell the user and do
+   not run the approve step. Otherwise it prints `code`, `summary` (PT-BR lines), `calls` (every `git`/`gh` call),
    `next` and `warnings`. Show the `summary` lines as printed, every `warnings` line and the code. Then run
    `ws release publish DATE --approve CODE` (the same `--repo`/`--project` flags) as its own Bash
    call, never in the same command line as the preview (it refuses in the same shell session). The
@@ -91,7 +105,7 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
    for 30 minutes and only for the plan it printed: if the state changes, `publish` refuses and a
    new preview is needed.
    Read the result: `done` (calls sent), `failed`, `not_sent`, `uncertain`, `prs` (the URLs). On
-   success also `repos[]` (`repo`, `code_pr`, `sandbox_pr`, `skipped`), `gmud` and `warnings`. Give
+   success also `repos[]` (`repo`, `code_pr`, `code_url`, `sandbox_pr`, `sandbox_url`, `skipped`), `gmud` and `warnings`. Give
    the user the PR links and show the `warnings`.
    - `failed` set: say which call failed and what was not sent, then run the preview again; it plans
      only what is still missing.
@@ -109,12 +123,14 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
    single-branch changes its shape: `new` stops with exit 2 and the user decides.
 8. **Move to another date.** Follow [references/moving.md](references/moving.md): ask the new date
    and the reason in one sentence; preview, show the `summary` and every `residual_dates` line,
-   approval in its own call, then tell the user what changed. Only a new date in the past is
+   approval in its own call (`nothing_to_send: true` means nothing to move: say so, no approval),
+   then tell the user what changed. Only a new date in the past is
    refused; the old one may be past.
 9. **Status.** `ws release status [DATE]` is read-only and needs no approval. With a date it prints
    per repo the shape, the worktree, the remote branches, `ahead`/`behind`, the `-sdbx` check and
    `prs[]` (`kind`, `number`, `state`, `base`, `url`, `mergeable`, `checks`); exit 1 when a rule
-   fails. Show it short, in plain words.
+   fails. A row with `merged: true` means the release is already in master: that repo skips the
+   rules. Show it short, in plain words.
 
 ## Never
 
