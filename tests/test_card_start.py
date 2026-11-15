@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from fake_tracker import FakeTracker, make_card
 from test_boardconfig import EXAMPLE
-from test_card import claude_settings, world  # noqa: F401
+from test_card import START_FIELD, claude_settings, world  # noqa: F401
 
 from ws.card import Preview
 from ws.cli import main
@@ -764,6 +764,39 @@ def test_start_preview_refusal_keeps_the_branches(env, capsys, monkeypatch):
     assert out["draft"] is not None
 
 
+def jira_roots(ws_config: Path, tmp_path: Path, git: Git, monkeypatch) -> Roots:
+    roots = Roots(tmp_path, git)
+    with (ws_config / "config.toml").open("a", encoding="utf-8") as config:
+        config.write(roots.board_text())
+    (tmp_path / "ws-repo" / "projects").mkdir(parents=True)
+    monkeypatch.setenv("WS_REPO_ROOT", str(tmp_path / "ws-repo"))
+    return roots
+
+
+def test_start_through_jira_without_a_start_date_field_drafts_nothing(
+    world,  # noqa: F811
+    ws_config,
+    tmp_path,
+    git,
+    monkeypatch,
+    capsys,
+):
+    config = ws_config / "config.toml"
+    text = config.read_text(encoding="utf-8").replace(f'start_date_field = "{START_FIELD}"\n', "")
+    config.write_text(text, encoding="utf-8")
+    in_progress = {"name": "Em andamento", "statusCategory": {"key": "indeterminate"}}
+    world.set_card("TS-101", status=in_progress, **{START_FIELD: None})
+    roots = jira_roots(ws_config, tmp_path, git, monkeypatch)
+
+    code, out, err = start(capsys, "TS-101")
+
+    assert (code, err) == (0, ""), out
+    assert (out["card_change"], out["draft"], out["preview"]) == (None, None, None)
+    assert any("cannot set a start date" in warning for warning in out["warnings"])
+    assert roots.current("acme-front") == "feature/TS-101-tela-exemplo"
+    assert world.writes() == []
+
+
 def test_start_through_the_jira_adapter_and_the_real_preview(
     world,  # noqa: F811
     ws_config,
@@ -773,11 +806,7 @@ def test_start_through_the_jira_adapter_and_the_real_preview(
     capsys,
 ):
     world.set_card("TS-101", status={"name": "Tarefas", "statusCategory": {"key": "new"}})
-    roots = Roots(tmp_path, git)
-    with (ws_config / "config.toml").open("a", encoding="utf-8") as config:
-        config.write(roots.board_text())
-    (tmp_path / "ws-repo" / "projects").mkdir(parents=True)
-    monkeypatch.setenv("WS_REPO_ROOT", str(tmp_path / "ws-repo"))
+    roots = jira_roots(ws_config, tmp_path, git, monkeypatch)
 
     code, out, err = start(capsys, "TS-101")
 

@@ -102,11 +102,17 @@ def test_jira_card_without_a_start_date_field_is_not_asked_for_it(world, ws_conf
         config.read_text().replace(f'start_date_field = "{START_FIELD}"\n', ""), encoding="utf-8"
     )
 
-    found = _tracker().card("TS-104")
+    tracker = _tracker()
+    found = tracker.card("TS-104")
 
     assert found.start is None
     asked = [r for r in world.fake.requests if r["path"] == "/rest/api/3/issue/TS-104"]
     assert START_FIELD not in asked[0]["query"]["fields"]
+    assert tracker.capabilities == JIRA_CAPABILITIES - {"start_date"}
+
+
+def test_jira_with_a_start_date_field_can_set_the_start(world):  # noqa: F811
+    assert _tracker().capabilities == JIRA_CAPABILITIES
 
 
 def test_jira_today_is_in_the_users_time_zone(world, monkeypatch):  # noqa: F811

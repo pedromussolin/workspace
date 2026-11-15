@@ -40,11 +40,13 @@ def _now() -> datetime:
 
 class JiraTracker:
     kind = "jira"
-    capabilities = JIRA_CAPABILITIES
 
     def __init__(self, client: JiraClient, settings: JiraConfig):
         self._client = client
         self._settings = settings
+        self.capabilities = (
+            JIRA_CAPABILITIES if settings.start_date_field else JIRA_CAPABILITIES - {"start_date"}
+        )
         self._myself: dict | None = None
         self._cards: dict[str, Card | None] = {}
         self._names: dict[str, str] = {}
