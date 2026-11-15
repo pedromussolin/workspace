@@ -425,14 +425,14 @@ def test_start_in_progress_with_a_start_date_writes_no_draft(env, capsys):
 
 def test_start_in_progress_without_a_start_date_drafts_the_tracker_today(env, capsys):
     card = make_card("TS-5", title=TITLE, status=Status.REVIEW)
-    env.tracker = FakeTracker([card], today=date(2026, 11, 16))
+    env.tracker = FakeTracker([card], today=date(2026, 1, 2))
 
     code, out, _ = start(capsys, "TS-5")
 
     assert code == 0
     assert out["card_change"] == "start"
     assert Path(out["draft"]).read_text(encoding="utf-8") == (
-        '+++\nop = "edit"\nkey = "TS-5"\nstart = 2026-11-16\n+++\n'
+        '+++\nop = "edit"\nkey = "TS-5"\nstart = 2026-01-02\n+++\n'
     )
     assert env.previews == [out["draft"]]
 
