@@ -339,3 +339,29 @@ def test_prefix_repos_refuses_bad_entries(key, value):
         parse(table)
 
     assert f"board.prefix_repos.{key} " in str(error.value)
+
+
+def test_review_categories_for_a_repo():
+    cfg = parse(with_repos({"acme-front": {"review_categories": {"front": ["src/app/models/**"]}}}))
+
+    assert cfg.review_categories_for("acme-front") == {"front": ("src/app/models/**",)}
+    assert cfg.review_categories_for("acme-api") == {}
+    glob = parse(with_repos({"acme-*": {"review_categories": {"front": ["x/**"]}}}))
+    assert glob.review_categories_for("acme-front") == {"front": ("x/**",)}
+
+
+@pytest.mark.parametrize(
+    ("value", "where"),
+    [
+        ({"nope": ["x"]}, "review_categories"),
+        ({"front": "x"}, "review_categories.front"),
+        ({"front": []}, "review_categories.front"),
+        ({"front": [""]}, "review_categories.front"),
+        (1, "review_categories"),
+    ],
+)
+def test_review_categories_refuses_bad_entries(value, where):
+    with pytest.raises(ConfigInvalid) as error:
+        parse(with_repos({"acme-front": {"review_categories": value}}))
+
+    assert str(error.value).startswith(f'{PATH}: board.repos."acme-front".{where}')
