@@ -25,6 +25,7 @@ from ws import (
     names,
     newwords,
     project,
+    release_cli,
     review,
     secrets,
     slot,
@@ -1122,6 +1123,7 @@ def build_parser() -> argparse.ArgumentParser:
     envcheck_cli.register(subparsers)
     deploycheck_cli.register(subparsers)
     item_cli.register(subparsers)
+    release_cli.register(subparsers)
     return parser
 
 

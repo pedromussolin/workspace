@@ -12,7 +12,9 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from ws.names import NamesTable, load_names
+pytest.register_assert_rewrite("release_helpers", "fake_gh")
+
+from ws.names import NamesTable, load_names  # noqa: E402
 
 NAMES_TOML = """\
 blocked_domains = ["acme-corp.example"]

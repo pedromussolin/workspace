@@ -39,6 +39,7 @@ from ws.config import (
 GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 CARD_ASK_RULE = "Bash(ws card apply:*)"
+RELEASE_ASK_RULES = ("Bash(ws release publish:*)", "Bash(ws release move:*)")
 HOOKS_SOURCE = "hooks"
 HOOKS_MANIFEST = "manifest.json"
 HOOKS_COPY_GLOBS = ("*.py", "gate/*.py", "gate/*.json")
@@ -110,6 +111,7 @@ GITKRAKEN_WRITE_TOOLS = (
 )
 ASK_RULES = (
     CARD_ASK_RULE,
+    *RELEASE_ASK_RULES,
     *(f"mcp__{server}__{tool}" for server in ATLASSIAN_SERVERS for tool in ATLASSIAN_WRITE_TOOLS),
     *(f"mcp__plugin_github_github__{tool}" for tool in GITHUB_WRITE_TOOLS),
     *(f"mcp__github__{tool}" for tool in GITHUB_WRITE_TOOLS),
@@ -988,6 +990,16 @@ def _missing_ask_rules(settings: dict) -> tuple[str, ...]:
 
 def card_gate_problems(settings_path: Path) -> list[str]:
     """What `ws card apply --approve` needs in the Claude settings and does not find (read-only)."""
+    return gate_problems(settings_path, (CARD_ASK_RULE,))
+
+
+def release_gate_problems(settings_path: Path) -> list[str]:
+    """What `ws release publish|move --approve` needs in the Claude settings (read-only)."""
+    return gate_problems(settings_path, RELEASE_ASK_RULES)
+
+
+def gate_problems(settings_path: Path, ask_rules: tuple[str, ...]) -> list[str]:
+    """What an approved write needs in the Claude settings: the `ask_rules` and the gate hook."""
     try:
         settings = json.loads(settings_path.read_bytes())
     except FileNotFoundError:
@@ -1000,8 +1012,8 @@ def card_gate_problems(settings_path: Path) -> list[str]:
         f"disableAllHooks is true in {path}, which switches every hook off"
         for path in _hooks_disabled(settings_path, settings, repo_root())
     ]
-    if CARD_ASK_RULE not in _as_list(_as_dict(settings.get("permissions")).get("ask")):
-        problems.append(f"permissions.ask lacks {CARD_ASK_RULE}")
+    asking = _as_list(_as_dict(settings.get("permissions")).get("ask"))
+    problems += [f"permissions.ask lacks {rule}" for rule in ask_rules if rule not in asking]
     hooks_dir = claude_hooks_dir()
     registered, notes = _registration_state(settings, hooks_dir, GATE_SCRIPT, ("Bash",))
     if not registered:
