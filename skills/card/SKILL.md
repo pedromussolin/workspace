@@ -133,7 +133,11 @@ branch.
    can settle: which repos (a numbered list, with the names under `[board.prefix_repos]` in
    `config.toml` as options) or a short slug in English for the branch (`--desc`). Then run the
    command again with `--repo` and `--desc`. With two or more branches of the task, the command
-   refuses and asks for `--kind` and `--desc`. A computed branch or a `--desc` ending in `-sdbx` is
+   refuses and asks for `--kind` and `--desc`. When the task already has one branch and `--kind`
+   or `--desc` give another name, the command refuses ("already has the branch X"): ask whether to
+   reuse X (rerun without the flags) or keep the new name (the user removes X first). A repo in
+   the middle of a rebase, merge, cherry-pick, revert or bisect is refused: the user finishes or
+   aborts it, or reruns with `--worktree`. A computed branch or a `--desc` ending in `-sdbx` is
    refused: pick another `--desc`. When the repos came from the user's answer, offer to
    write `repos = ["acme-api"]` in the item's front matter, so the next start needs no question.
    Exit 2 is setup (`[board]` or the tracker settings): say so, as in "Exit codes". Exit 3: show the
@@ -142,9 +146,10 @@ branch.
    (`create` made from the remote base, `track` taken from the remote branch, `reuse` or `current`
    already there, `elsewhere` checked out in another worktree, `worktree` a new branch in its own
    folder), and the repo's `worktree` key (the folder, set with `--worktree`) whenever it is not
-   null: always show the folder. Then the `warnings`. When the task already had one branch, it is
-   reused even if `--kind` or `--desc` differ; the warning says "already has the branch X; using
-   it instead of Y": show it. Then show `preview` exactly as printed, with the `code`.
+   null: always show the folder. Then the `warnings`. When the task already had one branch and
+   the command ran without `--kind` and `--desc`, it is reused; the warning says "already has the
+   branch X; using it instead of Y": show it. Then show `preview` exactly as printed, with the
+   `code`.
 4. When `card_change` is null, there is no preview and nothing to apply. Do not say "already
    started" alone: it has three causes. The tracker cannot set a start date (a warning says so; the
    card is left as is), the card is already in progress with a start date, or there is nothing to

@@ -71,9 +71,12 @@ words, drop pt-BR stop words, first 5 words, cut at a word boundary to at most 4
 
 Existing branches: a task branch is `<kind>/<REF>-<slug>`, never one ending `-sdbx`. Across all
 repos, the computed name wins when it exists; else a single existing task branch is reused
-everywhere (with a warning naming both); two different ones are a problem (pick with `--kind` and
-`--desc`). Per repo: local → `switch` to it (no reset); only on the remote → `switch -c <branch>
---track <remote>/<branch>`; checked out in another worktree → left there, reported.
+everywhere (with a warning naming both), unless `--kind` or `--desc` was passed: an explicit name
+that differs from the task's only branch is a problem (drop the flags to reuse it, or remove it
+first); two different ones are a problem (pick with `--kind` and `--desc`). Per repo: local →
+`switch` to it (no reset); only on the remote → `switch -c <branch> --track <remote>/<branch>`
+(with `--worktree`, `worktree add --track -b <branch> <path> <remote>/<branch>`); checked out in
+another worktree → left there, reported.
 
 ## Where the repos come from
 
@@ -138,6 +141,26 @@ setup); 3 the tracker refused or is unreachable. Setup and tracker errors go to 
   `git -C <path> branch -D <branch>` (or `worktree remove`) for what this run created; never run.
 - The preview refuses or the tracker fails after git: branches and draft stay; rerun. A rerun
   reuses the branches, rewrites the draft and prints a fresh code (the 30-minute rule stays).
+
+## Behavior rules
+
+Decided while building; they refine "Order" and "Failure and rerun" above.
+
+- The dirty check covers only the repos the run would switch (`create`, `track`, `reuse`), and it
+  runs after the fetch. A repo already on the task branch (`current`), `elsewhere` or under
+  `--worktree` is not checked, so a rerun with work in progress on the task branch is safe.
+- In those same repos, a rebase, merge, cherry-pick, revert or bisect half done (`git rev-parse
+  --git-path` finds `rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`,
+  `REVERT_HEAD` or `BISECT_LOG`) is a problem before any change: `git switch` would refuse it after
+  earlier repos switched.
+- Fetch and base problems stop the run before the branch rule and the dirty check, so a run that
+  reports them may not list a dirty repo yet; the next run does.
+- A branch only on the remote is tracked with an explicit `--track` and its full ref
+  (`refs/remotes/<remote>/<branch>`), never by git guessing from the bare name: the upstream does
+  not depend on `branch.autoSetupMerge` nor on a second remote holding the same branch.
+- The fetch never prompts (`GIT_TERMINAL_PROMPT=0`, 60 s timeout). It keeps the user's ssh command
+  (`GIT_SSH_COMMAND`, then `core.sshCommand`, then `GIT_SSH`, as git picks them) and adds `-o
+  BatchMode=yes` only to OpenSSH (`ssh`, `ssh.exe`) on a plain command line.
 
 ## The skill
 
