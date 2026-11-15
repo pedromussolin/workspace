@@ -9,7 +9,7 @@ from fake_gh import fake_gh  # noqa: F401
 from release_helpers import DAY, fixed_today, world  # noqa: F401, F811
 from test_release_plan import HOOKS_COPY, write_settings
 
-from ws.release import move
+from ws.release import gitops, move
 from ws.release import plan as writeplan
 from ws.release.github import Gh
 from ws.release.settings import load_release_config
@@ -367,9 +367,6 @@ def test_rerun_after_a_failed_close_fixes_the_reference_in_the_repo(ready, capsy
 def test_move_back_creates_new_prs_instead_of_reusing_closed_ones(ready, capsys):
     standard(ready)
     assert run(capsys)[0] == 0
-    shutil.move(str(ready.release_dir(DAY)), str(ready.release_dir(NEW)))
-    ready.git("repo-a", "branch", "-m", f"release/{DAY}", f"release/{NEW}")
-    ready.git("repo-a", "branch", "-m", f"release/{DAY}-sdbx", f"release/{NEW}-sdbx")
     assert run(capsys, old=NEW, new=DAY)[0] == 0
     states = {pr["number"]: pr["state"] for pr in ready.gh.prs(A)}
     assert states[74] == states[75] == "CLOSED"
@@ -440,6 +437,7 @@ def test_fetch_runs_first_and_a_failure_is_a_warning(ready, capsys):
 def test_move_refuses_when_the_new_folder_exists(ready, capsys):
     standard(ready)
     ready.release_dir(NEW).mkdir(parents=True)
+    (ready.release_dir(NEW) / "anotacoes.txt").write_text("de outra pessoa\n")
     code, _ = preview(capsys)
     assert code == 1 and ready.gh.writes == []
 
@@ -618,3 +616,353 @@ def test_rerun_keeps_a_merged_pr_comment_only_once_a_later_pr_is_closed(ready, c
     assert new_of(ready.gh, A, f"release/{NEW}")["body"] == "cita #73\n"
     sdbx = new_of(ready.gh, A, f"release/{NEW}-sdbx")
     assert f"acme/repo-b#{new_of(ready.gh, B, f'release/{NEW}')['number']}" in sdbx["body"]
+
+
+def add_worktrees(ready, day=DAY):
+    for suffix in ("", "-sdbx"):
+        ready.git(
+            "repo-a",
+            "worktree",
+            "add",
+            "-q",
+            str(ready.release_dir(day) / f"repo-a{suffix}"),
+            f"release/{day}{suffix}",
+        )
+        ready.git(
+            "repo-a",
+            "branch",
+            "-u",
+            f"origin/release/{day}{suffix}",
+            f"release/{day}{suffix}",
+        )
+
+
+def upstream(ready, branch):
+    return ready.git("repo-a", "rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}")
+
+
+def local_branches(ready):
+    return set(ready.git("repo-a", "branch", "--format=%(refname:short)").split())
+
+
+def worktree_paths(ready):
+    out = ready.git("repo-a", "worktree", "list", "--porcelain")
+    return {line.split(" ", 1)[1] for line in out.splitlines() if line.startswith("worktree ")}
+
+
+def test_old_branches_stay_without_the_flag(ready, capsys):
+    standard(ready)
+    assert run(capsys)[0] == 0
+    refs = ready.refs("repo-a")
+    for suffix in ("", "-sdbx"):
+        assert f"refs/heads/release/{DAY}{suffix}" in refs
+        assert f"refs/heads/release/{NEW}{suffix}" in refs
+
+
+def test_old_branches_deleted_with_the_flag_when_every_pr_is_closed(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 60, f"release/{DAY}", "master", state="CLOSED", body="antiga\n")
+    code, payload = run(capsys, delete=True)
+    assert code == 0
+    refs = ready.refs("repo-a")
+    for suffix in ("", "-sdbx"):
+        assert f"refs/heads/release/{DAY}{suffix}" not in refs
+        assert f"refs/heads/release/{NEW}{suffix}" in refs
+    assert any("apagar release/" in line for line in payload["done"])
+
+
+def test_delete_refused_while_a_pr_from_the_head_stays_open(ready, capsys):
+    standard(ready)
+
+    class Racing(Gh):
+        def prs(self, slug, *, head=None, base=None, state="all"):
+            found = super().prs(slug, head=head, base=base, state=state)
+            if slug == A and head == f"release/{DAY}" and state == "open":
+                ready.gh.add_pr(A, 99, f"release/{DAY}", "master", title="Aberta depois")
+                found = super().prs(slug, head=head, base=base, state=state)
+            return found
+
+    plan = move.build_plan(load_release_config(), "demo", DAY, NEW, REASON, True, Racing())
+    assert any(
+        f"release/{DAY} stays: PR #99 from it is still open" in problem for problem in plan.problems
+    )
+    deleted = [
+        call.args[3] for call in plan.calls if call.args[:3] == ("push", "origin", "--delete")
+    ]
+    assert f"release/{DAY}" not in deleted
+
+
+def test_delete_refused_when_it_is_a_base(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(A, 80, "feature/TS-101-one", f"release/{DAY}", title="Empilhada")
+    code, payload = preview(capsys, delete=True)
+    assert code == 1 and ready.gh.writes == []
+    assert any(
+        f"release/{DAY} stays: it is the base of PR #80" in problem
+        for problem in payload["problems"]
+    )
+    code, _ = preview(capsys)
+    assert code == 0
+
+
+def test_local_rename_and_worktree_move(ready, capsys):
+    standard(ready)
+    add_worktrees(ready)
+    old_tree = ready.release_dir(DAY) / "repo-a"
+    assert run(capsys)[0] == 0
+    new_tree = ready.release_dir(NEW) / "repo-a"
+    assert local_branches(ready) >= {f"release/{NEW}", f"release/{NEW}-sdbx"}
+    assert not local_branches(ready) & {f"release/{DAY}", f"release/{DAY}-sdbx"}
+    assert upstream(ready, f"release/{NEW}") == f"origin/release/{NEW}"
+    assert upstream(ready, f"release/{NEW}-sdbx") == f"origin/release/{NEW}-sdbx"
+    assert str(new_tree.resolve()) in worktree_paths(ready)
+    assert str((ready.release_dir(NEW) / "repo-a-sdbx").resolve()) in worktree_paths(ready)
+    assert not old_tree.exists() and not ready.release_dir(DAY).exists()
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+    assert ready.git("repo-a", "-C", str(new_tree), "symbolic-ref", "--short", "HEAD") == (
+        f"release/{NEW}"
+    )
+
+
+def test_drafts_move_with_the_new_date(ready, capsys):
+    standard(ready)
+    ready.write_pr("repo-a", f"release {DAY}: entrega", ["TS-101"], f"corpo {DAY}\n")
+    (ready.release_dir(DAY) / "published.json").write_text("{}\n")
+    assert run(capsys)[0] == 0
+    draft = (ready.release_dir(NEW) / "pr" / "repo-a.md").read_text()
+    assert f'title = "release {NEW}: entrega"' in draft and f"corpo {NEW}\n" in draft
+    assert DAY not in draft
+    assert (ready.release_dir(NEW) / "published.json").is_file()
+
+
+def fail_git_once(monkeypatch, predicate):
+    real = writeplan._git
+    state = {"done": False}
+
+    def fake(call, args):
+        if not state["done"] and predicate(args):
+            state["done"] = True
+            raise gitops.GitFailed("injected")
+        return real(call, args)
+
+    monkeypatch.setattr(writeplan, "_git", fake)
+    return state
+
+
+def fail_folder_once(monkeypatch, mode):
+    real = move.move_folder
+    state = {"done": False}
+
+    def fake(*given):
+        if not state["done"] and given[-1] == mode:
+            state["done"] = True
+            raise OSError("injected")
+        return real(*given)
+
+    monkeypatch.setattr(move, "move_folder", fake)
+    return state
+
+
+def run_once(capsys, **kwargs):
+    code, payload = preview(capsys, **kwargs)
+    if code != 0:
+        return code, payload
+    moved = move.run_move(args(approve=payload["code"], **kwargs))
+    out = capsys.readouterr()
+    return moved, (json.loads(out.out) if out.out.strip() else {})
+
+
+def finished_state(ready):
+    refs = ready.refs("repo-a")
+    for suffix in ("", "-sdbx"):
+        assert f"refs/heads/release/{DAY}{suffix}" not in refs
+        assert f"refs/heads/release/{NEW}{suffix}" in refs
+        assert upstream(ready, f"release/{NEW}{suffix}") == f"origin/release/{NEW}{suffix}"
+        tree = (ready.release_dir(NEW) / f"repo-a{suffix}").resolve()
+        assert str(tree) in worktree_paths(ready)
+    assert not local_branches(ready) & {f"release/{DAY}", f"release/{DAY}-sdbx"}
+    assert not ready.release_dir(DAY).exists()
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+
+
+STEPS = {
+    "delete": lambda a: a[:3] == ("push", "origin", "--delete") and not a[3].endswith("sdbx"),
+    "delete-sdbx": lambda a: a[:3] == ("push", "origin", "--delete") and a[3].endswith("sdbx"),
+    "branch-m": lambda a: a[:2] == ("branch", "-m") and not a[2].endswith("sdbx"),
+    "branch-m-sdbx": lambda a: a[:2] == ("branch", "-m") and a[2].endswith("sdbx"),
+    "branch-u": lambda a: a[:2] == ("branch", "-u") and not a[3].endswith("sdbx"),
+    "branch-u-sdbx": lambda a: a[:2] == ("branch", "-u") and a[3].endswith("sdbx"),
+    "worktree": lambda a: a[:2] == ("worktree", "move") and not a[2].endswith("sdbx"),
+    "worktree-sdbx": lambda a: a[:2] == ("worktree", "move") and a[2].endswith("sdbx"),
+}
+
+
+@pytest.mark.parametrize("step", list(STEPS))
+def test_rerun_finishes_after_a_failure_at_each_git_step(ready, capsys, monkeypatch, step):
+    standard(ready)
+    add_worktrees(ready)
+    state = fail_git_once(monkeypatch, STEPS[step])
+    code, payload = run_once(capsys, delete=True)
+    assert state["done"] and code == 1 and payload["failed"]
+    code, payload = run_once(capsys, delete=True)
+    assert code == 0, payload
+    finished_state(ready)
+    code, payload = preview(capsys, delete=True)
+    assert code == 0 and payload["calls"] == []
+
+
+@pytest.mark.parametrize("mode", ["files", "finish"])
+def test_rerun_finishes_after_a_failure_at_each_folder_phase(ready, capsys, monkeypatch, mode):
+    standard(ready)
+    add_worktrees(ready)
+    state = fail_folder_once(monkeypatch, mode)
+    code, payload = run_once(capsys, delete=True)
+    assert state["done"] and code == 1 and payload["failed"]
+    code, payload = run_once(capsys, delete=True)
+    assert code == 0, payload
+    finished_state(ready)
+    code, payload = preview(capsys, delete=True)
+    assert code == 0 and payload["calls"] == []
+
+
+@pytest.mark.parametrize("ahead", [False, True])
+def test_rerun_finishes_when_the_local_branch_differs_from_origin(
+    ready, capsys, monkeypatch, ahead
+):
+    standard(ready)
+    branch = f"release/{DAY}"
+    ready.git("repo-a", "checkout", "-q", branch)
+    sha = ready.git("repo-a", "rev-parse", "HEAD")
+    if ahead:
+        ready.commit("repo-a", branch, "late.txt", "late\n", "feat: tarde", push=False)
+    else:
+        ready.commit("repo-a", branch, "late.txt", "late\n", "feat: tarde")
+        ready.git("repo-a", "reset", "-q", "--hard", sha)
+    ready.git("repo-a", "checkout", "-q", "master")
+    add_worktrees(ready)
+    state = fail_git_once(monkeypatch, STEPS["worktree"])
+    code, payload = run_once(capsys)
+    assert state["done"] and code == 1 and payload["failed"]
+    assert run_once(capsys)[0] == 0
+    assert f"release/{NEW}" in local_branches(ready)
+    assert not ready.release_dir(DAY).exists()
+
+
+def test_a_stray_folder_in_the_new_folder_is_refused_at_preview(ready, capsys):
+    standard(ready)
+    add_worktrees(ready)
+    (ready.release_dir(NEW) / "repo-a").mkdir(parents=True)
+    code, _ = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+
+
+def test_the_delete_check_does_not_mix_pr_numbers_across_repos(ready):
+    release_file(ready, b_multi=True)
+    publish_branches(ready, repos=("repo-a", "repo-b"), sdbx=False)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", body="Release: 20/11/2026\n")
+    ready.gh.add_pr(B, 99, f"release/{DAY}", "master", body="Release: 20/11/2026\n")
+
+    class Racing(Gh):
+        def prs(self, slug, *, head=None, base=None, state="all"):
+            found = super().prs(slug, head=head, base=base, state=state)
+            if slug == A and head == f"release/{DAY}" and state == "open":
+                if not any(pr.number == 99 for pr in found):
+                    ready.gh.add_pr(A, 99, f"release/{DAY}", "master", title="Aberta depois")
+                found = super().prs(slug, head=head, base=base, state=state)
+            return found
+
+    plan = move.build_plan(load_release_config(), "demo", DAY, NEW, REASON, True, Racing())
+    assert any(f"{A.split('/')[1]}: release/{DAY} stays: PR #99" in p for p in plan.problems)
+
+
+def test_a_single_branch_repo_worktree_moves_too(ready, capsys):
+    standard(ready)
+    ready.git(
+        "repo-b",
+        "worktree",
+        "add",
+        "-q",
+        str(ready.release_dir(DAY) / "repo-b"),
+        "feature/TS-201-only",
+    )
+    assert run_once(capsys)[0] == 0
+    assert str((ready.release_dir(NEW) / "repo-b").resolve()) in worktree_paths_of(ready, "repo-b")
+    assert "feature/TS-201-only" in ready.git("repo-b", "branch", "--format=%(refname:short)")
+    assert not ready.release_dir(DAY).exists()
+    code, payload = preview(capsys)
+    assert code == 0 and payload["calls"] == []
+
+
+def worktree_paths_of(ready, name):
+    out = ready.git(name, "worktree", "list", "--porcelain")
+    return {line.split(" ", 1)[1] for line in out.splitlines() if line.startswith("worktree ")}
+
+
+def test_a_registered_worktree_with_its_folder_gone_is_a_problem(ready, capsys):
+    standard(ready)
+    add_worktrees(ready)
+    shutil.rmtree(ready.release_dir(DAY) / "repo-a")
+    code, payload = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+    assert any("git worktree prune" in problem for problem in payload["problems"])
+
+
+def test_old_folder_stays_when_it_still_holds_files(ready, capsys):
+    standard(ready)
+    (ready.release_dir(DAY) / "anotacoes.txt").write_text("minhas notas\n")
+    code, _ = run(capsys)
+    assert code == 0
+    assert (ready.release_dir(DAY) / "anotacoes.txt").read_text() == "minhas notas\n"
+    assert not (ready.release_dir(DAY) / "release.toml").exists()
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+
+
+def test_leftovers_are_reported_and_the_folder_is_not_planned_again(ready, capsys):
+    standard(ready)
+    ready.write_pr("repo-a", f"release {DAY}: entrega", ["TS-101"], "corpo\n")
+    (ready.release_dir(DAY) / "anotacoes.txt").write_text("notas\n")
+    code, payload = run_once(capsys)
+    assert code == 0 and payload["left_in_old"] == ["anotacoes.txt"]
+    draft = ready.release_dir(NEW) / "pr" / "repo-a.md"
+    draft.write_text(draft.read_text() + f"\ndata {DAY} de proposito\n")
+    code, payload = preview(capsys)
+    assert code == 0 and payload["calls"] == []
+    assert payload["left_in_old"] == ["anotacoes.txt"]
+    assert run_once(capsys)[0] == 0
+    assert f"data {DAY} de proposito" in draft.read_text()
+
+
+def test_an_empty_new_folder_is_free(ready, capsys):
+    standard(ready)
+    ready.release_dir(NEW).mkdir(parents=True)
+    assert run_once(capsys)[0] == 0
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+
+
+def test_a_failed_draft_swap_leaves_the_rerun_to_finish_it(ready, capsys, monkeypatch):
+    standard(ready)
+    ready.write_pr("repo-a", f"release {DAY}: entrega", ["TS-101"], "corpo\n")
+    real, state = move._swap, {"done": False}
+
+    def flaky(value, old, new):
+        if not state["done"] and value.startswith("+++"):
+            state["done"] = True
+            raise OSError("injected")
+        return real(value, old, new)
+
+    monkeypatch.setattr(move, "_swap", flaky)
+    code, payload = run_once(capsys)
+    assert state["done"] and code == 1 and payload["failed"]
+    assert "left_in_old" not in payload and "pr" in payload["not_moved_yet"]
+    assert run_once(capsys)[0] == 0
+    draft = (ready.release_dir(NEW) / "pr" / "repo-a.md").read_text()
+    assert f"release {NEW}: entrega" in draft and DAY not in draft
+
+
+def test_a_stale_local_new_branch_without_the_old_one_is_refused(ready, capsys):
+    standard(ready)
+    ready.git("repo-a", "branch", "-D", f"release/{DAY}")
+    ready.git("repo-a", "branch", f"release/{NEW}", "origin/master")
+    code, payload = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+    assert any(f"the local branch release/{NEW} exists" in p for p in payload["problems"])
