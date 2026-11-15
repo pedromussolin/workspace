@@ -105,24 +105,15 @@ def _taken(
             problems.append(f"{entry.name}: {target} exists on origin at another commit")
     for suffix in ("", "-sdbx"):
         target = f"release/{new}{suffix}"
-        if gitops.rev(entry.path, f"refs/heads/{target}") and not _renamed(entry, old, new, suffix):
+        if gitops.rev(entry.path, f"refs/heads/{target}") and gitops.rev(
+            entry.path, f"refs/heads/release/{old}{suffix}"
+        ):
             problems.append(f"{entry.name}: the local branch {target} exists")
         ours = {pr.base for pr in old_prs if pr.head == f"release/{old}{suffix}"}
         for pr in gh.prs(entry.slug, head=target, state="open"):
             if pr.base not in ours:
                 problems.append(f"{entry.name}: PR #{pr.number} already uses {target}")
     return problems
-
-
-def _renamed(entry: RepoEntry, old: str, new: str, suffix: str) -> bool:
-    """The local `release/NEW` is what an earlier run renamed: `release/OLD` is gone and it sits
-    at the commit `origin` has for the new branch."""
-    mine = gitops.rev(entry.path, f"refs/heads/release/{new}{suffix}")
-    return (
-        not gitops.rev(entry.path, f"refs/heads/release/{old}{suffix}")
-        and mine is not None
-        and mine == gitops.rev(entry.path, _origin(f"release/{new}{suffix}"))
-    )
 
 
 def _old_prs(entry: RepoEntry, gh: Gh, heads: list[str]) -> list[PullRequest]:
@@ -394,7 +385,7 @@ def build_plan(
     new_dir = release_folder.release_dir(slug, new_day)
     moved = not (old_dir / "release.toml").exists() and (new_dir / "release.toml").exists()
     wanted = release_folder.read_release(new_dir if moved else old_dir, names)
-    if not _new_folder_free(old_dir, new_dir, names):
+    if not _new_folder_free(old_dir, new_dir, list(config.repos)):
         raise ReleaseRefused(f"{new_dir} already exists")
 
     entries = [entry for entry in config.repos if entry.name in wanted.repos]
@@ -448,50 +439,22 @@ def build_plan(
     calls += writeplan.second_pass(calls)
     calls += _fix_calls(items, old, new, new_day, renumber, known)
     problems += _title_problems(calls, known)
-    closing = {int(call.args[2]) for call in calls if call.args[:2] == ("pr", "close")}
+    closing = {(call.repo, int(call.args[2])) for call in calls if call.args[:2] == ("pr", "close")}
     if delete_old:
         for entry in multi:
             deletes, found = _delete_calls(entry, gh, old, branches[entry.name], closing)
             calls += deletes
             problems += found
     local, moves = [], []
-    for entry in multi:
-        renames, moving = _local_calls(entry, old, new, old_dir, new_dir, branches[entry.name])
-        local += renames + moving
-        moves += moving
-    if old_dir.exists():
-        shown = f"release.toml, pr/ e published.json de release-{old} para release-{new}"
-        if moves:
-            calls.append(
-                _folder_call(
-                    old_dir,
-                    new_dir,
-                    old,
-                    new,
-                    "files",
-                    f"mover {shown} e trocar a data nos rascunhos",
-                )
-            )
-            calls += local
-            calls.append(
-                _folder_call(
-                    old_dir, new_dir, old, new, "finish", f"remover a pasta release-{old}, se vazia"
-                )
-            )
-        else:
-            calls += local
-            calls.append(
-                _folder_call(
-                    old_dir,
-                    new_dir,
-                    old,
-                    new,
-                    "all",
-                    f"mover {shown}, trocar a data nos rascunhos e remover a pasta antiga se vazia",
-                )
-            )
-    else:
-        calls += local
+    for entry in entries:
+        if entry in multi:
+            local += _branch_calls(entry, old, new, branches[entry.name])
+        found, trouble = _worktree_calls(entry, old, new, old_dir, new_dir)
+        local += found
+        moves += found
+        problems += trouble
+    folder, left = _folder_calls(old_dir, new_dir, old, new, local, moves)
+    calls += folder
     return WritePlan(
         action="move",
         slug=slug,
@@ -505,13 +468,14 @@ def build_plan(
             "delete_old": delete_old,
             "residual_dates": residual,
             "without_release_line": without_line,
+            "left_in_old": left,
         },
         problems=problems,
     )
 
 
 def _delete_calls(
-    entry: RepoEntry, gh: Gh, old: str, branches: Branches, closing: set[int]
+    entry: RepoEntry, gh: Gh, old: str, branches: Branches, closing: set[tuple[str, int]]
 ) -> tuple[list[Call], list[str]]:
     """`release/OLD[-sdbx]` leaves `origin` only when no PR from it stays open and no open PR has
     it as base; the PRs this plan closes count as closed."""
@@ -520,7 +484,7 @@ def _delete_calls(
         open_from = [
             pr.number
             for pr in gh.prs(entry.slug, head=source, state="open")
-            if pr.number not in closing
+            if (entry.name, pr.number) not in closing
         ]
         open_base = [pr.number for pr in gh.prs(entry.slug, base=source, state="open")]
         if open_from:
@@ -560,17 +524,16 @@ def _registered(entry: RepoEntry) -> set[Path]:
     }
 
 
-def _local_calls(
-    entry: RepoEntry, old: str, new: str, old_dir: Path, new_dir: Path, branches: Branches
-) -> tuple[list[Call], list[Call]]:
-    """The branch renames and upstreams, and the worktree moves, still to do for `entry`; what
-    the live state shows done is left out, so a rerun finishes."""
-    branch_calls, moves = [], []
+def _branch_calls(entry: RepoEntry, old: str, new: str, branches: Branches) -> list[Call]:
+    """The branch renames and upstreams still to do for `entry`, from the live state, so a
+    rerun finishes."""
+    calls = []
     for suffix in ("", "-sdbx"):
         source, target = f"release/{old}{suffix}", f"release/{new}{suffix}"
         on_origin = source in branches or gitops.rev(entry.path, _origin(target))
-        if gitops.rev(entry.path, f"refs/heads/{source}") and on_origin:
-            branch_calls.append(
+        has_source = gitops.rev(entry.path, f"refs/heads/{source}")
+        if has_source and on_origin:
+            calls.append(
                 Call(
                     repo=entry.name,
                     program="git",
@@ -580,10 +543,10 @@ def _local_calls(
                 )
             )
         if on_origin and (
-            gitops.rev(entry.path, f"refs/heads/{source}")
+            has_source
             or (gitops.rev(entry.path, f"refs/heads/{target}") and not _upstream_set(entry, target))
         ):
-            branch_calls.append(
+            calls.append(
                 Call(
                     repo=entry.name,
                     program="git",
@@ -592,31 +555,77 @@ def _local_calls(
                     cwd=str(entry.path),
                 )
             )
+    return calls
+
+
+def _worktree_calls(
+    entry: RepoEntry, old: str, new: str, old_dir: Path, new_dir: Path
+) -> tuple[list[Call], list[str]]:
+    """The moves of the worktrees `entry` has under `release-OLD/`, multi-branch or not."""
+    moves, problems = [], []
     registered = _registered(entry)
     for name in (entry.name, f"{entry.name}-sdbx"):
-        if (old_dir / name).resolve() in registered:
-            moves.append(
-                Call(
-                    repo=entry.name,
-                    program="git",
-                    args=("worktree", "move", str(old_dir / name), str(new_dir / name)),
-                    line=f"{entry.name}: mover o worktree release-{old}/{name} para release-{new}",
-                    cwd=str(entry.path),
-                )
+        if (old_dir / name).resolve() not in registered:
+            continue
+        if not (old_dir / name).is_dir():
+            problems.append(
+                f"{entry.name}: the worktree {old_dir / name} is registered but its folder is "
+                "gone; run `git worktree prune`"
             )
-    return branch_calls, moves
+            continue
+        moves.append(
+            Call(
+                repo=entry.name,
+                program="git",
+                args=("worktree", "move", str(old_dir / name), str(new_dir / name)),
+                line=f"{entry.name}: mover o worktree release-{old}/{name} para release-{new}",
+                cwd=str(entry.path),
+            )
+        )
+    return moves, problems
 
 
 FOLDER_FILES = ("release.toml", "pr", "published.json")
 
 
-def _folder_call(old_dir: Path, new_dir: Path, old: str, new: str, mode: str, line: str) -> Call:
-    return Call(
-        repo="release",
-        program="local",
-        args=("move-folder", str(old_dir), str(new_dir), old, new, mode),
-        line=line,
+def _left_in_old(old_dir: Path, moves: list[Call]) -> list[str]:
+    """What stays in `release-OLD/` after the move: neither a moved file nor a moved worktree."""
+    if not old_dir.is_dir():
+        return []
+    moving = {Path(call.args[2]).name for call in moves}
+    return sorted(
+        path.name
+        for path in old_dir.iterdir()
+        if path.name not in FOLDER_FILES and path.name not in moving
     )
+
+
+def _folder_calls(
+    old_dir: Path, new_dir: Path, old: str, new: str, local: list[Call], moves: list[Call]
+) -> tuple[list[Call], list[str]]:
+    """The local steps with the `move-folder` calls around them, and what stays in the old
+    folder. The folder is touched only while there is something to move or it would end up empty
+    (a move already done never swaps the dates of the new drafts again)."""
+    left = _left_in_old(old_dir, moves)
+    if not old_dir.exists():
+        return local, left
+    files = any((old_dir / name).exists() for name in FOLDER_FILES)
+    shown = f"release.toml, pr/ e published.json de release-{old} para release-{new}"
+
+    def call(mode: str, line: str) -> Call:
+        args = ("move-folder", str(old_dir), str(new_dir), old, new, mode)
+        return Call(repo="release", program="local", args=args, line=line)
+
+    move_line = f"mover {shown} e trocar a data nos rascunhos"
+    finish_line = f"remover a pasta release-{old}, se vazia"
+    if left:
+        return ([call("files", move_line)] if files else []) + local, left
+    if not moves:
+        both = f"mover {shown}, trocar a data nos rascunhos e remover a pasta antiga se vazia"
+        return local + [call("all", both) if files else call("finish", finish_line)], left
+    return ([call("files", move_line)] if files else []) + local + [
+        call("finish", finish_line)
+    ], left
 
 
 def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> None:
@@ -650,15 +659,23 @@ def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> No
             print(f"{source} stays, it still holds: {stays}", file=sys.stderr)
 
 
-def _new_folder_free(old_dir: Path, new_dir: Path, names: tuple[str, ...]) -> bool:
-    """`release-NEW/` is free, or holds only what an earlier run of this move put there."""
+def _new_folder_free(old_dir: Path, new_dir: Path, entries: list[RepoEntry]) -> bool:
+    """`release-NEW/` is free, or holds only what an earlier run of this move put there: the moved
+    files (`release.toml` first) and worktrees of the repos, with nothing also in `release-OLD/`."""
     if not new_dir.exists():
         return True
     held = {path.name for path in new_dir.iterdir()}
-    mine = set(FOLDER_FILES) | {f"{name}{suffix}" for name in names for suffix in ("", "-sdbx")}
-    if not held or not held <= mine:
+    repo_dirs = {f"{entry.name}{suffix}" for entry in entries for suffix in ("", "-sdbx")}
+    if "release.toml" not in held or not held <= set(FOLDER_FILES) | repo_dirs:
         return False
-    return not any((old_dir / name).exists() and (new_dir / name).exists() for name in FOLDER_FILES)
+    if any((old_dir / name).exists() for name in held):
+        return False
+    return all(
+        (new_dir / name).resolve() in _registered(entry)
+        for entry in entries
+        for name in (entry.name, f"{entry.name}-sdbx")
+        if name in held
+    )
 
 
 def _next_command(args: argparse.Namespace, slug: str) -> str:
@@ -707,6 +724,7 @@ def run_preview(args: argparse.Namespace) -> int:
         plan = _build(args, config, slug, gh)
         payload, code = writeplan.show_preview(plan, _next_command(args, slug))
         payload["residual_dates"] = plan.facts["residual_dates"]
+        payload["left_in_old"] = plan.facts["left_in_old"]
         payload["warnings"] = warnings + _missing_line(plan)
         return payload, code
 
@@ -725,6 +743,9 @@ def run_move(args: argparse.Namespace) -> int:
             {"move-folder": move_folder},
         )
         payload["warnings"] = warnings
+        payload["left_in_old"] = _left_in_old(
+            release_folder.release_dir(slug, release_day(args.old)), []
+        )
         return payload, code
 
     return run_release("move", action)
