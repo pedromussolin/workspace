@@ -17,6 +17,7 @@ JIRA_CAPABILITIES = frozenset(
         "set_reporter",
         "change_type",
         "link_types",
+        "description",
     }
 )
 
@@ -32,6 +33,29 @@ _BASE_FIELDS = [
     "issuetype",
     "issuelinks",
 ]
+
+
+def _plain(node: dict) -> str:
+    kind = node.get("type")
+    attrs = node.get("attrs") or {}
+    if kind == "text":
+        return node.get("text", "")
+    if kind == "hardBreak":
+        return "\n"
+    if kind == "mention":
+        return attrs.get("text") or ""
+    if kind == "inlineCard":
+        return attrs.get("url") or ""
+    children = [_plain(child) for child in node.get("content", [])]
+    if kind == "heading":
+        return f"{'#' * attrs.get('level', 2)} {''.join(children)}"
+    if kind == "listItem":
+        return "- " + "\n  ".join(children)
+    if kind == "codeBlock":
+        return "```\n" + "".join(children) + "\n```"
+    if kind == "paragraph":
+        return "".join(children)
+    return "\n".join(children)
 
 
 def _now() -> datetime:
@@ -127,6 +151,20 @@ class JiraTracker:
                 name = None
             self._names[account] = name or account
         return self._names[account]
+
+    def description(self, ref: str) -> str | None:
+        try:
+            issue = self._client.issue(ref, ["description"])
+        except JiraError as error:
+            if error.status == 404:
+                return None
+            raise TrackerError(str(error)) from None
+        try:
+            document = ((issue or {}).get("fields") or {}).get("description")
+            text = _plain(document).strip() if isinstance(document, dict) else ""
+        except (TypeError, AttributeError) as error:
+            raise TrackerError(str(error)) from None
+        return text or None
 
     def _neutral(self, issue: dict) -> Card:
         settings = self._settings

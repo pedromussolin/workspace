@@ -29,13 +29,21 @@ class FakeTracker:
     kind = "jira"
 
     def __init__(
-        self, cards=(), *, account="acc-me", capabilities=None, names=None, today=date(2026, 11, 16)
+        self,
+        cards=(),
+        *,
+        account="acc-me",
+        capabilities=None,
+        names=None,
+        today=date(2026, 11, 16),
+        descriptions=None,
     ):
         self.capabilities = frozenset(JIRA_CAPABILITIES if capabilities is None else capabilities)
         self._cards = {item.ref: item for item in cards}
         self._account = account
         self._names = names or {}
         self._today = today
+        self._descriptions = descriptions or {}
         self.reads: list[str] = []
 
     def me(self) -> str:
@@ -67,3 +75,6 @@ class FakeTracker:
 
     def display_name(self, account: str) -> str:
         return self._names.get(account, account)
+
+    def description(self, ref: str) -> str | None:
+        return self._descriptions.get(ref) or None
