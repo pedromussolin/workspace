@@ -139,20 +139,24 @@ def _grew(config: ReleaseConfig, entry: RepoEntry, head: str) -> bool:
 def _replaced_by(comments: list[str], made: list[PullRequest]) -> PullRequest | None:
     """The open PR a closed old PR names in its `Substituído por <url>` comment."""
     for pr in made:
-        if any(comment.startswith(f"Substituído por {pr.url}") for comment in comments):
+        if any(comment.startswith(f"Substituído por {pr.url}:") for comment in comments):
             return pr
     return None
 
 
 def _recreated(config: ReleaseConfig, entry: RepoEntry, prs: list[PullRequest]) -> set[int]:
-    """The merged PRs that get a new sandbox PR: the last merged one of a head and base that
-    has no open PR, and only when its branch has commits the sandbox lacks."""
-    taken = {(pr.head, pr.base) for pr in prs if _is_open(pr)}
-    chosen: dict[tuple[str, str], PullRequest] = {}
+    """The merged PRs that get a new sandbox PR: the last PR of its head and base, whatever the
+    state of the earlier ones, and only when its branch has commits the sandbox lacks."""
+    last: dict[tuple[str, str], PullRequest] = {}
     for pr in prs:
-        if _is_merged(pr) and pr.base == config.sandbox_branch and (pr.head, pr.base) not in taken:
-            chosen[(pr.head, pr.base)] = pr
-    return {pr.number for pr in chosen.values() if _grew(config, entry, pr.head)}
+        last[(pr.head, pr.base)] = max(
+            (pr, last.get((pr.head, pr.base), pr)), key=lambda item: item.number
+        )
+    return {
+        pr.number
+        for pr in last.values()
+        if _is_merged(pr) and pr.base == config.sandbox_branch and _grew(config, entry, pr.head)
+    }
 
 
 def _items(
@@ -315,9 +319,13 @@ def _fix_calls(
     """One edit per replacement PR an earlier run made, from the body it has now: the dates,
     the `Release:` line and the numbers are brought up to date and what a person added stays."""
     calls = []
+    done: set[tuple[str, int]] = set()
     for item in items:
         if item.existing is None or item.ref is None:
             continue
+        if (item.entry.slug, item.existing.number) in done:
+            continue
+        done.add((item.entry.slug, item.existing.number))
         slug = item.entry.slug
         body = replace_numbers(
             _with_release_line(_swap(item.current, old, new), day), renumber, slug

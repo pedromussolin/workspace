@@ -11,6 +11,8 @@ from test_release_plan import HOOKS_COPY, write_settings
 
 from ws.release import move
 from ws.release import plan as writeplan
+from ws.release.github import Gh
+from ws.release.settings import load_release_config
 
 pytest_plugins = ["release_helpers"]
 
@@ -580,3 +582,39 @@ def test_crlf_and_the_trailing_newline_do_not_plan_an_edit(ready, capsys):
     edit_pr(ready.gh, A, number, body=body.replace("\n", "\r\n").rstrip("\r\n"))
     code, payload = preview(capsys)
     assert code == 0 and payload["calls"] == []
+
+
+def test_a_url_prefix_does_not_make_pr_7_the_replacement_of_pr_74(ready):
+    release_file(ready)
+    publish_branches(ready, sdbx=False)
+    source = f"refs/remotes/origin/release/{DAY}"
+    ready.git("repo-a", "push", "-q", "origin", f"{source}:refs/heads/release/{NEW}")
+    ready.gh.add_pr(A, 7, f"release/{NEW}", "master", body="x\n")
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", state="CLOSED")
+    edit_pr(
+        ready.gh, A, 70, comments=[{"body": f"Substituído por https://github.com/{A}/pull/74: x"}]
+    )
+    plan = move.build_plan(load_release_config(), "demo", DAY, NEW, REASON, False, Gh())
+    assert "repo-a-70" not in plan.facts["known"]
+
+
+def test_rerun_keeps_a_merged_pr_comment_only_once_a_later_pr_is_closed(ready, capsys):
+    release_file(ready, b_multi=True)
+    publish_branches(ready, repos=("repo-a", "repo-b"))
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"R {DAY}", body="cita #73\n")
+    merged = {"state": "MERGED", "merged_at": "2026-11-12T10:00:00Z"}
+    ready.gh.add_pr(A, 73, f"release/{DAY}-sdbx", "sandbox", **merged)
+    ready.gh.add_pr(
+        A, 76, f"release/{DAY}-sdbx", "sandbox", title=f"S2 {DAY}", body="ver acme/repo-b#30\n"
+    )
+    ready.gh.add_pr(B, 30, f"release/{DAY}", "master", title=f"R {DAY}", body="b\n")
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    before = len(ready.gh.writes)
+    assert run(capsys)[0] == 0
+    edits = [call[2] for call in ready.gh.writes[before:] if call[:2] == ["pr", "edit"]]
+    assert len(edits) == len(set(edits))
+    assert new_of(ready.gh, A, f"release/{NEW}")["body"] == "cita #73\n"
+    sdbx = new_of(ready.gh, A, f"release/{NEW}-sdbx")
+    assert f"acme/repo-b#{new_of(ready.gh, B, f'release/{NEW}')['number']}" in sdbx["body"]
