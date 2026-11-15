@@ -196,7 +196,7 @@ def test_publish_after_editing_a_draft_does_nothing(ready, fake_gh, capsys):  # 
     draft = ready.release_dir() / "pr" / "repo-a.md"
     draft.write_text(draft.read_text() + "\nmais uma linha\n")
     code, _, err = publish_with(capsys, out["code"])
-    assert code == 1 and "o estado mudou" in err
+    assert code == 1 and "the plan differs from the preview" in err
     assert fake_gh.writes == []
     assert all_refs(ready) == before
 
@@ -207,13 +207,12 @@ def test_repeated_publish_is_a_no_op(ready, fake_gh, capsys):  # noqa: F811
     assert code == 0, err
     sent = len(fake_gh.writes)
     refs = all_refs(ready)
-    out, (code, result, err) = run_all(capsys)
-    assert code == 0, err
-    assert out["calls"] == []
+    assert preview(capsys) == {"nothing_to_send": True, "warnings": []}
+    assert not list(writeplan.store().glob("*.json"))
     assert len(fake_gh.writes) == sent == 4
     assert all_refs(ready) == refs
-    assert [row["code_pr"] for row in result["repos"]] == [1, 1]
-    assert len(result["gmud"]) == 4
+    record = json.loads((ready.release_dir() / "published.json").read_text())
+    assert [record["repos"][name]["code_pr"] for name in ("repo-a", "repo-b")] == [1, 1]
 
 
 def test_merged_code_pr_is_skipped(ready, fake_gh, capsys):  # noqa: F811
@@ -227,7 +226,9 @@ def test_merged_code_pr_is_skipped(ready, fake_gh, capsys):  # noqa: F811
     assert result["repos"][1] == {
         "repo": "repo-b",
         "code_pr": 5,
+        "code_url": "https://github.com/acme/repo-b/pull/5",
         "sandbox_pr": None,
+        "sandbox_url": None,
         "skipped": True,
     }
     record = json.loads((ready.release_dir() / "published.json").read_text())
@@ -313,15 +314,15 @@ def test_a_repo_outside_the_release_is_refused(ready, fake_gh, capsys):  # noqa:
     code, _, err = cli_run(
         capsys, "preview", "publish", DAY, "--project", "demo", "--repo", "repo-a"
     )
-    assert code == 1 and "repo-a not in" in err
+    assert code == 2 and "repo-a not in" in err
 
 
 def test_bad_day_and_git_failure_exit_cleanly(ready, fake_gh, monkeypatch, capsys):  # noqa: F811
     drafts(ready)
     code, _, _ = cli_run(capsys, "preview", "publish", "20261399", "--project", "demo")
-    assert code == 1
+    assert code == 2
     code, _, _ = cli_run(capsys, "preview", "publish", "soon", "--project", "demo")
-    assert code == 1
+    assert code == 2
 
     def broken(*args, **kwargs):
         raise gitops.GitFailed("boom")
@@ -461,3 +462,61 @@ def test_release_fixtures_pass_check_secrets(ws_config, ready, tmp_path, monkeyp
     monkeypatch.chdir(REPO_ROOT)
     paths = ["tests/release_helpers.py", "tests/fake_gh.py", str(saved)]
     assert cli.main(["check-secrets", *paths]) == 0
+
+
+def test_publish_one_repo_can_cite_a_repo_already_published(ready, fake_gh, capsys):  # noqa: F811
+    drafts(ready, a_body=A_BODY + "\nVer {pr:repo-b}\n")
+    _, (code, _, err) = run_all(capsys, "--repo", "repo-b")
+    assert code == 0, err
+    _, (code, _, err) = run_all(capsys, "--repo", "repo-a")
+    assert code == 0, err
+    body = next(pr for pr in fake_gh.prs("acme/repo-a") if pr["baseRefName"] == "master")["body"]
+    assert "Ver acme/repo-b#1" in body
+    assert not any(call[:2] == ["pr", "edit"] for call in fake_gh.writes)
+
+
+def test_a_partial_publish_records_what_it_made(ready, fake_gh, capsys):  # noqa: F811
+    drafts(ready)
+    fake_gh.fail("pr create", "HTTP 422: Validation Failed", repo="acme/repo-b")
+    code, result, _ = publish_with(capsys, preview(capsys)["code"])
+    assert code == 1 and result["failed"] and "known" not in result
+    record = json.loads((ready.release_dir() / "published.json").read_text())
+    assert record["repos"]["repo-a"]["code_pr"] == 1
+    assert "code_pr" not in record["repos"]["repo-b"]
+
+
+def test_a_failed_record_still_prints_the_prs(ready, fake_gh, capsys, monkeypatch):  # noqa: F811
+    drafts(ready)
+
+    def refuse(folder, data):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(writeplan, "write_published", refuse)
+    _, (code, result, err) = run_all(capsys)
+    assert code == 0, err
+    assert result["repos"][0]["code_url"] == "https://github.com/acme/repo-a/pull/1"
+    assert any("published.json was not written: read-only" in w for w in result["warnings"])
+
+
+def test_a_placeholder_publish_cannot_fill_is_a_warning(ready, fake_gh, capsys):  # noqa: F811
+    drafts(ready)
+    _, (code, _, err) = run_all(capsys)
+    assert code == 0, err
+    state = fake_gh._read()
+    for pr in state["prs"]["acme/repo-b"]:
+        pr["body"] += "\nDepende de {pr:repo-a-70}\n"
+    fake_gh._write(state)
+    out = preview(capsys)
+    assert out["nothing_to_send"] is True
+    assert any("PR #1 cites repo-a-70" in w for w in out["warnings"])
+
+
+def test_an_approval_refusal_keeps_the_warnings(ready, fake_gh, capsys, monkeypatch):  # noqa: F811
+    drafts(ready)
+    monkeypatch.setattr(gitops, "fetch", lambda repo: "boom")
+    out = preview(capsys)
+    draft = ready.release_dir() / "pr" / "repo-a.md"
+    draft.write_text(draft.read_text() + "\nmais uma linha\n")
+    code, refused, err = publish_with(capsys, out["code"])
+    assert code == 1 and "the plan differs from the preview" in err
+    assert "repo-a: fetch failed: boom" in refused["warnings"]
