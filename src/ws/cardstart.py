@@ -108,7 +108,7 @@ def undo_commands(steps: list[RepoStep], branch: str) -> list[str]:
     lines: list[str] = []
     for step in steps:
         repo = f"git -C {shlex.quote(str(step.path))}"
-        if step.action == "current":
+        if step.action in ("current", "elsewhere"):
             continue
         if step.action == "worktree" and step.worktree is not None:
             lines.append(f"{repo} worktree remove {shlex.quote(str(step.worktree))}")

@@ -126,6 +126,7 @@ def test_undo_commands():
     assert undo_commands([step("track")], b) == created
     assert undo_commands([step("reuse")], b) == ["git -C /r/acme-api switch main"]
     assert undo_commands([step("current")], b) == []
+    assert undo_commands([step("elsewhere")], b) == []
     wt = Path("/r/.worktrees/x")
     assert undo_commands([step("worktree", worktree=wt)], b) == [
         "git -C /r/acme-api worktree remove /r/.worktrees/x",
