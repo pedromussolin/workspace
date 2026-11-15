@@ -61,9 +61,10 @@ def find(slug, number):
 if verb in state["hang"]:
     save()
     time.sleep(30)
-if verb in state["failures"]:
-    stderr, code = state["failures"][verb]
-    fail(stderr, code)
+for key in (verb, verb + " " + str(option("-R"))):
+    if key in state["failures"]:
+        stderr, code = state["failures"][key]
+        fail(stderr, code)
 if verb == "auth status":
     if state["logged_out"]:
         fail("You are not logged into any GitHub hosts. Run gh auth login to authenticate.")
@@ -237,10 +238,16 @@ class FakeGh:
                 ]
         self._write(data)
 
-    def fail(self, verb: str, stderr: str, code: int = 1) -> None:
-        """Make every call of `verb` (such as "pr create") print `stderr` and exit `code`."""
+    def fail(self, verb: str, stderr: str, code: int = 1, repo: str | None = None) -> None:
+        """Make every call of `verb` (such as "pr create") print `stderr` and exit `code`.
+        With `repo` (a slug) only the calls of `-R repo` fail."""
         data = self._read()
-        data["failures"][verb] = [stderr, code]
+        data["failures"][verb if repo is None else f"{verb} {repo}"] = [stderr, code]
+        self._write(data)
+
+    def clear_failures(self) -> None:
+        data = self._read()
+        data["failures"] = {}
         self._write(data)
 
     def hang(self, verb: str) -> None:
