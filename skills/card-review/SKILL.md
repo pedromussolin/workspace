@@ -1,0 +1,61 @@
+---
+name: card-review
+description: Builds the local review package of a task before its changes are committed, from `ws review pack`, and writes a PT-BR `review.md` (what changed and why, risks, where to look first, tests, checklist). Use when the user asks to review a task's changes or for its review package ("/card-review TS-5431", "monta a revisão do TS-5431", "revisão do card TS-5431"). Read-only: never commits, pushes or writes to the task tracker.
+---
+
+# Card review
+
+The user reviews every change the AI agents make before it is committed. `ws review pack REF` does
+the deterministic part (which files changed, committed or not, by kind, new migrations, env vars,
+tests, the task's context). You read the diff, judge it and write one file, `review.md`, that the
+user opens in VS Code beside the diff. Lines to the user and `review.md` are PT-BR; these
+instructions are in English.
+
+The file carries company code, so it stays on this machine: it lives only under
+`~/.local/share/workspace/projects/<slug>/reviews/<REF>/`, next to `pack.json`.
+
+## Steps
+
+1. **Run the pack.** `ws review pack REF`. Add `--repo NAME` (repeatable) or `--project SLUG` only
+   when the user's words name them. It prints one JSON object (the same as `pack.json`).
+2. **Exit 1** lists `problems` (texts in English; the pack is still written): show each one in
+   PT-BR. Ask only what the user can settle: which repos (a numbered list, with the names under
+   `[board.prefix_repos]` in `config.toml` as options) or the project slug. Then run the command
+   again with `--repo` or `--project`. **Exit 2** (setup: `[board]` or the tracker settings) and
+   **exit 3** (the tracker refused or is unreachable): show stderr (`ws review pack: ...`) as it
+   is and stop.
+3. **Read the pack.** Top level: `flags` (the checks that need a decision), `warnings`, `card`
+   (`title`, `status`, `done_when`, the task's "Pronto quando") and `repos`. Per repo: `branch`,
+   `worktree`, `commits`, `files` (each with `path`, `abs_path`, `status`, `stages`, `added`,
+   `deleted`, `binary`, `hunks`, `category`), `by_category`, `migrations`, `env`, `tests`.
+4. **Read the diff.** Per repo, run its `diff_command` with `-- <path>` for one file (for example
+   `<diff_command> -- app/api/routes/lote.py`), in this order: files named by a flag, then
+   categories `migration`, `contract`, `model`, `config`, then the rest. Files with `stages`
+   `["untracked"]` are not in the diff: use Read on `abs_path`. Lockfiles and generated files are
+   read by counts only (`added`, `deleted`), and a `binary` file is never read as text.
+5. **Write `review.md`** with the Write tool at `review_path`, in PT-BR, with these parts:
+   1. `# Revisão REF: <title>`, then one line with the status, the repos, the branch and
+      `generated_at`.
+   2. `## O que mudou e por quê`: per repo, tied to the task and to `done_when`.
+   3. `## Riscos`: the `flags` first, then migrations (several heads, an existing migration
+      changed), contract changes, env vars (name each one, and say to check it in the Parameter
+      Store, the AWS store where the apps read their settings), toggles (feature flags) and data
+      (what the change does to existing rows). If there is nothing, write "nenhum".
+   4. `## Olhar primeiro`: 3 to 8 links `[path:line](<abs_path>#L<line>)`, each with the reason. The
+      line comes from `hunks` (the first new-side line of a hunk) or from the diff.
+   5. `## Testes`: the test files changed and added, and what `done_when` asks that no test covers.
+   6. `## Arquivos por tipo`, from `by_category`; then `## Checklist`, 5 to 8 `- [ ]` lines, short.
+6. **Reply** with the absolute path of `review.md`, the line `code <path>` (to open it in VS Code)
+   and the three biggest risks, one line each. Nothing more.
+
+## Rules
+
+- Short, direct sentences. Explain a technical term the first time it appears in `review.md`.
+- Say "task" and "the task tracker", never a tracker's product name, in these instructions.
+- Say only what the diff and the pack show. When you did not read a file, say so.
+- A dirty work tree is fine: the uncommitted work is what gets reviewed.
+- Rerun any time: `pack.json` is replaced and the earlier `review.md` is deleted, so write it again.
+- Read-only on the repos: never commit, push, stash, switch branches or change a work tree.
+  Do not run tests, linters or builds.
+- Never write to the task tracker, publish an Artifact, paste the review into a chat, or copy it
+  into the workspace repo or anywhere outside the folder above.
