@@ -94,6 +94,68 @@ def _nothing_staged(repo: Path) -> bool:
     return _git(repo, "diff", "--cached", "--quiet", check=False).returncode == 0
 
 
+def dirty(repo: Path) -> bool:
+    """True when tracked files have uncommitted changes; untracked files do not count."""
+    return bool(_git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip())
+
+
+def fetch(repo: Path, remote: str) -> None:
+    _git(repo, "fetch", "--quiet", remote)
+
+
+def has_ref(repo: Path, ref: str) -> bool:
+    return (
+        _git(repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", check=False).returncode
+        == 0
+    )
+
+
+def head(repo: Path) -> tuple[str, bool]:
+    """The current branch name, or the commit sha and True when HEAD is detached."""
+    branch = _git(repo, "branch", "--show-current").stdout.strip()
+    if branch:
+        return branch, False
+    return _git(repo, "rev-parse", "HEAD").stdout.strip(), True
+
+
+def local_branches(repo: Path) -> list[str]:
+    return _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads").stdout.splitlines()
+
+
+def remote_branches(repo: Path, remote: str) -> list[str]:
+    prefix = f"{remote}/"
+    refs = _git(
+        repo, "for-each-ref", "--format=%(refname:short)", f"refs/remotes/{remote}"
+    ).stdout.splitlines()
+    names = [ref.removeprefix(prefix) for ref in refs if ref.startswith(prefix)]
+    return [name for name in names if name != "HEAD"]
+
+
+def switch(repo: Path, branch: str) -> None:
+    _git(repo, "switch", branch)
+
+
+def switch_new(repo: Path, branch: str, start: str, track: bool) -> None:
+    _git(repo, "switch", "-c", branch, "--track" if track else "--no-track", start)
+
+
+def add_worktree(repo: Path, path: Path, branch: str, start: str | None) -> None:
+    if start is None:
+        _git(repo, "worktree", "add", str(path), branch)
+    else:
+        _git(repo, "worktree", "add", "-b", branch, "--no-track", str(path), start)
+
+
+def worktree_of(repo: Path, branch: str) -> Path | None:
+    """The path of the work tree that has `branch` checked out, or None."""
+    listing = _git(repo, "worktree", "list", "--porcelain").stdout
+    for block in listing.split("\n\n"):
+        lines = block.strip().splitlines()
+        if f"branch refs/heads/{branch}" in lines:
+            return Path(lines[0].removeprefix("worktree "))
+    return None
+
+
 def assemble(
     repo: Path, base: str, source: str, target: str, subjects: dict[str, str]
 ) -> list[str]:
@@ -118,7 +180,7 @@ def assemble(
         raise GitError(
             f"{base}..{source} has merge commits ({listed}); cherry-pick cannot replay them"
         )
-    if _git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip():
+    if dirty(repo):
         raise GitError("the work tree has uncommitted changes; commit or stash them first")
 
     _git(repo, "switch", "-c", target, "--no-track", base)
