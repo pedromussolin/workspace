@@ -18,6 +18,13 @@ def test_skill_names_the_command_and_the_rules():
         "done_when",
         "#L",
         "never commit",
+        "nothing is written",
+        "no `card`",
+        "Never Read a null `abs_path`",
+        "plain `path:line` without a link",
+        'write "nenhuma alteração"',
+        "`diff_command` null",
+        "starts with `<repo>: `",
     ):
         assert phrase in text, phrase
     assert len(text.splitlines()) < 500
