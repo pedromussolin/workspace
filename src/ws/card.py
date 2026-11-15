@@ -47,6 +47,13 @@ class Loaded:
     problems: list[str]
 
 
+@dataclass(frozen=True)
+class Preview:
+    status: int
+    text: str
+    code: str | None
+
+
 @dataclass
 class Plan:
     loaded: list[Loaded]
@@ -123,6 +130,51 @@ def drafts_folder(name: str) -> Path:
     folder = _store("drafts", name)
     folder.mkdir(mode=0o700)
     return folder
+
+
+_DRAFT_NAME = re.compile(r"[A-Za-z0-9._-]+\.md")
+
+
+def _draft_path(name: str) -> Path:
+    if not _DRAFT_NAME.fullmatch(name) or name.startswith("."):
+        raise ValueError(f"{name!r} is not a draft file name")
+    return _drafts_root() / name
+
+
+def write_draft(name: str, text: str) -> Path:
+    """Write `cards/drafts/<name>` (replacing it), private, through a temp file and a rename.
+
+    The temp file is always new (`O_EXCL`, a stale one is removed first) and never followed if it
+    is a symlink, and it reaches the disk before the rename.
+    """
+    path = _draft_path(name)
+    _ensure_store()
+    if path.is_symlink() or path.is_dir():
+        raise DraftError([f"{name} is a symlink or a folder, not a draft file"])
+    temporary = path.with_name(f".{name}.tmp")
+    temporary.unlink(missing_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        descriptor = os.open(temporary, flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
+    return path
+
+
+def remove_draft(name: str) -> bool:
+    """Delete the draft `cards/drafts/<name>` when it is a file; True when one was removed."""
+    path = _draft_path(name)
+    if path.is_symlink() or not path.is_file():
+        return False
+    path.unlink()
+    return True
 
 
 def collect(argument: str, single: bool = False) -> list[Path]:
@@ -417,13 +469,26 @@ def run_epics() -> int:
     return _run("epics", action)
 
 
-def run_preview(argument: str) -> int:
+def preview(argument: str) -> Preview:
     try:
         loaded = [load(path) for path in collect(argument)]
     except DraftError as error:
         print(f"ws card preview: {'; '.join(error.problems)}", file=sys.stderr)
-        return 1
-    return _run("preview", lambda: _preview(argument, loaded))
+        return Preview(1, "", None)
+    results: list[Preview] = []
+
+    def action() -> int:
+        results.append(_preview(argument, loaded))
+        return results[0].status
+
+    status = _run("preview", action)
+    return results[0] if results else Preview(status, "", None)
+
+
+def run_preview(argument: str) -> int:
+    result = preview(argument)
+    sys.stdout.write(result.text)
+    return result.status
 
 
 def run_apply(argument: str, approve: str | None) -> int:
@@ -441,20 +506,23 @@ def run_apply(argument: str, approve: str | None) -> int:
     return _run("apply", lambda: _approve(approve, loaded))
 
 
-def _print_problems(plan: Plan) -> None:
-    print("Nada foi enviado. Problemas encontrados:")
+def _problem_lines(plan: Plan) -> list[str]:
+    lines = ["Nada foi enviado. Problemas encontrados:"]
     for item, verdict in zip(plan.loaded, plan.verdicts, strict=True):
-        for problem in verdict.problems:
-            print(f"  {item.path.name}: {problem}")
+        lines.extend(f"  {item.path.name}: {problem}" for problem in verdict.problems)
+    return lines
 
 
-def _preview(argument: str, loaded: list[Loaded]) -> int:
+def _print_problems(plan: Plan) -> None:
+    print("\n".join(_problem_lines(plan)))
+
+
+def _preview(argument: str, loaded: list[Loaded]) -> Preview:
     settings, client = session(_needed_keys(loaded))
     _ensure_store()
     plan = build_plan(client, settings, loaded)
     if not plan.ok:
-        _print_problems(plan)
-        return 1
+        return Preview(1, "\n".join(_problem_lines(plan)) + "\n", None)
     code = approval_code(settings.site, plan.requests, plan.befores, plan.summary)
     try:
         _purge_expired()
@@ -464,18 +532,18 @@ def _preview(argument: str, loaded: list[Loaded]) -> int:
             f"ws card preview: could not save the pending record: {error.strerror or error}",
             file=sys.stderr,
         )
-        return 1
-    print(f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao Jira.")
+        return Preview(1, "", None)
+    lines = [f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao Jira."]
     for block, verdict in zip(plan.blocks, plan.verdicts, strict=True):
-        print()
-        print("\n".join(block))
+        lines.append("")
+        lines.extend(block)
         for request in verdict.requests:
-            print(f"  Requisição: {request['method']} {request['path']}")
+            lines.append(f"  Requisição: {request['method']} {request['path']}")
             body = json.dumps(request["body"], ensure_ascii=False, indent=2)
-            print("\n".join(f"    {line}" for line in body.splitlines()))
-    print(f"\nCódigo de aprovação: {code}")
-    print(f"Para aplicar: ws card apply {shlex.quote(argument)} --approve {code}")
-    return 0
+            lines.extend(f"    {line}" for line in body.splitlines())
+    lines.append(f"\nCódigo de aprovação: {code}")
+    lines.append(f"Para aplicar: ws card apply {shlex.quote(argument)} --approve {code}")
+    return Preview(0, "\n".join(lines) + "\n", code)
 
 
 def _pending_path(code: str) -> Path:

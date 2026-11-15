@@ -174,6 +174,8 @@ synced = 2026-11-13
   `card`; a link to an item with no card yet waits); `docs` (paths relative to `tasks/`, each must
   exist); `tracker = false` for a task that never has a card (personal tooling, a done task kept as
   history), which then needs a top-level `status` and has no `[tracker]` table.
+- **`repos`** (optional list of repo names): where `ws card start` makes the task's branches; `[]`
+  means none. See `2026-11-15-card-start-design.md`.
 - **After the adoption, the item is the source of the contract fields.** When the tracker differs,
   `ws item check --tracker` shows both values; the user says which side is right; `ws item drafts`
   sends the item's value, `ws item pull` copies the tracker's value into the item.

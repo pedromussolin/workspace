@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
+from ws.config import REPO_NAME
 from ws.identity import DEV_ID
 from ws.project import SLUG_PATTERN
 from ws.taskmodel import Status
@@ -29,6 +30,7 @@ CONTRACT_KEYS = (
     "tracker",
     "status",
 )
+LOCAL_KEYS = ("repos",)
 CACHE_KEYS = ("status", "priority", "due", "sprint", "synced")
 ITEM_PATH = re.compile(r"projects/[a-z0-9]+(?:-[a-z0-9]+)*/tasks/[A-Za-z0-9._-]+\.md")
 LINK_PATH = re.compile(r"(?:\.\./[a-z0-9]+(?:-[a-z0-9]+)*/)?tasks/[A-Za-z0-9._-]+\.md")
@@ -64,6 +66,11 @@ class Item:
             value = self.front.get(kind)
             out[kind] = list(value) if isinstance(value, list) else []
         return out
+
+    @property
+    def repos(self) -> list[str] | None:
+        value = self.front.get("repos")
+        return list(value) if isinstance(value, list) else None
 
     @property
     def cache(self) -> dict:
@@ -141,7 +148,7 @@ def _cache_problems(table: dict) -> list[str]:
 
 def schema_problems(item: Item) -> list[str]:
     front = item.front
-    out = [f"unknown key '{key}'" for key in front if key not in CONTRACT_KEYS]
+    out = [f"unknown key '{key}'" for key in front if key not in CONTRACT_KEYS + LOCAL_KEYS]
     tracker = front.get("tracker")
     untracked = tracker is False
     if isinstance(tracker, dict):
@@ -186,6 +193,16 @@ def schema_problems(item: Item) -> list[str]:
             for entry in value
             if not _is_link(entry)
         ]
+    if "repos" in front:
+        repos = front["repos"]
+        if not isinstance(repos, list):
+            out.append("repos must be a list")
+        else:
+            out += [
+                f"repos: {name!r} is not a repo name"
+                for name in repos
+                if not (isinstance(name, str) and REPO_NAME.fullmatch(name))
+            ]
     if "docs" in front:
         docs = front["docs"]
         if not isinstance(docs, list):

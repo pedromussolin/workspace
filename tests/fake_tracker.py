@@ -1,5 +1,7 @@
 """An in-memory tracker for the tests that need the port and not a Jira server."""
 
+from datetime import date
+
 from ws.taskmodel import Status
 from ws.tracker.jira_adapter import JIRA_CAPABILITIES
 from ws.tracker.port import Card, CardQuery
@@ -17,6 +19,7 @@ def make_card(ref: str, **fields) -> Card:
         "due": None,
         "priority": "Medium",
         "sprint": None,
+        "start": None,
     }
     values.update(fields)
     return Card(ref=ref, **values)
@@ -25,15 +28,21 @@ def make_card(ref: str, **fields) -> Card:
 class FakeTracker:
     kind = "jira"
 
-    def __init__(self, cards=(), *, account="acc-me", capabilities=None, names=None):
+    def __init__(
+        self, cards=(), *, account="acc-me", capabilities=None, names=None, today=date(2026, 11, 16)
+    ):
         self.capabilities = frozenset(JIRA_CAPABILITIES if capabilities is None else capabilities)
         self._cards = {item.ref: item for item in cards}
         self._account = account
         self._names = names or {}
+        self._today = today
         self.reads: list[str] = []
 
     def me(self) -> str:
         return self._account
+
+    def today(self) -> date:
+        return self._today
 
     def card(self, ref: str) -> Card | None:
         self.reads.append(ref)

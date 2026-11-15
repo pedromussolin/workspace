@@ -1,8 +1,11 @@
 """Paths used by ws. Each one can be overridden by an environment variable, which the tests use."""
 
 import os
+import re
 import shutil
 from pathlib import Path
+
+REPO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 def _env_path(var: str, default: Path) -> Path:

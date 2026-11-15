@@ -1,9 +1,11 @@
 import json
+from datetime import UTC, date, datetime
 
 import pytest
 from fake_tracker import FakeTracker, make_card
 from test_card import (
     SPRINT_FIELD,
+    START_FIELD,
     claude_settings,  # noqa: F401
     world,  # noqa: F401
 )
@@ -60,7 +62,8 @@ def test_jira_card_is_the_neutral_card(world):  # noqa: F811
         assignee="acc-me",
         reporter="acc-other",
         status=Status.IN_PROGRESS,
-        due=__import__("datetime").date(2026, 11, 5),
+        due=date(2026, 11, 5),
+        start=date(2026, 10, 26),
         priority="Medium",
         sprint="Sprint 55",
         links=(Link("blocks", "TS-120"), Link("blocked_by", "TS-121"), Link("relates", "TS-122")),
@@ -78,6 +81,64 @@ def test_jira_unmapped_type_is_none(world):  # noqa: F811
     world.set_card("TS-104", issuetype={"id": "10001", "name": "Other", "hierarchyLevel": 0})
 
     assert _tracker().card("TS-104").type is None
+
+
+def test_jira_card_reads_the_start_date(world):  # noqa: F811
+    world.set_card("TS-104", **{START_FIELD: "2026-11-10"})
+    world.set_card("TS-105", **{START_FIELD: None})
+
+    tracker = _tracker()
+
+    assert tracker.card("TS-104").start == date(2026, 11, 10)
+    assert tracker.card("TS-105").start is None
+    asked = [r for r in world.fake.requests if r["path"] == "/rest/api/3/issue/TS-104"]
+    assert START_FIELD in asked[0]["query"]["fields"]
+
+
+def test_jira_card_without_a_start_date_field_is_not_asked_for_it(world, ws_config):  # noqa: F811
+    world.set_card("TS-104")
+    config = ws_config / "config.toml"
+    config.write_text(
+        config.read_text().replace(f'start_date_field = "{START_FIELD}"\n', ""), encoding="utf-8"
+    )
+
+    tracker = _tracker()
+    found = tracker.card("TS-104")
+
+    assert found.start is None
+    asked = [r for r in world.fake.requests if r["path"] == "/rest/api/3/issue/TS-104"]
+    assert START_FIELD not in asked[0]["query"]["fields"]
+    assert tracker.capabilities == JIRA_CAPABILITIES - {"start_date"}
+
+
+def test_jira_with_a_start_date_field_can_set_the_start(world):  # noqa: F811
+    assert _tracker().capabilities == JIRA_CAPABILITIES
+
+
+def test_jira_today_is_in_the_users_time_zone(world, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(
+        "ws.tracker.jira_adapter._now", lambda: datetime(2026, 11, 16, 1, 30, tzinfo=UTC)
+    )
+
+    assert _tracker().today() == date(2026, 11, 15)
+
+
+@pytest.mark.parametrize("zone", ["Not/AZone", None, ""])
+def test_jira_today_refuses_a_bad_or_missing_time_zone(world, zone):  # noqa: F811
+    world.set_myself(zone)
+
+    with pytest.raises(TrackerError, match="time zone"):
+        _tracker().today()
+
+
+def test_fake_tracker_has_today_and_start():
+    fake = FakeTracker([make_card("TS-1", start=date(2026, 11, 10))], today=date(2026, 11, 20))
+
+    assert isinstance(fake, Tracker)
+    assert fake.today() == date(2026, 11, 20)
+    assert FakeTracker().today() == date(2026, 11, 16)
+    assert fake.card("TS-1").start == date(2026, 11, 10)
+    assert make_card("TS-2").start is None
 
 
 def test_jira_card_is_read_once(world):  # noqa: F811

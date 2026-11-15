@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -39,11 +40,26 @@ class SubjectTooLong(Exception):
 
 
 def _git(
-    cwd: Path, *args: str, check: bool = True, input: str | None = None
+    cwd: Path,
+    *args: str,
+    check: bool = True,
+    input: str | None = None,
+    timeout: float | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False, input=input
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            input=input,
+            timeout=timeout,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise GitError(f"git {' '.join(args)}: timed out after {error.timeout:g}s") from error
     if check and result.returncode != 0:
         raise GitError(f"git {' '.join(args)}: {result.stderr.strip()}")
     return result
@@ -94,6 +110,145 @@ def _nothing_staged(repo: Path) -> bool:
     return _git(repo, "diff", "--cached", "--quiet", check=False).returncode == 0
 
 
+def dirty(repo: Path) -> bool:
+    """True when tracked files have uncommitted changes; untracked files do not count."""
+    return bool(_git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip())
+
+
+OPERATIONS = (
+    ("rebase-merge", "a rebase"),
+    ("rebase-apply", "a rebase"),
+    ("MERGE_HEAD", "a merge"),
+    ("CHERRY_PICK_HEAD", "a cherry-pick"),
+    ("REVERT_HEAD", "a revert"),
+    ("BISECT_LOG", "a bisect"),
+)
+
+
+def operation_in_progress(repo: Path) -> str | None:
+    """The rebase, merge, cherry-pick, revert or bisect the work tree is in the middle of, or None.
+
+    `git switch` refuses during most of them even on a clean tree, so a caller checks this before
+    switching any repo.
+    """
+    paths = [arg for marker, _ in OPERATIONS for arg in ("--git-path", marker)]
+    found = _git(repo, "rev-parse", *paths).stdout.splitlines()
+    for path, (_, name) in zip(found, OPERATIONS, strict=True):
+        if (repo / path).exists():
+            return name
+    return None
+
+
+FETCH_TIMEOUT_SECONDS = 60
+SSH_PROGRAMS = frozenset({"ssh", "ssh.exe"})
+SHELL_SYNTAX = re.compile(r"[;&|<>()$`#\n]")
+
+
+def _config(repo: Path, key: str) -> str | None:
+    found = _git(repo, "config", "--get", key, check=False)
+    return found.stdout.strip() if found.returncode == 0 else None
+
+
+def _batch_ssh(repo: Path) -> str | None:
+    """The user's ssh command plus `-o BatchMode=yes`, or None to leave it as it is.
+
+    Git picks GIT_SSH_COMMAND, then core.sshCommand, then GIT_SSH, then `ssh`. The option is added
+    only to OpenSSH (`ssh`, `ssh.exe`, as on WSL) on a plain command line; a wrapper, plink or
+    shell syntax is kept untouched, and GIT_TERMINAL_PROMPT=0 plus the timeout still apply.
+    """
+    command = os.environ.get("GIT_SSH_COMMAND") or _config(repo, "core.sshCommand")
+    if not command:
+        program = os.environ.get("GIT_SSH")
+        command = shlex.quote(program) if program else "ssh"
+    if SHELL_SYNTAX.search(command):
+        return None
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return None
+    if not words or os.path.basename(words[0]).lower() not in SSH_PROGRAMS:
+        return None
+    return f"{command} -o BatchMode=yes"
+
+
+def fetch(repo: Path, remote: str) -> None:
+    """Fetch without ever prompting (credentials, ssh host keys) and give up after 60 s."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    ssh = _batch_ssh(repo)
+    if ssh is not None:
+        env["GIT_SSH_COMMAND"] = ssh
+    _git(repo, "fetch", "--quiet", remote, timeout=FETCH_TIMEOUT_SECONDS, env=env)
+
+
+def _refuse_option_like(name: str) -> None:
+    if name.startswith("-"):
+        raise GitError(f"invalid branch name {name!r}: it would be read as an option")
+
+
+def has_ref(repo: Path, ref: str) -> bool:
+    return (
+        _git(repo, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", check=False).returncode
+        == 0
+    )
+
+
+def head(repo: Path) -> tuple[str, bool]:
+    """The current branch name, or the commit sha and True when HEAD is detached."""
+    branch = _git(repo, "branch", "--show-current").stdout.strip()
+    if branch:
+        return branch, False
+    return _git(repo, "rev-parse", "HEAD").stdout.strip(), True
+
+
+def local_branches(repo: Path) -> list[str]:
+    return _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads").stdout.splitlines()
+
+
+def remote_branches(repo: Path, remote: str) -> list[str]:
+    prefix = f"{remote}/"
+    refs = _git(
+        repo, "for-each-ref", "--format=%(refname:short)", f"refs/remotes/{remote}"
+    ).stdout.splitlines()
+    names = [ref.removeprefix(prefix) for ref in refs if ref.startswith(prefix)]
+    return [name for name in names if name != "HEAD"]
+
+
+def switch(repo: Path, branch: str) -> None:
+    _refuse_option_like(branch)
+    _git(repo, "switch", branch)
+
+
+def switch_new(repo: Path, branch: str, start: str, track: bool) -> None:
+    _refuse_option_like(branch)
+    _git(repo, "switch", "-c", branch, "--track" if track else "--no-track", start)
+
+
+def add_worktree(
+    repo: Path, path: Path, branch: str, start: str | None, track: bool = False
+) -> None:
+    """Check `branch` out in a new work tree: as it is (no `start`), or new from `start`.
+
+    `track` sets `start` (a remote branch's full ref) as the upstream explicitly, so neither
+    `branch.autoSetupMerge` nor a second remote holding the same name changes the result.
+    """
+    _refuse_option_like(branch)
+    if start is None:
+        _git(repo, "worktree", "add", str(path), branch)
+    else:
+        mode = "--track" if track else "--no-track"
+        _git(repo, "worktree", "add", mode, "-b", branch, str(path), start)
+
+
+def worktree_of(repo: Path, branch: str) -> Path | None:
+    """The path of the work tree that has `branch` checked out, or None."""
+    listing = _git(repo, "worktree", "list", "--porcelain").stdout
+    for block in listing.split("\n\n"):
+        lines = block.strip().splitlines()
+        if f"branch refs/heads/{branch}" in lines:
+            return Path(lines[0].removeprefix("worktree "))
+    return None
+
+
 def assemble(
     repo: Path, base: str, source: str, target: str, subjects: dict[str, str]
 ) -> list[str]:
@@ -118,10 +273,10 @@ def assemble(
         raise GitError(
             f"{base}..{source} has merge commits ({listed}); cherry-pick cannot replay them"
         )
-    if _git(repo, "status", "--porcelain", "--untracked-files=no").stdout.strip():
+    if dirty(repo):
         raise GitError("the work tree has uncommitted changes; commit or stash them first")
 
-    _git(repo, "switch", "-c", target, "--no-track", base)
+    switch_new(repo, target, base, track=False)
     for sha, final_subject in zip(shas, final_subjects, strict=True):
         picked = _git(repo, "cherry-pick", sha, check=False)
         if picked.returncode != 0:

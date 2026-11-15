@@ -1029,6 +1029,67 @@ def test_preview_with_a_problem_writes_no_record_and_exits_1(world, capsys):
     assert pending_files() == []
 
 
+def test_preview_returns_text_and_code(world, capsys):
+    path = make_draft("m.md", "move", key="TS-101", to="em validação")
+
+    result = card.preview(str(path))
+
+    assert capsys.readouterr().out == ""
+    assert result.status == 0
+    assert result.code is not None and len(result.code) == 12
+    assert set(result.code) <= set("0123456789abcdef")
+    assert result.text.splitlines()[-1].startswith("Para aplicar:")
+    assert f"Código de aprovação: {result.code}" in result.text
+    assert card.run_preview(str(path)) == 0
+    assert capsys.readouterr().out == result.text
+
+
+def test_preview_refused_has_no_code(world):
+    result = card.preview(str(create_draft(priority="Urgent")))
+
+    assert result.status == 1
+    assert result.code is None
+    assert result.text.startswith("Nada foi enviado")
+
+
+def test_write_draft_overwrites_in_the_drafts_root(world):
+    path = card.write_draft("start.md", "one")
+
+    assert path == (data_dir() / "cards" / "drafts" / "start.md").resolve()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert card.write_draft("start.md", "two") == path
+    assert path.read_text(encoding="utf-8") == "two"
+    path.unlink()
+    path.symlink_to(path.parent / "elsewhere.md")
+    with pytest.raises(DraftError):
+        card.write_draft("start.md", "three")
+    path.unlink()
+    path.mkdir()
+    with pytest.raises(DraftError):
+        card.write_draft("start.md", "four")
+    for name in ("a/b.md", "x.txt", "../x.md", "bad name.md"):
+        with pytest.raises(ValueError):
+            card.write_draft(name, "x")
+
+
+def test_write_draft_never_writes_through_a_stale_temp_file(world, tmp_path, monkeypatch):
+    drafts = card.write_draft("start.md", "one").parent
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep\n", encoding="utf-8")
+    temporary = drafts / ".start.md.tmp"
+    temporary.symlink_to(outside)
+    synced = []
+    real_fsync = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: synced.append(fd) or real_fsync(fd))
+
+    path = card.write_draft("start.md", "two")
+
+    assert path.read_text(encoding="utf-8") == "two"
+    assert outside.read_text(encoding="utf-8") == "keep\n"
+    assert not temporary.exists() and not temporary.is_symlink()
+    assert len(synced) == 1
+
+
 def test_apply_without_approve_is_an_error_and_there_is_no_dry_run_flag(world, capsys):
     path = create_draft()
 

@@ -1,6 +1,7 @@
 """The Jira adapter of the tracker port: cards read through the REST API."""
 
-from datetime import date
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ws import jira
 from ws.jira import JiraClient, JiraError
@@ -33,14 +34,20 @@ _BASE_FIELDS = [
 ]
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 class JiraTracker:
     kind = "jira"
-    capabilities = JIRA_CAPABILITIES
 
     def __init__(self, client: JiraClient, settings: JiraConfig):
         self._client = client
         self._settings = settings
-        self._me: str | None = None
+        self.capabilities = (
+            JIRA_CAPABILITIES if settings.start_date_field else JIRA_CAPABILITIES - {"start_date"}
+        )
+        self._myself: dict | None = None
         self._cards: dict[str, Card | None] = {}
         self._names: dict[str, str] = {}
 
@@ -48,15 +55,30 @@ class JiraTracker:
         names = list(_BASE_FIELDS)
         if self._settings.sprint_field:
             names.append(self._settings.sprint_field)
+        if self._settings.start_date_field:
+            names.append(self._settings.start_date_field)
         return names
 
-    def me(self) -> str:
-        if self._me is None:
+    def _account_data(self) -> dict:
+        if self._myself is None:
             try:
-                self._me = self._client.myself()["accountId"]
+                data = self._client.myself()
+                if not data["accountId"]:
+                    raise ValueError("myself answered without an account id")
             except (JiraError, KeyError, TypeError, ValueError) as error:
                 raise TrackerError(str(error)) from None
-        return self._me
+            self._myself = data
+        return self._myself
+
+    def me(self) -> str:
+        return self._account_data()["accountId"]
+
+    def today(self) -> date:
+        zone = self._account_data().get("timeZone")
+        try:
+            return _now().astimezone(ZoneInfo(zone)).date()
+        except (ZoneInfoNotFoundError, ValueError, TypeError, OSError) as error:
+            raise TrackerError(f"unusable tracker time zone {zone!r}: {error}") from None
 
     def card(self, ref: str) -> Card | None:
         if ref in self._cards:
@@ -115,6 +137,7 @@ class JiraTracker:
         by_id = {type_id: neutral for neutral, type_id in settings.types.items()}
         level = kind.get("hierarchyLevel")
         due = fields.get("duedate")
+        start = fields.get(settings.start_date_field) if settings.start_date_field else None
         return Card(
             ref=jira._required(issue, "key", "issue"),
             title=jira._required(fields, "summary", "issue fields"),
@@ -130,6 +153,7 @@ class JiraTracker:
                 fields.get(settings.sprint_field) if settings.sprint_field else None
             ),
             links=self._links(fields.get("issuelinks") or []),
+            start=date.fromisoformat(start[:10]) if start else None,
         )
 
     @staticmethod

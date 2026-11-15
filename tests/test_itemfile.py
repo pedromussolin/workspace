@@ -298,3 +298,24 @@ def test_docs_are_relative_paths_inside_the_project(tmp_path):
 def test_a_non_string_status_is_a_problem_not_a_crash(tmp_path):
     out = problems(tmp_path, 'tracker = false\nstatus = ["done"]\n')
     assert any(p.startswith("status must be one of") for p in out)
+
+
+def test_schema_accepts_repos(tmp_path):
+    front = valid('repos = ["acme-api", "acme-front"]\n')
+    assert problems(tmp_path, front) == []
+    assert item_of(tmp_path, front).repos == ["acme-api", "acme-front"]
+    assert problems(tmp_path, valid("repos = []\n")) == []
+    assert item_of(tmp_path, valid("repos = []\n")).repos == []
+    assert item_of(tmp_path, valid()).repos is None
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        ('"acme-api"', "repos must be a list"),
+        ('["../x"]', "repos: '../x' is not a repo name"),
+        ('["a/b"]', "repos: 'a/b' is not a repo name"),
+    ],
+)
+def test_schema_refuses_bad_repos(tmp_path, value, text):
+    assert text in problems(tmp_path, valid(f"repos = {value}\n"))

@@ -515,3 +515,239 @@ def test_cli_defaults_repo_to_current_git_toplevel(repo, monkeypatch, capsys):
 
     assert code == 0
     assert (config.cache_dir() / "merge-rehearsal" / "acme").is_dir()
+
+
+@pytest.fixture
+def cloned(tmp_path, repo) -> tuple[Path, Path]:
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(repo), str(origin)], check=True)
+    work = tmp_path / "work"
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+    git(work, "config", "user.name", "Test")
+    git(work, "config", "user.email", "test@example.com")
+    git(work, "config", "commit.gpgsign", "false")
+    return origin, work
+
+
+def test_dirty_ignores_untracked_files(repo):
+    assert gittools.dirty(repo) is False
+    (repo / "new.txt").write_text("x\n")
+    assert gittools.dirty(repo) is False
+    (repo / "a.txt").write_text("changed\n")
+    assert gittools.dirty(repo) is True
+
+
+def test_fetch_then_has_ref(cloned):
+    origin, work = cloned
+    commit(work, "b.txt", "b\n", "feat: b")
+    git(work, "push", "-q", "origin", "main")
+    other = origin.parent / "other"
+    subprocess.run(["git", "clone", "-q", str(origin), str(other)], check=True)
+    git(other, "config", "user.name", "Test")
+    git(other, "config", "user.email", "test@example.com")
+    git(other, "config", "commit.gpgsign", "false")
+    sha = commit(other, "c.txt", "c\n", "feat: c")
+    git(other, "push", "-q", "origin", "main")
+
+    assert gittools.has_ref(work, sha) is False
+    gittools.fetch(work, "origin")
+    assert git(work, "rev-parse", "origin/main") == sha
+    assert gittools.has_ref(work, "origin/main") is True
+    assert gittools.has_ref(work, "origin/nope") is False
+
+
+def test_fetch_failure_is_a_git_error(cloned, tmp_path):
+    _, work = cloned
+    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+    with pytest.raises(gittools.GitError):
+        gittools.fetch(work, "origin")
+
+
+def test_head_names_the_branch_or_the_detached_sha(repo):
+    assert gittools.head(repo) == ("main", False)
+    sha = git(repo, "rev-parse", "HEAD")
+    git(repo, "switch", "-q", "--detach")
+    assert gittools.head(repo) == (sha, True)
+
+
+def test_local_and_remote_branches(cloned):
+    _, work = cloned
+    branch_from_main(work, "feat/local")
+    git(work, "push", "-q", "origin", "feat/local:feat/remote")
+    gittools.fetch(work, "origin")
+
+    assert gittools.local_branches(work) == ["feat/local", "main"]
+    assert gittools.remote_branches(work, "origin") == ["feat/remote", "main"]
+
+
+def test_switch_new_does_not_track(cloned):
+    _, work = cloned
+    gittools.switch_new(work, "feat/x", "origin/main", track=False)
+    assert gittools.head(work) == ("feat/x", False)
+    assert (
+        subprocess.run(
+            ["git", "config", "branch.feat/x.merge"], cwd=work, capture_output=True, check=False
+        ).stdout
+        == b""
+    )
+    gittools.switch(work, "main")
+    assert gittools.head(work) == ("main", False)
+
+
+def test_switch_new_with_track_sets_the_upstream(cloned):
+    _, work = cloned
+    gittools.switch_new(work, "feat/x", "origin/main", track=True)
+    assert git(work, "config", "branch.feat/x.merge") == "refs/heads/main"
+
+
+def test_add_worktree_new_and_existing_branch(cloned, tmp_path):
+    _, work = cloned
+    new = tmp_path / "wt-new"
+    gittools.add_worktree(work, new, "feat/new", "origin/main")
+    assert git(new, "branch", "--show-current") == "feat/new"
+    assert (
+        subprocess.run(
+            ["git", "config", "branch.feat/new.merge"], cwd=work, capture_output=True, check=False
+        ).stdout
+        == b""
+    )
+
+    branch_from_main(work, "feat/old")
+    git(work, "switch", "-q", "main")
+    old = tmp_path / "wt-old"
+    gittools.add_worktree(work, old, "feat/old", None)
+    assert git(old, "branch", "--show-current") == "feat/old"
+
+
+def test_add_worktree_track_sets_the_upstream_whatever_the_config_and_remotes(cloned, tmp_path):
+    origin, work = cloned
+    git(work, "push", "-q", "origin", "main:feat/remote")
+    second = tmp_path / "second.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(origin), str(second)], check=True)
+    git(work, "remote", "add", "second", str(second))
+    git(work, "fetch", "-q", "--all")
+    git(work, "config", "branch.autoSetupMerge", "false")
+    tree = tmp_path / "wt"
+
+    gittools.add_worktree(work, tree, "feat/remote", "refs/remotes/origin/feat/remote", track=True)
+
+    assert git(tree, "branch", "--show-current") == "feat/remote"
+    assert git(work, "rev-parse", "--abbrev-ref", "feat/remote@{upstream}") == "origin/feat/remote"
+
+
+def stop_in(repo: Path, *args: str) -> None:
+    """Run a git command expected to stop half-way (a conflict, a failing exec)."""
+    subprocess.run(["git", *args], cwd=repo, capture_output=True, check=False)
+
+
+@pytest.mark.parametrize(
+    ("setup", "operation"),
+    [
+        ([("switch", "-q", "feat/one"), ("rebase", "feat/two")], "a rebase"),
+        ([("switch", "-q", "feat/one"), ("rebase", "--apply", "feat/two")], "a rebase"),
+        ([("switch", "-q", "feat/one"), ("merge", "feat/two")], "a merge"),
+        ([("switch", "-q", "feat/one"), ("cherry-pick", "feat/two")], "a cherry-pick"),
+        ([("switch", "-q", "feat/one"), ("revert", "--no-edit", "feat/two")], "a revert"),
+        ([("bisect", "start")], "a bisect"),
+    ],
+)
+def test_operation_in_progress_names_what_the_repo_is_in_the_middle_of(
+    repo, conflicting_branches, setup, operation
+):
+    assert gittools.operation_in_progress(repo) is None
+    for args in setup:
+        stop_in(repo, *args)
+
+    assert gittools.operation_in_progress(repo) == operation
+
+
+def test_operation_in_progress_sees_a_rebase_stopped_on_a_clean_tree(repo):
+    commit(repo, "b.txt", "b\n", "feat: b")
+    stop_in(repo, "rebase", "--exec", "false", "--root")
+
+    assert gittools.dirty(repo) is False
+    assert gittools.operation_in_progress(repo) == "a rebase"
+
+
+def test_worktree_of_finds_the_checkout(cloned, tmp_path):
+    _, work = cloned
+    linked = tmp_path / "wt"
+    gittools.add_worktree(work, linked, "feat/wt", "origin/main")
+
+    assert gittools.worktree_of(work, "feat/wt") == linked.resolve()
+    assert gittools.worktree_of(work, "main") == work.resolve()
+    assert gittools.worktree_of(work, "feat/none") is None
+
+
+@pytest.fixture
+def fetch_call(monkeypatch) -> dict:
+    """The keyword arguments `git fetch` ran with; the fetch itself times out, other git runs."""
+    seen: dict = {}
+    real_run = subprocess.run
+    for name in ("GIT_SSH_COMMAND", "GIT_SSH"):
+        monkeypatch.delenv(name, raising=False)
+
+    def fake_run(command, **kwargs):
+        if "fetch" not in command:
+            return real_run(command, **kwargs)
+        seen.update(kwargs)
+        raise subprocess.TimeoutExpired(cmd="git fetch", timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    return seen
+
+
+def test_fetch_times_out_as_a_git_error_without_prompting(repo, fetch_call):
+    with pytest.raises(gittools.GitError, match="timed out"):
+        gittools.fetch(repo, "origin")
+    assert fetch_call["timeout"] == 60
+    assert fetch_call["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert fetch_call["env"]["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes"
+
+
+WINDOWS_SSH = "/mnt/c/Windows/System32/OpenSSH/ssh.exe"
+
+
+@pytest.mark.parametrize(
+    ("environment", "config", "expected"),
+    [
+        ({}, f'"{WINDOWS_SSH}" -i ~/.ssh/work', f'"{WINDOWS_SSH}" -i ~/.ssh/work -o BatchMode=yes'),
+        (
+            {"GIT_SSH_COMMAND": "ssh -i /k/env"},
+            "ssh -i /k/config",
+            "ssh -i /k/env -o BatchMode=yes",
+        ),
+        ({"GIT_SSH_COMMAND": "plink -batch"}, None, "plink -batch"),
+        ({}, "ssh -i key; echo hi", None),
+        ({}, "ssh 'unclosed", None),
+        ({"GIT_SSH": WINDOWS_SSH}, None, f"{WINDOWS_SSH} -o BatchMode=yes"),
+        ({"GIT_SSH": "/usr/bin/plink"}, None, None),
+    ],
+)
+def test_fetch_keeps_the_users_ssh_command(
+    repo, fetch_call, monkeypatch, environment, config, expected
+):
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    if config is not None:
+        git(repo, "config", "core.sshCommand", config)
+
+    with pytest.raises(gittools.GitError):
+        gittools.fetch(repo, "origin")
+
+    assert fetch_call["env"].get("GIT_SSH_COMMAND") == expected
+    assert fetch_call["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert fetch_call["timeout"] == 60
+
+
+def test_switch_refuses_a_branch_name_that_looks_like_an_option(repo):
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.switch(repo, "--detach")
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.switch_new(repo, "-x", "main", track=False)
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.add_worktree(repo, repo.parent / "wt", "--detach", None)
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.assemble(repo, "main", "main", "-x", {})
+    assert gittools.head(repo) == ("main", False)
+    assert not (repo.parent / "wt").exists()
