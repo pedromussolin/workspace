@@ -1999,9 +1999,10 @@ def test_card_gate_problems_report_disable_all_hooks_in_the_project_settings(
     assert str(path) in problem
 
 
-def test_release_gate_problems_name_what_is_missing(tmp_path):
+def test_release_gate_problems_name_what_is_missing(env, tmp_path, monkeypatch):
     from ws.bootstrap import RELEASE_ASK_RULES, release_gate_problems
 
+    monkeypatch.setenv("WS_REPO_ROOT", str(env.repo))
     settings = tmp_path / "settings.json"
     settings.write_text("{}", encoding="utf-8")
     problems = release_gate_problems(settings)

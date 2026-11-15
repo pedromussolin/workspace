@@ -284,11 +284,11 @@ def script_word(args: list[Word]) -> Word | None:
     """The `-c` script of a shell command as a word, so its expansion flags are known."""
     if shell_script([word.text for word in args]) is None:
         return None
-    index = next(i for i, word in enumerate(args) if _is_c_flag(word.text))
+    index = next(i for i, word in enumerate(args) if is_c_flag(word.text))
     return args[index + 1]
 
 
-def _is_c_flag(arg: str) -> bool:
+def is_c_flag(arg: str) -> bool:
     return arg.startswith("-") and not arg.startswith("--") and "c" in arg[1:]
 
 
@@ -704,6 +704,8 @@ def _walk(text: str, result: Scan, depth: int) -> None:
                 _walk(" ".join(texts), result, depth + 1)
             elif PYTHON.fullmatch(name):
                 code = shell_script(texts)
+                if code is None and command.here_string is not None:
+                    code = command.here_string
                 if code is not None:
                     result.scripts.append(code)
     for inner in substitutions(kept):

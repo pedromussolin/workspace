@@ -1435,12 +1435,22 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     jira = kind == "card"
     title_fallback = TITLE_JIRA if jira else TITLE_GITHUB
     code = None
+    code_expands = False
     for index, word in enumerate(args):
         flag, equals, value = word.text.partition("=")
         if len(flag) > 2 and "--approve".startswith(flag):
-            code = value if equals else (args[index + 1].text if index + 1 < len(args) else "")
+            if equals:
+                code, code_expands = value, word.expands
+            elif index + 1 < len(args):
+                code, code_expands = args[index + 1].text, args[index + 1].expands
+            else:
+                code, code_expands = "", False
     if code is None:
         return [_found(title_fallback, "Falta o --approve; o ws vai recusar", _snippet(texts))]
+    if code_expands:
+        done = "aplicado" if jira else "publicado"
+        reason = f"O código vem de uma variável ou comando; não sei o que será {done}"
+        return [_found(TITLE_UNSURE, reason, _snippet(texts))]
     if not APPROVE_CODE.fullmatch(code):
         return [_found(title_fallback, "Código de aprovação inválido; o ws vai recusar", code)]
     if changed := _store_change(scan):
@@ -1470,6 +1480,34 @@ def _python_ws(args: list[Word]) -> list[tuple[str, list[Word]]]:
     return []
 
 
+def _python_reads_stdin(command: Command, args: list[Word]) -> bool:
+    """A Python that takes its code from a pipe or a file the gate cannot read."""
+    if not (command.piped or command.reads_file):
+        return False
+    return all(word.text.startswith("-") and "m" not in word.text[1:] for word in args)
+
+
+def _python_after_code(args: list[Word]) -> list[Word]:
+    """The words after the `-c` code of a Python that imports `ws`: they go to `ws main()`."""
+    texts = [word.text for word in args]
+    code = shell.shell_script(texts)
+    if code is None or not WS_IMPORT.search(code):
+        return []
+    index = next(i for i, text in enumerate(texts) if shell.is_c_flag(text))
+    return args[index + 2 :]
+
+
+def _python_module_is_deep(args: list[Word]) -> bool:
+    """`python -m ws.release.publish`: a module of `ws` below a subpackage runs its own `main`."""
+    for index, word in enumerate(args):
+        if word.text == "-m" and index + 1 < len(args):
+            module = args[index + 1].text
+            return module.startswith("ws.") and module.count(".") > 1
+        if not word.text.startswith("-"):
+            break
+    return False
+
+
 def _reads_unseen_commands(command: Command, name: str, args: list[Word]) -> str | None:
     """Why a shell or `eval` runs text the gate cannot read, or None."""
     if name == "eval":
@@ -1494,9 +1532,16 @@ def _invocation(
     if reason := _reads_unseen_commands(command, name, args):
         return [_unsure(texts, reason)]
     if shell.PYTHON.fullmatch(name):
+        if _python_reads_stdin(command, args):
+            return [_unsure(texts, "O Python recebe o código por pipe ou arquivo")]
+        if _python_module_is_deep(args):
+            return [_unsure(texts, "Módulo do ws chamado direto; não sei o que será feito")]
+        calls = _python_ws(args)
+        if rest := _python_after_code(args):
+            calls.append(("ws", rest))
         return [
             finding
-            for inner, inner_args in _python_ws(args)
+            for inner, inner_args in calls
             for finding in _invocation(command, inner, inner_args, cwd, scan)
         ]
     if name not in WATCHED:
@@ -1822,19 +1867,43 @@ def _applies_card(code: str) -> bool:
     return bool(WS_IMPORT.search(code)) and "card" in code and "apply" in code
 
 
+RELEASE_WRITE_NAME = re.compile(r"\b(?:run_publish|run_move)\b")
+RELEASE_WRITE_WORD = re.compile(r"\b(?:publish|move)\b")
+RUNTIME_NAME = re.compile(
+    r"\b(?:import_module|__import__)\(\s*(?!['\"][\w.]*['\"]\s*[,)])"
+    r"|\bgetattr\((?:[^,()]|\([^()]*\))*,\s*(?!['\"]\w*['\"]\s*[,)])"
+)
+WS_FRAGMENT = re.compile(r"['\"]ws[.'\"]")
+
+
 def _writes_release(code: str) -> bool:
     """Python that may publish or move a release: it names `run_publish` or `run_move`, or
     imports `ws` and names `release` with `publish` or `move`."""
-    if "run_publish" in code or "run_move" in code:
+    if RELEASE_WRITE_NAME.search(code):
         return True
     return (
-        bool(WS_IMPORT.search(code)) and "release" in code and ("publish" in code or "move" in code)
+        bool(WS_IMPORT.search(code))
+        and bool(re.search(r"\brelease\b", code))
+        and bool(RELEASE_WRITE_WORD.search(code))
     )
+
+
+def _builds_ws_names(code: str) -> bool:
+    """Python that reaches `ws` and builds a module or attribute name at run time, so no
+    substring check can tell what it calls."""
+    imports_ws = bool(WS_IMPORT.search(code)) or (
+        ("importlib" in code or "__import__" in code) and bool(WS_FRAGMENT.search(code))
+    )
+    return imports_ws and bool(RUNTIME_NAME.search(code))
 
 
 def _script_findings(scan: Scan) -> list[Finding]:
     found = []
     for code in scan.scripts:
+        if _builds_ws_names(code):
+            found.append(
+                _found(TITLE_UNSURE, "Python que chama o ws com nomes montados na execução", code)
+            )
         if _writes_release(code):
             found.append(
                 _found(

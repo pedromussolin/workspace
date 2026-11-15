@@ -2675,3 +2675,138 @@ def test_release_without_a_record_is_denied(env):
 
 def test_release_without_approve_says_the_ws_will_refuse(env):
     assert "Falta o --approve" in box("ws release publish d", env)
+
+
+IMPORT_PUBLISH = "from ws.release import publish; publish.run_publish(1)"
+MAIN = "from ws.cli import main; main()"
+UNSURE = "Não sei o que este comando faz"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f'python3 - <<< "{IMPORT_PUBLISH}"',
+        f"echo '{IMPORT_PUBLISH}' | python3",
+        f"echo '{IMPORT_PUBLISH}' | python3 -",
+        "python3 < run.py",
+        'python3 - <<< "from ws.card import run_apply; run_apply(1, 2, 3)"',
+        "echo 'import ws.card as c; c.run_apply(1)' | python3",
+    ],
+)
+def test_python_fed_by_stdin_is_read_or_asked(command, env):
+    assert box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f'python3 -c "{MAIN}" release move a b --reason x --approve {CODE}',
+        f'uv run python -c "{MAIN}" release publish d --approve {CODE}',
+        f'python3 -c "{MAIN}" card apply d --approve {CODE}',
+    ],
+)
+def test_arguments_after_python_c_are_judged_as_ws(command, env):
+    assert "no GitHub" in box(command, env) or "no Jira" in box(command, env)
+
+
+def test_arguments_after_python_c_without_a_record_are_denied(env):
+    found = decision(f'python3 -c "{MAIN}" release publish d --approve {"1" * 12}', env)
+
+    assert found["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'ws release publish d --approve "$(cat /tmp/code)"',
+        'ws release move a b --approve="$(cat /tmp/code)"',
+        'ws card apply d --approve "$(cat /tmp/code)"',
+        'ws card apply d --approve "$CODE"',
+    ],
+)
+def test_a_code_from_the_runtime_asks_as_unsure(command, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "O código vem de uma variável ou comando" in lines[1]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "import importlib as i; m=i.import_module('ws.rel'+'ease.pub'+'lish'); "
+        "getattr(m,'run_pub'+'lish')(1)",
+        "import ws; getattr(ws, name)(1)",
+        "import ws; __import__('ws.' + x)",
+    ],
+)
+def test_python_that_builds_ws_names_at_run_time_asks(code, env):
+    assert box(f'python3 -c "{code}"', env).splitlines()[0] == UNSURE
+
+
+def test_python_that_does_not_touch_ws_passes_even_with_getattr(env):
+    assert box('python3 -c "print(getattr(object, name))"', env) is None
+    assert box("python3 -c \"import ws; ws.version('x')\"", env) is None
+
+
+def test_remove_is_not_move(env):
+    assert box('python3 -c "import ws; ws.release_notes.remove(1)"', env) is None
+    assert box('python3 -c "from ws import release; release.move_x(1)"', env) is None
+    assert box('python3 -c "from ws import release; release.move(1)"', env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -m ws.release.publish d --approve " + CODE,
+        "python3 -m ws.release.move a b --approve " + CODE,
+        "python3 -m ws.card.apply d --approve " + CODE,
+    ],
+)
+def test_deep_ws_modules_ask_as_unsure(command, env):
+    assert box(command, env).splitlines()[0] == UNSURE
+
+
+@pytest.mark.parametrize(
+    ("command", "title"),
+    [
+        (f"ws release publish 20261120 --approve {CODE}", f"Publica a prévia {CODE} no GitHub"),
+        (f"uv run ws release publish d --approve={CODE}", f"Publica a prévia {CODE} no GitHub"),
+        (
+            f"python3 -m ws release move a b --reason x --approve {CODE}",
+            f"Move a release (prévia {CODE}) no GitHub",
+        ),
+        (
+            f"bash -c 'ws release publish d --approve {CODE}'",
+            f"Publica a prévia {CODE} no GitHub",
+        ),
+    ],
+)
+def test_release_asks_show_the_exact_title(command, title, env):
+    assert box(command, env).splitlines()[0] == title
+
+
+def test_release_with_an_invalid_code_asks(env):
+    assert "inválido" in box("ws release publish d --approve nothex", env)
+
+
+def test_release_that_may_read_another_store_asks_and_says_why(env):
+    lines = box(f"WS_DATA_DIR=/tmp/x ws release publish d --approve {CODE}", env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "Pode mudar a pasta" in lines[1]
+
+
+def test_release_with_an_unreadable_record_is_denied(env):
+    (Path(env["WS_DATA_DIR"]) / "release" / "pending" / f"{CODE}.json").write_text("{", "utf-8")
+    found = decision(f"ws release publish d --approve {CODE}", env)
+
+    assert found["permissionDecision"] == "deny"
+    assert found["permissionDecisionReason"].startswith("Blocked: the pending release preview")
+
+
+@pytest.mark.parametrize("record", [{"summary": []}, {"code": CODE}, {"summary": [1]}])
+def test_release_with_an_empty_summary_still_asks(record, env):
+    write_release_pending(env, CODE, record)
+
+    assert "A prévia não tem resumo" in box(f"ws release publish d --approve {CODE}", env)
