@@ -1,5 +1,6 @@
 """`ws review pack`: the review package of a card, read-only on its repos, private on disk."""
 
+import hashlib
 import json
 import os
 import shlex
@@ -13,6 +14,7 @@ import pytest
 from fake_tracker import FakeTracker, make_card
 from test_card_start import Roots
 
+from ws import reviewpack
 from ws.cli import main
 from ws.config import data_dir
 from ws.taskmodel import Status
@@ -31,6 +33,7 @@ C3 = f"{VERSIONS}/0003_lote.py"
 ROUTE = "app/api/routes/lote.py"
 TEST = "tests/test_lote.py"
 TEST_TEXT = "def test_lote():\n    assert True\n"
+DIFF_FLAGS = "-c diff.autoRefreshIndex=false diff --no-ext-diff --no-textconv -M"
 THREE_WAYS = (
     "no repos for TS-5: pass --repo NAME, add repos = [...] to its item under "
     "projects/<slug>/tasks/, or list a title prefix in [board.prefix_repos]"
@@ -59,6 +62,7 @@ REPO_KEYS = [
     "fetched",
     "merge_base",
     "diff_command",
+    "diff_file",
     "commits",
     "files",
     "by_category",
@@ -203,7 +207,14 @@ def test_pack_collects_the_task_branch(env, capsys):
     assert repo["worktree"] == str(path)
     assert (repo["branch"], repo["base"], repo["base_ref"]) == (BRANCH, "master", "origin/master")
     assert (repo["fetched"], repo["merge_base"]) == (True, merge_base)
-    assert repo["diff_command"] == f"git -C {shlex.quote(str(path))} diff -M {merge_base}"
+    assert repo["diff_command"] == f"git -C {shlex.quote(str(path))} {DIFF_FLAGS} {merge_base}"
+    diff_file = folder() / "acme-api.diff"
+    assert repo["diff_file"] == str(diff_file)
+    assert stat.S_IMODE(diff_file.stat().st_mode) == 0o600
+    patch = diff_file.read_text(encoding="utf-8")
+    assert f"diff --git a/{C3} b/{C3}\nnew file mode 100644\n" in patch
+    assert "-    return 17\n+    return 18\n" in patch
+    assert f"diff --git a/{TEST} b/{TEST}\nnew file mode 100644\n" in patch
     assert repo["commits"] == [{"sha": env.sha("acme-api"), "subject": "add the lote migration"}]
     changes = files(repo)
     assert list(changes[C3]) == FILE_KEYS
@@ -244,6 +255,7 @@ def test_pack_writes_private_files_and_overwrites(env, capsys):
     assert json.loads(pack_file.read_text(encoding="utf-8")) == out
 
     (target / "review.md").write_text("# Revisão antiga\n", encoding="utf-8")
+    (target / "acme-front.diff").write_text("old\n", encoding="utf-8")
     env.write(path, {TEST: TEST_TEXT})
     code, again, _ = pack(capsys, "TS-5")
 
@@ -251,7 +263,8 @@ def test_pack_writes_private_files_and_overwrites(env, capsys):
     assert TEST in files(repo_of(again))
     assert json.loads(pack_file.read_text(encoding="utf-8")) == again
     assert stat.S_IMODE(pack_file.stat().st_mode) == 0o600
-    assert sorted(p.name for p in target.iterdir()) == ["pack.json"]
+    assert sorted(p.name for p in target.iterdir()) == ["acme-api.diff", "pack.json"]
+    assert TEST in (target / "acme-api.diff").read_text(encoding="utf-8")
 
 
 def test_pack_env_var_added(env, capsys):
@@ -317,7 +330,10 @@ def test_pack_reads_the_branch_in_another_worktree(env, capsys):
     assert files(repo)[ROUTE]["stages"] == ["unstaged"]
     assert files(repo)[ROUTE]["abs_path"] == str(worktree / ROUTE)
     assert repo["env"] == {"added": [], "removed": []}
-    assert repo["diff_command"].startswith(f"git -C {shlex.quote(str(worktree))} diff -M ")
+    assert repo["diff_command"].startswith(f"git -C {shlex.quote(str(worktree))} {DIFF_FLAGS} ")
+    patch = Path(repo["diff_file"]).read_text(encoding="utf-8")
+    assert "+    return 18\n" in patch
+    assert "README" not in patch and "mine.py" not in patch
     assert env.current("acme-api") == "master"
 
 
@@ -337,8 +353,11 @@ def test_pack_branch_checked_out_nowhere_warns(env, capsys):
         (TEST, ["committed"], None),
     ]
     assert repo["diff_command"] == (
-        f"git -C {shlex.quote(str(path))} diff -M {repo['merge_base']} {BRANCH}"
+        f"git -C {shlex.quote(str(path))} {DIFF_FLAGS} {repo['merge_base']} {BRANCH}"
     )
+    patch = Path(repo["diff_file"]).read_text(encoding="utf-8")
+    assert "+CUTOFF = 18\n" in patch
+    assert "dirty" not in patch.lower()
     assert out["warnings"] == [
         f"acme-api: {BRANCH} is not checked out in any work tree; only its commits are read "
         "and abs_path is null"
@@ -357,6 +376,8 @@ def test_pack_repo_without_task_branch_is_a_problem(env, capsys):
     assert problem.startswith("acme-front: ") and "ws card start TS-5" in problem
     front = repo_of(out, "acme-front")
     assert (front["branch"], front["merge_base"], front["files"]) == (None, None, [])
+    assert front["diff_file"] is None
+    assert not (folder() / "acme-front.diff").exists()
     assert list(files(repo_of(out))) == [TEST]
     assert json.loads((folder() / "pack.json").read_text(encoding="utf-8")) == out
 
@@ -596,6 +617,7 @@ def test_pack_binary_files_are_counted_and_never_read(env, capsys):
 
 
 def snapshot(env: PackWorld, *paths: Path) -> list[tuple[str, ...]]:
+    """The index bytes first, then reads that never refresh the index (no optional locks)."""
     reads = (
         ("rev-parse", "HEAD"),
         ("branch", "--show-current"),
@@ -604,7 +626,20 @@ def snapshot(env: PackWorld, *paths: Path) -> list[tuple[str, ...]]:
         ("worktree", "list", "--porcelain"),
         ("for-each-ref", "refs/heads"),
     )
-    return [tuple(env.git(path, *read).stdout for read in reads) for path in paths]
+    found = []
+    for path in paths:
+        index = path / env.git(path, "rev-parse", "--git-path", "index").stdout.strip()
+        digest = hashlib.sha256(index.read_bytes()).hexdigest()
+        found.append(
+            (digest, *(env.git(path, "--no-optional-locks", *read).stdout for read in reads))
+        )
+    return found
+
+
+def stale(*files: Path) -> None:
+    """Same content, another timestamp: a plain `git diff` would rewrite the index."""
+    for file in files:
+        os.utime(file, (1_000_000_000, 1_000_000_000))
 
 
 def test_pack_never_changes_the_repos(env, capsys):
@@ -621,6 +656,7 @@ def test_pack_never_changes_the_repos(env, capsys):
     env.git(front, "worktree", "add", "-q", "-b", BRANCH, str(tree), "origin/master")
     env.write(tree, {"src/app/lote.ts": "export const lote = 1;\n"})
     env.write(front, {"README.md": "dirty on master\n"})
+    stale(api / "README.md", api / A1, tree / "README.md")
     before = snapshot(env, api, front, tree)
 
     code, out, _ = pack(capsys, "TS-5", "--repo", "acme-api", "--repo", "acme-front")
@@ -634,6 +670,85 @@ def test_pack_never_changes_the_repos(env, capsys):
         ROUTE: ["unstaged"],
         TEST: ["untracked"],
     }
+    patch = Path(repo_of(out)["diff_file"]).read_text(encoding="utf-8")
+    assert "+CUTOFF = 18\n" in patch and "+ROUTE = 2\n" in patch and "+BATCH = 1\n" in patch
+    assert "README" not in patch
+    front_patch = Path(repo_of(out, "acme-front")["diff_file"]).read_text(encoding="utf-8")
+    assert "+export const lote = 1;\n" in front_patch
+    assert not list((env.tmp / "data").glob(".review-index-*"))
+
+
+def test_pack_reads_another_remote(env, capsys):
+    config = env.config_dir / "config.toml"
+    text = config.read_text(encoding="utf-8")
+    assert 'remote = "origin"' in text
+    config.write_text(text.replace('remote = "origin"', 'remote = "upstream"'), encoding="utf-8")
+    path = env.task_branch()
+    env.git(path, "remote", "rename", "origin", "upstream")
+    env.commit(path, {TEST: TEST_TEXT})
+
+    code, out, _ = pack(capsys, "TS-5")
+
+    repo = repo_of(out)
+    assert (code, out["problems"]) == (0, [])
+    assert (repo["base_ref"], repo["fetched"]) == ("upstream/master", True)
+    assert repo["merge_base"] == env.sha("acme-api", "upstream/master")
+    assert list(files(repo)) == [TEST]
+
+
+def test_pack_type_change_is_read(env, capsys):
+    env.on_master("acme-api", {"app/core/link.py": "LINK = 1\n", "app/core/real.py": "R = 1\n"})
+    path = env.task_branch()
+    (path / "app/core/link.py").unlink()
+    (path / "app/core/link.py").symlink_to("real.py")
+    env.write(path, {TEST: TEST_TEXT})
+
+    code, out, _ = pack(capsys, "TS-5")
+
+    assert (code, out["problems"]) == (0, [])
+    change = files(repo_of(out))["app/core/link.py"]
+    assert (change["status"], change["stages"], change["hunks"]) == (
+        "type_changed",
+        ["unstaged"],
+        [1],
+    )
+
+
+def test_pack_warns_on_a_merge_in_progress(env, capsys):
+    env.on_master("acme-api", {"app/core/c.txt": "a = 0\n"})
+    path = env.task_branch()
+    env.commit(path, {"app/core/c.txt": "a = 1\n", TEST: TEST_TEXT})
+    env.git(path, "switch", "-q", "-c", "other", "master")
+    env.commit(path, {"app/core/c.txt": "a = 2\n"})
+    env.git(path, "switch", "-q", BRANCH)
+    env.git(path, "merge", "-q", "other", check=False)
+
+    code, out, _ = pack(capsys, "TS-5")
+
+    assert code == 0
+    assert (
+        f"acme-api: a merge is in progress in {path}; the review shows it half done"
+        in (out["warnings"])
+    )
+
+
+def test_pack_reads_the_base_tree_once(env, capsys, monkeypatch):
+    path = env.task_branch()
+    env.commit(path, {"app/core/lote.py": "import os\nX = os.getenv('LOTE')\n", TEST: TEST_TEXT})
+    reads: list[str] = []
+    real = reviewpack.files_at
+
+    def spy(repo, ref, only=None):
+        reads.append(ref)
+        return real(repo, ref, only=only)
+
+    monkeypatch.setattr(reviewpack, "files_at", spy)
+
+    code, out, _ = pack(capsys, "TS-5")
+
+    assert code == 0
+    assert reads.count(repo_of(out)["merge_base"]) == 1
+    assert repo_of(out)["env"]["added"][0]["name"] == "LOTE"
 
 
 def test_pack_without_board_exits_2(env, capsys):

@@ -2,9 +2,10 @@
 
 Per repo it reads what the task branch changed against the merge base with the remote base
 (committed, staged, unstaged and untracked), sorts the files by category and adds the migrations,
-the env vars and the test files. With the card's context it writes `pack.json` (mode 600, folders
-700) under the data folder, never in the workspace repo, and prints the same JSON. Git only
-fetches and reads; nothing goes to the tracker. Spec: docs/specs/2026-11-15-card-review-design.md.
+the env vars and the test files. With the card's context it writes `pack.json` and each repo's
+whole diff, `<repo>.diff` (mode 600, folders 700), under the data folder, never in the workspace
+repo, and prints the same JSON. Git only fetches and reads (the diffs run on a private copy of the
+index); nothing goes to the tracker. Spec: docs/specs/2026-11-15-card-review-design.md.
 """
 
 import argparse
@@ -12,10 +13,13 @@ import json
 import os
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import cached_property
 from pathlib import Path
+from typing import BinaryIO
 
 from ws import cardstart, gittools, items, userconfig
 from ws.boardconfig import BoardConfig, BoardMissing, load_board
@@ -62,19 +66,33 @@ class _Tree:
 
     The new side comes from the work tree when the branch is checked out (changed files read from
     disk over the base), else from the branch's commit. A binary file is never read as source.
+    `scope` holds every path a signal reads: each tree is read from git once and then filtered.
     """
 
     repo: Path
     checkout: Checkout
     collected: Collected
+    scope: Callable[[str], bool]
+
+    @cached_property
+    def base_files(self) -> dict[str, bytes]:
+        return files_at(self.repo, self.collected.merge_base, only=self.scope)
+
+    @cached_property
+    def branch_files(self) -> dict[str, bytes]:
+        binary = {change.path for change in self.collected.files if change.binary}
+        wanted = self.scope
+        return files_at(
+            self.repo, self.checkout.branch, only=lambda p: wanted(p) and p not in binary
+        )
 
     def sides(self, wanted: Callable[[str], bool]) -> tuple[dict[str, bytes], dict[str, bytes]]:
         changes = self.collected.files
-        binary = {change.path for change in changes if change.binary}
-        base = files_at(self.repo, self.collected.merge_base, only=wanted)
+        base = {path: content for path, content in self.base_files.items() if wanted(path)}
         if self.checkout.worktree is None:
-            branch = self.checkout.branch
-            return base, files_at(self.repo, branch, only=lambda p: wanted(p) and p not in binary)
+            return base, {
+                path: content for path, content in self.branch_files.items() if wanted(path)
+            }
         gone = [change.path for change in changes]
         gone += [c.old_path for c in changes if c.status == "renamed" and c.old_path]
         present = [
@@ -89,11 +107,8 @@ def review_folder(project: str, ref: str) -> Path:
     return data_dir() / "projects" / project / "reviews" / ref
 
 
-def write_pack(folder: Path, data: dict) -> Path:
-    """`pack.json` (600) by a temp file and `os.replace`; folders 700 from `projects` down.
-
-    An earlier `review.md` is deleted: it described the previous pack.
-    """
+def private_folder(folder: Path) -> None:
+    """Folders 700 from `projects` down to the review folder."""
     top = data_dir() / "projects"
     top.parent.mkdir(parents=True, exist_ok=True)
     chain = [top]
@@ -102,14 +117,35 @@ def write_pack(folder: Path, data: dict) -> Path:
     for each in chain:
         each.mkdir(mode=PRIVATE_FOLDER, exist_ok=True)
         each.chmod(PRIVATE_FOLDER)
-    handle, temporary = tempfile.mkstemp(prefix=".pack-", suffix=".tmp", dir=folder)
+
+
+@contextmanager
+def _private_file(target: Path) -> Iterator[BinaryIO]:
+    """A 600 temp file beside `target`, moved over it by `os.replace` when the block ends well."""
+    handle, temporary = tempfile.mkstemp(
+        prefix=f".{target.name}-", suffix=".tmp", dir=target.parent
+    )
     try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            stream.write(_json(data) + "\n")
-        os.replace(temporary, folder / PACK)
+        with os.fdopen(handle, "wb") as stream:
+            yield stream
+        os.replace(temporary, target)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
+
+
+def write_pack(folder: Path, data: dict) -> Path:
+    """`pack.json` (600) in the private folder; then what described an earlier pack is deleted.
+
+    That is `review.md` and the `.diff` of every repo this pack has no diff for.
+    """
+    private_folder(folder)
+    with _private_file(folder / PACK) as stream:
+        stream.write((_json(data) + "\n").encode("utf-8"))
+    kept = {Path(repo["diff_file"]).name for repo in data["repos"] if repo["diff_file"]}
+    for old in folder.glob("*.diff"):
+        if old.name not in kept:
+            old.unlink(missing_ok=True)
     (folder / REVIEW).unlink(missing_ok=True)
     return folder / PACK
 
@@ -166,8 +202,12 @@ def _run(ref: str, flag_repos: list[str], flag_project: str | None) -> int:
     notes.problems.extend(choice.problems)
     notes.warnings.extend(choice.warnings)
     project = flag_project or _item_project(root, ref, choice, notes)
-    repos = [_repo(name, ref, board, roots, settings, notes) for name in choice.names]
     folder = review_folder(project, ref)
+    try:
+        private_folder(folder)
+    except OSError as error:
+        return _fail(f"could not create {folder}: {error}", 2)
+    repos = [_repo(name, ref, board, roots, settings, notes, folder) for name in choice.names]
     data = _data(ref, card, project, folder, choice.source, repos, notes)
     try:
         write_pack(folder, data)
@@ -222,6 +262,7 @@ def _repo(
     roots: tuple[Path, ...],
     settings: EnvCheckSettings,
     notes: _Notes,
+    folder: Path,
 ) -> dict:
     """One repo's part of the pack; what cannot be read is a problem for this repo alone."""
     base = board.base_for(name)
@@ -235,6 +276,7 @@ def _repo(
         "fetched": False,
         "merge_base": None,
         "diff_command": None,
+        "diff_file": None,
         "commits": [],
         "files": [],
         "by_category": {},
@@ -251,22 +293,29 @@ def _repo(
         return entry
     entry["path"] = str(path)
     try:
-        _read(entry, path, ref, board, profile_for(name, path, settings), notes)
-    except (ReviewRefused, GitError, SetupError) as error:
+        _read(entry, path, ref, board, profile_for(name, path, settings), notes, folder)
+    except (ReviewRefused, GitError, SetupError, OSError) as error:
         notes.problems.append(f"{name}: {error}")
     return entry
 
 
 def _read(
-    entry: dict, path: Path, ref: str, board: BoardConfig, profile: RepoProfile, notes: _Notes
+    entry: dict,
+    path: Path,
+    ref: str,
+    board: BoardConfig,
+    profile: RepoProfile,
+    notes: _Notes,
+    folder: Path,
 ) -> None:
     name, base_ref = entry["name"], entry["base_ref"]
+    remote_ref = f"refs/remotes/{base_ref}"
     try:
         gittools.fetch(path, board.remote)
         entry["fetched"] = True
     except GitError as error:
         notes.warnings.append(f"{name}: fetch failed; using the last fetched {base_ref}: {error}")
-    if not gittools.has_ref(path, f"refs/remotes/{base_ref}"):
+    if not gittools.has_ref(path, remote_ref):
         notes.problems.append(f'{name}: {base_ref} does not exist; set [board.repos."{name}"] base')
         return
     checkout = find_checkout(path, ref)
@@ -278,16 +327,25 @@ def _read(
         )
     else:
         entry["worktree"] = str(checkout.worktree)
-    collected = collect(path, checkout, base_ref)
+        operation = gittools.operation_in_progress(checkout.worktree)
+        if operation:
+            notes.warnings.append(
+                f"{name}: {operation} is in progress in {checkout.worktree}; "
+                "the review shows it half done"
+            )
+    diff_file = folder / f"{name}.diff"
+    with _private_file(diff_file) as stream:
+        collected = collect(path, checkout, remote_ref, stream)
     entry["merge_base"] = collected.merge_base
     entry["diff_command"] = diff_command(path, checkout, collected.merge_base)
+    entry["diff_file"] = str(diff_file)
     entry["commits"] = [{"sha": c.sha, "subject": c.subject} for c in collected.commits]
     overrides = board.review_categories_for(name)
     files = [_file(change, checkout.worktree, overrides) for change in collected.files]
     entry["files"] = files
     entry["by_category"] = _by_category(files)
     entry["tests"] = _tests(files)
-    tree = _Tree(path, checkout, collected)
+    tree = _Tree(path, checkout, collected, lambda p: p.endswith(".py") or p in profile.shell_files)
     entry["migrations"] = _migrations(tree, overrides, name, notes)
     entry["env"] = _env(tree, profile, name, notes)
     categories = {change["category"] for change in files}
