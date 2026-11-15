@@ -289,3 +289,53 @@ def test_load_board_without_table_raises_board_missing(tmp_path, monkeypatch):
 
     with pytest.raises(BoardMissing):
         load_board()
+
+
+def with_repos(repos):
+    table = copy.deepcopy(VALID)
+    table["repos"] = repos
+    return table
+
+
+def test_repo_base_defaults_to_master():
+    assert parse(copy.deepcopy(VALID)).base_for("acme-api") == "master"
+    assert parse(with_repos({"acme-api": {"base": "main"}})).base_for("acme-api") == "main"
+    cfg = parse(with_repos({"acme-*": {"base": "develop"}}))
+    assert cfg.base_for("acme-front") == "develop"
+    assert cfg.base_for("other") == "master"
+
+
+@pytest.mark.parametrize("base", ["", "-x", "a..b", 1])
+def test_repo_base_must_be_a_branch_name(base):
+    with pytest.raises(ConfigInvalid) as error:
+        parse(with_repos({"acme-api": {"base": base}}))
+
+    assert str(error.value).startswith(f'{PATH}: board.repos."acme-api".base ')
+
+
+def test_repo_base_refuses_ignore_with_base():
+    with pytest.raises(ConfigInvalid) as error:
+        parse(with_repos({"acme-api": {"ignore": True, "base": "main"}}))
+
+    assert "must hold ignore = true alone" in str(error.value)
+
+
+def test_prefix_repos_maps_a_title_prefix():
+    table = copy.deepcopy(VALID)
+    assert parse(table).prefix_repos == {}
+    table["prefix_repos"] = {"BACK": ["acme-api"]}
+    assert parse(table).prefix_repos == {"BACK": ("acme-api",)}
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("BACK", "acme-api"), ("BACK", []), ("BACK", ["../x"]), ("[X]", ["acme-api"])],
+)
+def test_prefix_repos_refuses_bad_entries(key, value):
+    table = copy.deepcopy(VALID)
+    table["prefix_repos"] = {key: value}
+
+    with pytest.raises(ConfigInvalid) as error:
+        parse(table)
+
+    assert f"board.prefix_repos.{key} " in str(error.value)

@@ -444,3 +444,47 @@ def test_a_new_project_from_the_template_is_checkable_and_its_table_is_stable(it
     assert check(capsys, "fresh")[0] == 0
     assert main(["item", "table", "fresh"]) == 0
     assert json.loads(capsys.readouterr().out)["changed"] is False
+
+
+def test_find_card_item_returns_the_item_with_that_card(item_repo):
+    write_item(item_repo, "01-a.md", CLEAN)
+    write_item(item_repo, "02-b.md", CLEAN.replace("TS-5", "TS-6"))
+
+    item, warnings = items.find_card_item(item_repo, "TS-6")
+
+    assert item is not None and item.path.name == "02-b.md"
+    assert warnings == []
+
+
+def test_find_card_item_none_when_absent(item_repo):
+    write_item(item_repo, "01-a.md", CLEAN)
+    (item_repo / "projects" / "demo" / "tasks" / "notes.md").write_text("# doc\n")
+
+    assert items.find_card_item(item_repo, "TS-9") == (None, [])
+
+
+def test_find_card_item_refuses_two_items_for_one_card(item_repo):
+    write_item(item_repo, "01-a.md", CLEAN)
+    write_item(item_repo, "02-b.md", CLEAN)
+
+    with pytest.raises(items.ItemError) as error:
+        items.find_card_item(item_repo, "TS-5")
+
+    message = str(error.value)
+    assert "TS-5 is the card of two items" in message
+    assert "projects/demo/tasks/01-a.md" in message and "projects/demo/tasks/02-b.md" in message
+    assert message.endswith("run ws item check")
+
+
+def test_find_card_item_reports_a_broken_item(item_repo):
+    write_item(item_repo, "01-a.md", CLEAN)
+    broken = item_repo / "projects" / "demo" / "tasks" / "00-broken.md"
+    broken.write_text("+++\nnot toml = = =\n+++\n# x\n", encoding="utf-8")
+
+    item, warnings = items.find_card_item(item_repo, "TS-5")
+
+    assert item is not None and item.path.name == "01-a.md"
+    assert len(warnings) == 1
+    assert warnings[0].startswith(
+        "projects/demo/tasks/00-broken.md: front matter is not valid TOML"
+    )

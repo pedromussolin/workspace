@@ -4,16 +4,18 @@ import fnmatch
 import re
 import string
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 
 from ws import userconfig
-from ws.config import config_dir
+from ws.config import REPO_NAME, config_dir
 from ws.taskmodel import RUNG, STATUS_AT_RUNG, Status
 from ws.userconfig import ConfigInvalid
 
 DEFAULT_REMOTE = "origin"
 DEFAULT_LOOKBACK_DAYS = 120
 DEFAULT_DEPLOY_BRANCH = "master"
+DEFAULT_BASE = "master"
 DEFAULT_COMMAND_TIMEOUT = 20
 BOARD_KEYS = (
     "remote",
@@ -23,10 +25,13 @@ BOARD_KEYS = (
     "profiles",
     "repos",
     "statuses",
+    "prefix_repos",
 )
 FIRST_VERSION_KEYS = ("environments", "ignore_repos", "direct_deploy_repos")
 FIRST_VERSION_REPO_KEYS = ("branches", "deploy_repo")
-REPO_KEYS = ("ignore", "profile", "inactive")
+REPO_KEYS = ("ignore", "profile", "inactive", "base")
+_BASE = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+")
+_PREFIX_KEY = re.compile(r"[^\[\]\s]+")
 FIRST_VERSION = 'is from the first version; use [board.profiles.<name>] and [board.repos."<glob>"]'
 PROOF_KEYS = {
     "branch": ("branches",),
@@ -91,6 +96,7 @@ class RepoSettings:
     ignore: bool
     profile: str | None
     inactive: tuple[str, ...]
+    base: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +108,7 @@ class BoardConfig:
     profiles: dict[str, Profile]
     repos: tuple[RepoSettings, ...]
     statuses: dict[Status, str]
+    prefix_repos: dict[str, tuple[str, ...]] = dataclass_field(default_factory=dict)
 
     def settings_for(self, repo: str) -> RepoSettings | None:
         """The table whose key is `repo`, else the first glob (file order) matching it."""
@@ -109,6 +116,10 @@ class BoardConfig:
         if exact is not None:
             return exact
         return next((s for s in self.repos if fnmatch.fnmatchcase(repo, s.key)), None)
+
+    def base_for(self, repo: str) -> str:
+        settings = self.settings_for(repo)
+        return (settings and settings.base) or DEFAULT_BASE
 
     def ignored(self, repo: str) -> bool:
         settings = self.settings_for(repo)
@@ -314,7 +325,27 @@ def _repo(
                 f"names {unknown[0]!r}, not an environment of profile {used!r}; "
                 f"use one of {', '.join(known)}",
             )
-    return RepoSettings(key, ignore, profile, inactive)
+    base = table.get("base")
+    if "base" in table and (not isinstance(base, str) or not _BASE.fullmatch(base)):
+        raise _invalid(path, f"{where}.base", "must be a branch name")
+    return RepoSettings(key, ignore, profile, inactive, base)
+
+
+def _prefix_repos(table: dict, path: Path) -> dict[str, tuple[str, ...]]:
+    raw = _table(table.get("prefix_repos", {}), path, "board.prefix_repos")
+    out: dict[str, tuple[str, ...]] = {}
+    for key, value in raw.items():
+        where = f"board.prefix_repos.{key}"
+        if not _PREFIX_KEY.fullmatch(key):
+            raise _invalid(path, where, "must be a prefix without brackets or spaces")
+        if (
+            not isinstance(value, list)
+            or not value
+            or not all(isinstance(name, str) and REPO_NAME.fullmatch(name) for name in value)
+        ):
+            raise _invalid(path, where, "must be a non-empty list of repo names")
+        out[key] = tuple(value)
+    return out
 
 
 def _statuses(table: dict, profiles: dict[str, Profile], path: Path) -> dict[Status, str]:
@@ -358,7 +389,14 @@ def parse_board(table: dict, path: Path) -> BoardConfig:
     raw_repos = _table(table.get("repos", {}), path, "board.repos")
     repos = tuple(_repo(key, raw, profiles, default, path) for key, raw in raw_repos.items())
     return BoardConfig(
-        remote, lookback, fetch, default, profiles, repos, _statuses(table, profiles, path)
+        remote,
+        lookback,
+        fetch,
+        default,
+        profiles,
+        repos,
+        _statuses(table, profiles, path),
+        _prefix_repos(table, path),
     )
 
 
