@@ -291,6 +291,10 @@ def test_program_timeout_is_a_failure_not_zero(tmp_path, signal):
             "metric query failed",
         ),
         ({"data": {}}, "unexpected response"),
+        (
+            {"data": {"attributes": {"columns": [{"type": "group", "values": [["a"]]}]}}},
+            "unexpected response",
+        ),
         ({}, "unexpected response"),
     ],
 )
@@ -310,3 +314,13 @@ def test_program_failure_with_code_hides_the_body(tmp_path):
         [{"kind": "logs", "throw": "x", "code": 403}],
     )
     assert out["result"]["failed"] == [{"check": "c1", "reason": "HTTP 403"}]
+
+
+@needs_node
+def test_program_failure_with_text_code_keeps_the_message(tmp_path):
+    out = node_run(
+        tmp_path,
+        document(count("c1", "logs")),
+        [{"kind": "logs", "throw": "socket hang up", "code": "ECONNRESET"}],
+    )
+    assert out["result"]["failed"] == [{"check": "c1", "reason": "socket hang up"}]

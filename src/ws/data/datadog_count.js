@@ -32,6 +32,7 @@ function scalarSum(response) {
   if (!response || !response.data || !response.data.attributes) throw new Error("unexpected response");
   const columns = response.data.attributes.columns || [];
   const column = columns.find((item) => item.type === "number");
+  if (columns.length && !column) throw new Error("unexpected response");
   let sum = 0;
   for (const value of (column && column.values) || []) {
     if (typeof value === "number" && Number.isFinite(value)) sum += value;
@@ -80,7 +81,7 @@ async function run(api) {
       counts.push({ check: item.check, hash: item.hash, ...outcome.value });
     } else {
       const error = outcome.reason;
-      const reason = error && error.code ? "HTTP " + error.code : String((error && error.message) || error);
+      const reason = error && typeof error.code === "number" ? "HTTP " + error.code : String((error && error.message) || error);
       failed.push({ check: item.check, reason: reason.slice(0, REASON_CHARS) });
     }
   });
