@@ -65,17 +65,22 @@ def _swap(value: str, old: str, new: str) -> str:
 
 @dataclass
 class Item:
-    """An old PR and what the move does with it."""
+    """An old PR and what the move does with it. `existing` is the open PR already made from
+    `release/NEW` in its place."""
 
     entry: RepoEntry
     old: PullRequest
-    head: str
     ref: str | None
     existing: PullRequest | None
     detail: PullRequest
+    comments: list[str]
+    current: str = ""
 
 
-def _origin_branches(entry: RepoEntry, old: str, new: str) -> dict[str, tuple[str, str | None]]:
+Branches = dict[str, tuple[str, str | None]]
+
+
+def _origin_branches(entry: RepoEntry, old: str, new: str) -> Branches:
     """`release/OLD[-sdbx]` on origin: old branch -> (new branch, sha already at the new one)."""
     found = {}
     for suffix in ("", "-sdbx"):
@@ -85,9 +90,16 @@ def _origin_branches(entry: RepoEntry, old: str, new: str) -> dict[str, tuple[st
     return found
 
 
-def _taken(entry: RepoEntry, gh: Gh, old: str, new: str, old_prs: list[PullRequest]) -> list[str]:
+def _taken(
+    entry: RepoEntry,
+    gh: Gh,
+    old: str,
+    new: str,
+    old_prs: list[PullRequest],
+    branches: Branches,
+) -> list[str]:
     problems = []
-    for source, (target, there) in _origin_branches(entry, old, new).items():
+    for source, (target, there) in branches.items():
         if there and there != gitops.rev(entry.path, _origin(source)):
             problems.append(f"{entry.name}: {target} exists on origin at another commit")
     for suffix in ("", "-sdbx"):
@@ -95,7 +107,7 @@ def _taken(entry: RepoEntry, gh: Gh, old: str, new: str, old_prs: list[PullReque
         if gitops.rev(entry.path, f"refs/heads/{target}"):
             problems.append(f"{entry.name}: the local branch {target} exists")
         ours = {pr.base for pr in old_prs if pr.head == f"release/{old}{suffix}"}
-        for pr in gh.prs(entry.slug, head=target):
+        for pr in gh.prs(entry.slug, head=target, state="open"):
             if pr.base not in ours:
                 problems.append(f"{entry.name}: PR #{pr.number} already uses {target}")
     return problems
@@ -131,21 +143,34 @@ def _items(
     for pr in prs:
         if _is_merged(pr):
             wanted = pr.base == config.sandbox_branch and _grew(config, entry, pr.head)
-        elif _is_open(pr):
-            wanted = True
         else:
+            wanted = True
+        made = (
+            gh.prs(entry.slug, head=_swap(pr.head, old, new), base=pr.base, state="open")
+            if wanted
+            else []
+        )
+        existing = made[0] if made else None
+        if not (_is_open(pr) or _is_merged(pr)) and existing is None:
             continue
-        made = gh.prs(entry.slug, head=_swap(pr.head, old, new), base=pr.base) if wanted else []
-        existing = min(made, key=lambda item: not _is_open(item), default=None)
         ref = f"{entry.name}-{pr.number}" if wanted else None
-        items.append(Item(entry, pr, pr.head, ref, existing, gh.pr(entry.slug, pr.number)))
+        comments = gh.comments(entry.slug, pr.number) if _is_merged(pr) else []
+        current = gh.pr(entry.slug, existing.number).body if existing else ""
+        items.append(
+            Item(entry, pr, ref, existing, gh.pr(entry.slug, pr.number), comments, current)
+        )
     return items
 
 
+def _with_release_line(body: str, day: date) -> str:
+    return RELEASE_LINE.sub(lambda _: release_folder.release_line(day), body)
+
+
 def _single_edits(
-    config: ReleaseConfig, entry: RepoEntry, gh: Gh, code: str, new: date, facts: list[dict]
-) -> list[Call]:
-    calls = []
+    config: ReleaseConfig, entry: RepoEntry, gh: Gh, code: str, new: date
+) -> tuple[list[Call], list[int]]:
+    """The edits that change the `Release:` line, and the PRs that have no such line."""
+    calls, missing = [], []
     found: dict[int, PullRequest] = {}
     for head in (code, f"{code}-sdbx"):
         for pr in gh.prs(entry.slug, head=head, state="open"):
@@ -153,7 +178,10 @@ def _single_edits(
                 found[pr.number] = pr
     for number in sorted(found):
         body = gh.pr(entry.slug, number).body
-        changed = RELEASE_LINE.sub(release_folder.release_line(new), body)
+        if not RELEASE_LINE.search(body):
+            missing.append(number)
+            continue
+        changed = _with_release_line(body, new)
         if changed == body:
             continue
         calls.append(
@@ -165,15 +193,13 @@ def _single_edits(
                 body=changed,
             )
         )
-        facts.append({"repo": entry.name, "pr": number, "text": changed})
-    return calls
+    return calls, missing
 
 
-def _push_calls(entry: RepoEntry, old: str, new: str) -> tuple[list[Call], dict[str, str]]:
+def _push_calls(entry: RepoEntry, branches: Branches) -> tuple[list[Call], dict[str, str]]:
     calls, tips = [], {}
-    for source, (target, there) in _origin_branches(entry, old, new).items():
-        sha = gitops.rev(entry.path, _origin(source)) or ""
-        tips[target] = sha
+    for source, (target, there) in branches.items():
+        tips[target] = gitops.rev(entry.path, _origin(source)) or ""
         if there:
             continue
         calls.append(
@@ -188,20 +214,22 @@ def _push_calls(entry: RepoEntry, old: str, new: str) -> tuple[list[Call], dict[
     return calls, tips
 
 
+def _expected(item: Item, old: str, new: str, day: date, renumber: dict) -> tuple[str, str]:
+    """The title and body the replacement PR has, with `{pr:REF}` where a number is not known."""
+    slug = item.entry.slug
+    title = replace_numbers(_swap(item.detail.title, old, new), renumber, slug)
+    body = _with_release_line(_swap(item.detail.body, old, new), day)
+    return title, replace_numbers(body, renumber, slug)
+
+
 def _item_calls(
-    item: Item,
-    old: str,
-    new: str,
-    renumber: dict[tuple[str, int], str],
-    reason: str,
-    pushing: set[str],
+    item: Item, old: str, new: str, day: date, renumber: dict, reason: str
 ) -> list[Call]:
     entry, pr = item.entry, item.old
-    shown = text.display(release_day(new))
+    shown = text.display(day)
     calls = []
     if item.ref and item.existing is None:
-        title = replace_numbers(_swap(item.detail.title, old, new), renumber, entry.slug)
-        body = replace_numbers(_swap(item.detail.body, old, new), renumber, entry.slug)
+        title, body = _expected(item, old, new, day, renumber)
         args = (
             "pr",
             "create",
@@ -240,14 +268,40 @@ def _item_calls(
                 line=f"{entry.name}: fechar a PR #{pr.number}, substituída",
             )
         )
-    elif pr.head in pushing:
+    elif _is_merged(pr):
         comment = f"A release passou a ser a de {shown}, {reason}."
+        if comment not in item.comments:
+            calls.append(
+                Call(
+                    repo=entry.name,
+                    program="gh",
+                    args=("pr", "comment", str(pr.number), "-R", entry.slug, "--body", comment),
+                    line=f"{entry.name}: comentar a PR #{pr.number}, já mergeada",
+                )
+            )
+    return calls
+
+
+def _fix_calls(
+    items: list[Item], old: str, new: str, day: date, renumber: dict, known: dict
+) -> list[Call]:
+    """An edit for each replacement PR made by an earlier run whose body is not the right one."""
+    calls = []
+    for item in items:
+        if item.existing is None or item.ref is None:
+            continue
+        _, body = _expected(item, old, new, day, renumber)
+        current = item.current
+        pending = [ref for ref in release_folder.pending_refs(body) if ref not in known]
+        if not pending and current == release_folder.resolve_refs(body, known):
+            continue
         calls.append(
             Call(
-                repo=entry.name,
+                repo=item.entry.name,
                 program="gh",
-                args=("pr", "comment", str(pr.number), "-R", entry.slug, "--body", comment),
-                line=f"{entry.name}: comentar a PR #{pr.number}, já mergeada",
+                args=("pr", "edit", str(item.existing.number), "-R", item.entry.slug),
+                line=f"segunda passada: {item.entry.name}: corrigir a PR #{item.existing.number}",
+                body=body,
             )
         )
     return calls
@@ -273,18 +327,20 @@ def build_plan(
     if release_folder.release_dir(slug, new_day).exists():
         raise ReleaseRefused(f"{release_folder.release_dir(slug, new_day)} already exists")
 
-    problems: list[str] = []
-    multi = [config.entry(name) for name in wanted.repos if len(wanted.include[name]) > 1]
+    entries = [entry for entry in config.repos if entry.name in wanted.repos]
+    multi = [entry for entry in entries if len(wanted.include[entry.name]) > 1]
     heads = [f"release/{old}", f"release/{old}-sdbx"]
+    problems: list[str] = []
+    branches = {entry.name: _origin_branches(entry, old, new) for entry in multi}
     old_prs = {entry.name: _old_prs(entry, gh, heads) for entry in multi}
     for entry in multi:
-        problems += _taken(entry, gh, old, new, old_prs[entry.name])
+        problems += _taken(entry, gh, old, new, old_prs[entry.name], branches[entry.name])
 
     items: list[Item] = []
     pushes: dict[str, list[Call]] = {}
     tips: dict[str, dict[str, str]] = {}
     for entry in multi:
-        pushes[entry.name], tips[entry.name] = _push_calls(entry, old, new)
+        pushes[entry.name], tips[entry.name] = _push_calls(entry, branches[entry.name])
         items += _items(config, entry, gh, old, new, old_prs[entry.name])
 
     renumber = {(item.entry.slug, item.old.number): item.ref for item in items if item.ref}
@@ -299,35 +355,28 @@ def build_plan(
     }
     residual: list[dict] = []
     for item in items:
-        if not _is_open(item.old):
-            continue
-        for line in residual_dates(
-            _swap(item.detail.title, old, new) + "\n" + _swap(item.detail.body, old, new), old
-        ):
-            residual.append({"repo": item.entry.name, "pr": item.old.number, "text": line})
+        if item.ref:
+            title, body = _expected(item, old, new, new_day, renumber)
+            for line in residual_dates(title + "\n" + body, old):
+                residual.append({"repo": item.entry.name, "pr": item.old.number, "text": line})
 
     calls: list[Call] = []
-    for name in wanted.repos:
-        entry = config.entry(name)
+    without_line: list[dict] = []
+    for entry in entries:
         if entry in multi:
-            calls += pushes[name]
-            pushing = {
-                source
-                for source, (_, there) in _origin_branches(entry, old, new).items()
-                if not there
-            }
+            calls += pushes[entry.name]
             for item in (i for i in items if i.entry is entry):
-                calls += _item_calls(item, old, new, renumber, reason, pushing)
+                calls += _item_calls(item, old, new, new_day, renumber, reason)
         else:
-            facts: list[dict] = []
-            code = wanted.include[name][0]
-            calls += _single_edits(config, entry, gh, code, new_day, facts)
-            residual += [
-                {"repo": name, "pr": fact["pr"], "text": line}
-                for fact in facts
-                for line in residual_dates(fact["text"], old)
-            ]
+            code = wanted.include[entry.name][0]
+            edits, missing = _single_edits(config, entry, gh, code, new_day)
+            calls += edits
+            without_line += [{"repo": entry.name, "pr": number} for number in missing]
+            for call in edits:
+                for line in residual_dates(call.body or "", old):
+                    residual.append({"repo": entry.name, "pr": int(call.args[2]), "text": line})
     calls += writeplan.second_pass(calls)
+    calls += _fix_calls(items, old, new, new_day, renumber, known)
     return WritePlan(
         action="move",
         slug=slug,
@@ -340,6 +389,7 @@ def build_plan(
             "reason": reason,
             "delete_old": delete_old,
             "residual_dates": residual,
+            "without_release_line": without_line,
         },
         problems=problems,
     )
@@ -378,13 +428,20 @@ def _build(args: argparse.Namespace, config: ReleaseConfig, slug: str, gh: Gh) -
         raise ReleaseSetup(f"{error}") from error
 
 
+def _missing_line(plan: WritePlan) -> list[str]:
+    return [
+        f"{item['repo']}: PR #{item['pr']} has no Release: line; its date was not changed"
+        for item in plan.facts["without_release_line"]
+    ]
+
+
 def run_preview(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         config, gh, slug, warnings = _setup(args)
         plan = _build(args, config, slug, gh)
         payload, code = writeplan.show_preview(plan, _next_command(args, slug))
         payload["residual_dates"] = plan.facts["residual_dates"]
-        payload["warnings"] = warnings
+        payload["warnings"] = warnings + _missing_line(plan)
         return payload, code
 
     return run_release("move", action)

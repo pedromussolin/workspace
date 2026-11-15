@@ -76,7 +76,7 @@ slug = option("-R")
 
 JSON_FIELDS = {{
     "number", "state", "baseRefName", "headRefName", "title", "url", "mergedAt", "body",
-    "labels", "assignees", "mergeable", "statusCheckRollup",
+    "labels", "assignees", "mergeable", "statusCheckRollup", "comments",
 }}
 ALLOWED_FLAGS = {{
     "pr list": {{"-R", "--state", "--head", "--base", "--json", "--limit"}},
@@ -111,6 +111,7 @@ if option("--state", "all") not in ("open", "closed", "merged", "all"):
 
 
 def project(item, fields):
+    item.setdefault("comments", [])
     return {{name: item[name] for name in fields.split(",") if name in item}}
 
 
@@ -166,9 +167,12 @@ elif verb == "pr edit":
 elif verb == "pr close":
     item = find(slug, int(argv[2]))
     item["state"] = "CLOSED"
+    if option("--comment"):
+        item.setdefault("comments", []).append({{"body": option("--comment")}})
     save()
 elif verb == "pr comment":
-    find(slug, int(argv[2]))
+    item = find(slug, int(argv[2]))
+    item.setdefault("comments", []).append({{"body": option("--body")}})
     save()
 else:
     fail("unsupported: gh " + " ".join(argv))

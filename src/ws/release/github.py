@@ -122,6 +122,15 @@ class Gh:
             raise unexpected(args) from None
         return {"mergeable": raw.get("mergeable") or "", "checks": checks}
 
+    def comments(self, slug: str, number: int) -> list[str]:
+        """The texts of the comments on a PR, oldest first."""
+        args = ["pr", "view", str(number), "-R", slug, "--json", "comments"]
+        raw = self._json(args, dict)
+        try:
+            return [item["body"] for item in raw.get("comments") or ()]
+        except (KeyError, TypeError):
+            raise unexpected(args) from None
+
     def write(self, args: tuple[str, ...], body: str | None) -> str:
         """Run a `gh` write and return its stdout. A body goes by a mode-600 file, removed after."""
         if tuple(args[:2]) not in ALLOWED_WRITES:

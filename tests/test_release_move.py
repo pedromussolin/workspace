@@ -1,6 +1,7 @@
 import argparse
 import itertools
 import json
+import shutil
 from datetime import UTC, datetime
 
 import pytest
@@ -122,7 +123,8 @@ def test_move_replaces_with_word_boundaries(ready, capsys):
     assert "#730" in created["body"]
     assert "acme/repo-a#75" in created["body"]
     assert "#73 " not in created["body"] and "#73." not in created["body"]
-    assert "Release: 20/11/2026" in created["body"]
+    assert "Release: 21/11/2026" in created["body"]
+    assert "Release: 20/11/2026" not in created["body"]
 
 
 def test_move_copies_labels_and_assignees(ready, capsys):
@@ -221,7 +223,11 @@ def test_move_lists_residual_dates(ready, capsys):
     )
     code, payload = preview(capsys)
     assert code == 0
-    assert {"repo": "repo-a", "pr": 70, "text": "Release: 20/11/2026"} in payload["residual_dates"]
+    assert all(
+        item["text"] != "Release: 20/11/2026"
+        for item in payload["residual_dates"]
+        if item["repo"] == "repo-a"
+    )
     assert {"repo": "repo-b", "pr": 5, "text": "revisão de 20/11"} in payload["residual_dates"]
 
 
@@ -310,3 +316,170 @@ def test_replace_numbers(text, expected):
 def test_residual_dates_forms():
     text = "Release: 20/11/2026\nem 20/11\nem 20/11/2025\n21/11\n"
     assert move.residual_dates(text, "20261120") == ["Release: 20/11/2026", "em 20/11"]
+
+
+def new_of(gh, slug, head):
+    return [pr for pr in gh.prs(slug) if pr["headRefName"] == head and pr["state"] == "OPEN"][0]
+
+
+def two_repos(ready, a_body="a\n", b_body="b\n"):
+    release_file(ready, b_multi=True)
+    publish_branches(ready, repos=("repo-a", "repo-b"))
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"R {DAY}", body=a_body)
+    ready.gh.add_pr(B, 30, f"release/{DAY}", "master", title=f"R {DAY}", body=b_body)
+
+
+def test_rerun_fixes_a_backward_reference(ready, capsys):
+    two_repos(ready, b_body="Depende de acme/repo-a#70\n")
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    number = new_of(ready.gh, A, f"release/{NEW}")["number"]
+    assert new_of(ready.gh, B, f"release/{NEW}")["body"] == f"Depende de acme/repo-a#{number}\n"
+
+
+def test_rerun_fixes_a_forward_reference(ready, capsys):
+    two_repos(ready, a_body="Depende de acme/repo-b#30\n")
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    assert "{pr:" in new_of(ready.gh, A, f"release/{NEW}")["body"]
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    number = new_of(ready.gh, B, f"release/{NEW}")["number"]
+    assert new_of(ready.gh, A, f"release/{NEW}")["body"] == f"Depende de acme/repo-b#{number}\n"
+
+
+def test_rerun_after_a_failed_close_fixes_the_reference_in_the_repo(ready, capsys):
+    standard(ready)
+    ready.gh.fail("pr close", "HTTP 422", repo=A)
+    assert run(capsys)[0] == 1
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    body = new_of(ready.gh, A, f"release/{NEW}")["body"]
+    assert "{pr:" not in body
+    assert f"acme/repo-a#{new_of(ready.gh, A, f'release/{NEW}-sdbx')['number']}" in body
+    assert {pr["number"]: pr["state"] for pr in ready.gh.prs(A)}[70] == "CLOSED"
+
+
+def test_move_back_creates_new_prs_instead_of_reusing_closed_ones(ready, capsys):
+    standard(ready)
+    assert run(capsys)[0] == 0
+    shutil.move(str(ready.release_dir(DAY)), str(ready.release_dir(NEW)))
+    ready.git("repo-a", "branch", "-m", f"release/{DAY}", f"release/{NEW}")
+    ready.git("repo-a", "branch", "-m", f"release/{DAY}-sdbx", f"release/{NEW}-sdbx")
+    assert run(capsys, old=NEW, new=DAY)[0] == 0
+    states = {pr["number"]: pr["state"] for pr in ready.gh.prs(A)}
+    assert states[74] == states[75] == "CLOSED"
+    assert new_of(ready.gh, A, f"release/{DAY}")["number"] > 75
+    assert new_of(ready.gh, A, f"release/{DAY}-sdbx")["number"] > 75
+
+
+def test_calls_follow_the_config_order_not_the_release_file(ready, capsys):
+    ready.write_release(
+        {
+            "repo-b": ["feature/TS-201-only", "feature/TS-202-b"],
+            "repo-a": ["feature/TS-101-one", "feature/TS-102-two"],
+        }
+    )
+    publish_branches(ready, repos=("repo-a", "repo-b"))
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master", title=f"R {DAY}")
+    ready.gh.add_pr(B, 30, f"release/{DAY}", "master", title=f"R {DAY}")
+    code, payload = preview(capsys)
+    assert code == 0
+    assert payload["calls"][0].startswith("repo-a:")
+
+
+def comments_of(gh, slug, number):
+    return [
+        c["body"] for pr in gh.prs(slug) if pr["number"] == number for c in pr.get("comments", [])
+    ]
+
+
+def test_merged_comment_survives_a_failure_and_is_not_repeated(ready, capsys):
+    two_repos(ready)
+    merged = {"state": "MERGED", "merged_at": "2026-11-12T10:00:00Z"}
+    ready.gh.add_pr(A, 80, f"release/{DAY}-sdbx", "sandbox", **merged)
+    ready.gh.add_pr(B, 81, f"release/{DAY}-sdbx", "sandbox", **merged)
+    ready.gh.fail("pr create", "HTTP 422", repo=B)
+    assert run(capsys)[0] == 1
+    text = f"A release passou a ser a de 21/11/2026, {REASON}."
+    assert comments_of(ready.gh, A, 80) == [text]
+    assert comments_of(ready.gh, B, 81) == []
+    ready.gh.clear_failures()
+    assert run(capsys)[0] == 0
+    assert comments_of(ready.gh, A, 80) == [text]
+    assert comments_of(ready.gh, B, 81) == [text]
+
+
+def test_merged_pr_with_a_deleted_head_still_gets_the_comment(ready, capsys):
+    release_file(ready)
+    publish_branches(ready, sdbx=False)
+    ready.gh.add_pr(
+        A, 80, f"release/{DAY}-sdbx", "sandbox", state="MERGED", merged_at="2026-11-12T10:00:00Z"
+    )
+    assert run(capsys)[0] == 0
+    assert comments_of(ready.gh, A, 80) == [f"A release passou a ser a de 21/11/2026, {REASON}."]
+
+
+def test_fetch_runs_first_and_a_failure_is_a_warning(ready, capsys):
+    release_file(ready)
+    publish_branches(ready, sdbx=False)
+    ready.git("repo-a", "update-ref", "-d", f"refs/remotes/origin/release/{DAY}")
+    code, payload = preview(capsys)
+    assert code == 0 and payload["warnings"] == []
+    assert any(f"release/{DAY}:refs/heads/release/{NEW}" in call for call in payload["calls"])
+    ready.git("repo-a", "remote", "set-url", "origin", "/nonexistent/origin.git")
+    code, payload = preview(capsys)
+    assert code == 0
+    assert any(w.startswith("repo-a: fetch failed") for w in payload["warnings"])
+
+
+def test_move_refuses_when_the_new_folder_exists(ready, capsys):
+    standard(ready)
+    ready.release_dir(NEW).mkdir(parents=True)
+    code, _ = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+
+
+def test_move_refuses_a_foreign_open_pr_from_the_new_branch(ready, capsys):
+    release_file(ready)
+    publish_branches(ready, sdbx=False)
+    ready.gh.add_pr(A, 70, f"release/{DAY}", "master")
+    ready.gh.add_pr(A, 90, f"release/{NEW}", "sandbox")
+    code, _ = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+
+
+def test_move_refuses_a_local_new_branch_alone(ready, capsys):
+    standard(ready)
+    ready.git("repo-a", "branch", f"release/{NEW}", "origin/master")
+    code, _ = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+    assert f"refs/heads/release/{NEW}" not in ready.refs("repo-a")
+
+
+def test_single_branch_pr_without_a_release_line_is_reported(ready, capsys):
+    standard(ready)
+    ready.gh.add_pr(B, 5, "feature/TS-201-only", "master", body="sem linha\n")
+    code, payload = preview(capsys)
+    assert code == 0
+    assert any("repo-b: PR #5 has no Release: line" in w for w in payload["warnings"])
+    assert not any("pr edit 5" in call for call in payload["calls"])
+
+
+def test_residual_dates_scan_the_recreated_merged_sandbox_pr(ready, capsys):
+    release_file(ready)
+    publish_branches(ready)
+    ready.gh.add_pr(
+        A,
+        80,
+        f"release/{DAY}-sdbx",
+        "sandbox",
+        state="MERGED",
+        merged_at="2026-11-12T10:00:00Z",
+        body="revisão de 20/11\n",
+    )
+    code, payload = preview(capsys)
+    assert code == 0
+    assert {"repo": "repo-a", "pr": 80, "text": "revisão de 20/11"} in payload["residual_dates"]
