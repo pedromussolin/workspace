@@ -39,7 +39,8 @@ def _ref(repo: Path, branch: str) -> str | None:
     return None
 
 
-def _published(release: Path) -> dict:
+def load_published(release: Path) -> dict:
+    """The whole `published.json` (empty when absent); a bad file is a setup problem."""
     path = release / PUBLISHED
     try:
         data = json.loads(path.read_text())
@@ -47,7 +48,13 @@ def _published(release: Path) -> dict:
         return {}
     except (OSError, ValueError) as error:
         raise ReleaseSetup(f"{path}: {error}") from None
-    repos = data.get("repos") if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        raise ReleaseSetup(f"{path}: expected a JSON object")
+    return data
+
+
+def read_published(release: Path) -> dict:
+    repos = load_published(release).get("repos")
     return repos if isinstance(repos, dict) else {}
 
 
@@ -183,7 +190,7 @@ def run_new(args: argparse.Namespace) -> int:
             error = gitops.fetch(config.entry(name).path)
             if error:
                 warnings.append(f"{name}: fetch failed: {error}")
-        published = _published(release)
+        published = read_published(release)
         for name in selected:
             _check_setup(config, config.entry(name), wanted.include[name], day, published)
 
