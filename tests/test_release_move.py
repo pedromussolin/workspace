@@ -437,6 +437,7 @@ def test_fetch_runs_first_and_a_failure_is_a_warning(ready, capsys):
 def test_move_refuses_when_the_new_folder_exists(ready, capsys):
     standard(ready)
     ready.release_dir(NEW).mkdir(parents=True)
+    (ready.release_dir(NEW) / "anotacoes.txt").write_text("de outra pessoa\n")
     code, _ = preview(capsys)
     assert code == 1 and ready.gh.writes == []
 
@@ -929,3 +930,39 @@ def test_leftovers_are_reported_and_the_folder_is_not_planned_again(ready, capsy
     assert payload["left_in_old"] == ["anotacoes.txt"]
     assert run_once(capsys)[0] == 0
     assert f"data {DAY} de proposito" in draft.read_text()
+
+
+def test_an_empty_new_folder_is_free(ready, capsys):
+    standard(ready)
+    ready.release_dir(NEW).mkdir(parents=True)
+    assert run_once(capsys)[0] == 0
+    assert (ready.release_dir(NEW) / "release.toml").is_file()
+
+
+def test_a_failed_draft_swap_leaves_the_rerun_to_finish_it(ready, capsys, monkeypatch):
+    standard(ready)
+    ready.write_pr("repo-a", f"release {DAY}: entrega", ["TS-101"], "corpo\n")
+    real, state = move._swap, {"done": False}
+
+    def flaky(value, old, new):
+        if not state["done"] and value.startswith("+++"):
+            state["done"] = True
+            raise OSError("injected")
+        return real(value, old, new)
+
+    monkeypatch.setattr(move, "_swap", flaky)
+    code, payload = run_once(capsys)
+    assert state["done"] and code == 1 and payload["failed"]
+    assert "left_in_old" not in payload and "pr" in payload["not_moved_yet"]
+    assert run_once(capsys)[0] == 0
+    draft = (ready.release_dir(NEW) / "pr" / "repo-a.md").read_text()
+    assert f"release {NEW}: entrega" in draft and DAY not in draft
+
+
+def test_a_stale_local_new_branch_without_the_old_one_is_refused(ready, capsys):
+    standard(ready)
+    ready.git("repo-a", "branch", "-D", f"release/{DAY}")
+    ready.git("repo-a", "branch", f"release/{NEW}", "origin/master")
+    code, payload = preview(capsys)
+    assert code == 1 and ready.gh.writes == []
+    assert any(f"the local branch release/{NEW} exists" in p for p in payload["problems"])

@@ -105,8 +105,8 @@ def _taken(
             problems.append(f"{entry.name}: {target} exists on origin at another commit")
     for suffix in ("", "-sdbx"):
         target = f"release/{new}{suffix}"
-        if gitops.rev(entry.path, f"refs/heads/{target}") and gitops.rev(
-            entry.path, f"refs/heads/release/{old}{suffix}"
+        if gitops.rev(entry.path, f"refs/heads/{target}") and not _renamed_by_us(
+            entry, old, new, suffix
         ):
             problems.append(f"{entry.name}: the local branch {target} exists")
         ours = {pr.base for pr in old_prs if pr.head == f"release/{old}{suffix}"}
@@ -114,6 +114,19 @@ def _taken(
             if pr.base not in ours:
                 problems.append(f"{entry.name}: PR #{pr.number} already uses {target}")
     return problems
+
+
+def _renamed_by_us(entry: RepoEntry, old: str, new: str, suffix: str) -> bool:
+    """The local `release/NEW` is the one this move's `branch -m` made: `release/OLD` is gone and
+    the reflog of `release/NEW` starts with that rename, whatever commit it sits at."""
+    if gitops.rev(entry.path, f"refs/heads/release/{old}{suffix}"):
+        return False
+    subject = gitops.git(
+        entry.path, "reflog", "-1", "--format=%gs", f"refs/heads/release/{new}{suffix}", check=False
+    ).stdout.strip()
+    return subject == (
+        f"Branch: renamed refs/heads/release/{old}{suffix} to refs/heads/release/{new}{suffix}"
+    )
 
 
 def _old_prs(entry: RepoEntry, gh: Gh, heads: list[str]) -> list[PullRequest]:
@@ -630,7 +643,9 @@ def _folder_calls(
 
 def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> None:
     """The local handler of `move-folder`. `files` moves `release.toml`, `pr/` and
-    `published.json` to the new folder and gives the drafts the new date; `finish` removes the old
+    `published.json` to the new folder, the drafts first given the new date: a `pr/` in
+    `release-NEW/` is already swapped, so a failure leaves `pr/` in `release-OLD/` and the rerun
+    plans `files` again; `finish` removes the old
     folder when it is empty and says what stays; `all` is both. It can run again after a failure."""
     source, target = Path(old_dir), Path(new_dir)
     if (
@@ -640,17 +655,17 @@ def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> No
     ):
         raise ValueError(f"{source} and {target} are not the release folders of {old} and {new}")
     if mode in ("files", "all"):
+        for draft in sorted((source / "pr").glob("*.md")):
+            before = draft.read_bytes().decode()
+            after = _swap(before, old, new)
+            if after != before:
+                draft.write_bytes(after.encode())
         for name in FOLDER_FILES:
             if (source / name).exists():
                 if (target / name).exists():
                     raise FileExistsError(f"{target / name} already exists")
                 release_folder.ensure_dir(target)
                 (source / name).rename(target / name)
-        for draft in sorted((target / "pr").glob("*.md")):
-            before = draft.read_bytes().decode()
-            after = _swap(before, old, new)
-            if after != before:
-                draft.write_bytes(after.encode())
     if mode in ("finish", "all") and source.is_dir():
         try:
             source.rmdir()
@@ -665,6 +680,8 @@ def _new_folder_free(old_dir: Path, new_dir: Path, entries: list[RepoEntry]) -> 
     if not new_dir.exists():
         return True
     held = {path.name for path in new_dir.iterdir()}
+    if not held:
+        return True
     repo_dirs = {f"{entry.name}{suffix}" for entry in entries for suffix in ("", "-sdbx")}
     if "release.toml" not in held or not held <= set(FOLDER_FILES) | repo_dirs:
         return False
@@ -743,9 +760,13 @@ def run_move(args: argparse.Namespace) -> int:
             {"move-folder": move_folder},
         )
         payload["warnings"] = warnings
-        payload["left_in_old"] = _left_in_old(
-            release_folder.release_dir(slug, release_day(args.old)), []
-        )
+        old_dir = release_folder.release_dir(slug, release_day(args.old))
+        if payload.get("failed") is None:
+            payload["left_in_old"] = _left_in_old(old_dir, [])
+        else:
+            payload["not_moved_yet"] = (
+                sorted(path.name for path in old_dir.iterdir()) if old_dir.is_dir() else []
+            )
         return payload, code
 
     return run_release("move", action)
