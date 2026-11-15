@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date
 from pathlib import Path
@@ -83,6 +84,8 @@ def test_golden_codes_per_operation(world, capsys, op):  # noqa: F811
 
     _, _, code, saved = previewed(world, capsys, ops)
 
+    # The literal in CODES comes from the fixed site; the real site has a random port, so this
+    # first assertion only ties the printed code to the material the record saved.
     assert code == card.approval_code(
         saved["site"], saved["requests"], saved["before"], saved["summary"]
     )
@@ -90,7 +93,7 @@ def test_golden_codes_per_operation(world, capsys, op):  # noqa: F811
 
 
 def test_golden_pending_record(world, capsys):  # noqa: F811
-    drafts, _, _, saved = previewed(world, capsys, list(DRAFTS))
+    drafts, _, code, saved = previewed(world, capsys, list(DRAFTS))
 
     assert list(saved) == [
         "code",
@@ -103,6 +106,14 @@ def test_golden_pending_record(world, capsys):  # noqa: F811
         "before",
         "summary",
     ]
+    assert saved["code"] == code
+    assert saved["code"] == card.approval_code(
+        saved["site"], saved["requests"], saved["before"], saved["summary"]
+    )
+    assert isinstance(saved["sid"], int) and not isinstance(saved["sid"], bool)
+    for item in saved["drafts"]:
+        assert set(item) == {"path", "sha256"}
+        assert item["sha256"] == hashlib.sha256(Path(item["path"]).read_bytes()).hexdigest()
     assert saved["created_at"] == NOW.isoformat()
     assert [item["path"] for item in saved["drafts"]] == [
         f"{drafts}/{number}-{op}.md" for number, op in enumerate(DRAFTS, 1)
