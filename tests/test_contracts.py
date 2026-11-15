@@ -121,9 +121,9 @@ VALID = {
                 "due_day": "2026-12-15",
                 "day": 3,
                 "pending": ["a"],
-                "missing_days": [1],
+                "missing_days": ["2026-12-09"],
                 "stale": [{"day": "2026-12-09", "check": "a"}],
-                "attention_days": [2],
+                "attention_days": ["2026-12-10"],
                 "streak": 1,
                 "state": "observing",
             }

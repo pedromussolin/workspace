@@ -42,7 +42,7 @@
           "missing_days": {
             "type": "array",
             "items": {
-              "type": "integer"
+              "type": "string"
             }
           },
           "stale": {
@@ -67,7 +67,7 @@
           "attention_days": {
             "type": "array",
             "items": {
-              "type": "integer"
+              "type": "string"
             }
           },
           "streak": {
