@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 from ws.envcheck import DEFAULT_EXCLUDE_GLOBS, EnvCheckSettings, RepoProfile
@@ -114,7 +115,67 @@ def test_profile_for_falls_back_to_a_plain_profile(tmp_path):
     assert p.helpers == ()
     assert p.migration_globs == ()
     assert p.exclude_globs == DEFAULT_EXCLUDE_GLOBS
-    configured = RepoProfile(**{**p.__dict__, "helpers": ("env_str",)})
+    configured = replace(p, helpers=("env_str",))
     settings = EnvCheckSettings("aws", None, (), {"acme-api": configured})
     assert profile_for("acme-api", tmp_path, settings).helpers == ("env_str",)
     assert profile_for("acme-front", tmp_path, settings).helpers == ()
+
+
+def test_new_side_never_reads_outside_the_repo(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_bytes(b"secret")
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "docs").symlink_to(outside, target_is_directory=True)
+    (root / "link.txt").symlink_to(outside / "secret.txt")
+    (root / "ok.txt").write_bytes(b"ok")
+    out = new_side({}, root, [], ["docs/secret.txt", "link.txt", "../outside/secret.txt", "ok.txt"])
+    assert out == {"ok.txt": b"ok"}
+
+
+def test_migration_report_merge_migration_with_a_tuple_down_revision():
+    new = {**base_migs(), C3: mig("c3", "b1"), "db/versions/m4.py": mig("m4", ("b2", "c3"))}
+    report, flags, _ = migration_report(base_migs(), new)
+    merge = next(a for a in report["added"] if a["revision"] == "m4")
+    assert merge["down_revision"] == ["b2", "c3"]
+    assert report["heads_after"] == ["m4"]
+    assert flags == []
+
+
+def test_migration_report_a_renamed_migration_is_not_added():
+    new = {B1: mig("b1", None), "db/versions/b2_renamed.py": mig("b2", "b1")}
+    report, flags, _ = migration_report(base_migs(), new)
+    assert report["added"] == []
+    assert f"existing migration deleted: {B2}" in flags
+
+
+def test_migration_report_warns_once_and_only_for_touched_paths():
+    bad = "def broken(:\n"
+    base = {**base_migs(), "db/versions/old_bad.py": bad}
+    new = {**base, C3: bad}
+    _, _, warnings = migration_report(base, new)
+    assert len(warnings) == 1
+    assert C3 in warnings[0]
+
+
+def test_env_report_optional_to_required_is_added_and_flagged():
+    base = {"app/a.py": b'import os\nx = os.getenv("A")\n'}
+    new = {"app/a.py": b'import os\nx = os.environ["A"]\n'}
+    report, flags, _ = env_report(base, new, plain(), {"app/a.py"})
+    assert [(e["name"], e["required"]) for e in report["added"]] == [("A", True)]
+    assert flags == ["required env var added: A; check the Parameter Store"]
+    assert report["removed"] == []
+
+
+def test_env_report_scans_the_shell_files():
+    new = {"run.sh": b"echo ${SHELL_VAR}\n"}
+    report, flags, _ = env_report({}, new, plain(shell_files=("run.sh",)), {"run.sh"})
+    assert [(e["name"], e["required"]) for e in report["added"]] == [("SHELL_VAR", True)]
+    assert flags == ["required env var added: SHELL_VAR; check the Parameter Store"]
+
+
+def test_env_report_keeps_warnings_without_a_line_number():
+    new = {"run.sh": b"echo hi\n"}
+    _, _, warnings = env_report({}, new, plain(shell_files=("run.sh", "gone.sh")), {"gone.sh"})
+    assert warnings == ["gone.sh: shell file not found at that commit"]
