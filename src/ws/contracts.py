@@ -1,5 +1,6 @@
 """Versioned JSON contracts and a minimal validator for the JSON Schema subset they use."""
 
+import copy
 import json
 import re
 from functools import cache
@@ -7,6 +8,7 @@ from importlib import resources
 
 NAME = re.compile(r"[a-z][a-z0-9-]*")
 ANNOTATIONS = {"$schema", "$id", "title", "description"}
+TYPES = {"object", "array", "string", "integer", "number", "boolean", "null"}
 KEYWORDS = ANNOTATIONS | {
     "type",
     "required",
@@ -44,6 +46,7 @@ def _is_type(value: object, name: str) -> bool:
 
 
 def _same(left: object, right: object) -> bool:
+    # Compared as JSON text, so `const: 1` refuses 1.0 and True.
     return json.dumps(left, sort_keys=True) == json.dumps(right, sort_keys=True)
 
 
@@ -51,6 +54,19 @@ def _verify(schema: dict, name: str) -> None:
     for keyword in schema:
         if keyword not in KEYWORDS:
             raise ValueError(f"{name}: unsupported keyword {keyword}")
+    if "additionalProperties" in schema and schema["additionalProperties"] is not False:
+        raise ValueError(f"{name}: additionalProperties must be false")
+    if "type" in schema:
+        types = schema["type"] if isinstance(schema["type"], list) else [schema["type"]]
+        for kind in types:
+            if kind not in TYPES:
+                raise ValueError(f"{name}: unknown type {kind}")
+    if "required" in schema:
+        required = schema["required"]
+        if not isinstance(required, list) or not all(isinstance(k, str) for k in required):
+            raise ValueError(f"{name}: required must be a list of strings")
+    if "enum" in schema and not isinstance(schema["enum"], list):
+        raise ValueError(f"{name}: enum must be a list")
     for sub in schema.get("properties", {}).values():
         _verify(sub, name)
     if isinstance(schema.get("items"), dict):
@@ -58,7 +74,7 @@ def _verify(schema: dict, name: str) -> None:
 
 
 @cache
-def load_schema(name: str) -> dict:
+def _load(name: str) -> dict:
     if not NAME.fullmatch(name):
         raise ValueError(f"unknown contract {name}")
     path = resources.files("ws") / "data" / "contracts" / f"{name}.schema.json"
@@ -69,7 +85,14 @@ def load_schema(name: str) -> dict:
     return schema
 
 
+def load_schema(name: str) -> dict:
+    """Return a private copy of the schema, so callers may not corrupt the cached one."""
+    return copy.deepcopy(_load(name))
+
+
 def check(document: object, schema: dict, path: str = "$") -> list[str]:
+    if path == "$":
+        _verify(schema, "schema")
     for keyword in schema:
         if keyword not in KEYWORDS:
             raise ValueError(f"{path}: unsupported keyword {keyword}")
@@ -82,7 +105,8 @@ def check(document: object, schema: dict, path: str = "$") -> list[str]:
     if "const" in schema and not _same(document, schema["const"]):
         problems.append(f"{path}: expected {json.dumps(schema['const'])}")
     if "enum" in schema and not any(_same(document, option) for option in schema["enum"]):
-        problems.append(f"{path}: expected one of {', '.join(str(o) for o in schema['enum'])}")
+        options = [o if isinstance(o, str) else json.dumps(o) for o in schema["enum"]]
+        problems.append(f"{path}: expected one of {', '.join(options)}")
     if isinstance(document, dict):
         properties = schema.get("properties", {})
         for key in schema.get("required", []):

@@ -103,3 +103,113 @@ def test_every_schema_pins_version_and_is_closed():
         assert "version" in schema["required"]
         assert schema["additionalProperties"] is False
         json.dumps(schema)
+
+
+VALID = {
+    "observe-plan": plan(),
+    "observe-result": result(),
+    "observe-status": {
+        "version": 1,
+        "today": "2026-12-10",
+        "plans": [
+            {
+                "task": "TS-5",
+                "project": "demo",
+                "job": "demo-job",
+                "switched_off": "2026-12-08",
+                "days": 5,
+                "due_day": "2026-12-15",
+                "day": 3,
+                "pending": ["a"],
+                "missing_days": [1],
+                "stale": [{"day": "2026-12-09", "check": "a"}],
+                "attention_days": [2],
+                "streak": 1,
+                "state": "observing",
+            }
+        ],
+        "problems": [],
+    },
+    "observability-request": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "counts": [
+            {"check": "a", "signal": "logs", "query": "q", "from": "f", "to": "t", "hash": "h"}
+        ],
+    },
+    "observability-result": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "provider": "p",
+        "counts": [{"check": "a", "hash": "h", "value": 2, "started": "s", "finished": "f"}],
+        "failed": [{"check": "b", "reason": "r"}],
+    },
+    "database-request": {
+        "version": 1,
+        "database": "db",
+        "sql": "select 1",
+        "bounds": {"day": "2026-12-09"},
+        "timeout_seconds": 30,
+    },
+    "database-result": {
+        "version": 1,
+        "database": "db",
+        "value": 1.5,
+        "started": "s",
+        "finished": "f",
+    },
+}
+
+
+@pytest.mark.parametrize("name", sorted(VALID))
+def test_each_schema_accepts_a_valid_document(name):
+    assert validate(VALID[name], name) == []
+
+
+@pytest.mark.parametrize("name", sorted(VALID))
+def test_each_schema_refuses_another_version(name):
+    assert validate({**VALID[name], "version": 2}, name) == ["$.version: expected 1"]
+
+
+def test_status_day_is_a_number():
+    document = copy_status(day="3")
+    assert validate(document, "observe-status") == ["$.plans[0].day: expected integer, got string"]
+
+
+def copy_status(**changes):
+    import copy
+
+    document = copy.deepcopy(VALID["observe-status"])
+    document["plans"][0].update(changes)
+    return document
+
+
+@pytest.mark.parametrize(
+    ("schema", "text"),
+    [
+        ({"additionalProperties": True}, "additionalProperties"),
+        ({"type": "str"}, "unknown type str"),
+        ({"type": ["string", "nope"]}, "unknown type nope"),
+        ({"required": "id"}, "required must be a list of strings"),
+        ({"required": [1]}, "required must be a list of strings"),
+        ({"enum": "ab"}, "enum must be a list"),
+        ({"properties": {"a": {"enum": 1}}}, "enum must be a list"),
+    ],
+)
+def test_check_refuses_malformed_schemas(schema, text):
+    with pytest.raises(ValueError, match=text):
+        check({}, schema)
+
+
+def test_load_schema_returns_a_copy():
+    first = load_schema("observe-plan")
+    first["required"].append("x")
+    assert "x" not in load_schema("observe-plan")["required"]
+
+
+def test_bool_is_not_a_number_and_const_is_strict():
+    assert check(True, {"type": "number"}) == ["$: expected number, got boolean"]
+    assert check(1.0, {"const": 1}) == ["$: expected 1"]
+    assert check(2, {"enum": ["a", 1]}) == ["$: expected one of a, 1"]
