@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ws import jira
+from ws.cardrules import adf_text
 from ws.jira import JiraClient, JiraError
 from ws.tracker.port import Card, CardQuery, Link, TrackerError
 from ws.userconfig import JiraConfig
@@ -17,6 +18,7 @@ JIRA_CAPABILITIES = frozenset(
         "set_reporter",
         "change_type",
         "link_types",
+        "description",
     }
 )
 
@@ -127,6 +129,20 @@ class JiraTracker:
                 name = None
             self._names[account] = name or account
         return self._names[account]
+
+    def description(self, ref: str) -> str | None:
+        try:
+            issue = self._client.issue(ref, ["description"])
+        except JiraError as error:
+            if error.status == 404:
+                return None
+            raise TrackerError(str(error)) from None
+        try:
+            document = ((issue or {}).get("fields") or {}).get("description")
+            text = adf_text(document).strip() if isinstance(document, dict) else ""
+        except (TypeError, AttributeError) as error:
+            raise TrackerError(str(error)) from None
+        return text or None
 
     def _neutral(self, issue: dict) -> Card:
         settings = self._settings

@@ -286,3 +286,59 @@ def test_fake_tracker_filters_by_parent_role_and_open():
     assert refs(role="all", open_only=False) == ["TS-1", "TS-2", "TS-4"]
     assert fake.card("TS-3") is others
     assert fake.reads == ["TS-3"]
+
+
+def test_jira_description_is_plain_text(world):  # noqa: F811
+    doc = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "Pronto quando"}],
+            },
+            {
+                "type": "bulletList",
+                "content": [
+                    {
+                        "type": "listItem",
+                        "content": [
+                            {"type": "paragraph", "content": [{"type": "text", "text": "a"}]}
+                        ],
+                    },
+                    {
+                        "type": "listItem",
+                        "content": [
+                            {"type": "paragraph", "content": [{"type": "text", "text": "b"}]}
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    world.set_card("TS-104", description=doc)
+    tracker = _tracker()
+
+    assert tracker.description("TS-104") == "## Pronto quando\n- a\n- b"
+    asked = [r for r in world.fake.requests if r["path"] == "/rest/api/3/issue/TS-104"]
+    assert asked[-1]["query"]["fields"] == "description"
+
+    world.set_card("TS-105", description=None)
+    assert tracker.description("TS-105") is None
+
+    world.fake.routes[("GET", "/rest/api/3/issue/TS-106")] = (404, "{}")
+    assert tracker.description("TS-106") is None
+
+    world.fake.routes[("GET", "/rest/api/3/issue/TS-107")] = (500, "{}")
+    with pytest.raises(TrackerError):
+        tracker.description("TS-107")
+
+
+def test_fake_tracker_has_description():
+    tracker = FakeTracker(descriptions={"TS-1": "## Pronto quando\n- a"})
+
+    assert isinstance(tracker, Tracker)
+    assert "description" in tracker.capabilities
+    assert tracker.description("TS-1") == "## Pronto quando\n- a"
+    assert tracker.description("TS-2") is None
