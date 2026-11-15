@@ -18,7 +18,8 @@ def _template() -> str:
 
 
 def _call(item: dict) -> dict:
-    window = {"from": item["from"], "to": item["to"]}
+    intent = f"observe {item['check']}, fallback to the classic tools"
+    window = {"from": item["from"], "to": item["to"], "telemetry": {"intent": intent}}
     signal = item["signal"]
     if signal == "traces":
         arguments = {
@@ -34,8 +35,11 @@ def _call(item: dict) -> dict:
         return {
             "check": item["check"],
             "tool": "get_datadog_metric",
-            "arguments": {"queries": [item["query"]], **window},
-            "note": "sum the points",
+            "arguments": {
+                "queries": [{"query": item["query"], "aggregator": "sum"}],
+                "response_format": "scalar",
+                **window,
+            },
         }
     raise ValueError(f"unknown signal: {signal!r}")
 

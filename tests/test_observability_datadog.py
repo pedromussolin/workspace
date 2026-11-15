@@ -4,9 +4,11 @@ import subprocess
 
 import pytest
 
+from ws.observability import open_observability, providers
 from ws.observability.datadog_adapter import PARAMS_MARKER, TEMPLATE, Datadog, from_config
+from ws.observability.port import Observability, Setup
 
-WEIRD = 'a"b\\c é</script>*/ `x` ${1+1}'
+WEIRD = 'a"b\\c é</script>*/ `x` ${1+1}\n\u2028\u2029end'
 
 
 def count(check, signal, query="service:x", hash_="aaaaaaaaaaaa", **extra):
@@ -79,7 +81,7 @@ def test_fallback_calls_per_signal():
     ]
     assert [c["check"] for c in calls] == ["c1", "c2", "c3"]
     spans, logs, metric = (c["arguments"] for c in calls)
-    assert spans == {
+    assert {key: value for key, value in spans.items() if key != "telemetry"} == {
         "query": "q1",
         "computes": [{"aggregation": "COUNT", "field": "*", "output": "count"}],
         "from": "2026-12-09T00:00:00Z",
@@ -88,8 +90,39 @@ def test_fallback_calls_per_signal():
     assert logs["sql_query"] == "SELECT count(*) FROM logs"
     assert logs["filter"] == "q2"
     assert logs["from"] == "2026-12-08T00:00:00Z"
-    assert metric["queries"] == ["q3"]
-    assert calls[2]["note"] == "sum the points"
+    assert metric["queries"] == [{"query": "q3", "aggregator": "sum"}]
+    assert metric["response_format"] == "scalar"
+    for arguments in (spans, logs, metric):
+        assert arguments["telemetry"]["intent"]
+
+
+def test_open_observability_by_provider(tmp_path, monkeypatch):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "config.toml").write_text('[observability]\nprovider = "datadog"\n')
+    found = open_observability()
+    assert isinstance(found, Observability)
+    assert found.tool == "execute_code"
+    assert providers() == ("datadog",)
+
+
+def test_open_observability_unknown_lists_datadog(tmp_path, monkeypatch):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "config.toml").write_text('[observability]\nprovider = "nope"\n')
+    with pytest.raises(Setup, match="datadog"):
+        open_observability()
+
+
+def test_template_holds_each_guard():
+    text = template_text()
+    for guard in (
+        '"partial result: timeout"',
+        '"metric query failed"',
+        '"unexpected response"',
+        'meta.status === "timeout"',
+        "response.errors",
+        '"HTTP "',
+    ):
+        assert guard in text
 
 
 def test_from_config_returns_adapter():
@@ -111,7 +144,7 @@ function answer(kind, attrs) {
   for (const r of input.rules || []) {
     if (r.kind !== kind) continue;
     if (r.contains && !query.includes(r.contains)) continue;
-    if (r.throw) throw new Error(r.throw);
+    if (r.throw) throw Object.assign(new Error(r.throw), r.code ? { code: r.code } : {});
     return r.response;
   }
   return { data: [] };
@@ -191,7 +224,17 @@ def test_program_one_failed_query_keeps_the_others(tmp_path):
 @needs_node
 def test_program_metrics_sum(tmp_path):
     doc = document(count("c1", "metrics"))
-    response = {"data": {"attributes": {"columns": [{"values": [2, 3]}]}}}
+    response = {
+        "data": {
+            "attributes": {
+                "columns": [
+                    {"type": "group", "values": [["a"], ["b"]]},
+                    {"type": "number", "values": [2, 3]},
+                    {"type": "number", "values": [9, 9]},
+                ]
+            }
+        }
+    }
     out = node_run(tmp_path, doc, [{"kind": "metrics", "response": response}])
     assert out["result"]["counts"][0]["value"] == 5
     sent = out["seen"][0]["attrs"]
@@ -216,3 +259,54 @@ def test_injection_through_query_is_inert(tmp_path):
     out = node_run(tmp_path, doc, [{"kind": "spans", "response": bucket(1)}])
     assert out["seen"][0]["attrs"]["filter"]["query"] == WEIRD
     assert out["result"]["counts"][0]["value"] == 1
+
+
+@needs_node
+def test_program_metrics_window_is_milliseconds(tmp_path):
+    doc = document(
+        count("c1", "metrics", **{"from": "2026-12-01T00:00:00Z", "to": "2026-12-02T00:00:00Z"})
+    )
+    response = {"data": {"attributes": {"columns": []}}}
+    sent = node_run(tmp_path, doc, [{"kind": "metrics", "response": response}])["seen"][0]["attrs"]
+    assert sent["from"] == 1796083200000
+    assert sent["to"] == 1796169600000
+
+
+@needs_node
+@pytest.mark.parametrize("signal", ["traces", "logs"])
+def test_program_timeout_is_a_failure_not_zero(tmp_path, signal):
+    kind = "spans" if signal == "traces" else "logs"
+    response = {"data": {"buckets": []}, "meta": {"status": "timeout"}}
+    out = node_run(tmp_path, document(count("c1", signal)), [{"kind": kind, "response": response}])
+    assert out["result"]["counts"] == []
+    assert out["result"]["failed"] == [{"check": "c1", "reason": "partial result: timeout"}]
+
+
+@needs_node
+@pytest.mark.parametrize(
+    ("response", "reason"),
+    [
+        (
+            {"errors": [{"title": "x"}], "data": {"attributes": {"columns": []}}},
+            "metric query failed",
+        ),
+        ({"data": {}}, "unexpected response"),
+        ({}, "unexpected response"),
+    ],
+)
+def test_program_metrics_bad_answer_is_a_failure(tmp_path, response, reason):
+    out = node_run(
+        tmp_path, document(count("c1", "metrics")), [{"kind": "metrics", "response": response}]
+    )
+    assert out["result"]["counts"] == []
+    assert out["result"]["failed"] == [{"check": "c1", "reason": reason}]
+
+
+@needs_node
+def test_program_failure_with_code_hides_the_body(tmp_path):
+    out = node_run(
+        tmp_path,
+        document(count("c1", "logs", query="secret")),
+        [{"kind": "logs", "throw": "x", "code": 403}],
+    )
+    assert out["result"]["failed"] == [{"check": "c1", "reason": "HTTP 403"}]

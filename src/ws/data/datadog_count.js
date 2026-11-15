@@ -20,17 +20,21 @@ function bucketValue(bucket) {
 }
 
 function totalOf(response) {
+  if (response && response.meta && response.meta.status === "timeout") {
+    throw new Error("partial result: timeout");
+  }
   const first = buckets(response)[0];
   return first ? bucketValue(first) : 0;
 }
 
 function scalarSum(response) {
-  const columns = (response && response.data && response.data.attributes && response.data.attributes.columns) || [];
+  if (response && response.errors) throw new Error("metric query failed");
+  if (!response || !response.data || !response.data.attributes) throw new Error("unexpected response");
+  const columns = response.data.attributes.columns || [];
+  const column = columns.find((item) => item.type === "number");
   let sum = 0;
-  for (const column of columns) {
-    for (const value of column.values || []) {
-      if (typeof value === "number" && Number.isFinite(value)) sum += value;
-    }
+  for (const value of (column && column.values) || []) {
+    if (typeof value === "number" && Number.isFinite(value)) sum += value;
   }
   return sum;
 }
@@ -75,7 +79,8 @@ async function run(api) {
     if (outcome.status === "fulfilled") {
       counts.push({ check: item.check, hash: item.hash, ...outcome.value });
     } else {
-      const reason = String((outcome.reason && outcome.reason.message) || outcome.reason);
+      const error = outcome.reason;
+      const reason = error && error.code ? "HTTP " + error.code : String((error && error.message) || error);
       failed.push({ check: item.check, reason: reason.slice(0, REASON_CHARS) });
     }
   });

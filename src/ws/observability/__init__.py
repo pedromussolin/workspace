@@ -1,15 +1,20 @@
-"""Neutral observability layer: the provider is chosen by `[observability] provider`."""
+"""Neutral observability layer: the provider is chosen by `[observability] provider`.
+
+A provider is a module `<name>_adapter` of this package; it is found by file name.
+"""
 
 import importlib
+import pkgutil
 
 from ws.observability.port import Observability, Setup
 from ws.userconfig import ConfigMissing, load_table
 
-PROVIDERS = {"datadog": "ws.observability.datadog_adapter"}
+SUFFIX = "_adapter"
 
 
 def providers() -> tuple[str, ...]:
-    return tuple(PROVIDERS)
+    names = (found.name for found in pkgutil.iter_modules(__path__))
+    return tuple(sorted(name.removesuffix(SUFFIX) for name in names if name.endswith(SUFFIX)))
 
 
 def open_observability() -> Observability:
@@ -21,7 +26,7 @@ def open_observability() -> Observability:
     provider = table.get("provider")
     if not provider:
         raise Setup(f"[observability] provider is not set in config.toml; known: {known}")
-    if provider not in PROVIDERS:
+    if provider not in providers():
         raise Setup(f"[observability] provider {provider!r} is unknown; known: {known}")
-    module = importlib.import_module(PROVIDERS[provider])
+    module = importlib.import_module(f"ws.observability.{provider}{SUFFIX}")
     return module.from_config(table)

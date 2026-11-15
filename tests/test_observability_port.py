@@ -10,12 +10,17 @@ def write_config(tmp_path, monkeypatch, text):
         (tmp_path / "config.toml").write_text(text)
 
 
+def test_providers_are_the_adapter_modules():
+    assert providers() == tuple(sorted(providers()))
+    assert providers()
+
+
 def test_open_observability_by_provider(tmp_path, monkeypatch):
-    write_config(tmp_path, monkeypatch, '[observability]\nprovider = "datadog"\n')
+    name = providers()[0]
+    write_config(tmp_path, monkeypatch, f'[observability]\nprovider = "{name}"\n')
     found = open_observability()
     assert isinstance(found, Observability)
-    assert found.tool == "execute_code"
-    assert providers() == ("datadog",)
+    assert found.kind == name
 
 
 @pytest.mark.parametrize("text", [None, "[other]\nx = 1\n", "[observability]\n"])
@@ -27,5 +32,5 @@ def test_open_observability_without_provider(tmp_path, monkeypatch, text):
 
 def test_open_observability_unknown_provider(tmp_path, monkeypatch):
     write_config(tmp_path, monkeypatch, '[observability]\nprovider = "nope"\n')
-    with pytest.raises(Setup, match="datadog"):
+    with pytest.raises(Setup, match=providers()[0]):
         open_observability()
