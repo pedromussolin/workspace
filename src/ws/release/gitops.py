@@ -172,3 +172,16 @@ def branches_with(repo: Path, key: str) -> tuple[list[str], list[str]]:
         return [n for n in out if key in TASK_KEY.findall(n)]
 
     return names("refs/heads"), names(f"refs/remotes/{REMOTE}")
+
+
+def remote_branches(repo: Path, prefix: str) -> list[str]:
+    """Names (without `origin/`) of the remote-tracking branches under `origin/<prefix>`."""
+    out = git(repo, "for-each-ref", "--format=%(refname)", f"refs/remotes/{REMOTE}/{prefix}").stdout
+    start = f"refs/remotes/{REMOTE}/"
+    return [line[len(start) :] for line in out.splitlines() if line.startswith(start)]
+
+
+def changed_files(repo: Path, sha: str) -> list[tuple[str, str]]:
+    """(status letter, path) of what a non-merge commit changed against its parent."""
+    out = git(repo, "diff-tree", "--no-commit-id", "--root", "-r", "--name-status", sha).stdout
+    return [tuple(line.split("\t", 1)) for line in out.splitlines() if line]  # type: ignore[misc]

@@ -46,6 +46,16 @@ def test_release_parser_fields():
     assert _parse("status", "20261120", "--project", "p").day == "20261120"
 
 
+def test_release_parser_keeps_every_value_of_a_repeated_flag():
+    args = _parse("branches", "--task", "TS-1", "--task", "TS-2", "TS-3", "--repo", "a")
+    items = _parse("branches", "--task", "TS-1", "--from-items", "x", "--from-items", "y").items
+    assert (args.tasks, items) == (["TS-1", "TS-2", "TS-3"], ["x", "y"])
+    assert _parse("new", "20261120", "--repo", "a", "--repo", "b").repos == ["a", "b"]
+    preview = _parse("preview", "publish", "20261120", "--repo", "a", "--repo", "b")
+    assert preview.repos == ["a", "b"]
+    assert _parse("branches", "--task", "TS-1").repos == []
+
+
 def test_release_parser_refuses_abbreviations(capsys):
     with pytest.raises(SystemExit) as stop:
         _parse("publish", "20261120", "--project", "p", "--appr", "x")

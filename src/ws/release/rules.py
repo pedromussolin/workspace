@@ -87,7 +87,7 @@ def heads_problem(repo: str, where: str, heads: list[str]) -> str | None:
     return f"{repo}: {len(heads)} alembic heads at {where}: {', '.join(heads)}"
 
 
-def _against_origin(repo: Path, name: str, branch: str) -> tuple[list[str], list[str]]:
+def against_origin(repo: Path, name: str, branch: str) -> tuple[list[str], list[str]]:
     """Problems and warnings of a local branch compared with its `origin` copy."""
     ref, origin = _local(branch), _remote(branch)
     local, remote = gitops.rev(repo, ref), gitops.rev(repo, origin)
@@ -121,7 +121,7 @@ def order_check(
             problems.append(f"{name}: {branch} exists neither locally nor on origin")
             continue
         refs[branch] = ref
-        found, noted = _against_origin(repo, name, branch)
+        found, noted = against_origin(repo, name, branch)
         problems += found
         warnings += noted
     if len(refs) < len(names):
@@ -138,6 +138,12 @@ def order_check(
         ]
 
     own = {b: gitops.count(repo, f"{base_ref}..{refs[b]}") > 0 for b in names}
+    shown = base_ref.removeprefix("refs/remotes/")
+    problems += [
+        f"{name}: {b} is already in {shown}; take it out of the release"
+        for b in names
+        if not own[b]
+    ]
     contains = {
         a: {b for b in names if b != a and own[b] and gitops.is_ancestor(repo, refs[b], refs[a])}
         for a in names
@@ -174,18 +180,69 @@ def mirror(
     if not gitops.is_ancestor(repo, sandbox, sdbx_ref):
         problems.append(f"{name}: {sdbx} does not contain origin/{config.sandbox_branch}")
     from_sandbox = {sha for sha, _ in gitops.commits(repo, f"{code_ref}..{sandbox}")}
+    merge_migration: str | None = None
     for sha, subject in gitops.commits(repo, f"{code_ref}..{sdbx_ref}", merges=False):
-        if sha not in from_sandbox:
-            problems.append(f"{name}: {sdbx} has commits of its own: {sha[:7]} {subject}")
+        if sha in from_sandbox:
+            continue
+        if merge_migration is None:
+            merge_migration = _merge_migration(entry, sha)
+            if merge_migration is not None:
+                continue
+        problems.append(f"{name}: {sdbx} has commits of its own: {sha[:7]} {subject}")
     differs = gitops.diff_names(repo, code_ref, sdbx_ref)
     sandbox_files = set(gitops.diff_names(repo, base, sandbox))
     for path in differs:
-        if path not in sandbox_files:
+        if path not in sandbox_files and path != merge_migration:
             problems.append(
                 f"{name}: {sdbx} differs from {code} in {path}, "
                 f"which {config.sandbox_branch} does not change"
             )
     return problems, differs
+
+
+def _merge_migration(entry: RepoEntry, sha: str) -> str | None:
+    """The path when commit `sha` only adds one Alembic migration under the repo's `alembic`
+    folder whose `down_revision` is exactly the heads just before it (two or more): the merge
+    migration the user adds in the `-sdbx` when the sandbox side has two heads."""
+    if not entry.alembic:
+        return None
+    changed = gitops.changed_files(entry.path, sha)
+    if len(changed) != 1:
+        return None
+    status, path = changed[0]
+    folder = entry.alembic.rstrip("/") + "/"
+    if status != "A" or not path.startswith(folder) or not path.endswith(".py"):
+        return None
+    try:
+        added = migrations.parse_revision(gitops.read_at(entry.path, sha, path) or "", path)
+    except migrations.MigrationUnreadable:
+        return None
+    before = heads_at(entry, f"{sha}^")
+    if added is None or len(before) < 2:
+        return None
+    if len(added.down) != len(before) or set(added.down) != set(before):
+        return None
+    return path
+
+
+def sandbox_heads(entry: RepoEntry, tip: str, tree: str | None) -> list[str]:
+    """The Alembic heads of a clean sandbox merge (`tree`) when the code has one head and the
+    merge has two or more: `sandbox` has a migration master lacks. `new` treats it as a conflict.
+    """
+    merged = heads_at(entry, tree) if tree else []
+    return merged if len(merged) >= 2 and len(heads_at(entry, tip)) <= 1 else []
+
+
+def heads_at(entry: RepoEntry, ref: str) -> list[str]:
+    """The Alembic heads at `ref` ([] without `alembic`, or when a migration is unreadable)."""
+    if not entry.alembic:
+        return []
+    try:
+        return migrations.heads(
+            migrations.revisions(gitops.sources_at(entry.path, ref, entry.alembic))
+        )
+    except migrations.MigrationUnreadable:
+        return []
 
 
 def template_headings(entry: RepoEntry, tip: str | None, base_branch: str = "master") -> list[str]:
@@ -292,14 +349,13 @@ def assess(
             f"{name}: {release_branch} exists but the repo has one include; "
             "a single include uses its own branch"
         )
-    for branch in (code_branch, sdbx_name):
-        upstream = gitops.upstream(repo, branch)
-        if upstream in (f"origin/{config.base_branch}", f"origin/{config.sandbox_branch}"):
-            state.problems.append(
-                f"{name}: {branch} tracks {upstream}; branches cut from master are --no-track"
-            )
+    _tracking(state, repo, code_branch, config)
     if tip is None or code_ref is None:
         return state
+    if shape == "multi":
+        found, noted = against_origin(repo, name, code_branch)
+        state.problems += found
+        state.warnings += noted
 
     checked_out = gitops.checked_out_at(repo, code_branch)
     state.worktree = str(checked_out) if checked_out else None
@@ -309,34 +365,54 @@ def assess(
         state.problems.append(
             f"{name}: master moved, merge it ({state.behind} commits of origin/master missing)"
         )
+    if shape == "multi" and state.ahead == 0:
+        state.problems.append(
+            f"{name}: {code_branch} has no commits ahead of origin/{config.base_branch}"
+        )
     state.headings = template_headings(entry, tip, config.base_branch)
 
     tree: str | None = None
     conflicts: list[str] = []
-    has_sandbox = gitops.rev(repo, sandbox) is not None
-    if not has_sandbox:
+    if gitops.rev(repo, sandbox) is None:
         state.problems.append(
             f"{name}: {gitops.REMOTE}/{config.sandbox_branch} does not exist; "
             "the sandbox side cannot be checked"
         )
-        sdbx_ref = None
     else:
         tree, conflicts = gitops.merge_tree(repo, tip, sandbox)
-    if sdbx_ref and conflicts:
-        state.sandbox_head = sdbx_name
-    elif sdbx_ref:
-        state.warnings.append(f"{sdbx_name} is not needed: {config.sandbox_branch} merges cleanly")
-    if sdbx_ref:
+    side = sandbox_heads(entry, tip, tree) if not conflicts else []
+    used: str | None = None
+    if (conflicts or side) and sdbx_ref:
+        used, state.sandbox_head = sdbx_ref, sdbx_name
+        _tracking(state, repo, sdbx_name, config)
+        found, noted = against_origin(repo, name, sdbx_name)
+        state.problems += found
+        state.warnings += noted
         problems, differs = mirror(entry, code_branch, sdbx_name, config)
         state.problems += problems
         state.sdbx_differs = tuple(differs)
+    elif conflicts:
+        state.problems.append(
+            f"{name}: {code_branch} conflicts with origin/{config.sandbox_branch} in "
+            f"{', '.join(conflicts)}; run ws release new"
+        )
+    elif sdbx_ref and tree and not gitops.is_ancestor(repo, sdbx_ref, sandbox):
+        state.warnings.append(f"{sdbx_name} is not needed: {config.sandbox_branch} merges cleanly")
 
     state.problems += _commit_problems(
-        name, repo, _own_commits(entry, shape, base, code_ref, sdbx_ref, sandbox)
+        name, repo, _own_commits(entry, shape, base, code_ref, used, sandbox)
     )
     if entry.alembic:
-        _alembic_heads(state, entry, tip, tree or (sdbx_ref if conflicts else None))
+        _alembic_heads(state, entry, tip, used or tree)
     return state
+
+
+def _tracking(state: RepoState, repo: Path, branch: str, config: ReleaseConfig) -> None:
+    upstream = gitops.upstream(repo, branch)
+    if upstream in (f"origin/{config.base_branch}", f"origin/{config.sandbox_branch}"):
+        state.problems.append(
+            f"{state.repo}: {branch} tracks {upstream}; branches cut from master are --no-track"
+        )
 
 
 def pr_text_problems(
@@ -361,7 +437,7 @@ def pr_text_problems(
         if len(draft.title) > MAX_SANDBOX_TITLE:
             problems.append(f"{name}: sandbox title has more than {MAX_SANDBOX_TITLE} characters")
     if state.shape == "multi":
-        if not re.match(rf"^release {text.compact(day)}: .+", title):
+        if not re.match(rf"^release {text.compact(day)}: .+", title) or text.keys_of(title):
             problems.append(f"{name}: title must be 'release {text.compact(day)}: text', no key")
     else:
         if not SINGLE_TITLE.match(title):

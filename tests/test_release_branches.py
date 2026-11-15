@@ -156,3 +156,17 @@ def test_branches_warns_on_a_dangling_link(world, capsys):
     err, out = captured.err, json.loads(captured.out)
     assert "TS-101 blocks ../nope/tasks/x.md" in err
     assert out["items"][0]["blocks"] == []
+
+
+def test_branches_fetch_failure_is_a_warning(world, capsys):
+    world.git("repo-b", "remote", "set-url", "origin", str(world.root / "nowhere.git"))
+    code, out = _run(capsys, tasks=["TS-201"], repos=["repo-b"])
+    repo = _repo(out, "repo-b")
+    assert code == 0 and repo["problems"] == []
+    assert len(repo["warnings"]) == 1 and repo["warnings"][0].startswith("fetch failed: ")
+
+
+def test_branches_repo_flag_follows_the_config_order(world, capsys):
+    code, out = _run(capsys, tasks=["TS-101"], repos=["repo-b", "repo-a", "repo-b"])
+    assert code == 0 and [r["repo"] for r in out["repos"]] == ["repo-a", "repo-b"]
+    assert _run(capsys, tasks=["TS-101"], repos=["repo-x"])[0] == 2

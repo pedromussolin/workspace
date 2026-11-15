@@ -103,9 +103,10 @@ def _repo_report(
 ) -> dict:
     repo = entry.path
     problems: list[str] = []
-    warning = gitops.fetch(repo)
-    if warning:
-        problems.append(f"fetch failed: {warning}")
+    warnings: list[str] = []
+    error = gitops.fetch(repo)
+    if error:
+        warnings.append(f"fetch failed: {error}")
     base_ref = f"{gitops.REMOTE}/{config.base_branch}"
     base_tip = gitops.rev(repo, base_ref)
     if base_tip is None:
@@ -179,7 +180,13 @@ def _repo_report(
                     edges.add((a, b))
     order, cycle = migrations.suggested_order(names, edges)
     problems += cycle
-    return {"repo": entry.name, "branches": rows, "suggested_order": order, "problems": problems}
+    return {
+        "repo": entry.name,
+        "branches": rows,
+        "suggested_order": order,
+        "problems": problems,
+        "warnings": warnings,
+    }
 
 
 def _hints(rows: list[dict]) -> set[tuple[str, str]]:
@@ -199,7 +206,9 @@ def run_branches(args: argparse.Namespace) -> int:
     def action() -> tuple[dict, int]:
         config = load_release_config()
         keys, rows = _collect(args)
-        entries = [config.entry(name) for name in args.repos] if args.repos else config.repos
+        for name in args.repos:
+            config.entry(name)
+        entries = [e for e in config.repos if not args.repos or e.name in args.repos]
         hints = _hints(rows)
         repos = [_repo_report(config, entry, keys, hints) for entry in entries]
         seen = {row["key"] for repo in repos for row in repo["branches"]}

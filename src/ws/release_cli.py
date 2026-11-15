@@ -8,7 +8,9 @@ def _project(parser: argparse.ArgumentParser) -> None:
 
 
 def _repos(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--repo", dest="repos", nargs="+", default=[], metavar="NAME")
+    parser.add_argument(
+        "--repo", dest="repos", action="extend", nargs="+", default=[], metavar="NAME"
+    )
 
 
 def _branches(args: argparse.Namespace) -> int:
@@ -67,8 +69,12 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
 
     branches = commands.add_parser("branches", help="List the task branches of the repos.")
     _project(branches)
-    branches.add_argument("--task", dest="tasks", nargs="+", default=[], metavar="TS-N")
-    branches.add_argument("--from-items", dest="items", nargs="+", default=[], metavar="SLUG")
+    branches.add_argument(
+        "--task", dest="tasks", action="extend", nargs="+", default=[], metavar="TS-N"
+    )
+    branches.add_argument(
+        "--from-items", dest="items", action="extend", nargs="+", default=[], metavar="SLUG"
+    )
     _repos(branches)
     branches.set_defaults(handler=_branches)
 

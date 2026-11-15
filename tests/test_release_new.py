@@ -1,18 +1,21 @@
 import argparse
 import json
 import subprocess
+from datetime import date
 from pathlib import Path
 
 from fake_gh import fake_gh  # noqa: F401
 from release_helpers import DAY, REV_BASE, World
 
-from ws.release import build
+from ws.release import build, rules
+from ws.release.settings import load_release_config
 
 pytest_plugins = ["release_helpers"]
 
 CODE = f"release/{DAY}"
 ONE, TWO, ONLY = "feature/TS-101-one", "feature/TS-102-two", "feature/TS-201-only"
 BASE = "origin/master"
+DAY_DATE = date(2026, 11, 20)
 
 
 def _new(capsys, day: str = DAY, repos: list[str] | None = None) -> tuple[int, dict, str]:
@@ -219,6 +222,7 @@ def test_new_refuses_stacked_branches_out_of_order(world, fixed_today, capsys):
     assert code == 1
     assert world.git("repo-a", "branch", "--list", CODE) == ""
     assert out["suggested_order"] == {"repo-a": [ONE, TWO]}
+    assert out["not_built"] == ["repo-a"]
 
 
 def test_new_stacked_in_order_merges_each_task(world, fixed_today, capsys):
@@ -240,14 +244,77 @@ def test_new_reports_two_alembic_heads(world, fixed_today, capsys):
     assert f"repo-a: 2 alembic heads at {CODE}: bbb000000002, ccc000000003" in problems
 
 
-def test_new_reports_heads_on_the_sandbox_side(world, fixed_today, capsys):
+def _sandbox_migration(world: World) -> None:
+    """ONE and sandbox each add a migration on the base one; the git merge is clean."""
     world.migration("repo-a", ONE, "bbb000000002", REV_BASE)
     world.migration("repo-a", "sandbox", "ddd000000004", REV_BASE)
     world.git("repo-a", "checkout", "-q", "master")
-    _setup(world)
+    _setup(world, b=())
+
+
+def _commit_in(world: World, worktree: Path, path: str, content: str, subject: str) -> None:
+    (worktree / path).parent.mkdir(parents=True, exist_ok=True)
+    (worktree / path).write_text(content)
+    world.git("repo-a", "-C", str(worktree), "add", path)
+    world.git("repo-a", "-C", str(worktree), "commit", "-q", "-m", subject)
+
+
+MERGE_MIGRATION = "migrations/versions/eee.py"
+
+
+def test_new_makes_the_sdbx_for_two_heads_on_the_sandbox_side(world, fixed_today, capsys):
+    _sandbox_migration(world)
     code, out, _ = _new(capsys)
+    assert code == 3
+    sdbx = world.release_dir() / "repo-a-sdbx"
+    conflict = out["conflict"]
+    assert conflict["worktree"] == str(sdbx) and conflict["files"] == []
+    assert conflict["alembic_heads"] == ["bbb000000002", "ddd000000004"]
+    assert "bbb000000002, ddd000000004" in conflict["message"]
+    assert world.git("repo-a", "rev-parse", "--abbrev-ref", f"{CODE}-sdbx") == f"{CODE}-sdbx"
+    assert _new(capsys)[0] == 3
+
+
+def test_new_with_the_merge_migration_in_the_sdbx_is_ready(world, fixed_today, capsys):
+    _sandbox_migration(world)
+    _new(capsys)
+    sdbx = world.release_dir() / "repo-a-sdbx"
+    down = '("bbb000000002", "ddd000000004")'
+    content = f'revision = "eee000000005"\ndown_revision = {down}\n'
+    _commit_in(world, sdbx, MERGE_MIGRATION, content, "chore(TS-101): junta as heads")
+    code, out, _ = _new(capsys)
+    repo = _repo(out, "repo-a")
+    assert code == 0, repo["problems"]
+    assert repo["ready"] is True and repo["sandbox_head"] == f"{CODE}-sdbx"
+    assert repo["heads"] == {"code": ["bbb000000002"], "sandbox": ["eee000000005"]}
+
+
+def test_new_merge_migration_with_other_heads_is_a_problem(world, fixed_today, capsys):
+    _sandbox_migration(world)
+    _new(capsys)
+    sdbx = world.release_dir() / "repo-a-sdbx"
+    content = 'revision = "eee000000005"\ndown_revision = ["bbb000000002", "aaa000000001"]\n'
+    _commit_in(world, sdbx, MERGE_MIGRATION, content, "chore(TS-101): junta as heads")
+    code, out, _ = _new(capsys)
+    assert code == 3
+    config = load_release_config()
+    state = rules.assess(config, config.entry("repo-a"), (ONE, TWO), DAY_DATE, world.release_dir())
+    assert any("has commits of its own" in p for p in state.problems)
+    assert not state.ready
+
+
+def test_new_merge_migration_plus_another_commit_is_a_problem(world, fixed_today, capsys):
+    _sandbox_migration(world)
+    _new(capsys)
+    sdbx = world.release_dir() / "repo-a-sdbx"
+    content = 'revision = "eee000000005"\ndown_revision = ["bbb000000002", "ddd000000004"]\n'
+    _commit_in(world, sdbx, MERGE_MIGRATION, content, "chore(TS-101): junta as heads")
+    _commit_in(world, sdbx, "own.txt", "own\n", "chore(TS-101): ajuste")
+    code, out, _ = _new(capsys)
+    problems = _repo(out, "repo-a")["problems"]
     assert code == 1
-    assert any("the sandbox merge" in p for p in _repo(out, "repo-a")["problems"])
+    assert any("has commits of its own" in p and "ajuste" in p for p in problems)
+    assert not any("junta as heads" in p for p in problems)
 
 
 def test_new_refuses_a_local_branch_behind_origin(world, fixed_today, capsys, tmp_path):
@@ -267,6 +334,7 @@ def test_new_refuses_a_local_branch_behind_origin(world, fixed_today, capsys, tm
         f"repo-a: local {ONE} is behind origin/{ONE}; pull it first" in out["repos"][0]["problems"]
     )
     assert world.git("repo-a", "branch", "--list", CODE) == ""
+    assert "suggested_order" not in out and out["not_built"] == ["repo-a"]
 
 
 def _all_refs(world: World) -> dict:
@@ -353,8 +421,111 @@ def test_new_conflict_in_the_second_repo_lists_built_and_not_started(world, fixe
 
 
 def test_new_conflict_in_the_first_repo_lists_the_one_not_started(world, fixed_today, capsys):
-    other = _second_repo_b_branch(world)
-    world.write_release({"repo-b": [ONLY, other], "repo-a": [ONE, TWO]})
+    world.commit("repo-a", ONE, "shared.txt", "one\n", "feat: shared one")
+    world.commit("repo-a", TWO, "shared.txt", "two\n", "feat: shared two")
+    world.git("repo-a", "checkout", "-q", "master")
+    world.write_release({"repo-b": [ONLY], "repo-a": [ONE, TWO]})
     code, out, _ = _new(capsys)
     assert code == 3
-    assert out["built"] == [] and out["not_started"] == ["repo-a"]
+    assert out["conflict"]["repo"] == "repo-a"
+    assert out["built"] == [] and out["not_started"] == ["repo-b"]
+
+
+def test_new_follows_the_config_order_not_release_toml(world, fixed_today, capsys):
+    world.write_release({"repo-b": [ONLY], "repo-a": [ONE, TWO]})
+    code, out, _ = _new(capsys)
+    assert code == 0 and [r["repo"] for r in out["repos"]] == ["repo-a", "repo-b"]
+
+
+def _task_copy(world: World, *, local: bool = True) -> None:
+    """The user's convention: `ONLY-sdbx` is ONLY plus sandbox, pushed; master then moves."""
+    world.branch("repo-b", f"{ONLY}-sdbx", ONLY, push=False)
+    world.git("repo-b", "merge", "-q", "--no-ff", "-m", "chore(TS-201): junta", "origin/sandbox")
+    world.git("repo-b", "push", "-q", "origin", f"{ONLY}-sdbx")
+    world.git("repo-b", "checkout", "-q", "master")
+    if not local:
+        world.git("repo-b", "branch", "-q", "-D", f"{ONLY}-sdbx")
+    world.commit("repo-b", "master", "m.txt", "m\n", "chore: master moves")
+    world.write_release({"repo-b": [ONLY]})
+
+
+def test_new_single_ignores_the_tasks_own_sdbx_copy(world, fixed_today, capsys):
+    _task_copy(world)
+    code, out, _ = _new(capsys)
+    repo = _repo(out, "repo-b")
+    assert code == 0, repo["problems"]
+    assert repo["ready"] is True and repo["sandbox_head"] == ONLY
+
+
+def test_new_single_ignores_a_copy_that_is_only_on_origin(world, fixed_today, capsys):
+    _task_copy(world, local=False)
+    code, out, err = _new(capsys)
+    assert code == 0, err
+    assert _repo(out, "repo-b")["ready"] is True
+
+
+def test_new_single_already_in_master_is_refused_before_merging(world, fixed_today, capsys):
+    world.git("repo-b", "checkout", "-q", "master")
+    world.git("repo-b", "merge", "-q", "--no-ff", "-m", "Merge pull request #5", ONLY)
+    world.git("repo-b", "push", "-q", "origin", "master")
+    world.commit("repo-b", "master", "m.txt", "m\n", "chore: master moves")
+    world.write_release({"repo-b": [ONLY]})
+    tip = world.git("repo-b", "rev-parse", ONLY)
+    code, out, _ = _new(capsys)
+    assert code == 1 and out["not_built"] == ["repo-b"] and "suggested_order" not in out
+    assert (
+        f"repo-b: {ONLY} is already in origin/master; take it out of the release"
+        in (_repo(out, "repo-b")["problems"])
+    )
+    assert world.git("repo-b", "rev-parse", ONLY) == tip
+
+
+def test_new_multi_already_in_master_builds_nothing(world, fixed_today, capsys):
+    world.git("repo-a", "checkout", "-q", "master")
+    for branch in (ONE, TWO):
+        world.git("repo-a", "merge", "-q", "--no-ff", "-m", "Merge", branch)
+    world.git("repo-a", "push", "-q", "origin", "master")
+    world.write_release({"repo-a": [ONE, TWO]})
+    code, out, _ = _new(capsys)
+    assert code == 1 and out["not_built"] == ["repo-a"]
+    assert world.git("repo-a", "branch", "--list", CODE) == ""
+
+
+def test_new_does_not_build_on_a_release_branch_behind_origin(world, fixed_today, capsys):
+    _setup(world, b=())
+    _new(capsys)
+    world.git("repo-a", "push", "-q", "origin", CODE)
+    world.git(
+        "repo-a", "-C", str(world.release_dir() / "repo-a"), "reset", "-q", "--hard", "HEAD~1"
+    )
+    world.commit("repo-a", "master", "m.txt", "m\n", "chore: master moves")
+    tip = world.git("repo-a", "rev-parse", CODE)
+    code, out, _ = _new(capsys)
+    assert code == 1 and out["not_built"] == ["repo-a"]
+    assert (
+        f"repo-a: local {CODE} is behind origin/{CODE}; pull it first"
+        in (_repo(out, "repo-a")["problems"])
+    )
+    assert world.git("repo-a", "rev-parse", CODE) == tip
+
+
+def test_new_exit_codes_for_what_cannot_be_evaluated(world, fixed_today, capsys):
+    code, _, err = _new(capsys)
+    assert code == 2 and "not found" in err
+    _setup(world, b=())
+    code, _, err = _new(capsys, day="2026-1120")
+    assert code == 2 and "is not a day" in err
+    code, _, err = _new(capsys, repos=["repo-b"])
+    assert code == 2 and "--repo repo-b: not in release.toml" in err
+    args = argparse.Namespace(project="../x", day=DAY, repos=[])
+    assert build.run_new(args) == 2
+
+
+def test_new_release_toml_without_an_include_is_refused_cleanly(world, fixed_today, capsys):
+    folder = world.release_dir()
+    folder.mkdir(parents=True)
+    (folder / "release.toml").write_text(
+        'repos = ["repo-a", "repo-b"]\n\n[include]\nrepo-a = ["feature/TS-101-one"]\n'
+    )
+    code, _, err = _new(capsys)
+    assert code == 1 and "repo-b is in repos but has no include list" in err

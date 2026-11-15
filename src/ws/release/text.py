@@ -3,7 +3,7 @@
 import re
 from datetime import date
 
-from ws.release import ReleaseRefused
+from ws.release import ReleaseRefused, ReleaseSetup
 
 TASK_KEY = re.compile(r"\bTS-\d+\b")
 SUBJECT = re.compile(r"^(feat|chore|refact|fix|test)\(TS-\d+(, TS-\d+)*\): .+")
@@ -11,6 +11,7 @@ MAX_SUBJECT = 72
 MASTER_TEXT = "atualiza com a master"
 _DAY = re.compile(r"(\d{4})-?(\d{2})-?(\d{2})")
 _SEPARATORS = "-/"
+_FUNCTION_WORDS = {"a", "o", "com", "na", "no", "da", "do", "de", "e"}
 
 
 def sandbox_text(code: str) -> str:
@@ -30,6 +31,14 @@ def parse_day(text: str) -> date:
     if match is None or ("-" in text) != (len(text) == 10):
         raise ValueError(f"{text!r} is not a day: use YYYYMMDD or YYYY-MM-DD")
     return date(*(int(part) for part in match.groups()))
+
+
+def day_argument(raw: str) -> date:
+    """The DAY of a command line; a malformed one means the command cannot evaluate (exit 2)."""
+    try:
+        return parse_day(raw)
+    except ValueError as error:
+        raise ReleaseSetup(str(error)) from None
 
 
 def future_day(text: str) -> date:
@@ -75,10 +84,14 @@ def release_merge_message(keys: list[str], text: str) -> tuple[str, str]:
     count = len(keys)
     while count > 1 and len(scope(count)) + len(first_word) > MAX_SUBJECT:
         count -= 1
-    subject = scope(count) + first_word
+    words = [first_word]
     for word in text.split()[1:]:
-        if len(subject) + 1 + len(word) > MAX_SUBJECT:
+        if len(scope(count)) + len(" ".join([*words, word])) > MAX_SUBJECT:
             break
-        subject += f" {word}"
+        words.append(word)
+    if len(words) < len(text.split()):
+        while len(words) > 1 and words[-1] in _FUNCTION_WORDS:
+            words.pop()
+    subject = scope(count) + " ".join(words)
     body = f"Tarefas: {', '.join(keys)}" if count < len(keys) else ""
     return subject, body

@@ -134,3 +134,12 @@ def test_world_env_isolated(world: World):
     )
     assert out.stdout == ""
     assert set(world.refs("repo-b")) >= {"refs/heads/master", "refs/heads/sandbox"}
+
+
+def test_remote_branches_and_changed_files(world: World):
+    world.git("repo-a", "push", "-q", "origin", "master:refs/heads/release/20261120")
+    world.git("repo-a", "fetch", "-q", "origin")
+    repo = world.clone("repo-a")
+    assert gitops.remote_branches(repo, "release/") == ["release/20261120"]
+    sha = world.commit("repo-a", "feature/TS-101-one", "x/y.txt", "y\n", "feat: y")
+    assert gitops.changed_files(repo, sha) == [("A", "x/y.txt")]
