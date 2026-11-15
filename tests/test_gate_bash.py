@@ -3434,3 +3434,221 @@ def test_python_that_cannot_write_through_ws_stays_silent(command, env):
 )
 def test_python_that_may_reach_ws_still_asks_when_it_cannot_be_told_apart(command, title, env):
     assert box(command, env).splitlines()[0] == title
+
+
+OBSERVE_TITLE = "Consulta a réplica de produção (TS-5)"
+OBSERVE_LINES = ["open-batches → replica", "stuck-files → history"]
+OBSERVE_SQL = "select count(*) from batches where open and updated_at < :day_to"
+OBSERVE_PLAN = f"""version = 1
+task = "TS-5"
+job = "fechamento de lotes"
+switched_off = 2026-12-08
+days = 5
+
+[[checks]]
+id = "sweep-calls"
+kind = "observability"
+signal = "traces"
+query = "service:sweep"
+expect = "== 0"
+
+[[checks]]
+id = "open-batches"
+kind = "database"
+sql = "{OBSERVE_SQL}"
+expect = "== 0"
+
+[[checks]]
+id = "stuck-files"
+kind = "database"
+database = "history"
+sql = "select count(*) from files where stuck"
+expect = "<= 2"
+label = "arquivos parados"
+
+[[checks]]
+id = "file-vs-db"
+kind = "manual"
+question = "O arquivo bate com o banco?"
+"""
+
+
+def write_plan(env, project="demo", task="TS-5", text=OBSERVE_PLAN):
+    folder = Path(env["WS_DATA_DIR"]) / "projects" / project / "observations"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{task}.toml").write_text(text, encoding="utf-8")
+
+
+def test_observe_run_asks_with_the_database_checks(env):
+    write_plan(env)
+
+    text = box("ws observe run TS-5", env)
+
+    assert text.splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+    assert "select" not in text
+    assert "sweep-calls" not in text
+    assert decision("ws observe run TS-5", env)["permissionDecision"] == "ask"
+
+
+OBSERVE_RUN_FORMS = [
+    "ws observe run TS-5",
+    "ws observe run TS-5 --day 2026-12-09",
+    "ws observe run --day=2026-12-09 TS-5",
+    "uv run ws observe run TS-5",
+    "uv run --no-sync ws observe run TS-5",
+    "/srv/ws/.venv/bin/ws observe run TS-5",
+    "~/.local/bin/ws observe run TS-5",
+    "bash -c 'ws observe run TS-5'",
+    "cd /x && ws observe run TS-5 | tail -5",
+    "python3 -m ws observe run TS-5",
+    "uv run -m ws.cli observe run TS-5",
+    "uv run python -m ws observe run TS-5",
+    "python3 -m runpy ws observe run TS-5",
+    f'python3 -c "{MAIN}" observe run TS-5',
+    f'uv run python -c "{MAIN}" observe run TS-5',
+    f"python3 - observe run TS-5 <<< '{MAIN}'",
+    "python3 -c \"import subprocess; subprocess.run(['ws','observe','run','TS-5'])\"",
+    "python3 -c \"import subprocess; subprocess.run(['uv','run','ws','observe','run','TS-5'])\"",
+    "python3 -c \"import subprocess; subprocess.run('ws observe run TS-5', shell=True)\"",
+    "python3 -c \"import os; os.system('ws observe run TS-5')\"",
+    "python3 -c \"import os,sys; os.system(sys.argv[1])\" 'ws observe run TS-5'",
+    "python3 script.py 'ws observe run TS-5'",
+    "python3 script.py observe run TS-5",
+]
+
+
+@pytest.mark.parametrize("command", OBSERVE_RUN_FORMS)
+def test_observe_run_through_python_and_uv_asks(command, env):
+    write_plan(env)
+
+    assert box(command, env).splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws observe status",
+        "ws observe status --json",
+        "ws observe status --project demo",
+        "ws observe show TS-5 --json",
+        "ws observe check TS-5",
+        "ws observe report TS-5",
+        "ws observe request TS-5",
+        "ws observe record TS-5 --result /x/r.json",
+        "ws observe record TS-5 --check file-vs-db --yes",
+        "ws observe fallback TS-5",
+        "ws observe new TS-5 --project demo --job x --switched-off 2026-12-08",
+        "uv run ws observe status --json",
+        "python3 -m ws observe show TS-5",
+        "ws observe --help",
+        "python3 -c 'from ws.observedef import parse_plan; print(parse_plan)'",
+    ],
+)
+def test_observe_reads_stay_silent(command, env):
+    write_plan(env)
+
+    assert box(command, env) is None
+
+
+def test_observe_run_without_a_plan_asks_unsure(env):
+    lines = box("ws observe run TS-5", env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "TS-5" in lines[1]
+    assert "plano" in lines[1]
+
+
+def test_observe_run_with_an_unreadable_plan_asks_unsure(env):
+    write_plan(env, text="version = \n")
+
+    lines = box("ws observe run TS-5", env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "TS-5" in lines[1]
+
+
+def test_observe_run_lists_only_the_chosen_checks(env):
+    write_plan(env)
+
+    assert box("ws observe run TS-5 --check stuck-files", env).splitlines() == [
+        OBSERVE_TITLE,
+        "stuck-files → history",
+    ]
+    assert box("ws observe run TS-5 --check=open-batches", env).splitlines() == [
+        OBSERVE_TITLE,
+        "open-batches → replica",
+    ]
+
+
+def test_observe_run_with_no_database_check_still_asks_and_says_so(env):
+    write_plan(env)
+
+    lines = box("ws observe run TS-5 --check sweep-calls", env).splitlines()
+
+    assert lines[0] == OBSERVE_TITLE
+    assert lines[1] == "Nenhuma checagem de banco será rodada"
+
+
+def test_observe_run_reads_the_plan_of_the_named_project(env):
+    write_plan(env)
+    write_plan(env, project="other", text=OBSERVE_PLAN.replace("stuck-files", "late-files"))
+
+    lines = box("ws observe run TS-5 --project other", env).splitlines()
+    assert lines == [OBSERVE_TITLE, "open-batches → replica", "late-files → history"]
+    two = box("ws observe run TS-5", env).splitlines()
+    assert two[0] == OBSERVE_TITLE
+    assert two[1] == "2 planos para TS-5 (demo, other); sem --project o ws recusa"
+
+
+@pytest.mark.parametrize(
+    ("command", "reason"),
+    [
+        ('ws observe run "$TASK"', "A tarefa vem de uma variável ou comando"),
+        ('ws observe run TS-5 --project "$P"', "O projeto vem de uma variável ou comando"),
+        ("WS_DATA_DIR=/x ws observe run TS-5", "Pode mudar a pasta de onde o ws lê o plano"),
+        ("WS_CONFIG_DIR=/x ws observe run TS-5", "Pode mudar a pasta de onde o ws lê o plano"),
+        ("ws observe run $TASK", "Tem $, crase ou chaves fora de aspas"),
+    ],
+)
+def test_observe_run_that_the_gate_cannot_read_asks_unsure(command, reason, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert lines[1].startswith(reason)
+
+
+@pytest.mark.parametrize(
+    ("command", "reason"),
+    [
+        ("ws observe run", "Falta a tarefa; o ws vai recusar"),
+        ("ws observe run ts-5", "Tarefa inválida; o ws vai recusar"),
+        ("ws observe run ../TS-5", "Tarefa inválida; o ws vai recusar"),
+        ("ws observe run TS-5 --project ../x", "Projeto inválido; o ws vai recusar"),
+    ],
+)
+def test_observe_run_the_ws_will_refuse_still_asks(command, reason, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Consulta a réplica de produção"
+    assert lines[1].startswith(reason)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws.observe_cli import run_day; run_day('demo', p, None, [])",
+        "import ws.observe_cli as o; o.run_day('demo', p, None, [])",
+        "from ws import observe_cli; observe_cli.run_day('demo', p, None, [])",
+        "from ws import database; database.scalar(db, 'select 1', b, 30)",
+        "from ws.database import open_database; open_database('replica').scalar_text('x', b, 9)",
+    ],
+)
+def test_python_that_may_query_the_replica_asks(code, env):
+    lines = box(f'python3 -c "{code}"', env).splitlines()
+
+    assert lines[0] == "Consulta a réplica de produção"
+    assert lines[1].startswith("Python que chama o ws e pode consultar a réplica")

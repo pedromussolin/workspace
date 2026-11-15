@@ -4,7 +4,8 @@
 heredocs are looked at) and returns one decision. A variable the command assigns a literal value
 (`A="git -C x"; $A log`) is resolved first by `variables.worlds`, and every resolved text is
 judged; the strictest decision wins. Families, each with its own PT-BR box: `git push` (and what
-redirects it), `gh`, `curl`/`wget`, `ws card apply`, `ws release publish|move`,
+redirects it), `gh`, `curl`/`wget`, `ws card apply`, `ws release publish|move`, `ws observe run`
+(it queries the production replica; the box lists the plan's database checks, never their SQL),
 the protection of the Claude Code settings and hooks, and commands the gate cannot read with
 certainty. Everything else passes.
 
@@ -78,6 +79,7 @@ TITLE_UNSURE = "Não sei o que este comando faz"
 TITLE_UNSURE_PROGRAM = "Não sei qual programa este comando roda"
 TITLE_REMOTE = "Muda o destino do git push"
 TITLE_CREDENTIAL = "Lê uma credencial"
+TITLE_REPLICA = "Consulta a réplica de produção"
 
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
@@ -85,8 +87,13 @@ APPROVE_CODE = re.compile(r"[0-9a-f]{12}")
 WS_WORD = re.compile(r"\bws\b")
 WS_IMPORT = re.compile(r"\b(?:from|import)\s+ws\b|(?:import_module|__import__)\(\s*['\"]ws\b")
 WS_MODULES = {"ws", "ws.cli", "ws.__main__"}
-WS_WRITES = {("card", "apply"), ("release", "publish"), ("release", "move")}
-WRITE_WORDS = re.compile(r"\b(?:card\s+apply|release\s+(?:publish|move))\b")
+WS_WRITES = {("card", "apply"), ("release", "publish"), ("release", "move"), ("observe", "run")}
+WRITE_WORDS = re.compile(r"\b(?:card\s+apply|release\s+(?:publish|move)|observe\s+run)\b")
+OBSERVE_VALUE_FLAGS = ("--day", "--check", "--project")
+TASK_REF = re.compile(r"[A-Z][A-Z0-9_]*-[1-9]\d*")
+PROJECT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+DEFAULT_DATABASE = "replica"
+MAX_PLAN_BYTES = 1 << 20
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
 CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
@@ -1391,6 +1398,115 @@ def _pending_summary(folder: str, title: str, preview: str, code: str) -> Findin
     return Finding(title, tuple(summary), brief=f"{title} ({len(summary)} mudanças)")
 
 
+def _observe_arguments(args: list[Word]) -> tuple[list[Word], dict[str, list[Word]]]:
+    """The positionals and the value flags of `ws observe run`, argparse prefixes (`--proj`)
+    included; the other flags are dropped."""
+    positionals: list[Word] = []
+    values: dict[str, list[Word]] = {name: [] for name in OBSERVE_VALUE_FLAGS}
+    index = 0
+    while index < len(args):
+        word = args[index]
+        index += 1
+        if word.text == "--":
+            positionals += args[index:]
+            break
+        flag, equals, value = word.text.partition("=")
+        names = [name for name in OBSERVE_VALUE_FLAGS if len(flag) > 2 and name.startswith(flag)]
+        if len(names) != 1:
+            if not word.text.startswith("-"):
+                positionals.append(word)
+            continue
+        if equals:
+            values[names[0]].append(Word(value, word.bare, word.expands))
+        elif index < len(args):
+            values[names[0]].append(args[index])
+            index += 1
+    return positionals, values
+
+
+def _observe_plans(task: str, project: str | None) -> list[Path]:
+    """The plan files of `task`: in `project`, or in every project as `ws observe` searches."""
+    root = _data_dir() / "projects"
+    if project is not None:
+        path = root / project / "observations" / f"{task}.toml"
+        return [path] if path.is_file() else []
+    return sorted(path for path in root.glob(f"*/observations/{task}.toml") if path.is_file())
+
+
+def _database_checks(path: Path) -> list[tuple[str, str]] | None:
+    """(id, database) of each database check of a plan, in order; None when it cannot be read.
+
+    Read-only, with `tomllib`: the hook never imports `ws`. The SQL never leaves this function.
+    """
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read(MAX_PLAN_BYTES + 1)
+        if len(raw) > MAX_PLAN_BYTES:
+            return None
+        plan = tomllib.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return None
+    checks = plan.get("checks", [])
+    if not isinstance(checks, list) or not all(isinstance(check, dict) for check in checks):
+        return None
+    found = []
+    for check in checks:
+        if check.get("kind") != "database":
+            continue
+        name, database = check.get("id"), check.get("database", DEFAULT_DATABASE)
+        if not isinstance(name, str) or not isinstance(database, str):
+            return None
+        found.append((name, database))
+    return found
+
+
+def _observe_run(texts: list[str], args: list[Word], scan: Scan) -> Finding:
+    """The box of `ws observe run` with `args` (the words after `run`): each database check the
+    run may query, from the plan file. A plan the gate cannot find or read asks as unsure."""
+    positionals, values = _observe_arguments(args)
+    if not positionals:
+        return _found(TITLE_REPLICA, "Falta a tarefa; o ws vai recusar", _snippet(texts))
+    task = positionals[0]
+    project = values["--project"][-1] if values["--project"] else None
+    if task.expands:
+        reason = "A tarefa vem de uma variável ou comando; não sei o que será consultado"
+        return _found(TITLE_UNSURE, reason, _snippet(texts))
+    if project is not None and project.expands:
+        reason = "O projeto vem de uma variável ou comando; não sei o que será consultado"
+        return _found(TITLE_UNSURE, reason, _snippet(texts))
+    if not TASK_REF.fullmatch(task.text):
+        return _found(TITLE_REPLICA, "Tarefa inválida; o ws vai recusar", task.text)
+    if project is not None and not PROJECT_SLUG.fullmatch(project.text):
+        return _found(TITLE_REPLICA, "Projeto inválido; o ws vai recusar", project.text)
+    if changed := _store_change(scan):
+        reason = "Pode mudar a pasta de onde o ws lê o plano; não sei o que será consultado"
+        return _found(TITLE_UNSURE, reason, changed)
+    try:
+        plans = _observe_plans(task.text, project.text if project else None)
+    except OSError:
+        plans = []
+    if not plans:
+        reason = f"Não achei o plano de {task.text}; não sei o que será consultado"
+        return _found(TITLE_UNSURE, reason, _snippet(texts))
+    title = f"{TITLE_REPLICA} ({task.text})"
+    if len(plans) > 1:
+        names = ", ".join(path.parents[1].name for path in plans)
+        line = f"{len(plans)} planos para {task.text} ({names}); sem --project o ws recusa"
+        return Finding(title, (line,), brief=title)
+    checks = _database_checks(plans[0])
+    if checks is None:
+        reason = f"Não consegui ler o plano de {task.text}; não sei o que será consultado"
+        return _found(TITLE_UNSURE, reason, _snippet(texts))
+    chosen = values["--check"]
+    if chosen and not any(word.expands for word in chosen):
+        checks = [check for check in checks if check[0] in {word.text for word in chosen}]
+    if not checks:
+        return Finding(title, ("Nenhuma checagem de banco será rodada",), brief=title)
+    lines = tuple(f"{cut(name, 40)} → {cut(database, 40)}" for name, database in checks)
+    count = "1 checagem" if len(lines) == 1 else f"{len(lines)} checagens"
+    return Finding(title, lines, brief=f"{title}: {count} de banco")
+
+
 def _store_change(scan: Scan) -> str | None:
     """A word of the command line that may point `ws` at a store other than the gate's."""
     for command in scan.commands:
@@ -1417,7 +1533,8 @@ def _gate_catalog(texts: list[str], args: list[Word], top: Parsed) -> list[Findi
 
 
 def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
-    """`ws` with `args`; `card apply` and `release publish|move` show the pending record."""
+    """`ws` with `args`; `card apply` and `release publish|move` show the pending record,
+    `observe run` the database checks of its plan."""
     texts = [word.text for word in command.words]
     top = parse_flags(args, set())
     names = [word.text for word in top.positionals[:2]]
@@ -1440,6 +1557,8 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
         return [_found(TITLE_PROTECTION, reason, _snippet(texts), alert=True)]
     if names == ["gate", "catalog"]:
         return _gate_catalog(texts, args, top)
+    if names == ["observe", "run"]:
+        return [_observe_run(texts, args[top.positions[1] + 1 :], scan)]
     if names == ["card", "apply"]:
         kind = "card"
     elif names[:1] == ["release"] and names[1:] in (["publish"], ["move"]):
@@ -1969,6 +2088,11 @@ def _applies_card(code: str) -> bool:
 RELEASE_WRITE_NAME = re.compile(r"(?<![A-Za-z])(?:run_publish|run_move)")
 RELEASE_WRITE_WORD = re.compile(r"(?<![A-Za-z])(?:publish|move)")
 RELEASE_WORD = re.compile(r"(?<![A-Za-z])release")
+REPLICA_QUERY_NAME = re.compile(r"(?<![A-Za-z])(?:run_day|scalar_text)")
+OBSERVE_WORD = re.compile(r"(?<![A-Za-z])observe")
+RUN_WORD = re.compile(r"(?<![A-Za-z])run")
+DATABASE_WORD = re.compile(r"(?<![A-Za-z])database")
+SCALAR_WORD = re.compile(r"(?<![A-Za-z])scalar")
 # `exec`, `eval` and `compile` count only as bare names: `re.compile(...)` and `m.eval()` are
 # methods of other objects.
 BARE_DYNAMIC = r"(?<![.\w])(?:exec|eval|compile)\b"
@@ -2034,6 +2158,17 @@ def _writes_release(code: str) -> bool:
         and bool(RELEASE_WORD.search(code))
         and bool(RELEASE_WRITE_WORD.search(code))
     )
+
+
+def _queries_replica(code: str) -> bool:
+    """Python that may query a database: it names `run_day` or `scalar_text`, or imports `ws` and
+    names `observe` with `run` or `database` with `scalar`."""
+    if REPLICA_QUERY_NAME.search(code):
+        return True
+    if not WS_IMPORT.search(code):
+        return False
+    observe = OBSERVE_WORD.search(code) and RUN_WORD.search(code)
+    return bool(observe or (DATABASE_WORD.search(code) and SCALAR_WORD.search(code)))
 
 
 def _in_import(code: str, start: int) -> bool:
@@ -2192,6 +2327,9 @@ def _code_findings(code: str, scan: Scan, cwd: str, depth: int) -> list[Finding]
         writes.append(_found(TITLE_GITHUB, reason, code))
     if _applies_card(code):
         writes.append(_found(TITLE_JIRA, "Python que chama o ws e pode aplicar uma prévia", code))
+    if _queries_replica(code):
+        reason = "Python que chama o ws e pode consultar a réplica"
+        writes.append(_found(TITLE_REPLICA, reason, code))
     if not writes:
         reason = _dynamic_reason(code)
         if not reason and opaque:
