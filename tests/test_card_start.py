@@ -365,6 +365,27 @@ def test_start_two_task_branches_is_a_problem(env, capsys):
     assert env.previews == []
 
 
+def test_start_explicit_kind_or_desc_never_hides_the_tasks_branch(env, capsys):
+    env.git(env.path("acme-api"), "branch", "feature/TS-5-outro-nome")
+
+    for flags in (["--desc", "ajuste-lote"], ["--kind", "chore"]):
+        code, out, _ = start(capsys, "TS-5", *flags)
+
+        assert code == 1
+        assert out["problems"] == [
+            "TS-5 already has the branch feature/TS-5-outro-nome; drop --kind/--desc to reuse "
+            "it, or remove it first"
+        ]
+        assert out["warnings"] == []
+        assert env.current("acme-api") == "master"
+        assert env.previews == []
+
+    code, out, _ = start(capsys, "TS-5", "--kind", "feature", "--desc", "outro-nome")
+
+    assert (code, out["warnings"]) == (0, [])
+    assert env.current("acme-api") == "feature/TS-5-outro-nome"
+
+
 def test_start_repo_in_the_middle_of_a_rebase_changes_nothing(env, capsys):
     front = env.path("acme-front")
     env.git(front, "rebase", "--exec", "false", "--root", check=False)

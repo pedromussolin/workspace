@@ -270,7 +270,7 @@ def _start(
     if run.problems:
         return 1
     if computed is not None:
-        run.branch = _choose_branch(run, computed)
+        run.branch = _choose_branch(run, computed, explicit=kind is not None or desc is not None)
     if run.branch is not None:
         for repo in run.repos:
             _plan(run, repo, board.remote, use_worktree)
@@ -395,8 +395,12 @@ def _read(repo: _Repo, remote: str, problems: list[str]) -> None:
         problems.append(f"{repo.name}: {error}")
 
 
-def _choose_branch(run: _Run, computed: str) -> str | None:
-    """The computed name when a repo has it, else the task's only existing branch, if any."""
+def _choose_branch(run: _Run, computed: str, explicit: bool) -> str | None:
+    """The computed name when a repo has it, else the task's only existing branch, if any.
+
+    An explicit `--kind` or `--desc` is never overridden in silence: when it names another branch
+    than the task's only one, that is a problem.
+    """
     existing = sorted(
         {
             name
@@ -407,6 +411,12 @@ def _choose_branch(run: _Run, computed: str) -> str | None:
     )
     if computed in existing or not existing:
         return computed
+    if len(existing) == 1 and explicit:
+        run.problems.append(
+            f"{run.ref} already has the branch {existing[0]}; drop --kind/--desc to reuse it, "
+            "or remove it first"
+        )
+        return None
     if len(existing) == 1:
         run.warnings.append(
             f"{run.ref} already has the branch {existing[0]}; using it instead of {computed}"
