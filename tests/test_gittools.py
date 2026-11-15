@@ -745,4 +745,9 @@ def test_switch_refuses_a_branch_name_that_looks_like_an_option(repo):
         gittools.switch(repo, "--detach")
     with pytest.raises(gittools.GitError, match="option"):
         gittools.switch_new(repo, "-x", "main", track=False)
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.add_worktree(repo, repo.parent / "wt", "--detach", None)
+    with pytest.raises(gittools.GitError, match="option"):
+        gittools.assemble(repo, "main", "main", "-x", {})
     assert gittools.head(repo) == ("main", False)
+    assert not (repo.parent / "wt").exists()

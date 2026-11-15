@@ -276,7 +276,7 @@ def assemble(
     if dirty(repo):
         raise GitError("the work tree has uncommitted changes; commit or stash them first")
 
-    _git(repo, "switch", "-c", target, "--no-track", base)
+    switch_new(repo, target, base, track=False)
     for sha, final_subject in zip(shas, final_subjects, strict=True):
         picked = _git(repo, "cherry-pick", sha, check=False)
         if picked.returncode != 0:
