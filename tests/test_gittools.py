@@ -679,19 +679,65 @@ def test_worktree_of_finds_the_checkout(cloned, tmp_path):
     assert gittools.worktree_of(work, "feat/none") is None
 
 
-def test_fetch_times_out_as_a_git_error_without_prompting(repo, monkeypatch):
-    seen = {}
+@pytest.fixture
+def fetch_call(monkeypatch) -> dict:
+    """The keyword arguments `git fetch` ran with; the fetch itself times out, other git runs."""
+    seen: dict = {}
+    real_run = subprocess.run
+    for name in ("GIT_SSH_COMMAND", "GIT_SSH"):
+        monkeypatch.delenv(name, raising=False)
 
-    def fake_run(*args, **kwargs):
+    def fake_run(command, **kwargs):
+        if "fetch" not in command:
+            return real_run(command, **kwargs)
         seen.update(kwargs)
         raise subprocess.TimeoutExpired(cmd="git fetch", timeout=kwargs["timeout"])
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    return seen
+
+
+def test_fetch_times_out_as_a_git_error_without_prompting(repo, fetch_call):
     with pytest.raises(gittools.GitError, match="timed out"):
         gittools.fetch(repo, "origin")
-    assert seen["timeout"] == 60
-    assert seen["env"]["GIT_TERMINAL_PROMPT"] == "0"
-    assert seen["env"]["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes"
+    assert fetch_call["timeout"] == 60
+    assert fetch_call["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert fetch_call["env"]["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes"
+
+
+WINDOWS_SSH = "/mnt/c/Windows/System32/OpenSSH/ssh.exe"
+
+
+@pytest.mark.parametrize(
+    ("environment", "config", "expected"),
+    [
+        ({}, f'"{WINDOWS_SSH}" -i ~/.ssh/work', f'"{WINDOWS_SSH}" -i ~/.ssh/work -o BatchMode=yes'),
+        (
+            {"GIT_SSH_COMMAND": "ssh -i /k/env"},
+            "ssh -i /k/config",
+            "ssh -i /k/env -o BatchMode=yes",
+        ),
+        ({"GIT_SSH_COMMAND": "plink -batch"}, None, "plink -batch"),
+        ({}, "ssh -i key; echo hi", None),
+        ({}, "ssh 'unclosed", None),
+        ({"GIT_SSH": WINDOWS_SSH}, None, f"{WINDOWS_SSH} -o BatchMode=yes"),
+        ({"GIT_SSH": "/usr/bin/plink"}, None, None),
+    ],
+)
+def test_fetch_keeps_the_users_ssh_command(
+    repo, fetch_call, monkeypatch, environment, config, expected
+):
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    if config is not None:
+        git(repo, "config", "core.sshCommand", config)
+
+    with pytest.raises(gittools.GitError):
+        gittools.fetch(repo, "origin")
+
+    assert fetch_call["env"].get("GIT_SSH_COMMAND") == expected
+    assert fetch_call["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert fetch_call["timeout"] == 60
 
 
 def test_switch_refuses_a_branch_name_that_looks_like_an_option(repo):

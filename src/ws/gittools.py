@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -139,11 +140,43 @@ def operation_in_progress(repo: Path) -> str | None:
 
 
 FETCH_TIMEOUT_SECONDS = 60
+SSH_PROGRAMS = frozenset({"ssh", "ssh.exe"})
+SHELL_SYNTAX = re.compile(r"[;&|<>()$`#\n]")
+
+
+def _config(repo: Path, key: str) -> str | None:
+    found = _git(repo, "config", "--get", key, check=False)
+    return found.stdout.strip() if found.returncode == 0 else None
+
+
+def _batch_ssh(repo: Path) -> str | None:
+    """The user's ssh command plus `-o BatchMode=yes`, or None to leave it as it is.
+
+    Git picks GIT_SSH_COMMAND, then core.sshCommand, then GIT_SSH, then `ssh`. The option is added
+    only to OpenSSH (`ssh`, `ssh.exe`, as on WSL) on a plain command line; a wrapper, plink or
+    shell syntax is kept untouched, and GIT_TERMINAL_PROMPT=0 plus the timeout still apply.
+    """
+    command = os.environ.get("GIT_SSH_COMMAND") or _config(repo, "core.sshCommand")
+    if not command:
+        program = os.environ.get("GIT_SSH")
+        command = shlex.quote(program) if program else "ssh"
+    if SHELL_SYNTAX.search(command):
+        return None
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return None
+    if not words or os.path.basename(words[0]).lower() not in SSH_PROGRAMS:
+        return None
+    return f"{command} -o BatchMode=yes"
 
 
 def fetch(repo: Path, remote: str) -> None:
     """Fetch without ever prompting (credentials, ssh host keys) and give up after 60 s."""
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    ssh = _batch_ssh(repo)
+    if ssh is not None:
+        env["GIT_SSH_COMMAND"] = ssh
     _git(repo, "fetch", "--quiet", remote, timeout=FETCH_TIMEOUT_SECONDS, env=env)
 
 
