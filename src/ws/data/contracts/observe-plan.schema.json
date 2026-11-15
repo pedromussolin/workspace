@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "task": {
+      "type": "string"
+    },
+    "job": {
+      "type": "string"
+    },
+    "switched_off": {
+      "type": "string"
+    },
+    "days": {
+      "type": "integer"
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "observability",
+              "database",
+              "manual"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "signal": {
+            "enum": [
+              "traces",
+              "logs",
+              "metrics"
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "sql": {
+            "type": "string"
+          },
+          "expect": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "task",
+    "job",
+    "switched_off",
+    "days",
+    "timezone",
+    "checks"
+  ],
+  "additionalProperties": false
+}

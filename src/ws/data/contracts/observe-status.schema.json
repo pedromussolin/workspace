@@ -1,0 +1,117 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "today": {
+      "type": "string"
+    },
+    "plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "switched_off": {
+            "type": "string"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "due_day": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_days": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stale": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "string"
+                },
+                "check": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "day",
+                "check"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "attention_days": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "streak": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "observing",
+              "attention",
+              "done"
+            ]
+          }
+        },
+        "required": [
+          "task",
+          "project",
+          "job",
+          "switched_off",
+          "days",
+          "due_day",
+          "day",
+          "pending",
+          "missing_days",
+          "stale",
+          "attention_days",
+          "streak",
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "today",
+    "plans",
+    "problems"
+  ],
+  "additionalProperties": false
+}

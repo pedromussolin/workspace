@@ -1,0 +1,89 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "day": {
+      "type": "string"
+    },
+    "check": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "value": {
+      "type": [
+        "number",
+        "boolean"
+      ]
+    },
+    "expect": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "started": {
+      "type": "string"
+    },
+    "finished": {
+      "type": "string"
+    },
+    "window": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "hash": {
+      "type": "string"
+    },
+    "times": {
+      "enum": [
+        "run",
+        "tool",
+        "record"
+      ]
+    },
+    "by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "day",
+    "check",
+    "kind",
+    "value",
+    "expect",
+    "verdict",
+    "started",
+    "finished",
+    "window",
+    "hash",
+    "times",
+    "by"
+  ],
+  "additionalProperties": false
+}
