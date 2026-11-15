@@ -273,8 +273,9 @@ def test_non_fast_forward_origin_is_a_problem(ready, fake_gh, capsys):  # noqa: 
         capsys, "preview", "publish", DAY, "--project", "demo", "--repo", "repo-a"
     )
     assert code == 1
-    assert any("is not an ancestor" in problem for problem in out["problems"])
+    assert f"repo-a: local {CODE} and origin/{CODE} diverged" in out["problems"]
     assert fake_gh.writes == [] and all_refs(ready) == before
+    assert not list(writeplan.store().glob("*.json"))
 
 
 def test_fetch_runs_for_every_repo_of_the_release(ready, fake_gh, monkeypatch, capsys):  # noqa: F811
@@ -314,7 +315,7 @@ def test_a_repo_outside_the_release_is_refused(ready, fake_gh, capsys):  # noqa:
     code, _, err = cli_run(
         capsys, "preview", "publish", DAY, "--project", "demo", "--repo", "repo-a"
     )
-    assert code == 2 and "repo-a not in" in err
+    assert code == 2 and "--repo repo-a: not in release.toml" in err
 
 
 def test_bad_day_and_git_failure_exit_cleanly(ready, fake_gh, monkeypatch, capsys):  # noqa: F811

@@ -54,10 +54,7 @@ def residual_dates(text: str, old: str) -> list[str]:
 
 def release_day(value: str) -> date:
     """A malformed day means the move cannot be evaluated (exit 2)."""
-    try:
-        return text.parse_day(value)
-    except ValueError as error:
-        raise ReleaseSetup(str(error)) from None
+    return text.day_argument(value)
 
 
 @dataclass

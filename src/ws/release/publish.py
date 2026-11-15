@@ -10,8 +10,8 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
-from ws.release import ReleaseSetup, gitops, plan, rules, status, text
 from ws.release import folder as release_folder
+from ws.release import gitops, plan, rules, status, text
 from ws.release import run as run_release
 from ws.release.build import load_published
 from ws.release.github import Gh, PullRequest
@@ -51,27 +51,13 @@ def _latest(prs: list[PullRequest]) -> PullRequest | None:
     return max(prs, key=lambda pr: pr.number) if prs else None
 
 
-def _day(raw: str) -> date:
-    try:
-        return text.parse_day(raw)
-    except ValueError as error:
-        raise ReleaseSetup(str(error)) from None
-
-
 def _selected(
     config: ReleaseConfig, folder: Path, repos: list[str]
 ) -> tuple[release_folder.ReleaseFile, list[str]]:
     """The release file and the repos this run publishes, in config order. A `--repo` outside
     `release.toml` means the run cannot be evaluated (exit 2)."""
     wanted = plan.read_release(folder, tuple(entry.name for entry in config.repos))
-    unknown = [name for name in repos if name not in wanted.repos]
-    if unknown:
-        raise ReleaseSetup(f"{', '.join(unknown)} not in {folder / 'release.toml'}")
-    return wanted, [
-        entry.name
-        for entry in config.repos
-        if entry.name in wanted.repos and (not repos or entry.name in repos)
-    ]
+    return wanted, release_folder.select_repos(config, wanted, repos)
 
 
 def _others_known(
@@ -361,7 +347,7 @@ class _Context:
 
 
 def _context(args: argparse.Namespace) -> _Context:
-    day = _day(args.day)
+    day = text.day_argument(args.day)
     repos = list(args.repos)
 
     def fetched(config: ReleaseConfig, slug: str) -> list[str]:
