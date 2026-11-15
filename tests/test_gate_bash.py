@@ -2223,8 +2223,11 @@ def test_python_that_imports_ws_without_applying_a_card_passes(command, env):
     ],
 )
 def test_python_that_applies_a_card_asks_with_the_jira_title(command, env):
-    shown = box(command, env)
-    assert "Grava no Jira" in shown or "pode aplicar uma prévia" in shown
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Grava no Jira"
+    assert lines[1].startswith("Python que chama o ws e pode aplicar uma prévia — ")
+    assert len(lines) == 2
 
 
 ENVIRONMENT_POLICY = (
@@ -2680,6 +2683,8 @@ def test_release_without_approve_says_the_ws_will_refuse(env):
 IMPORT_PUBLISH = "from ws.release import publish; publish.run_publish(1)"
 MAIN = "from ws.cli import main; main()"
 UNSURE = "Não sei o que este comando faz"
+TWO = "2 pedidos neste comando"
+PROTECTION = "Mexe na proteção do Claude Code"
 
 
 @pytest.mark.parametrize(
@@ -2844,9 +2849,10 @@ PYTHON_THAT_ASKS = [
     f"cat run.py | uv run python -I -X utf8 # {CARD_CODE}",
     f"echo '{CARD_CODE}' | python3 -",
     "python3 -c \"import runpy; runpy.run_module('ws')\"",
-    f"python3 -c \"import runpy; runpy.run_module('ws')\" {APPROVE}",
     "python3 -c \"__import__('w'+'s.card')\"",
     "python3 -c \"exec('x'+'y')\"",
+    "python3 -c \"f = exec; f('x'+'y')\"",
+    "python3 -c \"list(map(eval, ['1']))\"",
     "python3 -c \"import importlib; f=importlib.import_module; m=f('ws.rel'+'ease')\"",
     "python3 -c \"from ws import release as r; g=getattr; g(r, 'pub'+'lish')\"",
     "python3 -c \"import importlib as i; m=i.import_module ('ws.rel'+'ease')\"",
@@ -2862,7 +2868,21 @@ PYTHON_THAT_ASKS = [
 
 @pytest.mark.parametrize("command", PYTHON_THAT_ASKS)
 def test_python_the_gate_cannot_follow_asks(command, env):
-    assert box(command, env)
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert len(lines) == 2
+
+
+def test_python_that_runs_ws_by_name_with_ws_arguments_shows_both_requests(env):
+    command = f"python3 -c \"import runpy; runpy.run_module('ws')\" {APPROVE}"
+
+    assert box(command, env).splitlines() == [
+        TWO,
+        f"Publica a prévia {CODE} no GitHub (1 mudanças)",
+        "Python que chama o ws com nomes montados na execução — "
+        "`import runpy; runpy.run_module('ws')`",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -2970,6 +2990,13 @@ def test_an_approve_code_with_glob_characters_asks_as_unsure(code, env):
         (["/dev/stdin"], "stdin", None, []),
         (["/proc/self/fd/0"], "stdin", None, []),
         (["--version"], "stdin", None, []),
+        (["--help-all"], "stdin", None, []),
+        (["-R", "-t", "-c", "X"], "code", "X", []),
+        (["//dev/stdin", "a"], "stdin", None, ["a"]),
+        (["/dev/./stdin"], "stdin", None, []),
+        (["/proc/thread-self/fd/0"], "stdin", None, []),
+        (["/x/../dev/fd/0"], "stdin", None, []),
+        (["-J", "s.py"], "unknown", None, []),
         (["--check-hash-based-pycs", "always", "s.py"], "script", "s.py", []),
         (["--made-up", "s.py"], "unknown", None, []),
         (["-Z", "s.py"], "unknown", None, []),
@@ -2990,3 +3017,379 @@ def test_the_python_argv_parser(argv, kind, value, rest):
     assert program.kind == kind
     assert (program.word.text if program.word else None) == value
     assert [word.text for word in program.args] == rest
+
+
+@pytest.mark.parametrize(
+    ("argv", "inspect"),
+    [
+        (["-i", "-c", "X"], True),
+        (["-ic", "X"], True),
+        (["-Ii", "s.py"], True),
+        (["-c", "X"], False),
+    ],
+)
+def test_the_python_argv_parser_marks_inspect(argv, inspect):
+    sys.path.insert(0, str(HOOK.parent))
+    try:
+        from gate import shell
+    finally:
+        sys.path.pop(0)
+
+    assert shell.parse_python([shell.Word(text) for text in argv]).inspect is inspect
+
+
+# The same ways of writing, for a release and for a card. `A`: the ws arguments; `W0 W1`: the
+# two names; `L`: them as a Python list's items; `Q`: with a quote inside a name; `P`: code that
+# writes by name; `U`: the same in letters NFKC turns into ASCII; `J`: an import split by a
+# backslash-newline; `X`: the code with `$'...'` escapes; `D`, `F`, `R`: a module, function and
+# `module:function` built from pieces; `T`: `timeit` arguments; `M2`: an argv list for `main`
+# built from pieces.
+FAMILIES = {
+    "release": {
+        "A": f"release publish d --approve {CODE}",
+        "W0": "release",
+        "W1": "publish",
+        "L": f"'release','publish','d','--approve','{CODE}'",
+        "Q": f"release pub''lish d --approve {CODE}",
+        "P": PUBLISH_CODE,
+        "U": "from 𝐰𝐬.release.publish import run_𝐩ublish as f; f(1)",
+        "J": "from w\\\ns.release.publish import run_pub\\\nlish as f",
+        "X": "from w\\x73.release.publish import run_pub\\x6cish as f; f(1)",
+        "D": "'w'+'s.release.pub'+'lish'",
+        "F": "'run_pub'+'lish'",
+        "R": "'w'+'s.release.publish:run_pub'+'lish'",
+        "T": '-n1 -s "from ws.release import publish" "publish.run_publish(1)"',
+        "M2": f"['release','pub'+'lish','d','--approve','{CODE}']",
+        "box": f"Publica a prévia {CODE} no GitHub",
+        "static": "Grava no GitHub",
+    },
+    "card": {
+        "A": f"card apply d --approve {CODE}",
+        "W0": "card",
+        "W1": "apply",
+        "L": f"'card','apply','d','--approve','{CODE}'",
+        "Q": f"card ap''ply d --approve {CODE}",
+        "P": CARD_CODE,
+        "U": "from 𝐰𝐬.card import run_𝐚pply as f; f(1)",
+        "J": "from w\\\ns.card import run_ap\\\nply as f",
+        "X": "from w\\x73.card import run_ap\\x70ly as f; f(1)",
+        "D": "'w'+'s.ca'+'rd'",
+        "F": "'run_ap'+'ply'",
+        "R": "'w'+'s.card:run_ap'+'ply'",
+        "T": '-n1 -s "from ws.card import run_apply" "run_apply(1)"',
+        "M2": f"['card','ap'+'ply','d','--approve','{CODE}']",
+        "box": f"Aplica a prévia {CODE} no Jira",
+        "static": "Grava no Jira",
+    },
+}
+
+PYTHON_WRITES = [
+    ("python3 -m runpy ws {A}", "box"),
+    ("uv run -m runpy ws {A}", "box"),
+    ("python3 -m cProfile -m ws {A}", "box"),
+    ("python3 -m profile -m ws {A}", "box"),
+    ("python3 -m cProfile -o out.prof -m ws {A}", "box"),
+    ("python3 -m pdb -c continue -m ws {A}", "box"),
+    ("python3 -m trace --count --module ws {A}", "box"),
+    ("uv run python -m cProfile -m ws {A}", "box"),
+    ("python3 -m cProfile script.py {A}", "box"),
+    ("python3 script.py {A}", "box"),
+    ('python3 -c "from 𝐰𝐬.cli import main; main()" {A}', "box"),
+    ('python3 -c "from ｗｓ.cli import main; main()" {A}', "box"),
+    ('python3 -c "import json" {A}', "box"),
+    ("uv run -qm ws.cli {A}", "box"),
+    ("uv run -vm ws {A}", "box"),
+    ("uv run -qmws {A}", "box"),
+    ("uv run -qm ws.__main__ {A}", "box"),
+    ("uv run -m -q ws.__main__ {A}", "box"),
+    ("uv run -m --no-sync ws.__main__ {A}", "box"),
+    ("uv run --module -q ws.__main__ {A}", "box"),
+    ("uv run -m -q ws {A}", "box"),
+    ("uv run --with x -m ws.cli {A}", "box"),
+    ("python3 -m ws.__main__ {A}", "box"),
+    (f'python3 -IOc "{MAIN}" {{A}}', "box"),
+    (f'python3 -Wd -c "{MAIN}" {{A}}', "box"),
+    ("python3 -Xfrozen_modules=off -m ws {A}", "box"),
+    (f'python3 -X dev -X utf8=1 -c "{MAIN}" {{A}}', "box"),
+    (f'exec -a name python3 -c "{MAIN}" {{A}}', "box"),
+    (f'python3.12 -c "{MAIN}" {{A}}', "box"),
+    (f'python3 -R -t -c "{MAIN}" {{A}}', "box"),
+    (f"python3 -- - {{A}} <<< '{MAIN}'", "box"),
+    (f"python3 -u - {{A}} <<< '{MAIN}'", "box"),
+    (f"python3 /dev/fd/0 {{A}} <<< '{MAIN}'", "box"),
+    (f"python3 //dev/stdin {{A}} <<< '{MAIN}'", "box"),
+    (f"uv run --with x python3 - {{A}} <<'EOF'\n{MAIN}\nEOF", "box"),
+    (f"python3 -c '{MAIN}' {{Q}}", "box"),
+    (f'python3 -c \'{MAIN}\' "{{W0}}" "{{W1}}" d --approve {CODE}', "box"),
+    ("python3 - {A} <<EOF\nfrom w\\\ns.cli import main\nmain()\nEOF", "box"),
+    ('python3 -c "from w\\\ns.cli import main; main()" {A}', "box"),
+    ('python3 - {A} <<< "from w\\\ns.cli import main; main()"', "box"),
+    ("python3 -c \"import subprocess; subprocess.run(['ws',{L}])\"", "box"),
+    ("python3 -c \"import subprocess; subprocess.run('ws {A}', shell=True)\"", "box"),
+    ("python3 -c \"import subprocess as sp; sp.check_call(['ws',{L}])\"", "box"),
+    ("python3 -c \"from subprocess import run; run(['ws',{L}])\"", "box"),
+    ("python3 -c \"from subprocess import *; Popen(['ws',{L}])\"", "box"),
+    ("python3 -c \"import os; os.system('ws {A}')\"", "box"),
+    ("python3 -c \"import os; os.execlp('ws','ws',{L})\"", "box"),
+    ("python3 -c \"import os; os.execvp('ws',['ws',{L}])\"", "box"),
+    ("python3 -c \"import os; os.spawnlp(os.P_WAIT,'ws','ws',{L})\"", "box"),
+    ("python3 -c \"import pty; pty.spawn(['ws',{L}])\"", "box"),
+    ("python3 -c \"import subprocess; subprocess.run(['uv','run','ws',{L}])\"", "box"),
+    ("python3 -c \"import subprocess; subprocess.run(['bash','-c','ws {A}'])\"", "box"),
+    ("python3 -c \"import subprocess; subprocess.run(['python3','-m','ws',{L}])\"", "box"),
+    ("python3 - <<'EOF'\nimport subprocess\nsubprocess.run(\n    ['ws', {L}],\n)\nEOF", "box"),
+    ("python3 -m timeit {T}", "static"),
+    ("python3 -m code <<< '{P}'", "static"),
+    ("python3 -m asyncio <<< '{P}'", "static"),
+    ("uv run -m code <<< '{P}'", "static"),
+    ("python3 -m pdb -c '{P}' script.py", "static"),
+    ("python3 -i -c pass <<< '{P}'", "static"),
+    ("python3 -ic pass <<< '{P}'", "static"),
+    ("python3 -Ii -c pass <<< '{P}'", "static"),
+    ("python3 -i script.py <<< '{P}'", "static"),
+    ("PYTHONINSPECT=1 python3 -c pass <<< '{P}'", "static"),
+    ("python3 -c 'import code; code.interact()' <<< '{P}'", "static"),
+    ("python3 -i -c pass <<'EOF'\n{P}\nEOF", "static"),
+    ("python3 - 0<<< '{P}'", "static"),
+    ("python3 <<< '{P}'", "static"),
+    ("python3 //dev/stdin <<< '{P}'", "static"),
+    ("python3 /dev/./stdin <<< '{P}'", "static"),
+    ("timeout 5 python3 - <<'EOF'\n{P}\nEOF", "static"),
+    ('python3 -c "{U}"', "static"),
+    ("python3 <<EOF\n{J}\nf(1)\nEOF", "static"),
+    ('python3 -c "{J}; f(1)"', "static"),
+    ("echo '{P}' | python3 -m code", "unsure"),
+    ("echo '{P}' | python3 -m asyncio", "unsure"),
+    ("echo '{P}' | python3 -m pdb script.py", "unsure"),
+    ("echo '{P}' | uv run -m code", "unsure"),
+    ("echo '{P}' | python3 -i -c pass", "unsure"),
+    ("echo '{P}' | python3 -ic pass", "unsure"),
+    ("echo '{P}' | python3 -Ii script.py", "unsure"),
+    ("python3 -i -c pass < run.py", "unsure"),
+    ("python3 -i script.py < run.py", "unsure"),
+    ("echo '{P}' | PYTHONINSPECT=1 python3 -c pass", "unsure"),
+    ("echo '{P}' | python3 -c 'import code; code.interact()'", "unsure"),
+    ("python3 -c 'import code; code.InteractiveConsole().interact()' < run.py", "unsure"),
+    ("echo '{P}' | python3 -c 'breakpoint()'", "unsure"),
+    ("echo '{P}' | python3 //dev/stdin", "unsure"),
+    ("echo '{P}' | python3 /dev/./stdin", "unsure"),
+    ("echo '{P}' | python3 /proc/thread-self/fd/0", "unsure"),
+    ("echo '{P}' | python3 ../../../../../dev/stdin", "unsure"),
+    ("cd /dev && echo '{P}' | python3 stdin", "unsure"),
+    ("cd /dev/fd && echo '{P}' | python3 0", "unsure"),
+    ("python3 -c \"f=getattr(__builtins__,'__imp'+'ort__')({D},fromlist=['x']); f\"", "unsure"),
+    ('python3 -c "import pkgutil; pkgutil.resolve_name({R})(1)"', "unsure"),
+    ('python3 -c "import pydoc; pydoc.locate({D})"', "unsure"),
+    ('python3 -c "import builtins; builtins.__import__({D})"', "unsure"),
+    ('python3 -c "from ws.cli import main as m; m({M2})"', "unsure"),
+    ('python3 -c "from ws.cli import main; main ({M2})"', "unsure"),
+    (
+        'python3 -c "from ws.cli import build_parser as b; a=b().parse_args({M2}); a.handler(a)"',
+        "unsure",
+    ),
+    ('python3 -c "import ws.cli as c; c.main({M2})"', "unsure"),
+    ("python3 -c $'from w\\x73.cli import main; main()' {A}", "unsure"),
+    ("python3 - <<< $'{X}'", "unsure"),
+    ("python3 -c $'{X}'", "unsure"),
+    ("python3 - {A} <<< $'from w\\x73.cli import main; main()'", "unsure"),
+    ("python3 -m ws.cli {W0} {W1} d --approve 'abcdef01234?'", "unsure"),
+    ("python3 -c \"import subprocess; subprocess.run(['ws','{W0}',x])\"", "unsure"),
+    ("python3 -c \"import subprocess; subprocess.run(['ws',{L}], env={{'X': 'x'}})\"", "unsure"),
+    (
+        "python3 -c \"import os, subprocess; os.environ['WS_DATA_DIR']='x'; "
+        "subprocess.run(['ws',{L}])\"",
+        "unsure",
+    ),
+    ("WS_DATA_DIR=/x python3 -c \"import subprocess; subprocess.run(['ws',{L}])\"", "unsure"),
+    (
+        "python3 -c \"m=getattr(__builtins__,'__imp'+'ort__')('w'+'s.cli',fromlist=['x']); "
+        'm.main()" {A}',
+        "two",
+    ),
+    ("python3 -c \"import pkgutil; pkgutil.resolve_name('w'+'s.cli:main')()\" {A}", "two"),
+    ("python3 -c \"import pydoc; pydoc.locate('w'+'s.cli').main()\" {A}", "two"),
+    ("python3 -c \"import pickle; pickle.loads(b'cws.cli\\nmain\\n(tR.')\" {A}", "two"),
+    (
+        "python3 -c \"import timeit; timeit.timeit('import w'+'s.cli as c; c.main()', number=1)\" "
+        "{A}",
+        "two",
+    ),
+    (
+        "python3 - {A} <<'EOF'\nm=getattr(__builtins__,'__imp'+'ort__')('w'+'s.cli',"
+        "fromlist=['x']); m.main()\nEOF",
+        "two",
+    ),
+    ('python3 - {A} <<< \'import runpy; runpy.run_module("ws", run_name="__main__")\'', "two"),
+]
+
+
+@pytest.mark.parametrize("family", ["release", "card"])
+@pytest.mark.parametrize(("template", "kind"), PYTHON_WRITES)
+def test_every_python_way_of_writing_asks_with_its_title(template, kind, family, env):
+    values = FAMILIES[family]
+    title = {"box": values["box"], "static": values["static"], "unsure": UNSURE, "two": TWO}
+
+    assert box(template.format(**values), env).splitlines()[0] == title[kind]
+
+
+def test_a_python_write_without_a_record_is_denied(env):
+    (Path(env["WS_DATA_DIR"]) / "release" / "pending" / f"{CODE}.json").unlink()
+    values = FAMILIES["release"]
+
+    for template in (
+        "python3 -m cProfile -m ws {A}",
+        "uv run -m -q ws.__main__ {A}",
+        "python3 -c \"import subprocess; subprocess.run(['ws',{L}])\"",
+        'python3 -c "from 𝐰𝐬.cli import main; main()" {A}',
+    ):
+        assert decision(template.format(**values), env)["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    ("command", "reason"),
+    [
+        (
+            'WS_DATA_DIR=/x python3 -c "import subprocess; '
+            f"subprocess.run(['ws',{FAMILIES['release']['L']}])\"",
+            "Pode mudar a pasta de onde o ws lê a prévia",
+        ),
+        (
+            "echo x | python3 -ic pass",
+            "O Python recebe o código por pipe",
+        ),
+        (
+            "cd /dev && echo x | python3 stdin",
+            "O Python roda um arquivo de /dev ou /proc, que pode ser a entrada padrão",
+        ),
+        ("python3 /dev/tty", "O Python roda um arquivo de /dev ou /proc"),
+        (
+            "python3 -c \"import subprocess; subprocess.run(['ws','release',x])\"",
+            "Python que roda um programa com argumentos montados e cita o ws",
+        ),
+        (
+            "python3 -c \"from ws.cli import main as m; m(['release','pub'+'lish'])\"",
+            "Python que chama o main ou o parser do ws com argumentos",
+        ),
+        (
+            "python3 -c \"import pickle; pickle.loads(b'cws.cli\\nmain\\n(tR.')\"",
+            "Python que monta nomes ou código na execução; não sei o que ele roda",
+        ),
+        (
+            "python3 -c \"import timeit; timeit.timeit('import w'+'s.cli as c; c.main()')\"",
+            "Python que monta nomes ou código na execução; não sei o que ele roda",
+        ),
+        (
+            'python3 -c "from pickle import loads; loads(data)"',
+            "Python que monta nomes ou código na execução; não sei o que ele roda",
+        ),
+    ],
+)
+def test_python_the_gate_cannot_follow_says_why(command, reason, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert lines[1].startswith(reason)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"python3 -c \"import sys; open(sys.argv[1][6:],'w').write('{{}}')\" --out={SETTINGS}",
+        "python3 -c \"import sys,shutil; shutil.copy('x', sys.argv[1].partition('=')[2])\" "
+        "--to=.claude/settings.json",
+        'python3 -c "import sys,shutil; shutil.rmtree(sys.argv[1][7:])" --path=/root/.claude/hooks',
+        f"python3 -c \"import sys; open(sys.argv[1],'w').write('{{}}')\" {SETTINGS}",
+        f"uv run python -c \"import sys; open(sys.argv[1][6:],'w')\" --out={SETTINGS}",
+        f"python3 -W ignore -c \"import sys; open(sys.argv[1][6:],'w')\" --out={SETTINGS}",
+        f"python3 '-cimport sys; open(sys.argv[1][6:],\"w\")' --out={SETTINGS}",
+        f"python3 -c 'import sys' -x --out={SETTINGS}",
+        "python3 -c \"import sys, shutil; shutil.copy('x', sys.argv[1][1:])\" "
+        "-/root/.claude/hooks/approval_gate.py",
+    ],
+)
+def test_the_arguments_after_python_code_are_judged_as_paths(command, env):
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == PROTECTION
+    assert "Mexe num arquivo de proteção" in lines[1]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -c \"import importlib.metadata; print(importlib.metadata.version('pytest'))\"",
+        "python3 -c \"from importlib.metadata import version; print(version('pytest'))\"",
+        "python3 -c \"import re; print(re.compile(r'\\d+').findall('a1'))\"",
+        "python3 - <<'EOF'\nimport re\n"
+        'WORD = re.compile(r"\\w+")\nprint(WORD.findall("a b"))\nEOF',
+        "python3 - <<'EOF'\nimport json, sys\ndef main(path):\n    print(json.load(open(path)))\n"
+        'main(sys.argv[1] if len(sys.argv) > 1 else "x.json")\nEOF',
+        "uv run --with openpyxl python - <<'EOF'\nfrom openpyxl import load_workbook\n"
+        'wb = load_workbook("a.xlsx")\nws = wb.active\n'
+        "for row in ws.iter_rows(values_only=True):\n    print(row)\nEOF",
+        "python3 - <<'EOF'\nfrom ws.config import data_dir\nimport json\n"
+        'for p in (data_dir() / "release" / "pending").glob("*.json"):\n'
+        '    print(p.name, json.loads(p.read_text())["summary"])\nEOF',
+        'python3 -c "from ws.cli import build_parser; build_parser().print_help()"',
+        "python3 -c \"print(eval('1+1'))\"",
+        'python3 -c "import sys; print(sys.version)"',
+        "python3 -m http.server 8000",
+        "python3 -m venv .venv",
+        'python3 -R -c "print(1)"',
+        'python3 -t -c "print(1)"',
+        "python3 --help-all",
+        'python3 - <<EOF\nimport re\nprint(re.sub(r"a\\.b", "x", "a.b"))\nEOF',
+        "python3 -c \"import ast; print(ast.literal_eval('[1]'))\"",
+        'python3 -c "import torch; m.eval()"',
+        "python3 -c \"import yaml, json, sys; print(json.dumps(yaml.safe_load(open('x.yml'))))\"",
+        'python3 -X importtime -c "import ws"',
+        "python3 -c \"import sys; sys.path.insert(0, 'src'); import ws; print(ws.__file__)\"",
+        "git diff | python3 tools/count.py",
+        'python3 -c "print(1)" | python3 -m json.tool',
+        "python3 -c \"import subprocess; subprocess.run(['git', 'status'])\"",
+        'python3 -c "import subprocess, sys; subprocess.run(sys.argv[1:])" ls',
+        "python3 -c \"import os; os.system('ls -la')\"",
+        'python3 -c "import asyncio; asyncio.run(main())"',
+        "python3 -m cProfile -o out.prof script.py",
+        "python3 -m cProfile -s cumtime -m ws release status",
+        "python3 -m pdb script.py",
+        "python3 -m timeit -n 3 'sum(range(10))'",
+        "python3 -i script.py",
+        "python3 ./stdin.py",
+        "uv run pytest -m slow",
+        "uv run -m pytest -q",
+        "uv run --directory /x -m ws release status",
+        "python3 -c \"import runpy; runpy.run_module('json.tool')\"",
+        "python3 -c \"import importlib.resources as r; print(r.files('pkg'))\"",
+        "python3 -c \"import timeit; print(timeit.timeit('sum(range(9))', number=3))\"",
+        "python3 -c \"print(compile('1', 'x', 'eval'))\"",
+        "python3 -c \"print('compile done, exec next')\"",
+        "python3 script.py release status",
+        "python3 -c 'import json' card list",
+        "python3 -c 'import os, sys; print(os.sep, sys.argv)' a b",
+    ],
+)
+def test_python_that_cannot_write_through_ws_stays_silent(command, env):
+    assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    ("command", "title"),
+    [
+        (
+            "uv run --with openpyxl python - <<'EOF'\nfrom openpyxl import load_workbook\n"
+            'wb = load_workbook("a.xlsx")\nws = wb.active\nprint(getattr(ws, "title"))\nEOF',
+            UNSURE,
+        ),
+        (
+            "python3 - <<'EOF'\nfrom pathlib import Path\nfrom ws import config\n"
+            "print(sorted(vars(config)))\nEOF",
+            UNSURE,
+        ),
+        ("python3 -c \"from ws.cli import main; main(['release', 'status'])\"", UNSURE),
+        ('python3 - <<EOF\nprint("$HOME")\nEOF', UNSURE),
+        ('python3 -c "import ws.release.publish as p; help(p)"', "Grava no GitHub"),
+    ],
+)
+def test_python_that_may_reach_ws_still_asks_when_it_cannot_be_told_apart(command, title, env):
+    assert box(command, env).splitlines()[0] == title

@@ -10,9 +10,11 @@ shell, `eval`, `source` or `.`, and then the body is scanned as commands; the bo
 unquoted heredoc is expanded by the shell, so its `$(...)` and backticks are scanned.
 """
 
+import posixpath
 import re
 import shlex
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import PurePath
 
@@ -292,46 +294,87 @@ def is_c_flag(arg: str) -> bool:
     return arg.startswith("-") and not arg.startswith("--") and "c" in arg[1:]
 
 
-PYTHON_FLAGS = frozenset("bBdEhiIOPqsSuvVx?")
+# `-R` and `-t` are no-ops that CPython still accepts.
+PYTHON_FLAGS = frozenset("bBdEhiIOPqRsStuvVx?")
 PYTHON_VALUE_FLAGS = frozenset("WXcm")
-PYTHON_STDIN_SCRIPT = re.compile(r"/dev/stdin|/dev/fd/\d+|/proc/self/fd/\d+")
+PYTHON_LONG_FLAGS = frozenset("--help --version --help-all --help-env --help-xoptions".split())
+PYTHON_STDIN_SCRIPT = re.compile(r"/dev/stdin|/dev/fd/\d+|/proc/(?:self|thread-self)/fd/\d+")
+# Modules that read stdin as code (a REPL, debugger commands) or run code from it, and modules
+# that run another module or script named in their own arguments.
+STDIN_CODE_MODULES = frozenset({"code", "asyncio", "pdb", "cProfile", "profile", "trace", "timeit"})
+RUNNER_MODULES = frozenset({"pdb", "cProfile", "profile", "trace", "runpy"})
+STDIN_CODE_CALLS = re.compile(
+    r"\b(?:interact|InteractiveConsole|InteractiveInterpreter|breakpoint|set_trace)\b"
+)
+MAX_RUNNER_WORDS = 8
+MAX_RUNNER_DEPTH = 2
+UV_RUN_VALUES = frozenset(
+    "--extra --no-extra --group --no-group --only-group --no-editable-package --env-file -w --with "
+    "--with-editable --with-requirements --package --python-platform --index --default-index -i "
+    "--index-url --extra-index-url -f --find-links --index-strategy --keyring-provider -P "
+    "--upgrade-package --upgrade-group --resolution --prerelease --prerelease-package "
+    "--fork-strategy --exclude-newer --exclude-newer-package --no-sources-package "
+    "--reinstall-package --link-mode -C --config-setting --config-settings-package "
+    "--no-build-isolation-package --no-build-package --no-binary-package --cache-dir "
+    "--refresh-package -p --python --color --allow-insecure-host --directory --project "
+    "--config-file".split()
+)
 
 
 @dataclass(frozen=True)
 class PythonProgram:
     """What a `python` command line runs: `kind` is code (`-c`), module (`-m`), script, stdin or
     unknown (an option the table does not know). `word` holds the code, module or script path;
-    `args` are the program's own arguments. `procsub`: the script is a process substitution."""
+    `args` are the program's own arguments. `procsub`: the script is a process substitution.
+    `inspect`: `-i`, so stdin is read as code after the program ends."""
 
     kind: str
     word: Word | None = None
     args: tuple[Word, ...] = ()
     procsub: bool = False
+    inspect: bool = False
 
 
-def _python_target(rest: list[Word]) -> PythonProgram:
+def python_source(text: str) -> str:
+    """Code as Python reads its names: NFKC-normalized (`𝐰𝐬` is `ws`), without backslash-newlines.
+
+    The shell deletes a backslash-newline in an unquoted heredoc and Python deletes it inside a
+    string, so `from w\\` + newline + `s.cli` reaches Python as `ws.cli`.
+    """
+    return unicodedata.normalize("NFKC", text.replace("\\\n", ""))
+
+
+def lexical_path(text: str) -> str:
+    """An absolute path with `//`, `.` and `..` resolved as text; a relative one as given."""
+    if not text.startswith("/"):
+        return text
+    return posixpath.normpath(re.sub("/+", "/", text))
+
+
+def _python_target(rest: list[Word], inspect: bool) -> PythonProgram:
     if not rest:
-        return PythonProgram("stdin")
+        return PythonProgram("stdin", inspect=inspect)
     first = rest[0]
     procsub = first.text.startswith("<(")
-    if first.text == "-" or procsub or PYTHON_STDIN_SCRIPT.fullmatch(first.text):
-        return PythonProgram("stdin", None, tuple(rest[1:]), procsub)
-    return PythonProgram("script", first, tuple(rest[1:]))
+    if first.text == "-" or procsub or PYTHON_STDIN_SCRIPT.fullmatch(lexical_path(first.text)):
+        return PythonProgram("stdin", None, tuple(rest[1:]), procsub, inspect)
+    return PythonProgram("script", first, tuple(rest[1:]), inspect=inspect)
 
 
 def parse_python(args: list[Word]) -> PythonProgram:
     """Python's own argv: options (combined, with attached or separate values), then the program."""
     index = 0
+    inspect = False
     while index < len(args):
         word = args[index]
         text = word.text
         if text == "--":
-            return _python_target(args[index + 1 :])
+            return _python_target(args[index + 1 :], inspect)
         if text == "-" or not text.startswith("-"):
-            return _python_target(args[index:])
+            return _python_target(args[index:], inspect)
         index += 1
         if text.startswith("--"):
-            if text in ("--help", "--version"):
+            if text in PYTHON_LONG_FLAGS:
                 continue
             if text == "--check-hash-based-pycs" and index < len(args):
                 index += 1
@@ -339,6 +382,7 @@ def parse_python(args: list[Word]) -> PythonProgram:
             return PythonProgram("unknown")
         for position, char in enumerate(text[1:], 1):
             if char in PYTHON_FLAGS:
+                inspect = inspect or char == "i"
                 continue
             if char not in PYTHON_VALUE_FLAGS:
                 return PythonProgram("unknown")
@@ -351,11 +395,156 @@ def parse_python(args: list[Word]) -> PythonProgram:
             else:
                 return PythonProgram("unknown")
             if char == "c":
-                return PythonProgram("code", value, tuple(args[index:]))
+                return PythonProgram("code", value, tuple(args[index:]), inspect=inspect)
             if char == "m":
-                return PythonProgram("module", value, tuple(args[index:]))
+                return PythonProgram("module", value, tuple(args[index:]), inspect=inspect)
             break
-    return PythonProgram("stdin")
+    return PythonProgram("stdin", inspect=inspect)
+
+
+def uv_modules(args: list[Word]) -> list[PythonProgram]:
+    """The modules `uv run -m` may run.
+
+    In uv, `-m/--module` is a flag: the module is the first positional word after the options,
+    so `-m -q ws.cli` and `-qm ws.cli` run `ws.cli`. A `-m` after that word belongs to the program.
+    The text after `m` in a short group (`-mws`) is a candidate too, as an older reading of it.
+    """
+    texts = [word.text for word in args]
+    if "run" not in texts:
+        return []
+    index = texts.index("run") + 1
+    module = False
+    found: list[PythonProgram] = []
+    while index < len(args):
+        word = args[index]
+        text = word.text
+        index += 1
+        if text == "--":
+            if module and index < len(args):
+                found.append(PythonProgram("module", args[index], tuple(args[index + 1 :])))
+            break
+        if text.startswith("--"):
+            name, equals, value = text.partition("=")
+            if name == "--module":
+                module = True
+                if equals:
+                    attached = Word(value, word.bare, word.expands)
+                    found.append(PythonProgram("module", attached, tuple(args[index:])))
+            elif name in UV_RUN_VALUES and not equals:
+                index += 1
+            continue
+        if text.startswith("-") and len(text) > 1:
+            for position, char in enumerate(text[1:], 1):
+                if char == "m":
+                    module = True
+                    if attached_text := text[position + 1 :]:
+                        attached = Word(attached_text, word.bare, word.expands)
+                        found.append(PythonProgram("module", attached, tuple(args[index:])))
+                    continue
+                if "-" + char in UV_RUN_VALUES:
+                    if position + 1 == len(text):
+                        index += 1
+                    break
+            continue
+        if module:
+            found.append(PythonProgram("module", word, tuple(args[index:])))
+        break
+    return found
+
+
+def _runner_codes(program: PythonProgram) -> list[str]:
+    """Code a runner module takes in its arguments: `timeit` statements, `pdb -c` commands."""
+    module = program.word.text if program.kind == "module" and program.word else ""
+    args = list(program.args)
+    if module == "timeit":
+        return ["\n".join(word.text for word in args)]
+    if module != "pdb":
+        return []
+    found = []
+    for index, word in enumerate(args):
+        text = word.text
+        if text in ("-c", "--command") and index + 1 < len(args):
+            found.append(args[index + 1].text)
+        elif text.startswith("--command="):
+            found.append(text.partition("=")[2])
+        elif text.startswith("-c") and len(text) > 2:
+            found.append(text[2:])
+    return found
+
+
+def _runner_candidates(program: PythonProgram) -> list[PythonProgram]:
+    """What a runner module (`-m cProfile`, `-m pdb`, `-m runpy`...) may run from its arguments.
+
+    Their options differ (`trace -c` counts, `pdb -c` takes a command), so every positional word
+    among the first ones is taken as the module or the script, with the words after it as its
+    arguments.
+    """
+    if program.kind != "module" or program.word is None or program.word.text not in RUNNER_MODULES:
+        return []
+    args = list(program.args)
+    found = []
+    for index, word in enumerate(args):
+        if word.text != "-" and word.text.startswith("-"):
+            continue
+        found.append(PythonProgram("module", word, tuple(args[index + 1 :])))
+        found.append(_python_target(args[index:], False))
+        if len(found) >= 2 * MAX_RUNNER_WORDS:
+            break
+    return found
+
+
+def runner_word_positions(program: PythonProgram) -> int:
+    """How many of a runner module's own arguments `_runner_candidates` judges as programs."""
+    count = 0
+    for position, word in enumerate(program.args):
+        if word.text == "-" or not word.text.startswith("-"):
+            count += 1
+            if count >= MAX_RUNNER_WORDS:
+                return position + 1
+    return len(program.args)
+
+
+def expand_python(program: PythonProgram, depth: int = 0) -> list[PythonProgram]:
+    """The program and, for a runner module, what it may run in turn."""
+    found = [program]
+    if depth < MAX_RUNNER_DEPTH:
+        for inner in _runner_candidates(program):
+            found += expand_python(inner, depth + 1)
+    return found
+
+
+def python_programs(name: str, args: list[Word]) -> list[PythonProgram]:
+    """Every Python program a `python` or `uv` invocation may run."""
+    if PYTHON.fullmatch(name):
+        return expand_python(parse_python(args))
+    if name == "uv":
+        return [each for module in uv_modules(args) for each in expand_python(module)]
+    return []
+
+
+def python_codes(program: PythonProgram) -> list[str]:
+    """The Python code written in the command line for this program."""
+    if program.kind == "code" and program.word is not None:
+        return [python_source(program.word.text)]
+    return [python_source(code) for code in _runner_codes(program)]
+
+
+def reads_stdin_code(program: PythonProgram, inspect: bool = False) -> bool:
+    """Whether the program runs what comes in stdin as code; `inspect`: `PYTHONINSPECT` is set."""
+    if program.kind == "stdin" or program.inspect or inspect:
+        return True
+    if program.kind == "module" and program.word is not None:
+        return program.word.text in STDIN_CODE_MODULES
+    if program.kind == "code" and program.word is not None:
+        return bool(STDIN_CODE_CALLS.search(python_source(program.word.text)))
+    return False
+
+
+def inspect_variable(commands: list["Command"]) -> bool:
+    """`PYTHONINSPECT` is set by one of the commands (`PYTHONINSPECT=1 python3`, `export`)."""
+    return any(
+        word.text.startswith("PYTHONINSPECT=") for command in commands for word in command.words
+    )
 
 
 @dataclass
@@ -771,19 +960,18 @@ def _walk(text: str, result: Scan, depth: int) -> None:
                     _walk(script, result, depth + 1)
             elif name == "eval":
                 _walk(" ".join(texts), result, depth + 1)
-            elif PYTHON.fullmatch(name):
-                program = parse_python(args)
-                if program.kind == "code" and program.word is not None:
-                    result.scripts.append(program.word.text)
-                elif program.kind == "stdin" and command.here_string is not None:
-                    result.scripts.append(command.here_string)
+            for program in python_programs(name, args):
+                result.scripts += python_codes(program)
+                inspect = inspect_variable(result.commands)
+                if command.here_string is not None and reads_stdin_code(program, inspect):
+                    result.scripts.append(python_source(command.here_string))
     for inner in substitutions(kept):
         _walk(inner, result, depth + 1)
     for heredoc in heredocs:
         if heredoc.owner in RUNS_ITS_INPUT:
             _walk(heredoc.body, result, depth + 1)
         elif heredoc.owner and (PYTHON.fullmatch(heredoc.owner) or heredoc.owner in ("uv", "uvx")):
-            result.scripts.append(heredoc.body)
+            result.scripts.append(python_source(heredoc.body))
             if not heredoc.quoted and ("$" in heredoc.body or "`" in heredoc.body):
                 result.opaque_python.append(heredoc.body)
         if not heredoc.quoted and heredoc.owner not in RUNS_ITS_INPUT:
