@@ -79,11 +79,24 @@ def test_status_behind_master_exits_1(world: World, fake_gh, capsys):  # noqa: F
     assert any("master moved" in p for p in _repo(payload, "repo-a")["problems"])
 
 
-def test_status_broken_mirror_exits_1(world: World, fake_gh, capsys):  # noqa: F811
-    _release(world, repo_b=False)
+def _conflict(world: World) -> None:
+    world.commit("repo-a", "sandbox", "shared.txt", "sandbox\n", "chore: shared sandbox")
+    world.commit("repo-a", ONE, "shared.txt", "one\n", "feat: shared one")
+    world.git("repo-a", "checkout", "-q", "master")
+
+
+def _sdbx(world: World) -> None:
     world.git("repo-a", "checkout", "-q", CODE)
     world.branch("repo-a", f"{CODE}-sdbx", CODE, push=False)
-    world.git("repo-a", "merge", "--no-ff", "-m", "chore(TS-101): junta", "origin/sandbox")
+    world.git(
+        "repo-a", "merge", "--no-ff", "-X", "ours", "-m", "chore(TS-101): junta", "origin/sandbox"
+    )
+
+
+def test_status_broken_mirror_exits_1(world: World, fake_gh, capsys):  # noqa: F811
+    _conflict(world)
+    _release(world, repo_b=False)
+    _sdbx(world)
     world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "feat: own", push=False)
     code, payload = _run(capsys)
     assert code == 1
@@ -171,3 +184,85 @@ def test_status_merged_pr_still_appears(world: World, fake_gh, capsys):  # noqa:
     code, payload = _run(capsys)
     assert code == 0
     assert [(p["number"], p["state"]) for p in _repo(payload, "repo-b")["prs"]] == [(5, "MERGED")]
+
+
+def test_status_links_follow_the_config_order(world: World, fake_gh, capsys):  # noqa: F811
+    _release(world)
+    world.write_release({"repo-b": [ONLY], "repo-a": [ONE, TWO]})
+    fake_gh.add_pr("acme/repo-a", 10, CODE, "master")
+    fake_gh.add_pr("acme/repo-b", 20, ONLY, "master")
+    code, payload = _run(capsys, links=True)
+    assert [r["repo"] for r in payload["repos"]] == ["repo-a", "repo-b"]
+    assert [line.split(",")[0] for line in payload["links"]] == ["repo-a", "repo-b"]
+
+
+def test_status_links_keep_the_sandbox_pr_of_a_merged_sdbx(world: World, fake_gh, capsys):  # noqa: F811
+    _conflict(world)
+    _release(world, repo_b=False)
+    _sdbx(world)
+    world.git("repo-a", "push", "-q", "origin", CODE, f"{CODE}-sdbx")
+    fake_gh.add_pr("acme/repo-a", 10, CODE, "master")
+    fake_gh.add_pr("acme/repo-a", 11, f"{CODE}-sdbx", "sandbox", state="MERGED", merged_at="x")
+    world.git("repo-a", "checkout", "-q", "sandbox")
+    world.git("repo-a", "merge", "-q", "--no-ff", "-m", "Merge pull request #11", f"{CODE}-sdbx")
+    world.git("repo-a", "push", "-q", "origin", "sandbox")
+    world.git("repo-a", "checkout", "-q", "master")
+    code, payload = _run(capsys, links=True)
+    assert code == 0
+    assert (
+        payload["links"][-1] == "repo-a (sandbox), PR #11: https://github.com/acme/repo-a/pull/11"
+    )
+    assert _repo(payload, "repo-a")["warnings"] == []
+
+
+def test_status_release_merged_into_master_is_reported_merged(world: World, fake_gh, capsys):  # noqa: F811
+    _release(world, repo_b=False)
+    world.git("repo-a", "push", "-q", "origin", CODE)
+    world.git("repo-a", "merge", "-q", "--no-ff", "-m", "Merge pull request #10", CODE)
+    world.git("repo-a", "push", "-q", "origin", "master")
+    fake_gh.add_pr("acme/repo-a", 10, CODE, "master", state="MERGED", merged_at="x")
+    code, payload = _run(capsys, links=True)
+    repo = _repo(payload, "repo-a")
+    assert code == 0
+    assert repo["merged"] is True and repo["problems"] == []
+    assert payload["links"][0] == "repo-a, PR #10: https://github.com/acme/repo-a/pull/10"
+
+
+def test_status_open_release_is_not_merged(world: World, fake_gh, capsys):  # noqa: F811
+    _release(world, repo_b=False)
+    code, payload = _run(capsys)
+    assert code == 0 and _repo(payload, "repo-a")["merged"] is False
+
+
+def test_status_listing_fetches_and_reads_release_branches(world: World, fake_gh, capsys):  # noqa: F811
+    world.branch("repo-b", "release/20261204", "master", push=False)
+    world.git(
+        "repo-b",
+        "push",
+        "-q",
+        "origin",
+        "release/20261204",
+        "release/20261204:release/20261204-sdbx",
+    )
+    world.git("repo-b", "push", "-q", "origin", "release/20261204:release/20261204-sdbx-old")
+    world.git("repo-b", "checkout", "-q", "master")
+    world.git("repo-b", "update-ref", "-d", "refs/remotes/origin/release/20261204")
+    fake_gh.add_pr("acme/repo-a", 17, "release/20261211-sdbx-old", "sandbox")
+    code, payload = _run(capsys, day=None)
+    assert code == 0 and payload["warnings"] == []
+    rows = {r["date"]: r for r in payload["releases"]}
+    assert set(rows) == {"20261204"}
+    assert [b["branch"] for b in rows["20261204"]["branches"]] == [
+        "release/20261204",
+        "release/20261204-sdbx",
+    ]
+
+
+def test_status_exit_codes(world: World, fake_gh, capsys):  # noqa: F811
+    world.write_release({"repo-a": [ONE, TWO]})
+    assert _run(capsys, day="2026-1120")[0] == 2 and "is not a day" in ERR[0]
+    folder = world.release_dir()
+    (folder / "release.toml").write_text(
+        'repos = ["repo-a", "repo-b"]\n[include]\nrepo-a = ["x/TS-1"]\n'
+    )
+    assert _run(capsys)[0] == 1 and "repo-b is in repos but has no include list" in ERR[0]
