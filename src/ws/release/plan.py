@@ -29,6 +29,11 @@ RELEASE_ONLY = re.compile(RELEASE_BRANCH)
 RELEASE_REF = re.compile(r"refs/remotes/origin/release/\d{8}(-sdbx|):refs/heads/release/\d{8}\1")
 RELEASE_PATH = re.compile(r"(/[^/\s]+)*/?release-\d{8}(-sdbx)?(/[^/\s]+)?")
 GIT_TIMEOUT_SECONDS = 120
+GIT_REJECTED = re.compile(r"^ ! \[(remote )?rejected\]", re.MULTILINE)
+GIT_DROPPED = re.compile(
+    r"connection was reset|hung up unexpectedly|broken pipe|early EOF|RPC failed",
+    re.IGNORECASE,
+)
 PR_NUMBER = re.compile(r"\d+|\{num:[^{}\s]+\}")
 
 
@@ -229,7 +234,7 @@ def _confirm(summary: list[str]) -> bool:
     try:
         answer = input()
     except (EOFError, KeyboardInterrupt):
-        print()
+        print(file=sys.stderr)
         return False
     return answer.strip().lower() in ("s", "sim")
 
@@ -309,8 +314,11 @@ def _git(call: Call, args: tuple[str, ...]) -> None:
     except subprocess.TimeoutExpired:
         raise GhUncertain(f"git {args[0]} timed out") from None
     if done.returncode != 0:
-        message = first_line(done.stderr or done.stdout)
-        if UNCERTAIN_STDERR.search(message):
+        text = done.stderr or done.stdout
+        message = first_line(text)
+        if not GIT_REJECTED.search(text) and (
+            UNCERTAIN_STDERR.search(text) or GIT_DROPPED.search(text)
+        ):
             raise GhUncertain(message)
         raise gitops.GitFailed(message)
 
@@ -365,7 +373,7 @@ def execute(
             print(f"resultado incerto: confira no GitHub ({error})", file=sys.stderr)
             result["uncertain"] = True
             return _stopped(result, plan, index, call), 1
-        except (GhFailed, gitops.GitFailed, LocalFailed, KeyError, OSError) as error:
+        except Exception as error:
             print(f"ws release: {call.line}: {error}", file=sys.stderr)
             return _stopped(result, plan, index, call), 1
         done.append(call.line)
