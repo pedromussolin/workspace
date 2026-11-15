@@ -18,30 +18,38 @@ The file carries company code, so it stays on this machine: it lives only under
 
 1. **Run the pack.** `ws review pack REF`. Add `--repo NAME` (repeatable) or `--project SLUG` only
    when the user's words name them. It prints one JSON object (the same as `pack.json`).
-2. **Exit 1** lists `problems` (texts in English; the pack is still written): show each one in
-   PT-BR. Ask only what the user can settle: which repos (a numbered list, with the names under
-   `[board.prefix_repos]` in `config.toml` as options) or the project slug. Then run the command
-   again with `--repo` or `--project`. **Exit 2** (setup: `[board]` or the tracker settings) and
-   **exit 3** (the tracker refused or is unreachable): show stderr (`ws review pack: ...`) as it
-   is and stop.
+2. **Exit 1** lists `problems` (texts in English). Two cases. If the REF, `--repo` or `--project`
+   is invalid, nothing is written: `pack_path`, `folder` and `review_path` are null and there is
+   no `card`. Show the problems in PT-BR and stop, with no `review.md`. Otherwise the pack is written
+   with its problems: show each one in PT-BR. Ask only what the user can settle: which repos (a
+   numbered list, with the names under `[board.prefix_repos]` in `config.toml` as options) or the
+   project slug. Then run the command again with `--repo` or `--project`. **Exit 2** (setup:
+   `[board]` or the tracker settings) and **exit 3** (the tracker refused or is unreachable): show
+   stderr (`ws review pack: ...`) as it is and stop.
 3. **Read the pack.** Top level: `flags` (the checks that need a decision), `warnings`, `card`
    (`title`, `status`, `done_when`, the task's "Pronto quando") and `repos`. Per repo: `branch`,
    `worktree`, `commits`, `files` (each with `path`, `abs_path`, `status`, `stages`, `added`,
-   `deleted`, `binary`, `hunks`, `category`), `by_category`, `migrations`, `env`, `tests`.
+   `deleted`, `binary`, `hunks`, `category`), `by_category`, `migrations`, `env`, `tests`. Every
+   problem, warning and flag starts with `<repo>: `: use it to tie each flag to its repo. `abs_path`
+   is null for a deleted file, and for every file when the branch is checked out nowhere. `env` is
+   null when no `.py` or shell file changed. `migrations` and `tests` can be null on a repo that
+   failed. A failed repo has `diff_command` null and empty `files`: show its problem and skip its
+   diff.
 4. **Read the diff.** Per repo, run its `diff_command` with `-- <path>` for one file (for example
    `<diff_command> -- app/api/routes/lote.py`), in this order: files named by a flag, then
    categories `migration`, `contract`, `model`, `config`, then the rest. Files with `stages`
-   `["untracked"]` are not in the diff: use Read on `abs_path`. Lockfiles and generated files are
+   `["untracked"]` are not in the diff: use Read on `abs_path`. Never Read a null `abs_path`. Lockfiles and generated files are
    read by counts only (`added`, `deleted`), and a `binary` file is never read as text.
 5. **Write `review.md`** with the Write tool at `review_path`, in PT-BR, with these parts:
    1. `# Revisão REF: <title>`, then one line with the status, the repos, the branch and
       `generated_at`.
    2. `## O que mudou e por quê`: per repo, tied to the task and to `done_when`.
-   3. `## Riscos`: the `flags` first, then migrations (several heads, an existing migration
-      changed), contract changes, env vars (name each one, and say to check it in the Parameter
+   3. `## Riscos`: the `flags` first, each tied to its repo by the `<repo>: ` prefix, then migrations (several heads, an existing migration
+      changed), contract changes, env vars (name each one; when `env` is null write "nenhuma alteração", or skip it; and say to check it in the Parameter
       Store, the AWS store where the apps read their settings), toggles (feature flags) and data
       (what the change does to existing rows). If there is nothing, write "nenhum".
-   4. `## Olhar primeiro`: 3 to 8 links `[path:line](<abs_path>#L<line>)`, each with the reason. The
+   4. `## Olhar primeiro`: 3 to 8 links `[path:line](<abs_path>#L<line>)`, each with the reason. When `abs_path` is null, write
+      plain `path:line` without a link. The
       line comes from `hunks` (the first new-side line of a hunk) or from the diff.
    5. `## Testes`: the test files changed and added, and what `done_when` asks that no test covers.
    6. `## Arquivos por tipo`, from `by_category`; then `## Checklist`, 5 to 8 `- [ ]` lines, short.
