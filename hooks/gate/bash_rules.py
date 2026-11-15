@@ -73,6 +73,7 @@ TITLE_CREDENTIAL = "Lê uma credencial"
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
 APPROVE_CODE = re.compile(r"[0-9a-f]{12}")
+WS_WORD = re.compile(r"\bws\b")
 WS_IMPORT = re.compile(r"\b(?:from|import)\s+ws\b|(?:import_module|__import__)\(\s*['\"]ws\b")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
@@ -1447,7 +1448,7 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
                 code, code_expands = "", False
     if code is None:
         return [_found(title_fallback, "Falta o --approve; o ws vai recusar", _snippet(texts))]
-    if code_expands:
+    if code_expands or any(char in code for char in "?*["):
         done = "aplicado" if jira else "publicado"
         reason = f"O código vem de uma variável ou comando; não sei o que será {done}"
         return [_found(TITLE_UNSURE, reason, _snippet(texts))]
@@ -1466,46 +1467,90 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     return [_pending_summary("release", title, f"ws release preview {kind}", code)]
 
 
-def _python_ws(args: list[Word]) -> list[tuple[str, list[Word]]]:
-    for index, word in enumerate(args):
-        if word.text == "-m" and index + 1 < len(args):
-            module, rest = args[index + 1].text, args[index + 2 :]
-            if module in ("ws", "ws.cli", "ws.__main__"):
-                return [("ws", rest)]
-            if module.startswith("ws."):
-                return [("ws", [Word(module.split(".")[1]), *rest])]
-            return []
-        if not word.text.startswith("-"):
-            break
+def _python_calls(program: shell.PythonProgram, scan: Scan) -> list[tuple[str, list[Word]]] | str:
+    """The `ws` invocations a `-m` module or the arguments of a program stand for, or why not."""
+    word = program.word
+    args = list(program.args)
+    if program.kind == "module" and word is not None:
+        if word.expands:
+            return "O módulo do Python vem de uma variável ou comando"
+        module = word.text
+        if module in ("ws", "ws.cli", "ws.__main__"):
+            return [("ws", args)]
+        if module.startswith("ws."):
+            if module.count(".") > 1:
+                return "Módulo do ws chamado direto; não sei o que será feito"
+            return [("ws", [Word(module.split(".")[1]), *args])]
+        return []
+    if program.kind == "code" and word is not None:
+        return [("ws", args)] if args and WS_WORD.search(word.text) else []
+    if program.kind == "stdin" and args and any(WS_WORD.search(code) for code in scan.scripts):
+        return [("ws", args)]
     return []
 
 
-def _python_reads_stdin(command: Command, args: list[Word]) -> bool:
-    """A Python that takes its code from a pipe or a file the gate cannot read."""
-    if not (command.piped or command.reads_file):
-        return False
-    return all(word.text.startswith("-") and "m" not in word.text[1:] for word in args)
+def _python_stdin_problem(command: Command, args: list[Word], program: shell.PythonProgram) -> str:
+    """Why the code a Python reads from stdin cannot be read here, or an empty string."""
+    if program.procsub or any(word.text.startswith("<(") for word in args):
+        return "O Python recebe o código por substituição de processo"
+    if command.piped:
+        return "O Python recebe o código por pipe"
+    if any(read != "/dev/null" for read in command.reads):
+        return "O Python recebe o código de um arquivo"
+    if command.here_string is not None and command.here_string_expands:
+        return "O código do Python vem de uma variável ou comando"
+    return ""
 
 
-def _python_after_code(args: list[Word]) -> list[Word]:
-    """The words after the `-c` code of a Python that imports `ws`: they go to `ws main()`."""
-    texts = [word.text for word in args]
-    code = shell.shell_script(texts)
-    if code is None or not WS_IMPORT.search(code):
+def _python_findings(
+    command: Command, args: list[Word], cwd: str, scan: Scan, texts: list[str]
+) -> list[Finding]:
+    return _python_findings_for(command, shell.parse_python(args), cwd, scan, texts, args)
+
+
+def _python_findings_for(
+    command: Command,
+    program: shell.PythonProgram,
+    cwd: str,
+    scan: Scan,
+    texts: list[str],
+    args: list[Word] | None = None,
+) -> list[Finding]:
+    args = args if args is not None else []
+    if program.kind == "unknown":
+        return [_unsure(texts, "Opção do Python que não conheço")]
+    if program.kind == "script":
         return []
-    index = next(i for i, text in enumerate(texts) if shell.is_c_flag(text))
-    return args[index + 2 :]
+    if program.kind == "code" and program.word is not None and program.word.expands:
+        return [_unsure(texts, "O código do Python vem de uma variável ou comando")]
+    if program.kind == "stdin" and (problem := _python_stdin_problem(command, args, program)):
+        return [_unsure(texts, problem)]
+    calls = _python_calls(program, scan)
+    if isinstance(calls, str):
+        return [_unsure(texts, calls)]
+    return [
+        finding
+        for inner, inner_args in calls
+        for finding in _invocation(command, inner, inner_args, cwd, scan)
+    ]
 
 
-def _python_module_is_deep(args: list[Word]) -> bool:
-    """`python -m ws.release.publish`: a module of `ws` below a subpackage runs its own `main`."""
-    for index, word in enumerate(args):
-        if word.text == "-m" and index + 1 < len(args):
-            module = args[index + 1].text
-            return module.startswith("ws.") and module.count(".") > 1
-        if not word.text.startswith("-"):
-            break
-    return False
+def _uv_module(args: list[Word]) -> shell.PythonProgram | None:
+    """`uv run -m MOD ...` and `uv run --module MOD ...` as the Python program they run."""
+    texts = [word.text for word in args]
+    if "run" not in texts:
+        return None
+    for index in range(texts.index("run") + 1, len(texts)):
+        text = texts[index]
+        word = args[index]
+        rest = tuple(args[index + 1 :])
+        if text in ("-m", "--module") and index + 1 < len(args):
+            return shell.PythonProgram("module", args[index + 1], tuple(args[index + 2 :]))
+        if text.startswith("--module="):
+            return shell.PythonProgram("module", Word(text[9:], word.bare, word.expands), rest)
+        if text.startswith("-m") and len(text) > 2 and not text.startswith("--"):
+            return shell.PythonProgram("module", Word(text[2:], word.bare, word.expands), rest)
+    return None
 
 
 def _reads_unseen_commands(command: Command, name: str, args: list[Word]) -> str | None:
@@ -1532,18 +1577,9 @@ def _invocation(
     if reason := _reads_unseen_commands(command, name, args):
         return [_unsure(texts, reason)]
     if shell.PYTHON.fullmatch(name):
-        if _python_reads_stdin(command, args):
-            return [_unsure(texts, "O Python recebe o código por pipe ou arquivo")]
-        if _python_module_is_deep(args):
-            return [_unsure(texts, "Módulo do ws chamado direto; não sei o que será feito")]
-        calls = _python_ws(args)
-        if rest := _python_after_code(args):
-            calls.append(("ws", rest))
-        return [
-            finding
-            for inner, inner_args in calls
-            for finding in _invocation(command, inner, inner_args, cwd, scan)
-        ]
+        return _python_findings(command, args, cwd, scan, texts)
+    if name == "uv" and (module := _uv_module(args)) is not None:
+        return _python_findings_for(command, module, cwd, scan, texts)
     if name not in WATCHED:
         return []
     if name in ("curl", "wget", "ws") and any(word.bare for word in args):
@@ -1562,9 +1598,10 @@ def _python_code(command: Command) -> set[str]:
     found = set()
     for name, words in shell.invocations(command):
         if shell.PYTHON.fullmatch(name):
-            code = shell.shell_script([word.text for word in words])
-            if code is not None:
-                found.add(code)
+            program = shell.parse_python(words)
+            if program.kind == "code" and program.word is not None:
+                found.add(program.word.text)
+                found.update(word.text for word in words if word.text.startswith("-"))
     return found
 
 
@@ -1867,13 +1904,17 @@ def _applies_card(code: str) -> bool:
     return bool(WS_IMPORT.search(code)) and "card" in code and "apply" in code
 
 
-RELEASE_WRITE_NAME = re.compile(r"\b(?:run_publish|run_move)\b")
-RELEASE_WRITE_WORD = re.compile(r"\b(?:publish|move)\b")
-RUNTIME_NAME = re.compile(
-    r"\b(?:import_module|__import__)\(\s*(?!['\"][\w.]*['\"]\s*[,)])"
-    r"|\bgetattr\((?:[^,()]|\([^()]*\))*,\s*(?!['\"]\w*['\"]\s*[,)])"
+RELEASE_WRITE_NAME = re.compile(r"(?<![A-Za-z])(?:run_publish|run_move)")
+RELEASE_WRITE_WORD = re.compile(r"(?<![A-Za-z])(?:publish|move)")
+RELEASE_WORD = re.compile(r"(?<![A-Za-z])release")
+DYNAMIC_NAMES = re.compile(
+    r"\b(?:getattr|import_module|importlib|__import__|runpy|exec|eval|compile|vars|__dict__"
+    r"|attrgetter|globals|locals)\b"
 )
-WS_FRAGMENT = re.compile(r"['\"]ws[.'\"]")
+MAIN_WITH_ARGUMENTS = re.compile(r"\bmain\(\s*[^)\s]|\bws\.cli\b[^;\n]*\(\s*[^)\s]")
+SYS_ARGV = re.compile(r"\bsys\.argv\b|\bargv\b")
+IMPORT_CALLS = ("__import__", "import_module", "exec", "eval", "compile", "run_module", "run_path")
+LITERAL_ARGUMENT = r"\(\s*[rbuRBU]{0,2}(['\"])(?!ws)[^'\"\\+%]*\1\s*[,)]"
 
 
 def _writes_release(code: str) -> bool:
@@ -1883,24 +1924,37 @@ def _writes_release(code: str) -> bool:
         return True
     return (
         bool(WS_IMPORT.search(code))
-        and bool(re.search(r"\brelease\b", code))
+        and bool(RELEASE_WORD.search(code))
         and bool(RELEASE_WRITE_WORD.search(code))
     )
 
 
-def _builds_ws_names(code: str) -> bool:
-    """Python that reaches `ws` and builds a module or attribute name at run time, so no
-    substring check can tell what it calls."""
-    imports_ws = bool(WS_IMPORT.search(code)) or (
-        ("importlib" in code or "__import__" in code) and bool(WS_FRAGMENT.search(code))
-    )
-    return imports_ws and bool(RUNTIME_NAME.search(code))
+def _builds_names(code: str) -> bool:
+    """Python the gate cannot follow: it reaches `ws` and uses dynamic machinery, `main` with
+    arguments or `sys.argv`; or it imports or runs code whose name is not a plain literal."""
+    if WS_WORD.search(code) and (
+        DYNAMIC_NAMES.search(code) or MAIN_WITH_ARGUMENTS.search(code) or SYS_ARGV.search(code)
+    ):
+        return True
+    for name in IMPORT_CALLS:
+        for found in re.finditer(rf"\b{name}\b", code):
+            if not re.match(LITERAL_ARGUMENT, code[found.end() :]):
+                return True
+    for name in ("importlib", "runpy"):
+        for found in re.finditer(rf"\b{name}\b", code):
+            before = code[: found.start()].rstrip()
+            if not before.endswith(("import", "from")):
+                return True
+    return False
 
 
 def _script_findings(scan: Scan) -> list[Finding]:
-    found = []
+    found = [
+        _found(TITLE_UNSURE, "Python com código que vem de uma expansão", body)
+        for body in scan.opaque_python
+    ]
     for code in scan.scripts:
-        if _builds_ws_names(code):
+        if _builds_names(code):
             found.append(
                 _found(TITLE_UNSURE, "Python que chama o ws com nomes montados na execução", code)
             )

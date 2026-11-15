@@ -292,6 +292,72 @@ def is_c_flag(arg: str) -> bool:
     return arg.startswith("-") and not arg.startswith("--") and "c" in arg[1:]
 
 
+PYTHON_FLAGS = frozenset("bBdEhiIOPqsSuvVx?")
+PYTHON_VALUE_FLAGS = frozenset("WXcm")
+PYTHON_STDIN_SCRIPT = re.compile(r"/dev/stdin|/dev/fd/\d+|/proc/self/fd/\d+")
+
+
+@dataclass(frozen=True)
+class PythonProgram:
+    """What a `python` command line runs: `kind` is code (`-c`), module (`-m`), script, stdin or
+    unknown (an option the table does not know). `word` holds the code, module or script path;
+    `args` are the program's own arguments. `procsub`: the script is a process substitution."""
+
+    kind: str
+    word: Word | None = None
+    args: tuple[Word, ...] = ()
+    procsub: bool = False
+
+
+def _python_target(rest: list[Word]) -> PythonProgram:
+    if not rest:
+        return PythonProgram("stdin")
+    first = rest[0]
+    procsub = first.text.startswith("<(")
+    if first.text == "-" or procsub or PYTHON_STDIN_SCRIPT.fullmatch(first.text):
+        return PythonProgram("stdin", None, tuple(rest[1:]), procsub)
+    return PythonProgram("script", first, tuple(rest[1:]))
+
+
+def parse_python(args: list[Word]) -> PythonProgram:
+    """Python's own argv: options (combined, with attached or separate values), then the program."""
+    index = 0
+    while index < len(args):
+        word = args[index]
+        text = word.text
+        if text == "--":
+            return _python_target(args[index + 1 :])
+        if text == "-" or not text.startswith("-"):
+            return _python_target(args[index:])
+        index += 1
+        if text.startswith("--"):
+            if text in ("--help", "--version"):
+                continue
+            if text == "--check-hash-based-pycs" and index < len(args):
+                index += 1
+                continue
+            return PythonProgram("unknown")
+        for position, char in enumerate(text[1:], 1):
+            if char in PYTHON_FLAGS:
+                continue
+            if char not in PYTHON_VALUE_FLAGS:
+                return PythonProgram("unknown")
+            attached = text[position + 1 :]
+            if attached:
+                value = Word(attached, word.bare, word.expands)
+            elif index < len(args):
+                value = args[index]
+                index += 1
+            else:
+                return PythonProgram("unknown")
+            if char == "c":
+                return PythonProgram("code", value, tuple(args[index:]))
+            if char == "m":
+                return PythonProgram("module", value, tuple(args[index:]))
+            break
+    return PythonProgram("stdin")
+
+
 @dataclass
 class Command:
     words: list[Word] = field(default_factory=list)
@@ -299,6 +365,7 @@ class Command:
     piped: bool = False
     reads: list[str] = field(default_factory=list)
     here_string: str | None = None
+    here_string_expands: bool = False
     inner: list[str] = field(default_factory=list)
 
     @property
@@ -320,6 +387,7 @@ class Scan:
     commands: list[Command] = field(default_factory=list)
     unparsed: list[str] = field(default_factory=list)
     scripts: list[str] = field(default_factory=list)
+    opaque_python: list[str] = field(default_factory=list)
     overrun: bool = False
     walks: int = 0
     deadline: float = 0.0
@@ -643,6 +711,7 @@ def parse_commands(text: str) -> list[Command]:
                 current.words.append(word)
             elif redirect == "<<<":
                 current.here_string = word.text
+                current.here_string_expands = word.expands
             elif ">" in redirect:
                 if not (redirect.endswith("&") and (word.text.isdigit() or word.text == "-")):
                     current.writes.append(word.text)
@@ -703,18 +772,20 @@ def _walk(text: str, result: Scan, depth: int) -> None:
             elif name == "eval":
                 _walk(" ".join(texts), result, depth + 1)
             elif PYTHON.fullmatch(name):
-                code = shell_script(texts)
-                if code is None and command.here_string is not None:
-                    code = command.here_string
-                if code is not None:
-                    result.scripts.append(code)
+                program = parse_python(args)
+                if program.kind == "code" and program.word is not None:
+                    result.scripts.append(program.word.text)
+                elif program.kind == "stdin" and command.here_string is not None:
+                    result.scripts.append(command.here_string)
     for inner in substitutions(kept):
         _walk(inner, result, depth + 1)
     for heredoc in heredocs:
         if heredoc.owner in RUNS_ITS_INPUT:
             _walk(heredoc.body, result, depth + 1)
-        elif heredoc.owner and PYTHON.fullmatch(heredoc.owner):
+        elif heredoc.owner and (PYTHON.fullmatch(heredoc.owner) or heredoc.owner in ("uv", "uvx")):
             result.scripts.append(heredoc.body)
+            if not heredoc.quoted and ("$" in heredoc.body or "`" in heredoc.body):
+                result.opaque_python.append(heredoc.body)
         if not heredoc.quoted and heredoc.owner not in RUNS_ITS_INPUT:
             for inner in substitutions(heredoc.body, quoting=False):
                 _walk(inner, result, depth + 1)

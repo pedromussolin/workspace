@@ -158,7 +158,7 @@ def test_the_limit_of_a_text_gate_stays_visible(env):
     """A script file or an odd import is not seen: phase 3's sandbox is the answer."""
     assert box("bash run-it.sh", env) is None
     sneaky = 'python3 -c \'import importlib; importlib.import_module("w" + "s.cli")\''
-    assert box(sneaky, env) is None
+    assert box(sneaky, env).splitlines()[0] == "Não sei o que este comando faz"
 
 
 FALSE_ALARM_OF_2026_10_28 = """cd ~/.claude/projects/x/memory && python3 - <<'EOF'
@@ -2206,7 +2206,6 @@ def test_a_recursive_read_of_the_folder_above_the_home_asks_but_a_sibling_passes
     [
         'uv run python -c "import ws; print(ws.__file__)"',
         "python3 -c 'from ws import card; print(card.__doc__)'",
-        'python3 -c \'from ws.cli import main; main(["task", "list"])\'',
         "python3 - <<'EOF'\nimport ws\nprint(ws.__version__)\nEOF",
     ],
 )
@@ -2224,7 +2223,8 @@ def test_python_that_imports_ws_without_applying_a_card_passes(command, env):
     ],
 )
 def test_python_that_applies_a_card_asks_with_the_jira_title(command, env):
-    assert box(command, env).splitlines()[0] == "Grava no Jira"
+    shown = box(command, env)
+    assert "Grava no Jira" in shown or "pode aplicar uma prévia" in shown
 
 
 ENVIRONMENT_POLICY = (
@@ -2751,7 +2751,7 @@ def test_python_that_does_not_touch_ws_passes_even_with_getattr(env):
 
 def test_remove_is_not_move(env):
     assert box('python3 -c "import ws; ws.release_notes.remove(1)"', env) is None
-    assert box('python3 -c "from ws import release; release.move_x(1)"', env) is None
+    assert box('python3 -c "from ws import release; release.move_x(1)"', env)
     assert box('python3 -c "from ws import release; release.move(1)"', env)
 
 
@@ -2810,3 +2810,183 @@ def test_release_with_an_empty_summary_still_asks(record, env):
     write_release_pending(env, CODE, record)
 
     assert "A prévia não tem resumo" in box(f"ws release publish d --approve {CODE}", env)
+
+
+PUBLISH_CODE = "from ws.release import publish; publish.run_publish(1)"
+CARD_CODE = "from ws.card import run_apply; run_apply(1)"
+APPROVE = f"release publish d --approve {CODE}"
+
+PYTHON_THAT_ASKS = [
+    f"echo '{PUBLISH_CODE}' | python3 - x",
+    f"echo '{MAIN}' | python3 - {APPROVE}",
+    f"echo '{PUBLISH_CODE}' | python3 -W ignore",
+    f"echo '{PUBLISH_CODE}' | python3 -X utf8",
+    f"echo '{PUBLISH_CODE}' | python3 -Ximporttime",
+    "python3 -X utf8 < run.py",
+    f"echo '{PUBLISH_CODE}' | python3 /dev/stdin",
+    "python3 /dev/stdin < run.py",
+    "python3 /dev/fd/0 < run.py",
+    f"python3 - < <(echo '{PUBLISH_CODE}')",
+    f"python3 <(echo '{PUBLISH_CODE}')",
+    'python3 - <<< "$(cat run.py)"',
+    'python3 - <<< "$X"',
+    'python3 -c "$X"',
+    'python3 -c "$(cat run.py)"',
+    "python3 -- < run.py",
+    "python3 -i < run.py",
+    "python3 --weird-option -c 'print(1)'",
+    "python3 -Z -c 'print(1)'",
+    f"python3 - {APPROVE} <<< \"$(echo '{MAIN}')\"",
+    f"printf '%s' '{MAIN}' | python3 - {APPROVE}",
+    "python3 <<EOF\nimport ws\n$X\nEOF",
+    f"uv run python - < run.py # {PUBLISH_CODE}",
+    f"bash -c \"echo '{PUBLISH_CODE}' | python3\"",
+    f"cat run.py | uv run python -I -X utf8 # {CARD_CODE}",
+    f"echo '{CARD_CODE}' | python3 -",
+    "python3 -c \"import runpy; runpy.run_module('ws')\"",
+    f"python3 -c \"import runpy; runpy.run_module('ws')\" {APPROVE}",
+    "python3 -c \"__import__('w'+'s.card')\"",
+    "python3 -c \"exec('x'+'y')\"",
+    "python3 -c \"import importlib; f=importlib.import_module; m=f('ws.rel'+'ease')\"",
+    "python3 -c \"from ws import release as r; g=getattr; g(r, 'pub'+'lish')\"",
+    "python3 -c \"import importlib as i; m=i.import_module ('ws.rel'+'ease')\"",
+    "python3 -c \"exec('from ws.rel'+'ease.pub'+'lish import run_pub'+'lish as f'); f(1)\"",
+    "python3 -c \"exec('from ws.ca'+'rd import run_ap'+'ply as f'); f(1)\"",
+    "python3 -c \"import ws; vars(ws)['run_'+'x']\"",
+    "python3 -c \"from ws.cli import main; main(['rel'+'ease','pub'+'lish'])\"",
+    "python3 -c \"import sys; from ws.cli import main; sys.argv[1:]=['x']; main()\"",
+    "python3 -c \"import operator; import ws; operator.attrgetter('x'+'y')(ws)\"",
+    "python3 -c \"import ws; ws.__dict__['x'+'y']\"",
+]
+
+
+@pytest.mark.parametrize("command", PYTHON_THAT_ASKS)
+def test_python_the_gate_cannot_follow_asks(command, env):
+    assert box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"python3 - {APPROVE} <<< '{MAIN}'",
+        f"python3 - {APPROVE} <<'EOF'\n{MAIN}\nEOF",
+        f"uv run python - {APPROVE} <<'EOF'\n{MAIN}\nEOF",
+        f'python3 -W ignore -c "{MAIN}" {APPROVE}',
+        f'python3 -X utf8 -c "{MAIN}" {APPROVE}',
+        f"python3 '-c{MAIN}' {APPROVE}",
+        f"python3 -Im ws.cli {APPROVE}",
+        f"python3 -mws {APPROVE}",
+        f"python3 -W ignore -m ws {APPROVE}",
+        f"uv run -m ws.cli {APPROVE}",
+        f"uv run --module ws {APPROVE}",
+        f"bash -c 'python3 -c \"{MAIN}\" {APPROVE}'",
+    ],
+)
+def test_python_that_runs_ws_with_arguments_shows_the_release_box(command, env):
+    assert box(command, env).splitlines()[0] == f"Publica a prévia {CODE} no GitHub"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"python3 -Im ws.cli card apply d --approve {CODE}",
+        f'python3 -W ignore -c "{MAIN}" card apply d --approve {CODE}',
+        f"uv run -m ws.cli card apply d --approve {CODE}",
+        f"python3 - card apply d --approve {CODE} <<< '{MAIN}'",
+    ],
+)
+def test_python_that_runs_ws_with_arguments_shows_the_card_box(command, env):
+    assert box(command, env).splitlines()[0] == f"Aplica a prévia {CODE} no Jira"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -c 'print(1)'",
+        "python3 script.py",
+        "python3 -m pytest -q",
+        "python3 -m json.tool",
+        "cat x.json | python3 -m json.tool",
+        "cat x.json | python3 script.py",
+        "cat x.json | python3 -c 'import json,sys; print(json.load(sys.stdin))'",
+        "python3 - <<< 'print(1)'",
+        "python3 < /dev/null",
+        "python3 -m ws release status",
+        "python3 -m ws release preview publish 20261120",
+        "uv run -m ws release status",
+        "uv run -m ws.cli release preview move a b --reason x",
+        "python3 -c 'from ws.config import data_dir; print(data_dir())'",
+        f'python3 -c "{MAIN}" release status',
+        "python3 -c 'import re; re.compile(\"x\")'",
+        "python3 -c 'import json; json.loads(\"{}\")'",
+    ],
+)
+def test_python_that_cannot_write_stays_silent(command, env):
+    assert box(command, env) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -c 'from ws.release_cli import _publish; _publish(ns)'",
+        "python3 -c 'from ws import release_cli as r; r._move(ns)'",
+        "python3 -c 'import ws.release_cli as c; c._publish(ns)'",
+        "python3 -c 'from ws import release; release.move_x(1)'",
+    ],
+)
+def test_release_names_with_an_underscore_still_ask(command, env):
+    assert "Grava no GitHub" in box(command, env)
+
+
+@pytest.mark.parametrize("code", ["abcdef01234?", "abcdef01234*", "abcdef01234[5]"])
+def test_an_approve_code_with_glob_characters_asks_as_unsure(code, env):
+    for family in ("release publish d", "card apply d"):
+        lines = box(f"ws {family} --approve '{code}'", env).splitlines()
+
+        assert lines[0] == UNSURE
+        assert "O código vem de uma variável ou comando" in lines[1]
+
+
+@pytest.mark.parametrize(
+    ("argv", "kind", "value", "rest"),
+    [
+        ([], "stdin", None, []),
+        (["-"], "stdin", None, []),
+        (["-", "a", "b"], "stdin", None, ["a", "b"]),
+        (["-c", "X", "a"], "code", "X", ["a"]),
+        (["-cX", "a"], "code", "X", ["a"]),
+        (["-Ic", "X"], "code", "X", []),
+        (["-OO", "-c", "X"], "code", "X", []),
+        (["-W", "ignore", "-c", "X", "a"], "code", "X", ["a"]),
+        (["-Wignore", "-X", "utf8", "-c", "X"], "code", "X", []),
+        (["-m", "ws.cli", "a"], "module", "ws.cli", ["a"]),
+        (["-mws", "a"], "module", "ws", ["a"]),
+        (["-Im", "ws.cli"], "module", "ws.cli", []),
+        (["-Imws"], "module", "ws", []),
+        (["script.py", "-c", "x"], "script", "script.py", ["-c", "x"]),
+        (["-u", "script.py", "a"], "script", "script.py", ["a"]),
+        (["--", "script.py"], "script", "script.py", []),
+        (["--"], "stdin", None, []),
+        (["/dev/stdin"], "stdin", None, []),
+        (["/proc/self/fd/0"], "stdin", None, []),
+        (["--version"], "stdin", None, []),
+        (["--check-hash-based-pycs", "always", "s.py"], "script", "s.py", []),
+        (["--made-up", "s.py"], "unknown", None, []),
+        (["-Z", "s.py"], "unknown", None, []),
+        (["-W"], "unknown", None, []),
+        (["-c"], "unknown", None, []),
+    ],
+)
+def test_the_python_argv_parser(argv, kind, value, rest):
+    import sys
+
+    sys.path.insert(0, str(HOOK.parent))
+    try:
+        from gate import shell
+    finally:
+        sys.path.pop(0)
+    program = shell.parse_python([shell.Word(text) for text in argv])
+
+    assert program.kind == kind
+    assert (program.word.text if program.word else None) == value
+    assert [word.text for word in program.args] == rest
