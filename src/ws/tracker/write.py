@@ -50,6 +50,7 @@ OPTIONAL = {
 }
 HEADER = {"$schema", "version", "op"}
 DATES = {"start", "due", "day"}
+UPPER_OUT_OF_SPRINTS = "an epic or an initiative stays out of sprints; put its cards in the sprint"
 
 
 @dataclass(frozen=True)
@@ -217,8 +218,11 @@ def _item_rules(kind: str, values: dict) -> list[str]:
 
 
 def _create_rules(kind: str, values: dict) -> list[str]:
-    problems = _item_rules(kind, values)
-    return problems + _type_rules(kind, values)
+    """`"backlog"` is left to the contract's own refusal of it on a create, in both forms."""
+    problems = _item_rules(kind, values) + _type_rules(kind, values)
+    if kind in UPPER_TYPES and values.get("sprint", "backlog") != "backlog":
+        problems.append(UPPER_OUT_OF_SPRINTS)
+    return problems
 
 
 def _type_rules(kind: str, values: dict) -> list[str]:

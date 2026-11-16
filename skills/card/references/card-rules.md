@@ -20,8 +20,12 @@ in the next plan, will refuse the same).
 - An initiative is an objective that crosses systems (for example, switching a machine off). It has
   no cards of its own, only epics **[code: a card's parent is an epic]**.
 - An epic is one system or one objective inside an initiative, and closes when done. Its `parent`
-  is its initiative **[code: a level-2 card that is not done]**. When the tracker's epic screens have no
-  `parent`, the check refuses it and the user links the epic to its initiative by hand.
+  is its initiative **[code: a level-2 card that is not done]**. The tracker may tie the two by a
+  link instead of the parent field, as the config says: then `parent` on an epic edit adds that
+  link and goes alone in its draft, and a create with `parent` is refused, so a new epic is created
+  first and then edited with `parent` **[code]**. When the tie is the parent field and the
+  tracker's epic screens have no `parent`, the check refuses it and the user links the epic to its
+  initiative by hand.
 - A card has exactly one epic **[code: `epic` is required for the five card types and refused for
   `epic` and `initiative`]**. The epic is the system the code changes. When the card exists only to
   migrate or switch something off, it goes to the initiative's epic and links to the system's cards.
@@ -90,6 +94,8 @@ current card, unless the user says to include it.
 
 - No sprint unless the user asks: leave `sprint` out. Values: `"active"`, `"next"`, the exact name
   of an open sprint, or (edit only) `"backlog"` **[code]**.
+- An epic or an initiative stays out of sprints: only its cards go into one, and it keeps its due
+  date **[code]**. An edit with `"backlog"` takes it out of a sprint.
 - `due` is optional without a sprint and required with one **[code]**. There is no start date at
   creation: it is set when the card moves to in progress.
 

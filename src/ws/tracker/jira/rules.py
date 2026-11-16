@@ -11,7 +11,7 @@ from ws.tracker import vocab
 from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
 from ws.tracker.jira.settings import JiraConfig
-from ws.tracker.write import Draft
+from ws.tracker.write import UPPER_OUT_OF_SPRINTS, Draft
 from ws.userconfig import Person
 
 MAX_SUMMARY = 255
@@ -495,7 +495,12 @@ def _create_upper(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         article = "an epic" if type_ == "epic" else "an initiative"
         verdict.problems.append(f"{article} title starts with [PREFIX]")
     link = None
-    if "parent" in values:
+    if "parent" in values and not ctx.settings.premium:
+        verdict.problems.append(
+            "without premium the initiative is a link: create the epic first, then edit it with "
+            "`parent`"
+        )
+    elif "parent" in values:
         initiative = ctx.initiative(values["parent"], verdict)
         if not ctx.create_screen_has(type_id, "parent"):
             verdict.problems.append(
@@ -705,7 +710,15 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             old_name = old_person.get("displayName") or old_person.get("accountId")
             new_name = ctx.person_name(values[person_field], account_id)
             lines.append(f"{label}: {old_name or '(ninguém)'} -> {new_name}")
-    if "parent" in values and level == 1:
+    links: list[dict] = []
+    if "parent" in values and level == 1 and not settings.premium:
+        if set(values) - {"key", "parent"} or draft.body.strip():
+            verdict.problems.append(
+                "without premium the initiative is a link: put `parent` in its own draft"
+            )
+        else:
+            links = _initiative_link(ctx, key, values["parent"], current, verdict, lines)
+    elif "parent" in values and level == 1:
         initiative = ctx.initiative(values["parent"], verdict)
         if "parent" not in meta:
             verdict.problems.append(
@@ -746,7 +759,10 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["duedate"] = old_due.isoformat() if old_due else None
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
-    if "sprint" in values:
+    upper = isinstance(level, int) and level >= 1
+    if "sprint" in values and upper and values["sprint"] != "backlog":
+        verdict.problems.append(UPPER_OUT_OF_SPRINTS)
+    elif "sprint" in values:
         _edit_sprint(ctx, values["sprint"], current, verdict, changes, before, lines)
 
     if draft.body.strip():
@@ -777,15 +793,36 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     for name in changes:
         if name not in meta:
             verdict.problems.append(f"the edit screen of {key} has no {name}")
-    if not changes and not verdict.problems:
+    if not changes and not links and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
+        if lines and lines[-1].endswith(": já existe"):
+            # The plan shows the initiative's link that is already there, as the `link` op does.
+            verdict.preview = lines
     if verdict.problems:
         return
-    verdict.requests = [
+    verdict.requests = links or [
         {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": {"fields": changes}}
     ]
     verdict.before = before
     verdict.preview = lines
+
+
+def _initiative_link(
+    ctx: Context, key: str, initiative: str, current: dict, verdict: Verdict, lines: list[str]
+) -> list[dict]:
+    """Without premium an epic cannot have an initiative as its parent, so `parent`, alone in its
+    draft, ties them by the `initiative_link` link, the request a `link` draft sends; nothing
+    when that link is already there, either way."""
+    found = ctx.initiative(initiative, verdict)
+    type_name = ctx.link_type(ctx.settings.initiative_link, verdict)
+    if not (found and type_name):
+        return []
+    line = f"Iniciativa: {initiative} (por link {type_name})"
+    if _existing_link(current.get("issuelinks") or [], type_name, initiative):
+        lines.append(f"{line}: já existe")
+        return []
+    lines.append(line)
+    return [_link_request(type_name, key, initiative)]
 
 
 def _edit_sprint(
@@ -1056,16 +1093,18 @@ def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             continue
         inward, outward = (target, key) if kind == "blocked_by" else (key, target)
         verdict.preview.append(line)
-        verdict.requests.append(
-            {
-                "method": "POST",
-                "path": "/rest/api/3/issueLink",
-                "body": {
-                    "type": {"name": type_name},
-                    "inwardIssue": {"key": inward},
-                    "outwardIssue": {"key": outward},
-                },
-            }
-        )
+        verdict.requests.append(_link_request(type_name, inward, outward))
     if not verdict.problems and not verdict.requests:
         verdict.problems.append("the draft adds no link")
+
+
+def _link_request(type_name: str, inward: str, outward: str) -> dict:
+    return {
+        "method": "POST",
+        "path": "/rest/api/3/issueLink",
+        "body": {
+            "type": {"name": type_name},
+            "inwardIssue": {"key": inward},
+            "outwardIssue": {"key": outward},
+        },
+    }

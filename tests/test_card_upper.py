@@ -5,6 +5,7 @@ from test_card import (
     passing,
     preview,
     problems,
+    set_premium,
     world,  # noqa: F401
 )
 
@@ -14,6 +15,8 @@ def screen(world, type_id, *, parent):  # noqa: F811
 
 
 def upper_draft(type_="epic", title="[FRONT] Épico novo", **front):
+    """An epic or an initiative stays out of sprints, so its draft has no `sprint`."""
+    front = {"sprint": None, **front}
     return create_draft(title=title, body="## Contexto\nPor quê.\n", type=type_, epic=None, **front)
 
 
@@ -38,7 +41,8 @@ def test_create_epic_title_needs_a_prefix(world, capsys):  # noqa: F811
     )
 
 
-def test_create_epic_with_parent_when_the_screen_has_it(world, capsys):  # noqa: F811
+def test_create_epic_with_parent_when_the_screen_has_it(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     screen(world, "8", parent=True)
     world.set_issue("TS-140", _fields("[FRONT] Iniciativa", level=2))
 
@@ -47,7 +51,8 @@ def test_create_epic_with_parent_when_the_screen_has_it(world, capsys):  # noqa:
     assert fields["parent"] == {"key": "TS-140"}
 
 
-def test_create_epic_with_parent_refused_when_the_screen_lacks_it(world, capsys):  # noqa: F811
+def test_create_epic_with_parent_refused_when_the_screen_lacks_it(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     screen(world, "8", parent=False)
     world.set_issue("TS-140", _fields("[FRONT] Iniciativa", level=2))
 
@@ -58,14 +63,16 @@ def test_create_epic_with_parent_refused_when_the_screen_lacks_it(world, capsys)
     assert world.writes() == []
 
 
-def test_create_epic_parent_must_be_an_initiative(world, capsys):  # noqa: F811
+def test_create_epic_parent_must_be_an_initiative(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     screen(world, "8", parent=True)
     world.set_issue("TS-140", _fields("[FRONT] Outro épico", level=1))
 
     assert "TS-140 is not an initiative" in problems(upper_draft(parent="TS-140"), capsys)
 
 
-def test_create_epic_parent_must_not_be_done(world, capsys):  # noqa: F811
+def test_create_epic_parent_must_not_be_done(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     screen(world, "8", parent=True)
     world.set_issue("TS-140", _fields("[FRONT] Iniciativa", level=2, category="done"))
 
@@ -89,7 +96,8 @@ def test_create_initiative_title_needs_a_prefix(world, capsys):  # noqa: F811
     )
 
 
-def test_create_epic_preview_in_portuguese(world, capsys):  # noqa: F811
+def test_create_epic_preview_in_portuguese(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     screen(world, "8", parent=True)
     world.set_issue("TS-140", _fields("[FRONT] Iniciativa", level=2))
     path = upper_draft(parent="TS-140")

@@ -4,7 +4,7 @@
 there without an import cycle.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ws.taskmodel import Status
@@ -31,6 +31,8 @@ class JiraConfig:
     sprint_field: str | None = None
     types: dict[str, str] = field(default_factory=dict)
     links: dict[str, str] = field(default_factory=dict)
+    premium: bool = False
+    initiative_link: str = "relates"
 
 
 def _status_overrides(table: dict, path: Path, section: str) -> dict[str, str]:
@@ -71,6 +73,27 @@ def _name_map(
     return dict(names)
 
 
+def _premium(table: dict, path: Path, section: str) -> bool:
+    value = table.get("premium", False)
+    if not isinstance(value, bool):
+        raise ConfigInvalid(f"{path}: {section}.premium must be true or false")
+    return value
+
+
+def _initiative_link(table: dict, links: dict[str, str], path: Path, section: str) -> str:
+    """The key of the links table that ties an epic to its initiative without premium. Only a
+    name written in the config is checked: the default one is checked when a draft needs it."""
+    if "initiative_link" not in table:
+        return "relates"
+    name = table["initiative_link"]
+    if not isinstance(name, str) or name not in links:
+        raise ConfigInvalid(
+            f"{path}: {section}.initiative_link is {name!r}; use a key of [{section}.links] "
+            f"({', '.join(links) or 'the table is empty'})"
+        )
+    return name
+
+
 def card_url_template(table: dict, path: Path, section: str = SECTION) -> str:
     """The card link from the raw table, checking only `site`."""
     return f"{_site(table, path, section).rstrip('/')}/browse/{{key}}"
@@ -84,7 +107,7 @@ def parse_settings(table: dict, path: Path, section: str = SECTION) -> JiraConfi
             f"issue_type line from [{section}], then run `ws tracker discover` and paste its "
             "output into config.toml"
         )
-    return JiraConfig(
+    settings = JiraConfig(
         site=_site(table, path, section),
         email=_string(table, "email", path, section),
         status_overrides=_status_overrides(table, path, section),
@@ -94,4 +117,7 @@ def parse_settings(table: dict, path: Path, section: str = SECTION) -> JiraConfi
         sprint_field=_optional_string(table, "sprint_field", path, section),
         types=_name_map(table, "types", vocab.CARD_TYPES + vocab.UPPER_TYPES, path, section),
         links=_name_map(table, "links", vocab.LINK_NAMES, path, section),
+        premium=_premium(table, path, section),
     )
+    link = _initiative_link(table, settings.links, path, section)
+    return replace(settings, initiative_link=link)

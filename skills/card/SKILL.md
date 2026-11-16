@@ -185,8 +185,8 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint) | optional new description |
+| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it and the tracker ties it by parent, not by a link); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; never on an epic or an initiative; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint, the only value for an epic or an initiative) | optional new description |
 | `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`; exactly one of `to` (target status name) or `status` (one of `todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) | none |
 | `comment` | `key` | the comment, Markdown |
@@ -247,8 +247,13 @@ sprint = "backlog"
 ```
 
 An epic: the title starts with its prefix and a space, and only `## Contexto` is required. When the
-tracker's epic screens have no `parent` (the check says so), leave it out: after the epic is
-created, the user links it to its initiative by hand in the tracker (say so in the answer).
+tracker ties the initiative by the parent field and its epic screens have no `parent` (the check
+says so), leave it out: after the epic is created, the user links it to its initiative by hand in
+the tracker (say so in the answer).
+The tracker may tie an epic to its initiative by a link instead of a parent, as the config says
+(details in the tracker reference above): then create the epic first and edit it with `parent`,
+alone in its own draft (a batch may hold it next to the other changes).
+Epics and initiatives stay out of sprints: leave `sprint` out; only their cards go into a sprint.
 
 ```text
 +++

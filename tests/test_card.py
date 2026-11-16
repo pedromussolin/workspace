@@ -219,6 +219,15 @@ def world(ws_config, fake_jira, monkeypatch, claude_settings):
     return World(fake_jira)
 
 
+def set_premium(ws_config, premium=True):
+    """The world's config with `[tracker.jira] premium`; without the key it is false."""
+    config = ws_config / "config.toml"
+    text = config.read_text(encoding="utf-8")
+    assert text.count("board_id = 7\n") == 1, "set_premium needs the world's config"
+    line = f"premium = {'true' if premium else 'false'}\n"
+    config.write_text(text.replace("board_id = 7\n", f"board_id = 7\n{line}"), encoding="utf-8")
+
+
 def _toml(value):
     return value.isoformat() if isinstance(value, date) else json.dumps(value, ensure_ascii=False)
 

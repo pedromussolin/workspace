@@ -9,8 +9,19 @@ What is specific to Jira in the `/card` flow. Read it when the tracker in `confi
 - **Prompt:** the confirmation on the user's terminal prints exactly `Gravar no Jira? [s/N]`.
 - **Start date:** when the card has no start date to set, `[tracker.jira] start_date_field` (or
   `start_date_field` of an old `[jira]` table) is missing in `config.toml`.
-- **Epic screens:** this Jira's epic create and edit screens have no `parent`, so the check refuses
-  it and the user links the epic to its initiative by hand, in Jira.
+- **Epic and initiative:** `[tracker.jira] premium` (default `false`) says whether this Jira has the
+  premium plan. Without it an epic cannot have an initiative as its parent, so `parent` on an epic
+  `edit` adds the link `[tracker.jira] initiative_link` names (a key of `[tracker.jira.links]`,
+  default `relates`), shown in the preview as `Iniciativa: TS-N (por link Relates)`; a link already
+  there, either way, changes nothing (the plan shows `Iniciativa: TS-N (por link Relates): já
+  existe`). That edit holds `parent` alone: with any other change it is refused, so the other
+  changes go in another draft, in the same batch if wanted (one preview, one approval).
+- **New epic with an initiative, without premium:** two steps. Create the epic without `parent`
+  (a create with `parent` is refused: the link needs the new card's key), then edit it with
+  `parent`.
+- **Epic screens, with `premium = true`:** `parent` sets the parent field; when this Jira's epic
+  create or edit screen has no `parent`, the check refuses it and the user links the epic to its
+  initiative by hand, in Jira.
 - **Uncertain result on a `create`:** offer the JQL (Jira's search syntax) to look for the title,
   for example `project = TS AND summary ~ "<title>"`.
 - **Refusals:** a write to another person's card or another project is refused; a field missing
