@@ -1,3 +1,6 @@
+from datetime import date
+from types import SimpleNamespace
+
 from test_card import START_FIELD, claude_settings, make_draft, passing, problems, world  # noqa: F401
 
 TRANSITIONS_URL = "/rest/api/3/issue/TS-101/transitions"
@@ -92,3 +95,46 @@ def test_move_by_status_to_another_status_adds_no_start_date(world, capsys, ws_c
     verdict = passing(make_draft("m.md", "move", key="TS-101", status="validation"), capsys)
 
     assert len(verdict["requests"]) == 1
+
+
+def test_move_by_status_on_a_card_that_is_not_yours_is_refused(world, capsys):  # noqa: F811
+    world.set_transitions("TS-102", [{"id": "21", "to": _destination("X", "indeterminate")}])
+
+    message = problems(make_draft("m.md", "move", key="TS-102", status="in_progress"), capsys)
+
+    assert "is not yours" in message
+    assert world.writes() == []
+
+
+def test_two_transitions_to_the_same_name_do_not_point_at_to(world, capsys):  # noqa: F811
+    same = _destination("Fazendo", "indeterminate")
+    world.set_transitions(
+        "TS-101",
+        [
+            {"id": "1", "name": "A", "to": same, "fields": {}},
+            {"id": "2", "name": "B", "to": same, "fields": {}},
+        ],
+    )
+
+    message = problems(make_draft("m.md", "move", key="TS-101", status="in_progress"), capsys)
+
+    assert "A (id 1)" in message and "B (id 2)" in message and "use to" not in message
+
+
+def _from_document(**values):
+    from ws.tracker.jira import rules
+    from ws.tracker.write import from_document
+
+    document = {"$schema": "card-write", "version": 1, "op": "move", "key": "TS-101", **values}
+    context = SimpleNamespace(today=date(2026, 10, 27))
+    return rules.check(context, from_document(document))
+
+
+def test_rules_report_a_move_with_neither_key_for_a_document_draft():
+    assert _from_document().problems == ["missing key 'to' for op move"]
+
+
+def test_rules_report_a_move_with_both_keys_for_a_document_draft():
+    verdict = _from_document(to="Em Andamento", status="in_progress")
+
+    assert verdict.problems == ["a move needs exactly one of to or status, not both"]

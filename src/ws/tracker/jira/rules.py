@@ -829,6 +829,12 @@ def _edit_sprint(
 
 def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
+    if "to" in draft.values and "status" in draft.values:
+        verdict.problems.append("a move needs exactly one of to or status, not both")
+        return
+    if "to" not in draft.values and "status" not in draft.values:
+        verdict.problems.append("missing key 'to' for op move")
+        return
     if draft.body.strip():
         verdict.problems.append("a move has no body")
     current = ctx.writable_card(key, verdict)
@@ -900,11 +906,11 @@ def _transitions_to(
         listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
         hint = ""
         if "status" in draft.values:
-            destinations = ", ".join(
-                sorted({(item.get("to") or {}).get("name") or "?" for item in matches})
-            )
-            listing += f"; destinations: {destinations}"
-            hint = "; use to to pick one by name"
+            names = sorted({(item.get("to") or {}).get("name") or "?" for item in matches})
+            listing += f"; destinations: {', '.join(names)}"
+            hint = "; use to with one of the destinations"
+            if len(names) == 1:
+                hint = "; the destination name does not tell them apart, do it by hand"
         verdict.problems.append(f"more than one transition leads to {label}: {listing}{hint}")
         return None
     return matches
