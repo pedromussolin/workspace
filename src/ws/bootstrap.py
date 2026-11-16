@@ -40,6 +40,7 @@ GITHOOKS_DIR = ".githooks"
 HOOK_NAMES = ("pre-commit", "pre-merge-commit", "commit-msg", "pre-push")
 CARD_ASK_RULE = "Bash(ws card apply:*)"
 RELEASE_ASK_RULES = ("Bash(ws release publish:*)", "Bash(ws release move:*)")
+OBSERVE_ASK_RULES = ("Bash(ws observe run:*)",)
 HOOKS_SOURCE = "hooks"
 HOOKS_MANIFEST = "manifest.json"
 HOOKS_COPY_GLOBS = ("*.py", "gate/*.py", "gate/*.json")
@@ -112,6 +113,7 @@ GITKRAKEN_WRITE_TOOLS = (
 ASK_RULES = (
     CARD_ASK_RULE,
     *RELEASE_ASK_RULES,
+    *OBSERVE_ASK_RULES,
     *(f"mcp__{server}__{tool}" for server in ATLASSIAN_SERVERS for tool in ATLASSIAN_WRITE_TOOLS),
     *(f"mcp__plugin_github_github__{tool}" for tool in GITHUB_WRITE_TOOLS),
     *(f"mcp__github__{tool}" for tool in GITHUB_WRITE_TOOLS),
@@ -996,6 +998,11 @@ def card_gate_problems(settings_path: Path) -> list[str]:
 def release_gate_problems(settings_path: Path) -> list[str]:
     """What `ws release publish|move --approve` needs in the Claude settings (read-only)."""
     return gate_problems(settings_path, RELEASE_ASK_RULES)
+
+
+def observe_gate_problems(settings_path: Path) -> list[str]:
+    """What `ws observe run` needs in the Claude settings before it queries a database."""
+    return gate_problems(settings_path, OBSERVE_ASK_RULES)
 
 
 def gate_problems(settings_path: Path, ask_rules: tuple[str, ...]) -> list[str]:

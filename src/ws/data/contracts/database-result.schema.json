@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "database": {
+      "type": "string"
+    },
+    "value": {
+      "type": "number"
+    },
+    "started": {
+      "type": "string"
+    },
+    "finished": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "database",
+    "value",
+    "started",
+    "finished"
+  ],
+  "additionalProperties": false
+}
