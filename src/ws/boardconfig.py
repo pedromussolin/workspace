@@ -437,7 +437,8 @@ def unmapped_status(cfg: BoardConfig, overrides: dict[str, str]) -> str | None:
             continue
         return (
             f'board.statuses.{status.value} "{name}" does not map back to {status.value} in '
-            "[jira.status_overrides]; a card in it would be read wrong and could move backwards"
+            "[tracker.jira.status_overrides]; a card in it would be read wrong and could move "
+            "backwards"
         )
     return None
 

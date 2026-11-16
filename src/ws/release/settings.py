@@ -1,4 +1,4 @@
-"""The `[release]` table of config.toml and the `[jira] site` the release texts link to."""
+"""The `[release]` table of config.toml and the `[tracker.jira] site` the release texts link to."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,7 +72,10 @@ def _repo(name: str, table: object) -> RepoEntry:
 def load_release_config() -> ReleaseConfig:
     try:
         release = userconfig.load_table("release")
-        jira = userconfig.load_table("jira")
+        tracker = userconfig.load_table("tracker")
+        jira = tracker.get("jira")
+        if not isinstance(jira, dict):
+            jira = userconfig.load_table("jira")
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         raise _fail(str(error)) from error
     unknown = sorted(set(release) - RELEASE_KEYS)
@@ -83,7 +86,7 @@ def load_release_config() -> ReleaseConfig:
         raise _fail("release.repos must list at least one repo")
     site = jira.get("site")
     if not isinstance(site, str) or not site:
-        raise _fail("jira.site must be a non-empty string")
+        raise _fail("tracker.jira.site must be a non-empty string")
     return ReleaseConfig(
         base_branch=_text(release, "base_branch", "release", "master"),
         sandbox_branch=_text(release, "sandbox_branch", "release", "sandbox"),

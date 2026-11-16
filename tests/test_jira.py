@@ -219,7 +219,8 @@ def test_client_unreachable_site_raises_jira_error(fake_jira):
 @pytest.fixture
 def jira_config(ws_config, fake_jira):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\n',
+        encoding="utf-8",
     )
     save_jira_token(CREDENTIAL)
     return ws_config
@@ -546,7 +547,8 @@ def test_the_test_seam_is_empty_by_default_and_opens_only_what_it_lists(fake_jir
 
 def test_task_list_with_a_site_that_is_not_atlassian_exits_2(ws_config, capsys):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "https://evil.example"\nemail = "{EMAIL}"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://evil.example"\nemail = "{EMAIL}"\n',  # noqa: E501
+        encoding="utf-8",
     )
     save_jira_token(CREDENTIAL)
 

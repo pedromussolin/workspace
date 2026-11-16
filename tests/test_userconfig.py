@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from ws import userconfig
 from ws.cli import main
 from ws.identity import dev_id
+from ws.tracker.port import TrackerSetup, open_tracker
 from ws.userconfig import (
     ConfigInvalid,
     ConfigMissing,
@@ -603,3 +605,89 @@ def test_issue_type_key_is_refused_with_the_new_block(config_dir):
         "[jira] issue_type was replaced by [jira.types]; delete the issue_type line from "
         "[jira], then run `ws tracker discover` and paste its output into config.toml"
     )
+
+
+NEW_CONFIG = """\
+[tracker]
+kind = "jira"
+
+[tracker.jira]
+site = "https://example.atlassian.net"
+email = "dev@example.com"
+
+[tracker.jira.status_overrides]
+"In Validation" = "validation"
+"""
+
+
+def test_tracker_jira_table_loads(config_dir, capsys):
+    (config_dir / "config.toml").write_text(NEW_CONFIG, encoding="utf-8")
+
+    config = load_config()
+
+    assert config.tracker_kind == "jira"
+    assert config.jira.site == "https://example.atlassian.net"
+    assert config.tracker_settings is config.jira
+    assert config.jira.status_overrides == {"In Validation": "validation"}
+    assert config.identity_email == "dev@example.com"
+    assert capsys.readouterr().err == ""
+
+
+def test_old_jira_table_loads_with_one_deprecation_line(config_dir, capsys, monkeypatch):
+    monkeypatch.setattr(userconfig, "_deprecation_shown", False)
+    (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
+
+    first = load_config()
+    load_config()
+
+    assert first.tracker_kind == "jira"
+    assert first.jira.email == "dev@example.com"
+    assert capsys.readouterr().err == (
+        "config.toml: [jira] is deprecated; move it under [tracker.jira]\n"
+    )
+
+
+def test_both_jira_tables_are_refused(config_dir):
+    (config_dir / "config.toml").write_text(NEW_CONFIG + CONFIG, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=r"\[jira\] and \[tracker.jira\]"):
+        load_config()
+
+
+def test_kind_is_required_without_the_old_table(config_dir):
+    (config_dir / "config.toml").write_text('[standup]\nrepo_roots = ["~/x"]\n', encoding="utf-8")
+
+    config = load_config()
+
+    assert config.standup.repo_roots == (Path("~/x").expanduser(),)
+    with pytest.raises(TrackerSetup, match=r"\[tracker\] kind"):
+        open_tracker()
+    with pytest.raises(ConfigInvalid, match=r"\[tracker\] kind"):
+        _ = config.jira
+
+
+def test_unknown_kind_is_refused(config_dir):
+    (config_dir / "config.toml").write_text(
+        '[tracker]\nkind = "other"\n[tracker.other]\nsite = "x"\n', encoding="utf-8"
+    )
+
+    assert load_config().tracker_kind == "other"
+    with pytest.raises(TrackerSetup, match="other"):
+        open_tracker()
+
+
+def test_jira_settings_refuse_a_site_outside_atlassian_cloud(config_dir):
+    text = NEW_CONFIG.replace("https://example.atlassian.net", "https://evil.example.com")
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=r"tracker\.jira\.site"):
+        load_config()
+
+
+def test_new_table_messages_name_the_new_table(config_dir):
+    (config_dir / "config.toml").write_text(
+        NEW_CONFIG + '[tracker.jira.types]\nbogus = "1"\n', encoding="utf-8"
+    )
+
+    with pytest.raises(ConfigInvalid, match=r"tracker\.jira\.types\.bogus"):
+        load_config()

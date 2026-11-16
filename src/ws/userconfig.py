@@ -1,18 +1,18 @@
 """Local, per-user config of ws: `config.toml` (no secrets) and the tokens of `credentials`."""
 
+import importlib
 import os
 import re
 import stat
+import sys
 import tempfile
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from ws.config import config_dir
 from ws.identity import DEV_ID
-from ws.jira import SiteRefused, check_site
-from ws.taskmodel import Status
-from ws.tracker import KNOWN_KINDS, vocab
+from ws.tracker import ADAPTERS, KNOWN_KINDS
 
 DEFAULT_STALE_WORKDAYS = 3
 TOKEN_SERVICES = {"jira": "Jira", "github": "GitHub"}
@@ -31,19 +31,6 @@ class ConfigInvalid(ValueError):
 
 
 @dataclass(frozen=True)
-class JiraConfig:
-    site: str
-    email: str
-    status_overrides: dict[str, str]
-    project: str | None = None
-    board_id: int | None = None
-    start_date_field: str | None = None
-    sprint_field: str | None = None
-    types: dict[str, str] = field(default_factory=dict)
-    links: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class StandupConfig:
     repo_roots: tuple[Path, ...]
     stale_workdays: int = DEFAULT_STALE_WORKDAYS
@@ -56,13 +43,70 @@ class Person:
     label: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class UserConfig:
-    jira: JiraConfig
+    """`tracker_kind` and `tracker_settings` are None when config.toml names no tracker (or the
+    kind has no adapter): the file still loads, and what needs the tracker refuses."""
+
     standup: StandupConfig
-    identity_email: str
-    tracker_kind: str = "jira"
-    people: dict[str, Person] = field(default_factory=dict)
+    identity: str | None
+    tracker_kind: str | None
+    people: dict[str, Person]
+    tracker_settings: object
+
+    def __init__(
+        self,
+        *,
+        standup: StandupConfig,
+        identity_email: str | None = None,
+        identity: str | None = None,
+        tracker_kind: str | None = "jira",
+        people: dict[str, Person] | None = None,
+        tracker_settings: object = None,
+        jira: object = None,
+    ):
+        values = {
+            "standup": standup,
+            "identity": identity_email or identity,
+            "tracker_kind": tracker_kind,
+            "people": {} if people is None else people,
+            "tracker_settings": tracker_settings if jira is None else jira,
+        }
+        for name, value in values.items():
+            object.__setattr__(self, name, value)
+
+    @property
+    def identity_email(self) -> str | None:
+        return self.identity or None
+
+    def require_identity_email(self) -> str:
+        """Your e-mail; raises when neither `[identity]` nor the tracker settings have one."""
+        if not self.identity:
+            raise ConfigInvalid(
+                "config.toml: identity.email is not set; set it or the tracker e-mail"
+            )
+        return self.identity
+
+    @property
+    def jira(self):
+        """The settings of the `jira` kind; callers move to `tracker_settings` (Task 15)."""
+        if self.tracker_settings is None or self.tracker_kind != "jira":
+            raise ConfigInvalid(NO_TRACKER if not self.tracker_kind else NOT_JIRA)
+        return self.tracker_settings
+
+
+NO_TRACKER = 'config.toml: [tracker] kind is not set; add [tracker] kind = "jira"'
+NOT_JIRA = "config.toml: the tracker settings are not Jira's"
+OLD_TABLE_NOTICE = "config.toml: [jira] is deprecated; move it under [tracker.jira]"
+_deprecation_shown = False
+
+
+def __getattr__(name):
+    if name == "JiraConfig":
+        from ws.tracker.jira.settings import JiraConfig
+
+        return JiraConfig
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _read_toml(path: Path) -> dict:
@@ -112,41 +156,6 @@ def _string_list(table: dict, key: str, path: Path, section: str) -> list[str] |
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigInvalid(f"{path}: {section}.{key} must be a list of strings")
     return value
-
-
-def _status_overrides(jira: dict, path: Path) -> dict[str, str]:
-    overrides = jira.get("status_overrides", {})
-    if not isinstance(overrides, dict):
-        raise ConfigInvalid(f"{path}: jira.status_overrides must be a table")
-    valid = {status.value for status in Status}
-    for name, value in overrides.items():
-        if value not in valid:
-            raise ConfigInvalid(
-                f"{path}: jira.status_overrides.{name!r} is {value!r}; "
-                f"use one of {', '.join(sorted(valid))}"
-            )
-    return dict(overrides)
-
-
-def _site(jira: dict, path: Path) -> str:
-    site = _string(jira, "site", path, "jira")
-    try:
-        return check_site(site)
-    except SiteRefused as error:
-        raise ConfigInvalid(f"{path}: jira.site: {error}") from None
-
-
-def _name_map(jira: dict, key: str, allowed: tuple[str, ...], path: Path) -> dict[str, str]:
-    table = jira.get(key, {})
-    if not isinstance(table, dict):
-        raise ConfigInvalid(f"{path}: jira.{key} must be a table")
-    for name in table:
-        if name not in allowed:
-            raise ConfigInvalid(
-                f"{path}: jira.{key}.{name} is not a neutral name; use one of {', '.join(allowed)}"
-            )
-        _string(table, name, path, f"jira.{key}")
-    return dict(table)
 
 
 def _people(data: dict, path: Path) -> dict[str, Person]:
@@ -204,36 +213,52 @@ def load_table(name: str) -> dict:
     return _table(_read_toml(path), name, path)
 
 
+def _tracker_settings(data: dict, tracker: dict, kind: str | None, path: Path) -> object:
+    old, new = "jira" in data, "jira" in tracker
+    if old and new:
+        raise ConfigInvalid(
+            f"{path}: both [jira] and [tracker.jira] are set; keep only [tracker.jira]"
+        )
+    if old:
+        return _old_jira_settings(data, kind, path)
+    if kind not in ADAPTERS:
+        return None
+    table = tracker.get(kind, {})
+    if not isinstance(table, dict):
+        raise ConfigInvalid(f"{path}: [tracker.{kind}] must be a table")
+    return importlib.import_module(ADAPTERS[kind]).parse_settings(table, path)
+
+
+def _old_jira_settings(data: dict, kind: str | None, path: Path) -> object:
+    """Compatibility with the `[jira]` table, removed in Task 18."""
+    global _deprecation_shown
+    if not _deprecation_shown:
+        _deprecation_shown = True
+        print(OLD_TABLE_NOTICE, file=sys.stderr)
+    if kind not in (None, "jira"):
+        return None
+    from ws.tracker.jira.settings import parse_settings
+
+    return parse_settings(_table(data, "jira", path), path, "jira")
+
+
 def load_config() -> UserConfig:
     path = config_dir() / "config.toml"
     data = _read_toml(path)
-    jira = _table(data, "jira", path)
     standup = _standup_config(data, path)
-    if "issue_type" in jira:
-        raise ConfigInvalid(
-            f"{path}: [jira] issue_type was replaced by [jira.types]; delete the issue_type "
-            "line from [jira], then run `ws tracker discover` and paste its output into "
-            "config.toml"
-        )
     tracker = _table(data, "tracker", path)
     identity = _table(data, "identity", path)
-    email = _string(jira, "email", path, "jira")
+    kind = _optional_string(tracker, "kind", path, "tracker")
+    settings = _tracker_settings(data, tracker, kind, path)
+    if kind is None and "jira" in data:
+        kind = "jira"
     return UserConfig(
-        jira=JiraConfig(
-            site=_site(jira, path),
-            email=email,
-            status_overrides=_status_overrides(jira, path),
-            project=_optional_string(jira, "project", path, "jira"),
-            board_id=_optional_positive_int(jira, "board_id", path, "jira"),
-            start_date_field=_optional_string(jira, "start_date_field", path, "jira"),
-            sprint_field=_optional_string(jira, "sprint_field", path, "jira"),
-            types=_name_map(jira, "types", vocab.CARD_TYPES + vocab.UPPER_TYPES, path),
-            links=_name_map(jira, "links", vocab.LINK_NAMES, path),
-        ),
         standup=standup,
-        identity_email=_optional_string(identity, "email", path, "identity") or email,
-        tracker_kind=_optional_string(tracker, "kind", path, "tracker") or "jira",
+        identity_email=_optional_string(identity, "email", path, "identity")
+        or getattr(settings, "email", None),
+        tracker_kind=kind,
         people=_people(data, path),
+        tracker_settings=settings,
     )
 
 

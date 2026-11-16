@@ -29,7 +29,7 @@ def _neutral_type(name: str) -> str | None:
 
 
 def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str:
-    """The `[jira.types]` and `[jira.links]` blocks; unmapped names are commented out."""
+    """The `[tracker.jira.types]` and `[tracker.jira.links]` blocks; unmapped are commented."""
     mapped: dict[str, str] = {}
     spare: list[str] = []
     for item in issue_types:
@@ -39,7 +39,7 @@ def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str:
             spare.append(f"# {_quote(name)} = {_quote(type_id)}")
         else:
             mapped[neutral] = type_id
-    lines = ["[jira.types]"]
+    lines = ["[tracker.jira.types]"]
     for neutral in _TYPE_NAMES:
         if neutral in mapped:
             lines.append(f"{neutral} = {_quote(mapped[neutral])}")
@@ -55,7 +55,7 @@ def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str:
             other.append(f"# {_quote(name)}")
         else:
             found[neutral] = name
-    lines += ["", "[jira.links]"]
+    lines += ["", "[tracker.jira.links]"]
     for neutral in _LINK_NAMES.values():
         if neutral in found:
             lines.append(f"{neutral} = {_quote(found[neutral])}")

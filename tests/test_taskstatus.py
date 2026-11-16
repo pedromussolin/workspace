@@ -102,11 +102,11 @@ def run_status(tmp_path, cards, capsys, config_text, activity=None):
     return code, capsys.readouterr()
 
 
-JIRA_CONFIG = '[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+JIRA_CONFIG = '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'  # noqa: E501
 
 
 def test_cli_maps_overrides_from_config(ws_config, tmp_path, capsys):
-    config = JIRA_CONFIG + '[jira.status_overrides]\n"In Validation" = "validation"\n'
+    config = JIRA_CONFIG + '[tracker.jira.status_overrides]\n"In Validation" = "validation"\n'
     card = make_card(status_name="In Validation")
     code, out = run_status(tmp_path, [card], capsys, config)
     assert code == 0

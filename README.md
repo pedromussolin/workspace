@@ -63,7 +63,10 @@ data (`ws project new` creates it, mode 700). `~/.cache/workspace/` holds only w
 it by hand; the values below are placeholders:
 
 ```toml
-[jira]
+[tracker]
+kind = "jira"
+
+[tracker.jira]
 site = "https://<site>.atlassian.net"
 email = "<you>@<company>"
 project = "<PROJECT>"
@@ -71,7 +74,7 @@ board_id = <board id>
 start_date_field = "customfield_<n>"
 sprint_field = "customfield_<n>"
 
-[jira.types]
+[tracker.jira.types]
 task = "<issue type id>"
 bug = "<issue type id>"
 hotfix = "<issue type id>"
@@ -80,11 +83,11 @@ feature = "<issue type id>"
 epic = "<issue type id>"
 initiative = "<issue type id>"
 
-[jira.links]
+[tracker.jira.links]
 blocks = "<link type name>"
 relates = "<link type name>"
 
-[jira.status_overrides]
+[tracker.jira.status_overrides]
 "Tarefas pendentes" = "todo"
 "Em análise" = "todo"
 "Em andamento" = "in_progress"
@@ -111,20 +114,22 @@ repo_roots = ["~/repos"]
 stale_workdays = 3
 ```
 
-- `[tracker] kind` names the tracker adapter; absent means `jira`, the only one that exists.
-- `[jira.types]` maps each neutral card type to the id of the issue type in the project, and
-  `[jira.links]` maps `blocks` and `relates` to the link type name. `[jira] issue_type` was
-  replaced by `[jira.types]` and is refused: delete the `issue_type` line from `[jira]`, then
+- `[tracker] kind` names the tracker adapter (`jira` is the only one) and is required. The old
+  `[jira]` table still loads, with a deprecation line on stderr; move it under
+  `[tracker.jira]`. Both tables at once are refused.
+- `[tracker.jira.types]` maps each neutral card type to the id of the issue type in the project, and
+  `[tracker.jira.links]` maps `blocks` and `relates` to the link type name. `[tracker.jira] issue_type` was
+  replaced by `[tracker.jira.types]` and is refused: delete the `issue_type` line from `[tracker.jira]`, then
   run `ws tracker discover` and paste its output into `config.toml`.
-- `[identity] email` is yours (absent means `[jira] email`). `[people."<dev id>"]` maps a dev id
+- `[identity] email` is yours (absent means `[tracker.jira] email`). `[people."<dev id>"]` maps a dev id
   (`dev-` and the first 10 hex digits of the SHA-256 of the trimmed, lowercased e-mail) to the
   person's id in each tracker; `label` is only a reminder.
 
-- `[jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
+- `[tracker.jira.status_overrides]` maps a Jira status name to the neutral one (`todo`, `in_progress`,
   `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
-- The keys after `email` (and `[jira.types]`, `[jira.links]`) are read by `ws card`; a missing one
+- The keys after `email` (and `[tracker.jira.types]`, `[tracker.jira.links]`) are read by `ws card`; a missing one
   exits 2 naming it.
   `ws card` only touches cards of `project`.
 - The API key must be an unscoped token: a scoped token only works through the
@@ -270,7 +275,7 @@ repeat what still applies. `ignore = true` must stand alone, so an ignored repo 
 - A repo uses the table whose key is its exact name, else the first glob that matches, else
   `default_profile`. `ignore = true` leaves a repo out; `inactive` switches environments off.
 - `[board.statuses]` needs a name for every status any profile uses, plus `in_progress`, and each
-  name must map back to its own status through `[jira.status_overrides]`.
+  name must map back to its own status through `[tracker.jira.status_overrides]`.
 - A bad value exits 2 with the key path.
 
 ### `[env_check]`
@@ -348,7 +353,7 @@ shows the box with the preview's summary. `branches`, `new`, `status` and the pr
 
 ### Local config
 
-Add to `~/.config/workspace/config.toml` (the `[jira] site` above is also needed: the PR texts link
+Add to `~/.config/workspace/config.toml` (the `[tracker.jira] site` above is also needed: the PR texts link
 to `<site>/browse/TS-N`). Values are placeholders; a missing or unknown key exits 2 naming it:
 
 ```toml
@@ -486,7 +491,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws standup report --activity FILE [--cards FILE] [--board FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every card move; `--board FILE` (the `ws board status` output) brings the status suggestions, `moves` and `to_confirm`, and its warnings join `warnings`; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request) |
 | `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog, link) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable |
 | `ws card epics` | Lists the epics of your open cards, plus the epics and initiatives you own and the open epics under those initiatives (`key`, `title`, `prefix`, `status`, `level`, `parent`) |
-| `ws tracker discover` | Prints the `[jira.types]` and `[jira.links]` blocks of the project's Jira, for you to paste in `config.toml` (read only); exit 2 on setup, 3 when Jira refuses |
+| `ws tracker discover` | Prints the `[tracker.jira.types]` and `[tracker.jira.links]` blocks of the project's Jira, for you to paste in `config.toml` (read only); exit 2 on setup, 3 when Jira refuses |
 | `ws people me` / `ws people add EMAIL [--account ID]` | `me` prints your dev id; `add` prints the `[people."dev-…"]` block of a colleague (searches the account by e-mail unless `--account`; never prints the e-mail; read only) |
 | `ws card preview PATH` | Checks a draft or a folder of drafts (under `cards/drafts/`), prints the PT-BR preview and the requests, stores a pending record and prints its approval code; writes nothing to Jira |
 | `ws card start REF [--repo NAME]... [--kind K] [--desc SLUG] [--worktree] [--dry-run]` | Prepares a task to start: checks the card and every repo first (clean tree and no rebase or merge half done in the repos it switches, remote base), then makes the branch `<kind>/REF-<slug>` from `<remote>/<base>` in each repo (or a worktree under `<root>/.worktrees/`), reusing the task's only existing branch unless `--kind` or `--desc` name another (then a problem), writes the move-to-in-progress draft and prints the preview, its code and the `ws card apply` line; never applies, commits or pushes; prints `undo` lines after every run that made branches; `--repo` replaces the item's repos and the title prefix; a failing check stops the whole run before any change; exit 1 a problem, 2 setup, 3 tracker refused or unreachable |

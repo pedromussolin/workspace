@@ -872,7 +872,8 @@ def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
     commands = parser.add_subparsers(dest="tracker_command", required=True)
     discover = commands.add_parser(
         "discover",
-        help="Print the [jira.types] and [jira.links] blocks for config.toml (read only).",
+        help="Print the [tracker.jira.types] and [tracker.jira.links] blocks for config.toml "
+        "(read only).",
     )
     discover.set_defaults(handler=_cmd_tracker_discover)
 
@@ -905,7 +906,7 @@ def _add_people(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]
 
 def _cmd_people_me(args: argparse.Namespace) -> int:
     try:
-        email = userconfig.load_config().identity_email
+        email = userconfig.load_config().require_identity_email()
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         print(f"ws people me: {error}", file=sys.stderr)
         return 2

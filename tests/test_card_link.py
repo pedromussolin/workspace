@@ -175,7 +175,7 @@ def test_link_kind_without_a_link_type_is_a_problem(world, ws_config, capsys):  
     message = problems(link_draft(relates=["TS-120", "TS-102"]), capsys)
 
     assert message == (
-        "link kind 'relates' has no link type: add it to [jira.links] (ws tracker discover)"
+        "link kind 'relates' has no link type: add it to [tracker.jira.links] (ws tracker discover)"
     )
 
 

@@ -68,7 +68,7 @@ def _misread(
         if expected is not None and task.status != expected:
             warnings.append(
                 f'card {task.key}: status "{card["status_name"]}" reads as {task.status.value}; '
-                "check [jira.status_overrides]"
+                "check [tracker.jira.status_overrides]"
             )
             keys.add(task.key)
     return keys

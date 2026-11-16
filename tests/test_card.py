@@ -18,7 +18,7 @@ from ws.userconfig import save_jira_token
 
 EMAIL = "dev@example.com"
 TRACKER_TABLES = f"""
-[jira.types]
+[tracker.jira.types]
 task = "3"
 bug = "4"
 hotfix = "5"
@@ -27,7 +27,7 @@ feature = "7"
 epic = "8"
 initiative = "9"
 
-[jira.links]
+[tracker.jira.links]
 blocks = "Blocks"
 relates = "Relates"
 
@@ -203,7 +203,7 @@ def claude_settings(tmp_path, monkeypatch):
 @pytest.fixture
 def world(ws_config, fake_jira, monkeypatch, claude_settings):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'  # noqa: E501
         f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
         f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
@@ -691,7 +691,7 @@ def test_move_start_date_is_today_in_the_users_zone(world, capsys, monkeypatch):
 def test_move_follows_the_status_overrides_for_in_progress(world, capsys, ws_config):
     config = ws_config / "config.toml"
     config.write_text(
-        config.read_text() + '\n[jira.status_overrides]\n"Em Validação" = "in_progress"\n',
+        config.read_text() + '\n[tracker.jira.status_overrides]\n"Em Validação" = "in_progress"\n',
         encoding="utf-8",
     )
     world.set_card("TS-101", **{START_FIELD: None})
@@ -705,7 +705,7 @@ def test_move_follows_the_status_overrides_for_in_progress(world, capsys, ws_con
 def test_move_override_can_take_an_in_progress_category_out(world, capsys, ws_config):
     config = ws_config / "config.toml"
     config.write_text(
-        config.read_text() + '\n[jira.status_overrides]\n"Em Andamento" = "blocked"\n',
+        config.read_text() + '\n[tracker.jira.status_overrides]\n"Em Andamento" = "blocked"\n',
         encoding="utf-8",
     )
     world.set_card("TS-101", **{START_FIELD: None})
@@ -1491,7 +1491,8 @@ def test_epics_with_none_prints_an_empty_list(world, capsys):
 @pytest.mark.parametrize("command", [["check"], ["epics"], ["preview"]])
 def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\n',  # noqa: E501
+        encoding="utf-8",
     )
     argv = ["card", command[0]]
     if command[0] != "epics":
@@ -1508,13 +1509,13 @@ def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_confi
 def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_config):
     config = ws_config / "config.toml"
     text = config.read_text(encoding="utf-8")
-    config.write_text(text[: text.index("[jira.types]")], encoding="utf-8")
+    config.write_text(text[: text.index("[tracker.jira.types]")], encoding="utf-8")
 
     assert main(["card", "check", str(create_draft())]) == 2
 
     err = capsys.readouterr().err
     assert (
-        "config.toml [jira] is missing [jira.types]; run ws tracker discover and paste its "
+        "config.toml [tracker.jira] is missing [tracker.jira.types]; run ws tracker discover and paste its "  # noqa: E501
         "output into config.toml"
     ) in err
     assert "Local config" not in err
@@ -1522,12 +1523,13 @@ def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_c
 
 def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n',  # noqa: E501
+        encoding="utf-8",
     )
 
     assert main(["card", "check", str(create_draft())]) == 2
     err = capsys.readouterr().err
-    for name in ["board_id", "[jira.types]", "sprint_field"]:
+    for name in ["board_id", "[tracker.jira.types]", "sprint_field"]:
         assert name in err
     capsys.readouterr()
     assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 0
@@ -1535,7 +1537,9 @@ def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsy
 
 def test_an_unknown_tracker_kind_exits_2(world, capsys, ws_config):
     config = ws_config / "config.toml"
-    config.write_text('[tracker]\nkind = "linear"\n' + config.read_text(), encoding="utf-8")
+    config.write_text(
+        config.read_text().replace('kind = "jira"', 'kind = "linear"'), encoding="utf-8"
+    )
 
     assert main(["card", "check", str(create_draft())]) == 2
     assert "no adapter" in capsys.readouterr().err
@@ -1998,7 +2002,7 @@ def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys
 
 def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'  # noqa: E501
         f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
         f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
@@ -2012,7 +2016,8 @@ def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys,
 def test_a_site_that_is_not_atlassian_cloud_exits_2_before_any_request(world, capsys, ws_config):
     for site in ["http://example.atlassian.net", "https://evil.example"]:
         (ws_config / "config.toml").write_text(
-            f'[jira]\nsite = "{site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
+            f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{site}"\nemail = "{EMAIL}"\nproject = "TS"\n',  # noqa: E501
+            encoding="utf-8",
         )
 
         assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 2

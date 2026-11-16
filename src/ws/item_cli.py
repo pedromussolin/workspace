@@ -89,7 +89,11 @@ def _fail(error: object, code: int) -> int:
 def _cmd_new(args) -> int:
     root = repo_root()
     try:
-        own = dev_id(_config().identity_email) if "me" in (args.assignee, args.reporter) else ""
+        own = (
+            dev_id(_config().require_identity_email())
+            if "me" in (args.assignee, args.reporter)
+            else ""
+        )
         assignee = own if args.assignee == "me" else args.assignee
         reporter = own if args.reporter == "me" else args.reporter
         path = items.new_item(

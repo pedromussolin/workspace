@@ -8,7 +8,7 @@ and the system's config, and the `origin` of every clone is a bare repo in a sib
 Layout under `tmp_path/world`:
   origins/<name>.git   bare origin           (World.origin)
   repos/<name>         clone, on master      (World.clone)
-  config/config.toml   `[jira]` and `[release.repos.*]`
+  config/config.toml   `[tracker.jira]` and `[release.repos.*]`
   data/                `WS_DATA_DIR`; release folders live in data/projects/demo/release-DAY
   root/                `WS_REPO_ROOT`
 """
@@ -172,7 +172,7 @@ class World:
 
     def _write_config(self) -> None:
         self.config_dir.mkdir(parents=True)
-        text = f'[jira]\nsite = "{SITE}"\nemail = "dev@example.com"\n\n'
+        text = f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{SITE}"\nemail = "dev@example.com"\n\n'  # noqa: E501
         text += '[release]\nsandbox_branch = "sandbox"\nbase_branch = "master"\n'
         for name in ("repo-a", "repo-b"):
             text += f'\n[release.repos.{name}]\nslug = "acme/{name}"\npath = "{self.clone(name)}"\n'

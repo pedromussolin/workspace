@@ -109,7 +109,7 @@ def test_settings_require_order_services_env_tags(tmp_path, argocd, monkeypatch)
     with pytest.raises(ConfigMissing):
         deploycheck.load_settings()
     path = cfg / "config.toml"
-    path.write_text("[jira]\nsite = 'x'\n")
+    path.write_text("[tracker]\nkind = \"jira\"\n[tracker.jira]\nsite = 'x'\n")
     with pytest.raises(ConfigInvalid, match="deploy_check.order"):
         deploycheck.load_settings()
     ok = config_text(argocd)

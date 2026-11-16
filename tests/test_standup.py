@@ -350,7 +350,7 @@ def test_cli_prints_json(
     config = tmp_path / "ws-config"
     config.mkdir()
     (config / "config.toml").write_text(
-        f'[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'  # noqa: E501
         f'[standup]\nrepo_roots = ["{roots}"]\n',
         encoding="utf-8",
     )
@@ -492,7 +492,7 @@ def test_cli_prints_compact_json(
     config = tmp_path / "ws-config"
     config.mkdir()
     (config / "config.toml").write_text(
-        f'[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'  # noqa: E501
         f'[standup]\nrepo_roots = ["{roots}"]\n',
         encoding="utf-8",
     )
