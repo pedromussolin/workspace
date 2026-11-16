@@ -21,13 +21,13 @@
           "job": {
             "type": "string"
           },
-          "switched_off": {
-            "type": "string"
-          },
           "days": {
             "type": "integer"
           },
           "due_day": {
+            "type": "string"
+          },
+          "first_day": {
             "type": "string"
           },
           "day": {
@@ -86,9 +86,9 @@
           "task",
           "project",
           "job",
-          "switched_off",
           "days",
           "due_day",
+          "first_day",
           "day",
           "pending",
           "missing_days",

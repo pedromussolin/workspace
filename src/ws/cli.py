@@ -25,6 +25,7 @@ from ws import (
     jira,
     names,
     newwords,
+    observe_cli,
     project,
     release_cli,
     review,
@@ -1153,6 +1154,7 @@ def build_parser() -> argparse.ArgumentParser:
     envcheck_cli.register(subparsers)
     deploycheck_cli.register(subparsers)
     item_cli.register(subparsers)
+    observe_cli.register(subparsers)
     release_cli.register(subparsers)
     reviewpack.register(subparsers)
     return parser
