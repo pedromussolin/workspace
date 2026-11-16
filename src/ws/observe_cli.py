@@ -13,6 +13,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 from datetime import UTC, date, datetime
@@ -99,7 +100,12 @@ def _fail(error: Exception) -> int:
     return code
 
 
-def _emit(report: dict, code: int) -> int:
+def _emit(report: dict, code: int, contract: str) -> int:
+    """Prints `report` once it is checked against its contract; a broken one is a problem."""
+    broken = contracts.validate(report, contract)
+    if broken:
+        report["problems"].extend(broken)
+        code = _ranked([code, EXIT_PROBLEM])
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if code != EXIT_OK:
         for problem in report.get("problems", []):
@@ -286,6 +292,7 @@ def _query(
 
 def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tuple[dict, int]:
     report: dict = {
+        "version": 1,
         "task": path.stem,
         "day": None,
         "day_number": None,
@@ -345,11 +352,14 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
 
     if tool is not None:
         subset = "".join(f" --check {check.id}" for check in probes) if only else ""
+        result_path = str(path.parent / f"{plan.task}.{chosen}.result.json")
         report["observability"] = {
             "tool": tool.tool,
             "checks": [check.id for check in probes],
             "next": f"ws observe request {plan.task}{where} --day {chosen}{subset}",
-            "result_path": str(path.parent / f"{plan.task}.{chosen}.result.json"),
+            "record": f"ws observe record {plan.task}{where} --result {shlex.quote(result_path)}",
+            "fallback": f"ws observe fallback {plan.task}{where} --day {chosen}{subset}",
+            "result_path": result_path,
         }
     manual = [check for check in selected if check.kind == "manual"]
     if manual:
@@ -390,7 +400,7 @@ def _moment(text: str, what: str) -> datetime:
 
 
 def _record_report(task: str) -> dict:
-    return {"task": task, "day": None, "recorded": [], "problems": [], "warnings": []}
+    return {"version": 1, "task": task, "day": None, "recorded": [], "problems": [], "warnings": []}
 
 
 def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
@@ -512,6 +522,7 @@ def record_one(
 def check_plan(project: str, path: Path) -> tuple[dict, int]:
     """The contract, the plan rules and the guard on every SQL; modes back to 700 and 600."""
     report: dict = {
+        "version": 1,
         "task": path.stem,
         "project": project,
         "path": str(path),
@@ -651,7 +662,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
     except Invalid as error:
         return _fail(error)
-    return _emit(*check_plan(project, path))
+    return _emit(*check_plan(project, path), "observe-check")
 
 
 def _cmd_show(args: argparse.Namespace) -> int:
@@ -678,7 +689,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
     except Invalid as error:
         return _fail(error)
-    return _emit(*run_day(project, path, day, args.checks))
+    return _emit(*run_day(project, path, day, args.checks), "observe-run")
 
 
 def _cmd_request(args: argparse.Namespace) -> int:
@@ -711,9 +722,15 @@ def _cmd_fallback(args: argparse.Namespace) -> int:
         }
         for count in document["counts"]
     ]
-    report = {"task": plan.task, "day": day, "calls": tool.fallback(document), "record": record}
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    return EXIT_OK
+    report = {
+        "version": 1,
+        "task": plan.task,
+        "day": day,
+        "calls": tool.fallback(document),
+        "record": record,
+        "problems": [],
+    }
+    return _emit(report, EXIT_OK, "observe-fallback")
 
 
 def _cmd_record(args: argparse.Namespace) -> int:
@@ -728,7 +745,7 @@ def _cmd_record(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
         if args.result is not None:
             document = _read_result(Path(args.result), path.parent)
-            return _emit(*record_result(project, path, document))
+            return _emit(*record_result(project, path, document), "observe-record")
         if [args.value is not None, args.yes, args.no].count(True) != 1:
             raise Invalid("pass exactly one of --value N, --yes or --no")
         if args.value is not None and not VALUE.fullmatch(args.value):
@@ -737,7 +754,9 @@ def _cmd_record(args: argparse.Namespace) -> int:
         day = _day(args.day)
     except Invalid as error:
         return _fail(error)
-    return _emit(*record_one(project, path, args.check, day, value, args.hash, args.by))
+    return _emit(
+        *record_one(project, path, args.check, day, value, args.hash, args.by), "observe-record"
+    )
 
 
 def _cmd_status(args: argparse.Namespace) -> int:

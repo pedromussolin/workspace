@@ -30,6 +30,19 @@ def test_skill_names_the_commands_and_the_rules():
     assert len(text.splitlines()) < 500
 
 
+def run_section() -> str:
+    text = SKILL.read_text()
+    return text.split("### Run", 1)[1].split("\n### ", 1)[0]
+
+
+def test_skill_runs_the_printed_record_and_fallback_lines():
+    run = run_section()
+    for phrase in ("observability.next", "observability.record", "observability.fallback"):
+        assert phrase in run, phrase
+    assert "--result <result_path>" not in run
+    assert "same flags as" not in run
+
+
 def test_daily_has_the_observation_line():
     text = (ROOT / "skills" / "daily" / "SKILL.md").read_text()
     assert "ws observe status --json" in text

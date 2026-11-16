@@ -55,13 +55,13 @@ data, so a zero there is weaker evidence. Say so when the user picks the signal.
 3. When `observability` is not null: run the command in `observability.next` (a
    `ws observe request` line with the right flags) and send its stdout to the tool named in
    `observability.tool`, verbatim: no edit, no summary. Save the tool's JSON answer with Write at
-   `observability.result_path`, then run `ws observe record TASK --result <result_path>` (add
-   `--project SLUG` when `next` has it). At a stale hash (`changed since the request`), run
+   `observability.result_path`, then run the command in `observability.record` (a
+   `ws observe record` line). At a stale hash (`changed since the request`), run
    `observability.next` again.
-4. When the request fails or the tool does not answer, run `ws observe fallback` with the same
-   flags as `observability.next`. It prints `calls`, the plain calls to make in the observability
-   tool, and `record`, one item per check. For each answer, run that item's `command` with `<N>`
-   replaced by the count.
+4. When the request fails or the tool does not answer, run the command in
+   `observability.fallback` (a `ws observe fallback` line). It prints `calls`, the plain calls to
+   make in the observability tool, and `record`, one item per check. For each answer, run that
+   item's `command` with `<N>` replaced by the count.
 5. For each item of `ask`, ask the user its `question` in PT-BR, then run its `yes` or its `no`
    command (each is a `ws observe record` line). A "yes" passes. Never answer for the user.
 6. Say what ran, in PT-BR: the day, which checks passed or failed and which are missing. A failing

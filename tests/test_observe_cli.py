@@ -318,11 +318,15 @@ def test_run_records_database_checks(env, capsys):
     assert row["started"] == "2026-12-10T12:00:00Z"
     assert row["finished"] == "2026-12-10T12:00:01Z"
     assert "by" not in row
+    result = path.parent / "TS-5.2026-12-09.result.json"
+    assert out["version"] == 1
     assert out["observability"] == {
         "tool": "execute_code",
         "checks": ["sweep-calls"],
         "next": "ws observe request TS-5 --day 2026-12-09",
-        "result_path": str(path.parent / "TS-5.2026-12-09.result.json"),
+        "record": f"ws observe record TS-5 --result {result}",
+        "fallback": "ws observe fallback TS-5 --day 2026-12-09",
+        "result_path": str(result),
     }
     assert out["ask"] == [
         {
@@ -521,8 +525,10 @@ def test_fallback_prints_classic_calls(env, capsys):
     path = write_plan()
     code, out, _ = ws_json(capsys, "fallback", "TS-5")
     assert code == 0
+    assert out["version"] == 1
     assert out["task"] == "TS-5"
     assert out["day"] == "2026-12-09"
+    assert out["problems"] == []
     [call] = out["calls"]
     assert call["check"] == "sweep-calls"
     assert call["tool"] == "aggregate_spans"
@@ -889,6 +895,13 @@ def test_two_plans_need_project(env, capsys):
     assert out["observability"]["next"] == (
         "ws observe request TS-5 --project other --day 2026-12-09"
     )
+    other = observedef.plan_path("other", "TS-5").parent / "TS-5.2026-12-09.result.json"
+    assert out["observability"]["record"] == (
+        f"ws observe record TS-5 --project other --result {other}"
+    )
+    assert out["observability"]["fallback"] == (
+        "ws observe fallback TS-5 --project other --day 2026-12-09"
+    )
     assert out["ask"][0]["yes"] == (
         "ws observe record TS-5 --project other --check file-vs-db --day 2026-12-09 --yes"
     )
@@ -980,6 +993,9 @@ def test_a_check_subset_reaches_the_request(env, capsys):
     assert out["observability"]["checks"] == ["job-errors"]
     assert out["observability"]["next"] == (
         "ws observe request TS-5 --day 2026-12-09 --check job-errors"
+    )
+    assert out["observability"]["fallback"] == (
+        "ws observe fallback TS-5 --day 2026-12-09 --check job-errors"
     )
     assert ws_json(capsys, "run", "TS-5", "--check", "file-vs-db")[1]["observability"] is None
 

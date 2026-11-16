@@ -96,10 +96,23 @@ def test_load_schema_refuses_unknown_names_and_keywords():
 
 def test_every_schema_pins_version_and_is_closed():
     folder = resources.files("ws") / "data" / "contracts"
-    names = [
+    names = {
         p.name.removesuffix(".schema.json") for p in folder.iterdir() if p.name.endswith(".json")
-    ]
-    assert len(names) == 7
+    }
+    assert names == {
+        "database-request",
+        "database-result",
+        "observability-request",
+        "observability-result",
+        "observe-check",
+        "observe-fallback",
+        "observe-plan",
+        "observe-record",
+        "observe-result",
+        "observe-run",
+        "observe-status",
+    }
+    assert names == set(VALID)
     for name in names:
         schema = load_schema(name)
         assert schema["properties"]["version"] == {"const": 1}
@@ -163,7 +176,78 @@ VALID = {
         "started": "s",
         "finished": "f",
     },
+    "observe-run": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "day_number": 1,
+        "window": ["2026-12-09T03:00:00Z", "2026-12-10T03:00:00Z"],
+        "recorded": [{"check": "a", "value": 0, "verdict": "pass"}],
+        "observability": {
+            "tool": "t",
+            "checks": ["b"],
+            "next": "ws observe request TS-5 --day 2026-12-09",
+            "record": "ws observe record TS-5 --result r.json",
+            "fallback": "ws observe fallback TS-5 --day 2026-12-09",
+            "result_path": "r.json",
+        },
+        "ask": [{"check": "c", "question": "ok?", "yes": "y", "no": "n"}],
+        "problems": [],
+        "warnings": [],
+    },
+    "observe-record": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "recorded": [{"check": "c", "value": True, "verdict": "pass"}],
+        "problems": [],
+        "warnings": [],
+    },
+    "observe-fallback": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "calls": [{"check": "b", "tool": "t", "arguments": {"from": "f"}}],
+        "record": [{"check": "b", "hash": "h", "command": "ws observe record TS-5"}],
+        "problems": [],
+    },
+    "observe-check": {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": "p",
+        "checks": ["a"],
+        "problems": [],
+        "warnings": [],
+    },
 }
+
+
+@pytest.mark.parametrize(
+    ("name", "document"),
+    [
+        (
+            "observe-run",
+            {
+                **VALID["observe-run"],
+                "day": None,
+                "day_number": None,
+                "window": None,
+                "observability": None,
+            },
+        ),
+        ("observe-record", {**VALID["observe-record"], "day": None}),
+    ],
+)
+def test_outputs_stopped_before_the_day_are_valid(name, document):
+    assert validate(document, name) == []
+
+
+def test_run_observability_needs_the_printed_lines():
+    observability = dict(VALID["observe-run"]["observability"])
+    del observability["record"]
+    document = {**VALID["observe-run"], "observability": observability}
+    assert validate(document, "observe-run") == ["$.observability: missing required key record"]
 
 
 @pytest.mark.parametrize("name", sorted(VALID))

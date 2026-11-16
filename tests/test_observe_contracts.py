@@ -1,5 +1,6 @@
 """Every document `ws observe` reads, writes or prints validates against its contract."""
 
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -51,6 +52,24 @@ def test_documents_match_their_schemas(env, capsys):
     assert code == 0
     assert validate(status, "observe-status") == []
 
+    printed = [
+        (["run", "TS-5"], "observe-run"),
+        (["run", "TS-5", "--day", "2026-12-12"], "observe-run"),
+        (["record", "TS-5", "--check", "file-vs-db", "--no"], "observe-record"),
+        (["record", "TS-5", "--result", str(target)], "observe-record"),
+        (["record", "TS-5", "--check", "file-vs-db", "--day", "x", "--yes"], None),
+        (["fallback", "TS-5"], "observe-fallback"),
+        (["check", "TS-5"], "observe-check"),
+    ]
+    for argv, contract in printed:
+        code, out, err = ws(capsys, *argv)
+        if contract is None:
+            assert code == 1 and out == "" and err
+            continue
+        document = json.loads(out)
+        assert document["version"] == 1, argv
+        assert validate(document, contract) == [], argv
+
     _, plan = observedef.load_plan(path)
     window = day_window(DAY, plan.switched_off, plan.timezone, frozenset())
     hashes = {check.id: observedef.check_hash(check) for check in plan.checks}
@@ -72,3 +91,26 @@ def test_documents_match_their_schemas(env, capsys):
     result = observe_cli.database_result(check, Decimal("1.5"), started, finished)
     assert validate(result, "database-result") == []
     assert result["started"] == "2026-12-10T12:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("argv", "contract"),
+    [
+        (["run", "TS-5"], "observe-run"),
+        (["record", "TS-5", "--check", "file-vs-db", "--yes"], "observe-record"),
+        (["fallback", "TS-5"], "observe-fallback"),
+        (["check", "TS-5"], "observe-check"),
+    ],
+)
+def test_an_output_that_breaks_its_contract_is_a_problem(env, capsys, monkeypatch, argv, contract):
+    write_plan()
+    real = observe_cli.contracts.validate
+
+    def broken(document, name):
+        return ["$.x: broken on purpose"] if name == contract else real(document, name)
+
+    monkeypatch.setattr(observe_cli.contracts, "validate", broken)
+    code, out, err = ws_json(capsys, *argv)
+    assert code == 1
+    assert out["problems"][-1] == "$.x: broken on purpose"
+    assert "ws observe: $.x: broken on purpose" in err
