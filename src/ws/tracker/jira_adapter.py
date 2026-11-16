@@ -5,8 +5,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ws import jira
 from ws.jira import JiraClient, JiraError
-from ws.tracker.port import Card, CardQuery, Link, TrackerError
-from ws.userconfig import JiraConfig
+from ws.tracker.errors import TrackerError, TrackerSetup
+from ws.tracker.port import Card, CardQuery, Link
+from ws.userconfig import JiraConfig, UserConfig
 
 JIRA_CAPABILITIES = frozenset(
     {
@@ -217,3 +218,13 @@ class JiraTracker:
             elif name and name == relates and (outward or inward):
                 found.append(Link("relates", outward or inward))
         return tuple(found)
+
+
+def open_tracker(config: UserConfig) -> JiraTracker:
+    from ws import card
+
+    try:
+        settings, client = card.session({"project", "types"})
+    except card.SetupNeeded as error:
+        raise TrackerSetup(str(error)) from None
+    return JiraTracker(client, settings)
