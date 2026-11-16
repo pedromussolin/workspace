@@ -1,8 +1,7 @@
 """Neutral tracker layer: the vocabulary every skill and the core use, and the adapter check.
 
-Each adapter is a package named in `ADAPTERS` (only `ws.tracker.jira` today). The functions
-below are the facade: they pick the adapter from `config.tracker_kind` by that name, and no
-adapter is imported at module top.
+Each adapter is a package named in `ADAPTERS`. The functions below are the facade: they pick the
+adapter from `config.tracker_kind` by that name, and no adapter is imported at module top.
 """
 
 import importlib
@@ -18,7 +17,10 @@ class UnknownTracker(Exception):
 
 def require_kind(kind: str | None) -> None:
     if not kind:
-        raise UnknownTracker('config.toml: [tracker] kind is not set; add [tracker] kind = "jira"')
+        raise UnknownTracker(
+            "config.toml: [tracker] kind is not set; set it to your tracker's kind "
+            f"(known: {', '.join(ADAPTERS)})"
+        )
     if kind not in ADAPTERS:
         raise UnknownTracker(f"tracker {kind!r} has no adapter yet; known: {', '.join(ADAPTERS)}")
 

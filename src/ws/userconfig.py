@@ -60,7 +60,7 @@ class UserConfig:
         standup: StandupConfig,
         identity_email: str | None = None,
         identity: str | None = None,
-        tracker_kind: str | None = "jira",
+        tracker_kind: str | None = None,
         people: dict[str, Person] | None = None,
         tracker_settings: object = None,
     ):
@@ -180,7 +180,8 @@ def _standup_config(data: dict, path: Path) -> StandupConfig:
 
 
 def load_standup() -> StandupConfig:
-    """The `[standup]` settings alone, so a command that needs only them works without `[jira]`."""
+    """The `[standup]` settings alone, so a command that needs only them works without the
+    tracker table."""
     path = config_dir() / "config.toml"
     return _standup_config(_read_toml(path), path)
 

@@ -716,7 +716,7 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     commands = parser.add_subparsers(dest="task_command", required=True)
     listing = commands.add_parser(
         "list",
-        help="Print my Jira tasks as compact cards (JSON), read through the REST API.",
+        help="Print my tasks from the tracker as compact cards (JSON).",
     )
     listing.add_argument(
         "--since",
@@ -734,7 +734,8 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     listing.set_defaults(handler=_cmd_task_list)
     status = commands.add_parser(
         "status",
-        help="List the Jira cards and which ones are stuck, from the collected activity (JSON).",
+        help="List the tracker's cards and which ones are stuck, from the collected activity "
+        "(JSON).",
     )
     status.add_argument("--cards", type=Path, required=True, help="Output of `ws task list`.")
     status.add_argument(
@@ -785,10 +786,13 @@ def _cmd_task_status(args: argparse.Namespace) -> int:
 
 def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     parser = subparsers.add_parser(
-        "card", help="Create and update my Jira cards from drafts, with a preview and approval."
+        "card",
+        help="Create and update my cards in the tracker from drafts, with a preview and approval.",
     )
     commands = parser.add_subparsers(dest="card_command", required=True)
-    check = commands.add_parser("check", help="Check one draft against Jira and print the verdict.")
+    check = commands.add_parser(
+        "check", help="Check one draft against the tracker and print the verdict."
+    )
     check.add_argument("draft", help="Path of the draft file.")
     check.set_defaults(handler=lambda args: card.run_check(args.draft))
     epics = commands.add_parser("epics", help="List the open epics of my open cards (JSON).")
@@ -872,7 +876,7 @@ def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
     commands = parser.add_subparsers(dest="tracker_command", required=True)
     discover = commands.add_parser(
         "discover",
-        help="Print the [tracker.jira.types] and [tracker.jira.links] blocks for config.toml "
+        help="Print the types and links blocks of the configured tracker for config.toml "
         "(read only).",
     )
     discover.set_defaults(handler=_cmd_tracker_discover)
@@ -978,7 +982,9 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         ),
     )
     report.add_argument("--activity", type=Path, required=True, help="output of standup collect")
-    report.add_argument("--cards", type=Path, default=None, help="cards file; absent: no Jira")
+    report.add_argument(
+        "--cards", type=Path, default=None, help="cards file; absent: no tracker data"
+    )
     report.add_argument(
         "--board",
         type=Path,

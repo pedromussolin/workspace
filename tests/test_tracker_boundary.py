@@ -4,6 +4,7 @@ Each scan is first run on a small source that breaks its rule, so a scanner that
 cannot pass by accident.
 """
 
+import argparse
 import ast
 import importlib.util
 import re
@@ -12,6 +13,7 @@ from pathlib import Path
 import pytest
 
 import ws
+from ws.cli import build_parser
 from ws.tracker import ADAPTERS
 
 SRC = Path(ws.__file__).parent
@@ -27,6 +29,34 @@ OLD_PATHS = (
 )
 NEUTRAL = ("__init__.py", "port.py", "write.py", "errors.py", "vocab.py")
 PROVIDER_LINK = re.compile(r"/rest/api|/browse/")
+PROVIDER_NAME = re.compile(r"jira|atlassian", re.IGNORECASE)
+WORDING_NEUTRAL = (
+    *(TRACKER / name for name in NEUTRAL),
+    SRC / "card.py",
+    SRC / "carddraft.py",
+    SRC / "cardstart.py",
+    SRC / "taskmodel.py",
+    SRC / "taskstatus.py",
+    SRC / "userconfig.py",
+)
+# Top-level names whose strings may name the provider: the registry of adapters, the token
+# services (and their per-service helpers), and the old `[jira]` table that still loads.
+WORDING_EXCEPTIONS = {
+    TRACKER / "__init__.py": frozenset({"ADAPTERS"}),
+    SRC / "userconfig.py": frozenset(
+        {
+            "TOKEN_SERVICES",
+            "load_jira_token",
+            "save_jira_token",
+            "OLD_TABLE_NOTICE",
+            "_tracker_settings",
+            "load_tracker_table",
+            "_old_jira_settings",
+            "load_config",
+        }
+    ),
+}
+TOKEN_COMMAND = "ws config token"
 
 
 def _resolve(node: ast.ImportFrom, package: str | None) -> str | None:
@@ -193,6 +223,99 @@ def test_no_rest_path_or_browse_link_outside_the_adapter():
     assert len(files) > 40
     assert any(path.is_relative_to(TRACKER) for path in files)
     assert offenders == []
+
+
+def _defined(statement: ast.stmt) -> set[str]:
+    if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {statement.name}
+    if isinstance(statement, ast.Assign):
+        return {target.id for target in statement.targets if isinstance(target, ast.Name)}
+    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+        return {statement.target.id}
+    return set()
+
+
+def provider_strings(source: str, allowed: frozenset[str] = frozenset()) -> list[int]:
+    """Lines of the string literals (docstrings and f-string parts too) that name the provider,
+    outside the top-level definitions named in `allowed`."""
+    lines = set()
+    for statement in ast.parse(source).body:
+        if _defined(statement) & allowed:
+            continue
+        for node in ast.walk(statement):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and PROVIDER_NAME.search(node.value)
+            ):
+                lines.add(node.lineno)
+    return sorted(lines)
+
+
+def test_the_wording_scan_flags_a_string_that_names_the_provider():
+    assert all(PROVIDER_NAME.search(kind) for kind in ADAPTERS)
+    assert provider_strings("x = 1\nMESSAGE = 'add [tracker] kind = \"jira\"'\n") == [2]
+    assert provider_strings('def f():\n    """Reads the Jira site."""\n') == [2]
+    assert provider_strings('def f(site):\n    return f"{site}: no Atlassian"\n') == [2]
+    assert provider_strings("class C:\n    kind: str = 'jira'\n") == [2]
+    assert provider_strings("TOKENS = {'jira': 'Jira'}\n", frozenset({"TOKENS"})) == []
+    assert provider_strings("x = 'the tracker'  # jira\n") == []
+
+
+def test_neutral_modules_name_no_provider_in_their_strings():
+    offenders = [
+        f"{_label(path)}:{line}"
+        for path in WORDING_NEUTRAL
+        for line in provider_strings(
+            path.read_text(encoding="utf-8"), WORDING_EXCEPTIONS.get(path, frozenset())
+        )
+    ]
+
+    assert all(path.exists() for path in [*WORDING_NEUTRAL, *WORDING_EXCEPTIONS])
+    assert offenders == []
+
+
+def help_texts(parser: argparse.ArgumentParser, command: str = "ws") -> list[tuple[str, str]]:
+    """Each description, epilog and help of a parser and of its subcommands, with the command."""
+    found = [(command, parser.description), (command, parser.epilog)]
+    for action in parser._actions:
+        found.append((command, action.help))
+        if isinstance(action, argparse._SubParsersAction):
+            found += [(f"{command} {item.dest}", item.help) for item in action._choices_actions]
+            for name, subparser in action.choices.items():
+                found += help_texts(subparser, f"{command} {name}")
+    return [(where, text) for where, text in found if isinstance(text, str)]
+
+
+def provider_help(parser: argparse.ArgumentParser) -> list[str]:
+    """The help lines that name the provider; `ws config token` lists the token services."""
+    return [
+        f"{where}: {text}"
+        for where, text in help_texts(parser)
+        if PROVIDER_NAME.search(text) and not where.startswith(TOKEN_COMMAND)
+    ]
+
+
+def test_the_help_scan_flags_a_subcommand_that_names_the_provider():
+    sample = argparse.ArgumentParser(prog="ws", description="Tools.")
+    commands = sample.add_subparsers()
+    task = commands.add_parser("task", help="Tasks.")
+    task.add_subparsers().add_parser("list", help="Print my Jira tasks.")
+    report = commands.add_parser("report", help="A report.")
+    report.add_argument("--cards", help="cards file; absent: no Jira")
+
+    assert provider_help(sample) == [
+        "ws task list: Print my Jira tasks.",
+        "ws report: cards file; absent: no Jira",
+    ]
+
+
+def test_cli_help_names_no_provider():
+    parser = build_parser()
+
+    assert len(help_texts(parser)) > 100
+    assert any(where.startswith(TOKEN_COMMAND) for where, _ in help_texts(parser))
+    assert provider_help(parser) == []
 
 
 def present(names) -> list[str]:
