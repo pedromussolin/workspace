@@ -59,9 +59,7 @@
       "type": "string"
     },
     "sprint": {
-      "enum": [
-        "active"
-      ]
+      "type": "string"
     },
     "start": {
       "type": "string"

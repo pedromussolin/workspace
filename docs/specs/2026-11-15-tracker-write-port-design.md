@@ -55,8 +55,8 @@ onto it; `ws card show DRAFT` prints it. Keys by `op` (required in bold):
 
 | op | keys |
 |---|---|
-| `create` | **`type`** (`task`, `bug`, `hotfix`, `improvement`, `feature`, `epic`, `initiative`), **`priority`** (a priority name of the tracker), **`title`**, `body`, `epic`, `parent`, `assignee`, `reporter`, `sprint` (`"active"`), `due`, `item` |
-| `edit` | **`key`**, `title`, `priority`, `start`, `due`, `epic`, `type`, `assignee`, `reporter`, `parent`, `sprint`, `body` (new description) |
+| `create` | **`type`** (`task`, `bug`, `hotfix`, `improvement`, `feature`, `epic`, `initiative`), **`priority`** (a priority name of the tracker), **`title`**, `body`, `epic`, `parent`, `assignee`, `reporter`, `sprint` (`"active"`, `"next"` or the exact name of an open sprint), `due`, `item` |
+| `edit` | **`key`**, `title`, `priority`, `start`, `due`, `epic`, `type`, `assignee`, `reporter`, `parent`, `sprint` (`"active"`, `"next"`, `"backlog"` or the exact name of an open sprint), `body` (new description) |
 | `move` | **`key`**, `to` (a status name of the tracker); Stage B adds `status` (`todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`); exactly one |
 | `comment` | **`key`**, **`body`** |
 | `worklog` | **`key`**, **`time`** (`2h`, `30m`, `1h 30m`), `day`, `body` (worklog comment) |
@@ -64,10 +64,15 @@ onto it; `ws card show DRAFT` prints it. Keys by `op` (required in bold):
 
 People are aliases (dev ids of `[people]`), never tracker accounts; dates `YYYY-MM-DD`; bodies Markdown.
 
+`sprint` takes `"active"` (the board's one active sprint), `"next"` (its earliest future sprint),
+`"backlog"` (out of every open sprint; edit only, a create without `sprint` already goes there)
+or the exact name of an active or future sprint. Task 19 added all but `"active"` at the user's
+request on 16/11.
+
 ```json
 {"$schema": "card-write", "version": 1, "op": "create", "type": "improvement",
  "priority": "Medium", "title": "[FRONT] Tarefa de exemplo", "epic": "TS-100", "assignee": "dev-b",
- "sprint": "active", "due": "2026-11-20", "body": "## Contexto\n...\n\n## Pronto quando\n- ..."}
+ "sprint": "next", "due": "2026-11-20", "body": "## Contexto\n...\n\n## Pronto quando\n- ..."}
 ```
 
 ### `card-plan` (version 1): what preview shows, the code digests and apply executes
@@ -128,7 +133,7 @@ aliases (`sys.modules[__name__] = new_module`) so tests patching `cardrules.chec
 | contract | Jira |
 |---|---|
 | `type`; `epic`, `parent`; people | type id from `types`, level from `hierarchyLevel`; `fields.parent`; `accountId` from `[people.<dev id>] ids.jira` |
-| `sprint`, `start`, `due` | active sprint in `sprint_field`; `start_date_field`; `duedate` |
+| `sprint`, `start`, `due` | the sprint id in `sprint_field` (`"active"`: the read of active sprints; `"next"` and a name: the board's active and future sprints), `null` for `"backlog"`; `start_date_field`; `duedate` |
 | `to` / `status` | the one transition whose destination folds equal / maps to it by `status_overrides`, then category |
 | `body` | ADF (`adf.to_adf`); nodes `ws` cannot write back refuse an edit |
 | link kinds | link type names from `links`; `blocked_by` is `blocks` reversed |

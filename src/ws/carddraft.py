@@ -131,8 +131,6 @@ def _cross_rules(op: str, values: dict) -> list[str]:
         problems += _create_rules(kind, values)
     elif op == "edit":
         problems += _edit_rules(kind, values)
-    if "sprint" in values and values["sprint"] != "active":
-        problems.append('sprint must be "active"')
     if op == "link":
         problems += _link_rules(values)
     return problems
