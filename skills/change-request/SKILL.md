@@ -36,6 +36,8 @@ Everything else in this skill is instructions for you, in English.
    - Sandbox: the flow's event logs (`env:sandbox "<fixed message>"`) and
      route spans (`service`, `resource_name`, `@http.status_code`). Record
      UTC time, version, trace ids, status, durations.
+   - When the change switches a job off, run `ws observe report TASK` and take its table, real
+     times and verdict as the evidence. Never round or rewrite the times.
    - If the change depends on configuration that exists only in production,
      or reached production before the sandbox, say so and use
      `env:production`.
