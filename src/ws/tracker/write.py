@@ -19,7 +19,7 @@ OPS = ("create", "edit", "move", "comment", "worklog", "link")
 REQUIRED = {
     "create": {"type", "priority", "title"},
     "edit": {"key"},
-    "move": {"key", "to"},
+    "move": {"key"},
     "comment": {"key", "body"},
     "worklog": {"key", "time"},
     "link": {"key"},
@@ -39,7 +39,7 @@ OPTIONAL = {
         "sprint",
         "body",
     },
-    "move": set(),
+    "move": {"to", "status"},
     "comment": set(),
     "worklog": {"day", "body"},
     "link": {"blocks", "blocked_by", "relates"},
@@ -99,6 +99,10 @@ def _op_problems(document: dict, op: str) -> list[str]:
             problems.append(f"$.{name}: expected a date YYYY-MM-DD")
     if "sprint" in document and "sprint" in OPTIONAL[op]:
         problems += _sprint_problems(document["sprint"], op)
+    if op == "move" and "to" in document and "status" in document:
+        problems.append("a move needs exactly one of to or status, not both")
+    if op == "move" and "to" not in document and "status" not in document:
+        problems.append("missing key 'to' for op move")
     if op == "link" and not any(document.get(kind) for kind in OPTIONAL["link"]):
         problems.append("$: a link needs blocks, blocked_by or relates")
     return problems
