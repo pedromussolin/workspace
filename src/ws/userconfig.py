@@ -63,14 +63,13 @@ class UserConfig:
         tracker_kind: str | None = "jira",
         people: dict[str, Person] | None = None,
         tracker_settings: object = None,
-        jira: object = None,
     ):
         values = {
             "standup": standup,
             "identity": identity_email or identity,
             "tracker_kind": tracker_kind,
             "people": {} if people is None else people,
-            "tracker_settings": tracker_settings if jira is None else jira,
+            "tracker_settings": tracker_settings,
         }
         for name, value in values.items():
             object.__setattr__(self, name, value)
@@ -87,26 +86,9 @@ class UserConfig:
             )
         return self.identity
 
-    @property
-    def jira(self):
-        """The settings of the `jira` kind; callers move to `tracker_settings` (Task 15)."""
-        if self.tracker_settings is None or self.tracker_kind != "jira":
-            raise ConfigInvalid(NO_TRACKER if not self.tracker_kind else NOT_JIRA)
-        return self.tracker_settings
 
-
-NO_TRACKER = 'config.toml: [tracker] kind is not set; add [tracker] kind = "jira"'
-NOT_JIRA = "config.toml: the tracker settings are not Jira's"
 OLD_TABLE_NOTICE = "config.toml: [jira] is deprecated; move it under [tracker.jira]"
 _deprecation_shown = False
-
-
-def __getattr__(name):
-    if name == "JiraConfig":
-        from ws.tracker.jira.settings import JiraConfig
-
-        return JiraConfig
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _read_toml(path: Path) -> dict:
@@ -236,8 +218,9 @@ def _notice_old_table() -> None:
         print(OLD_TABLE_NOTICE, file=sys.stderr)
 
 
-def load_tracker_table() -> tuple[str | None, dict, Path]:
-    """The tracker kind and its raw table, with no other section validated.
+def load_tracker_table() -> tuple[str | None, dict, Path, str]:
+    """The tracker kind, its raw table, the file and the table's name for messages, with no
+    other section validated.
 
     The table is `[tracker.<kind>]`, or the old `[jira]` when the kind is absent or `jira`.
     """
@@ -250,25 +233,26 @@ def load_tracker_table() -> tuple[str | None, dict, Path]:
         raise ConfigInvalid(
             f"{path}: both [jira] and [tracker.jira] are set; keep only [tracker.jira]"
         )
+    section = f"tracker.{kind}" if kind else "tracker"
     if old:
         _notice_old_table()
         if kind in (None, "jira"):
-            return "jira", _table(data, "jira", path), path
-        return kind, {}, path
+            return "jira", _table(data, "jira", path), path, "jira"
+        return kind, {}, path, section
     table = tracker.get(kind, {}) if kind else {}
     if not isinstance(table, dict):
-        raise ConfigInvalid(f"{path}: [tracker.{kind}] must be a table")
-    return kind, table, path
+        raise ConfigInvalid(f"{path}: [{section}] must be a table")
+    return kind, table, path, section
 
 
 def _old_jira_settings(data: dict, kind: str | None, path: Path) -> object:
-    """Compatibility with the `[jira]` table, removed in Task 18."""
+    """The old `[jira]` table still loads, with one deprecation line, through the adapter of
+    the `jira` kind; its messages name `[jira]`."""
     _notice_old_table()
     if kind not in (None, "jira"):
         return None
-    from ws.tracker.jira.settings import parse_settings
-
-    return parse_settings(_table(data, "jira", path), path, "jira")
+    adapter = importlib.import_module(ADAPTERS["jira"])
+    return adapter.parse_settings(_table(data, "jira", path), path, "jira")
 
 
 def load_config() -> UserConfig:

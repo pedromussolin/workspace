@@ -1,6 +1,6 @@
 import pytest
 
-from ws.adf import AdfError, foreign_nodes, to_adf
+from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 
 
 def doc(*content):
@@ -255,7 +255,7 @@ def test_foreign_nodes_is_empty_for_converter_output():
 
 
 def test_producible_types_cover_every_construct():
-    from ws.adf import producible_types
+    from ws.tracker.jira.adf import producible_types
 
     assert producible_types() == {
         "doc", "heading", "paragraph", "bulletList", "orderedList", "listItem",

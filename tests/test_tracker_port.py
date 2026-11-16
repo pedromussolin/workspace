@@ -12,7 +12,7 @@ from test_card import (
 
 from ws.identity import dev_id
 from ws.taskmodel import Status
-from ws.tracker.jira_adapter import JIRA_CAPABILITIES
+from ws.tracker.jira.adapter import JIRA_CAPABILITIES
 from ws.tracker.port import (
     CAPABILITIES,
     Card,
@@ -117,7 +117,7 @@ def test_jira_with_a_start_date_field_can_set_the_start(world):  # noqa: F811
 
 def test_jira_today_is_in_the_users_time_zone(world, monkeypatch):  # noqa: F811
     monkeypatch.setattr(
-        "ws.tracker.jira_adapter._now", lambda: datetime(2026, 11, 16, 1, 30, tzinfo=UTC)
+        "ws.tracker.jira.adapter._now", lambda: datetime(2026, 11, 16, 1, 30, tzinfo=UTC)
     )
 
     assert _tracker().today() == date(2026, 11, 15)

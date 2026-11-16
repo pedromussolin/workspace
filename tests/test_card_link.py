@@ -12,7 +12,8 @@ from test_card import (
 from ws import card
 from ws.cli import main
 from ws.config import data_dir
-from ws.jira import JiraError
+from ws.tracker.jira import writer
+from ws.tracker.jira.client import JiraError
 
 ISSUE_LINK = ("POST", "/rest/api/3/issueLink")
 
@@ -115,10 +116,10 @@ def test_guard_allows_issue_links_only_inside_the_project():
             "body": {"inwardIssue": {"key": inward}, "outwardIssue": {"key": outward}},
         }
 
-    assert card.guard("TS", [request("TS-1", "TS-2")]) is None
-    assert card.guard("TS", [request("TS-1", "OTHER-1")]) == "POST /rest/api/3/issueLink"
-    assert card.guard("TS", [request("OTHER-1", "TS-1")]) == "POST /rest/api/3/issueLink"
-    assert card.guard("TS", [{"method": "POST", "path": "/rest/api/3/issueLink"}])
+    assert writer.guard("TS", [request("TS-1", "TS-2")]) is None
+    assert writer.guard("TS", [request("TS-1", "OTHER-1")]) == "POST /rest/api/3/issueLink"
+    assert writer.guard("TS", [request("OTHER-1", "TS-1")]) == "POST /rest/api/3/issueLink"
+    assert writer.guard("TS", [{"method": "POST", "path": "/rest/api/3/issueLink"}])
 
 
 def test_applying_a_link_draft_sends_one_post_per_missing_link(world, capsys):  # noqa: F811

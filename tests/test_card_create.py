@@ -15,9 +15,9 @@ from test_card import (
     world,  # noqa: F401
 )
 
-from ws import card
 from ws.config import data_dir
 from ws.identity import dev_id
+from ws.tracker.jira import adapter
 
 NOT_YOURS = "card {key} is not yours: you are neither its assignee nor its reporter"
 
@@ -213,7 +213,7 @@ def test_created_cards_are_logged(world, capsys):  # noqa: F811
 
 def test_created_log_uses_the_day_in_the_jira_time_zone(world, capsys, monkeypatch):  # noqa: F811
     late_night = datetime(2026, 10, 28, 1, 30, tzinfo=UTC)
-    monkeypatch.setattr(card, "_now", lambda: late_night)
+    monkeypatch.setattr(adapter, "_now", lambda: late_night)
     path = create_draft()
     _, code = preview(path, capsys)
 

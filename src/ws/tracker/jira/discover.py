@@ -2,7 +2,7 @@
 
 import json
 
-from ws.tracker.jira.rules import fold
+from ws.tracker.vocab import fold
 
 _TYPE_NAMES = {
     "task": ("tarefa", "task"),

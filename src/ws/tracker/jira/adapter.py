@@ -92,8 +92,8 @@ class JiraTracker:
     """Reads cards and, as the `Writer` of `ws card`, plans and sends the drafts.
 
     `config` gives the people and the identity the rules resolve (loaded when the plan needs it
-    if not given); `clock` gives the time `today` and the plan start from (the module's `_now`
-    if not given). `resolved` holds what the rules resolved for each step of the last plan.
+    if not given); `today` and the plan start from the module's `_now`, which a test patches.
+    `resolved` holds what the rules resolved for each step of the last plan.
     """
 
     kind = "jira"
@@ -104,12 +104,10 @@ class JiraTracker:
         client: JiraClient,
         settings: JiraConfig,
         config: UserConfig | None = None,
-        clock: Callable[[], datetime] | None = None,
     ):
         self._client = client
         self._settings = settings
         self._config = config
-        self._clock = clock
         self.target = settings.site.rstrip("/")
         self.capabilities = (
             JIRA_CAPABILITIES if settings.start_date_field else JIRA_CAPABILITIES - {"start_date"}
@@ -122,12 +120,7 @@ class JiraTracker:
     def _require(self) -> None:
         """What reading cards needs in the config: the project and the types, as `ws card`."""
         if isinstance(self._client, _LazyClient):
-            from ws import card
-
-            self._settings, self._client = card.session({"project", "types"})
-
-    def _time(self) -> datetime:
-        return self._clock() if self._clock else _now()
+            self._settings, self._client = writer.session({"project", "types"})
 
     def _fields(self) -> list[str]:
         names = list(_BASE_FIELDS)
@@ -155,7 +148,7 @@ class JiraTracker:
     def today(self) -> date:
         zone = self._account_data().get("timeZone")
         try:
-            return self._time().astimezone(ZoneInfo(zone)).date()
+            return _now().astimezone(ZoneInfo(zone)).date()
         except (ZoneInfoNotFoundError, ValueError, TypeError, OSError) as error:
             raise TrackerError(f"unusable tracker time zone {zone!r}: {error}") from None
 
@@ -264,7 +257,7 @@ class JiraTracker:
                 entries,
                 people=config.people,
                 identity_email=config.identity_email,
-                now=self._time(),
+                now=_now(),
             )
         except (KeyError, TypeError, AttributeError) as error:
             raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
@@ -358,20 +351,13 @@ def task_from_listing(card: dict, settings: JiraConfig) -> Task:
 def open_tracker(config: UserConfig, connection_only: bool = False) -> JiraTracker:
     if connection_only:
         return JiraTracker(_LazyClient(config.tracker_settings), config.tracker_settings)
-    from ws import card
-
-    try:
-        settings, client = card.session({"project", "types"})
-    except card.SetupNeeded as error:
-        raise TrackerSetup(str(error)) from None
+    settings, client = writer.session({"project", "types"})
     return JiraTracker(client, settings)
 
 
 def open_writer(config: UserConfig, entries: list[dict]) -> JiraTracker:
-    """Until the old paths go (Task 18), the session and the clock come from `ws.card`, whose
-    tests patch its request timeout and its `_now`."""
-    from ws import card
-
+    """The writer of `ws card`: the session checks the keys the drafts need; `today` and the plan
+    start from this module's `_now`."""
     writes = [entry["write"] for entry in entries if entry["write"]]
-    settings, client = card.session(writer.needed_keys(writes))
-    return JiraTracker(client, settings, config, clock=lambda: card._now())
+    settings, client = writer.session(writer.needed_keys(writes))
+    return JiraTracker(client, settings, config)

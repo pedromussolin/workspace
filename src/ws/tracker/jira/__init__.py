@@ -5,10 +5,11 @@ top-level import of `adapter` (which imports `userconfig`) would be an import cy
 """
 
 
-def parse_settings(table, path):
+def parse_settings(table, path, section=None):
+    """`section` names the table in the messages: `tracker.jira`, or `jira` for the old table."""
     from ws.tracker.jira import settings
 
-    return settings.parse_settings(table, path)
+    return settings.parse_settings(table, path, section or settings.SECTION)
 
 
 def open_tracker(config, connection_only=False):
@@ -35,10 +36,10 @@ def card_url_template(settings):
     return writer.card_url_template(settings)
 
 
-def card_url_template_from_table(table, path):
+def card_url_template_from_table(table, path, section=None):
     from ws.tracker.jira import settings
 
-    return settings.card_url_template(table, path)
+    return settings.card_url_template(table, path, section or settings.SECTION)
 
 
 def __getattr__(name):

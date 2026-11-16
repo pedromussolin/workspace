@@ -57,9 +57,9 @@ def test_load_config_reads_every_field(config_dir, tmp_path, monkeypatch):
 
     config = load_config()
 
-    assert config.jira.site == "https://example.atlassian.net"
-    assert config.jira.email == "dev@example.com"
-    assert config.jira.status_overrides == {
+    assert config.tracker_settings.site == "https://example.atlassian.net"
+    assert config.tracker_settings.email == "dev@example.com"
+    assert config.tracker_settings.status_overrides == {
         "In Validation": "validation",
         "Cancelled Late": "cancelled",
     }
@@ -100,7 +100,7 @@ def test_override_to_the_workflow_stages_is_valid(config_dir):
     )
     (config_dir / "config.toml").write_text(text, encoding="utf-8")
 
-    overrides = load_config().jira.status_overrides
+    overrides = load_config().tracker_settings.status_overrides
 
     assert overrides["Ready Deploy"] == "ready_deploy"
     assert overrides["Code Review"] == "review"
@@ -289,7 +289,7 @@ def test_card_keys_are_read(config_dir):
     text = CONFIG.replace('email = "dev@example.com"\n', 'email = "dev@example.com"\n' + CARD_KEYS)
     (config_dir / "config.toml").write_text(text, encoding="utf-8")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.project == "TS"
     assert jira.board_id == 12
@@ -300,7 +300,7 @@ def test_card_keys_are_read(config_dir):
 def test_card_keys_are_none_when_absent(config_dir):
     (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.project is None
     assert jira.board_id is None
@@ -516,7 +516,7 @@ def test_jira_types_and_links_are_read(config_dir):
         '\n[jira.links]\nblocks = "Blocks"\n',
     )
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.types == {"task": "10002", "improvement": "10010"}
     assert jira.links == {"blocks": "Blocks"}
@@ -525,7 +525,7 @@ def test_jira_types_and_links_are_read(config_dir):
 def test_jira_types_and_links_default_to_empty(config_dir):
     _with(config_dir, "")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.types == {} and jira.links == {}
 
@@ -626,9 +626,8 @@ def test_tracker_jira_table_loads(config_dir, capsys):
     config = load_config()
 
     assert config.tracker_kind == "jira"
-    assert config.jira.site == "https://example.atlassian.net"
-    assert config.tracker_settings is config.jira
-    assert config.jira.status_overrides == {"In Validation": "validation"}
+    assert config.tracker_settings.site == "https://example.atlassian.net"
+    assert config.tracker_settings.status_overrides == {"In Validation": "validation"}
     assert config.identity_email == "dev@example.com"
     assert capsys.readouterr().err == ""
 
@@ -641,7 +640,7 @@ def test_old_jira_table_loads_with_one_deprecation_line(config_dir, capsys, monk
     load_config()
 
     assert first.tracker_kind == "jira"
-    assert first.jira.email == "dev@example.com"
+    assert first.tracker_settings.email == "dev@example.com"
     assert capsys.readouterr().err == (
         "config.toml: [jira] is deprecated; move it under [tracker.jira]\n"
     )
@@ -662,8 +661,7 @@ def test_kind_is_required_without_the_old_table(config_dir):
     assert config.standup.repo_roots == (Path("~/x").expanduser(),)
     with pytest.raises(TrackerSetup, match=r"\[tracker\] kind"):
         open_tracker()
-    with pytest.raises(ConfigInvalid, match=r"\[tracker\] kind"):
-        _ = config.jira
+    assert config.tracker_settings is None
 
 
 def test_unknown_kind_is_refused(config_dir):

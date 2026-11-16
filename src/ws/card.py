@@ -24,7 +24,6 @@ from ws.tracker import port, write
 from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.port import Writer
 
-REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = approval.APPROVAL_WINDOW
 
 _CODE = approval.CODE
@@ -269,28 +268,6 @@ def show(path: str) -> dict:
     if item.draft is None or item.problems:
         raise DraftError(item.problems)
     return write.to_document(item.draft)
-
-
-def _needed_keys(loaded: list[Loaded]) -> set[str]:
-    """The Jira writer's `needed_keys` over drafts; its tests reach it here until Task 18."""
-    from ws.tracker.jira import writer
-
-    return writer.needed_keys([write.to_document(item.draft) for item in loaded if item.draft])
-
-
-def guard(project: str, requests: list[dict]) -> str | None:
-    """The Jira writer's `guard`; its tests reach it here until Task 18."""
-    from ws.tracker.jira import writer
-
-    return writer.guard(project, requests)
-
-
-def session(needed: set[str]):
-    """The Jira session with this module's `REQUEST_TIMEOUT`, which a test patches; the Jira
-    adapter opens its writer through it until Task 18."""
-    from ws.tracker.jira import writer
-
-    return writer.session(needed, timeout=REQUEST_TIMEOUT)
 
 
 def _open_writer(loaded: list[Loaded]) -> Writer:
