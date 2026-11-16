@@ -384,7 +384,9 @@ drives it, and `ws observe report TASK` prints the evidence for the GMUD.
 
 `ws setup` also checks the `permissions.ask` rule `Bash(ws observe run:*)`: every run that queries
 the production replica asks you first, and the approval box shows the task and the database checks,
-never the SQL. Until the rule and the gate are there, `ws observe run` refuses with exit 2.
+never the SQL. When database checks are selected and the command does not run on a real terminal,
+`ws observe run` refuses with exit 2 until the rule and the gate are there; on a real terminal the
+check is skipped.
 
 ### Local config
 
@@ -538,8 +540,8 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws env check REPO --env ENV (--ref REF \| --deployed) [--strict] [--json]` | Compares the env var names the code reads at that commit (never the working tree) with the Parameter Store names under the environment's prefix and the argocd values (`[env_check]`); names only, never a value; exit 0 nothing to fix, 1 a required name missing or a name left in argocd (with `--strict`, also a name with a default), 2 setup, 3 the store cannot be listed or read |
 | `ws observe new TASK --project SLUG --job TEXT --switched-off DATE [--days N] [--timezone TZ]` | Writes the observation plan (private, with commented examples); refuses an existing one; `check TASK` validates the plan and each database query; `show TASK --json` prints the plan |
 | `ws observe run TASK [--day DATE] [--check ID]...` | Runs the database checks of the day and records each value with its real times; prints as JSON what the observability tool and the user still have to answer (`observability`, `ask`), `problems` and `warnings`; Claude Code asks you first (the `ask` rule and the gate); exit 1 a problem, 2 setup, 3 database unreachable |
-| `ws observe request TASK [--day DATE]` / `fallback TASK [--day DATE]` | The text for the observability tool, to send verbatim, and the plain calls for the same checks |
-| `ws observe record TASK (--result FILE \| --check ID [--day DATE] (--value N --hash H \| --yes \| --no))` | Records the observability tool's answer (hashes checked), or one check by hand |
+| `ws observe request TASK [--project SLUG] [--day DATE] [--check ID]...` / `fallback TASK [--project SLUG] [--day DATE] [--check ID]...` | The text for the observability tool, to send verbatim, and the plain calls for the same checks |
+| `ws observe record TASK (--result FILE \| --check ID [--day DATE] (--value N --hash H \| --yes \| --no) [--by NAME])` | Records the observability tool's answer (hashes checked), or one check by hand |
 | `ws observe status [--project SLUG] [--json]` | One PT-BR line per plan (day k of N, pending, "pode desligar de vez", attention), or the JSON the skill `daily` reads |
 | `ws observe report TASK` | PT-BR Markdown with the days by checks, real times and the verdict, for the GMUD; the title comes from the task tracker when it answers |
 | `ws git assemble --base B --from WIP --to FINAL` | Builds FINAL from B by cherry-picking WIP, optionally rewriting subjects (keyed by subject or sha), and checks the 72-character limit; refuses a dirty work tree and merge commits in the range |
