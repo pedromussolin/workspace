@@ -8,12 +8,13 @@ from datetime import date, datetime
 from pathlib import Path
 
 from ws import card as cards_store
-from ws import codeposition, jira, userconfig
+from ws import codeposition, tracker, userconfig
 from ws.boardconfig import BoardConfig, BoardMissing, load_board, unmapped_status
 from ws.boardrules import plan_moves
 from ws.config import config_dir, repo_root
 from ws.standup import find_repos
 from ws.taskmodel import RUNG, Status, Task
+from ws.tracker.errors import TrackerSetup
 from ws.userconfig import toml_string
 
 SPEC = "docs/specs/2026-11-05-board-sync-design.md"
@@ -84,15 +85,16 @@ def _status(args: argparse.Namespace) -> int:
         )
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         return _fail("status", error)
-    problem = unmapped_status(cfg, config.jira.status_overrides)
+    try:
+        overrides = tracker.status_overrides(config)
+    except TrackerSetup as error:
+        return _fail("status", error)
+    problem = unmapped_status(cfg, overrides)
     if problem is not None:
         return _fail("status", problem)
     try:
         cards = _read_cards(args.cards)
-        tasks = [
-            jira.task_from_card(card, config.jira.site, config.jira.status_overrides)
-            for card in cards
-        ]
+        tasks = [tracker.task_from_listing(card, config) for card in cards]
     except (OSError, ValueError, KeyError, TypeError) as error:
         return _fail("status", f"cannot read {args.cards}: {error}")
     today = args.today or date.today()
