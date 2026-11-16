@@ -2,9 +2,9 @@
 
 Used by step 3 of the daily when `[tracker] kind` is `jira`. Read only: never call a write tool.
 
-- Read `[tracker.jira] site` from `~/.config/workspace/config.toml`, or `[jira] site` when the
-  config is old (no `[tracker]` table). Call `getAccessibleAtlassianResources` and take the `cloudId` of the resource whose `url` equals that
-  site. No config file, no matching resource or an MCP error: there are **no cards**, see the
+- Read `[tracker.jira] site` from `~/.config/workspace/config.toml`, or `[jira] site` when there
+  is no `[tracker.jira]` table. Call `getAccessibleAtlassianResources` and take the `cloudId` of
+  the resource whose `url` equals that site. No config file, no matching resource or an MCP error: there are **no cards**, see the
   end of this file.
 - Call `atlassianUserInfo` for the account id (used only to set `reporter_is_me`).
 - Call `searchJiraIssuesUsingJql` with `cloudId`, `maxResults: 100`,

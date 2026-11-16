@@ -35,6 +35,14 @@ def test_daily_fallback_follows_the_kind_reference():
     assert "[tracker.jira] site" in reference and "[jira] site" in reference
 
 
+def test_daily_reference_reads_the_old_table_when_tracker_jira_is_absent():
+    """A config may have `[tracker] kind` and still the old `[jira]` table."""
+    reference = " ".join((DAILY / "references" / "jira.md").read_text(encoding="utf-8").split())
+
+    assert "or `[jira] site` when there is no `[tracker.jira]` table" in reference
+    assert "no `[tracker]` table" not in reference
+
+
 def test_daily_reads_the_tracker_key():
     for name in ("SKILL.md", "references/detailed.md"):
         text = (DAILY / name).read_text(encoding="utf-8")
