@@ -2024,3 +2024,36 @@ def test_setup_prints_the_release_ask_rules(env):
 
     assert "Bash(ws release publish:*)" in block["permissions"]["ask"]
     assert "Bash(ws release move:*)" in block["permissions"]["ask"]
+
+
+def test_observe_gate_problems_name_what_is_missing(env, tmp_path, monkeypatch):
+    from ws.bootstrap import OBSERVE_ASK_RULES, observe_gate_problems
+
+    assert OBSERVE_ASK_RULES == ("Bash(ws observe run:*)",)
+    monkeypatch.setenv("WS_REPO_ROOT", str(env.repo))
+    settings = tmp_path / "settings.json"
+    assert "not found" in observe_gate_problems(settings)[0]
+
+    settings.write_text("{}", encoding="utf-8")
+    problems = observe_gate_problems(settings)
+    assert len(problems) == 2
+    assert any("Bash(ws observe run:*)" in problem for problem in problems)
+    assert any(GATE_SCRIPT in problem for problem in problems)
+
+    gates = _registered_gates()
+    gates["permissions"]["ask"].remove("Bash(ws observe run:*)")
+    settings.write_text(json.dumps(gates), encoding="utf-8")
+    [problem] = observe_gate_problems(settings)
+    assert "Bash(ws observe run:*)" in problem
+
+    settings.write_text(json.dumps(_registered_gates()), encoding="utf-8")
+    assert observe_gate_problems(settings) == []
+
+
+def test_setup_prints_the_observe_ask_rule(env):
+    _write_settings(env.settings, {})
+
+    _, block = _needs_block(_setup(env))
+
+    assert "Bash(ws observe run:*)" in block["permissions"]["ask"]
+    assert "Bash(ws observe run:*)" in ASK_RULES

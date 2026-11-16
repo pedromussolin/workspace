@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "task": {
+      "type": "string"
+    },
+    "day": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recorded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          }
+        },
+        "required": [
+          "check",
+          "value",
+          "verdict"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "task",
+    "day",
+    "recorded",
+    "problems",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

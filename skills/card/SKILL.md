@@ -1,7 +1,6 @@
 ---
 name: card
-description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card iniciar TS-5431" (start the task: branches and the move to in progress), "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
-disable-model-invocation: true
+description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to align the project items with the tracker ("reorganizar", "sincronizar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
 ---
 
 # Card
@@ -9,7 +8,9 @@ disable-model-invocation: true
 Writes to the tracker, so the order is fixed: draft, check, preview, approval (the apply). The model
 writes the prose and picks values; `ws card` builds the requests, checks the rules and calls the
 tracker's API. Nothing is written through a tracker MCP, ever. What is specific to one tracker
-(site shape, search syntax, the API key command, screen limits) is in `references/jira.md`.
+(site shape, search syntax, the API key command, screen limits) is in `references/jira.md`. The
+model may start this skill by itself, but never answers the approval box for the user: the apply
+waits for the user's yes.
 
 ## Steps
 
@@ -17,8 +18,9 @@ tracker's API. Nothing is written through a tracker MCP, ever. What is specific 
    type, the epic, the links and the sections. Ask only what is missing. For `create`: the type
    (propose one from the rules' ordered questions, with a one-line reason), the epic (run
    `ws card epics` and offer the list; empty, ask for an epic key; an epic or an initiative takes no
-   epic), the priority and, only when there is a sprint, the due date (a create has no start date:
-   it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
+   epic), the priority and the due date: always propose one (the sprint's end when the card goes
+   into a sprint; otherwise ask the user), and leave it out only when the user says so (a create
+   has no start date: it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
    The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
    (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
    colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is

@@ -10,16 +10,12 @@ index); nothing goes to the tracker. Spec: docs/specs/2026-11-15-card-review-des
 
 import argparse
 import json
-import os
 import sys
-import tempfile
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from typing import BinaryIO
 
 from ws import cardstart, gittools, items, userconfig
 from ws.boardconfig import BoardConfig, BoardMissing, load_board
@@ -27,6 +23,7 @@ from ws.config import REPO_NAME, config_dir, data_dir, repo_root
 from ws.envcheck import EnvCheckSettings, RepoProfile, SetupError, files_at, load_settings
 from ws.gittools import GitError
 from ws.itemfile import ItemError
+from ws.privatefile import private_file, private_folder
 from ws.project import SLUG_PATTERN
 from ws.reviewcard import card_context
 from ws.reviewdiff import (
@@ -48,7 +45,6 @@ DEFAULT_PROJECT = "standalone"
 SPEC = "docs/specs/2026-11-15-card-review-design.md"
 PACK = "pack.json"
 REVIEW = "review.md"
-PRIVATE_FOLDER = 0o700
 CREATED = ("added", "copied")
 NO_TESTS = "code changed with no test file changed"
 
@@ -107,40 +103,13 @@ def review_folder(project: str, ref: str) -> Path:
     return data_dir() / "projects" / project / "reviews" / ref
 
 
-def private_folder(folder: Path) -> None:
-    """Folders 700 from `projects` down to the review folder."""
-    top = data_dir() / "projects"
-    top.parent.mkdir(parents=True, exist_ok=True)
-    chain = [top]
-    for part in folder.relative_to(top).parts:
-        chain.append(chain[-1] / part)
-    for each in chain:
-        each.mkdir(mode=PRIVATE_FOLDER, exist_ok=True)
-        each.chmod(PRIVATE_FOLDER)
-
-
-@contextmanager
-def _private_file(target: Path) -> Iterator[BinaryIO]:
-    """A 600 temp file beside `target`, moved over it by `os.replace` when the block ends well."""
-    handle, temporary = tempfile.mkstemp(
-        prefix=f".{target.name}-", suffix=".tmp", dir=target.parent
-    )
-    try:
-        with os.fdopen(handle, "wb") as stream:
-            yield stream
-        os.replace(temporary, target)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
 def write_pack(folder: Path, data: dict) -> Path:
     """`pack.json` (600) in the private folder; then what described an earlier pack is deleted.
 
     That is `review.md` and the `.diff` of every repo this pack has no diff for.
     """
     private_folder(folder)
-    with _private_file(folder / PACK) as stream:
+    with private_file(folder / PACK) as stream:
         stream.write((_json(data) + "\n").encode("utf-8"))
     kept = {Path(repo["diff_file"]).name for repo in data["repos"] if repo["diff_file"]}
     for old in folder.glob("*.diff"):
@@ -334,7 +303,7 @@ def _read(
                 "the review shows it half done"
             )
     diff_file = folder / f"{name}.diff"
-    with _private_file(diff_file) as stream:
+    with private_file(diff_file) as stream:
         collected = collect(path, checkout, remote_ref, stream)
     entry["merge_base"] = collected.merge_base
     entry["diff_command"] = diff_command(path, checkout, collected.merge_base)

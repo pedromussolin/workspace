@@ -47,6 +47,12 @@ one: card titles must not land in whatever folder the session is in. Never read
    Only when the exit code is 0, `mv` the `.tmp` file to `board.json`. Exit 2 (no `[board]` table
    or bad input) or exit 1: go on without the board and keep its stderr as one more warning: it counts in
    "N avisos", like the error of step 4's rerun. It reads git and fetches the remotes of the repos, so it can take a while.
+3c. **Observations.** Runs after step 3b. Run `ws observe status --json`. Exit 0: read `plans`.
+   Exit 1 with JSON on stdout: `plans` still holds every plan that could be read; read it, and
+   count each item of `problems` as one warning (it counts in "N avisos"). Exit 2, any other
+   exit, no JSON on stdout or a missing command: one more warning; go on without the line. In
+   `plans`, a plan with a non-empty `pending`, `missing_days` or `stale`, with `state` `done` or
+   with `state` `attention` is one entry for the "observação:" line of the note.
 4. **Report.** Run
    `ws standup report --activity ~/.local/share/workspace/standup/activity.json --cards ~/.local/share/workspace/standup/cards.json --board ~/.local/share/workspace/standup/board.json --top 3`
    (without the `--cards` part when there are no cards; without the `--board` part when there is
@@ -110,6 +116,10 @@ Tracker indisponível; N avisos, peça "daily detalhado"
   `moves`, as one "para aplicar /card sincronizar (N cards)" with N = the number of `moves` (the
   user types `/card`; nothing moves before); then, when `to_confirm` is not empty, "testado em
   homologação? TS-5537 (última atualização 03/11); ..." with each card's `key` and `since` as dd/mm;
+  then, when step 3c found entries, one "observação: TS-5738 dia 3 de 5 (pendente), TS-5753 pode
+  desligar de vez; peça /observe" (`dia` and N are the plan's `day` and `days`; `atenção em dd/mm`
+  for `attention`, from `attention_days`; "pode desligar de vez" for `done`; `faltam dd/mm` from
+  `missing_days`, and `desatualizado` when `stale` is not empty);
   "Tracker indisponível" when `tracker` is false; "N
   avisos, peça \"daily detalhado\"" when `warnings` is not empty (when the report was rerun without cards, the first run's error counts as one more warning). With none of them, no note and
   no `---`.

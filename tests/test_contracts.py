@@ -31,10 +31,9 @@ def result(**changes):
         "verdict": "pass",
         "started": "2026-12-10T09:00:00Z",
         "finished": "2026-12-10T09:00:01Z",
-        "window": {"from": "2026-12-09T00:00:00-03:00", "to": "2026-12-10T00:00:00-03:00"},
+        "window": ["2026-12-09T03:00:00Z", "2026-12-10T03:00:00Z"],
         "hash": "abc",
         "times": "run",
-        "by": None,
     }
     document.update(changes)
     return document
@@ -42,6 +41,8 @@ def result(**changes):
 
 def test_validate_accepts_a_valid_plan():
     assert validate(plan(), "observe-plan") == []
+    assert validate(plan(closed="2026-12-16"), "observe-plan") == []
+    assert validate(plan(closed=None), "observe-plan") == ["$.closed: expected string, got null"]
 
 
 def test_validate_missing_and_unexpected_keys():
@@ -63,6 +64,10 @@ def test_validate_missing_and_unexpected_keys():
         ("observe-result", result(expect=None), []),
         ("observe-result", result(expect="> 0"), []),
         ("observe-result", result(value="x"), ["$.value: expected number or boolean, got string"]),
+        ("observe-result", result(by="tester"), []),
+        ("observe-result", result(by=None), ["$.by: expected string, got null"]),
+        ("observe-result", result(window={"from": "a"}), ["$.window: expected array, got object"]),
+        ("observe-result", result(window=["a", 1]), ["$.window[1]: expected string, got integer"]),
     ],
 )
 def test_validate_types(schema, document, expected):
@@ -93,23 +98,29 @@ def test_load_schema_refuses_unknown_names_and_keywords():
 
 def test_every_schema_pins_version_and_is_closed():
     folder = resources.files("ws") / "data" / "contracts"
-    names = [
+    names = {
         p.name.removesuffix(".schema.json")
         for p in folder.iterdir()
         if p.name.endswith(".schema.json")
-    ]
-    assert {
+    }
+    assert names == {
         "database-request",
         "database-result",
         "observability-request",
         "observability-result",
+        "observe-check",
+        "observe-close",
+        "observe-fallback",
         "observe-plan",
+        "observe-record",
         "observe-result",
+        "observe-run",
         "observe-status",
         "card-write",
         "card-plan",
         "card-result",
-    } == set(names)
+    }
+    assert names == set(VALID)
     for name in names:
         schema = load_schema(name)
         assert schema["properties"]["version"] == {"const": 1}, name
@@ -129,9 +140,9 @@ VALID = {
                 "task": "TS-5",
                 "project": "demo",
                 "job": "demo-job",
-                "switched_off": "2026-12-08",
                 "days": 5,
                 "due_day": "2026-12-15",
+                "first_day": "2026-12-09",
                 "day": 3,
                 "pending": ["a"],
                 "missing_days": ["2026-12-09"],
@@ -173,7 +184,131 @@ VALID = {
         "started": "s",
         "finished": "f",
     },
+    "observe-run": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "day_number": 1,
+        "window": ["2026-12-09T03:00:00Z", "2026-12-10T03:00:00Z"],
+        "recorded": [{"check": "a", "value": 0, "verdict": "pass"}],
+        "observability": {
+            "tool": "t",
+            "checks": ["b"],
+            "next": "ws observe request TS-5 --day 2026-12-09",
+            "record": "ws observe record TS-5 --result r.json",
+            "fallback": "ws observe fallback TS-5 --day 2026-12-09",
+            "result_path": "r.json",
+        },
+        "ask": [{"check": "c", "question": "ok?", "yes": "y", "no": "n"}],
+        "problems": [],
+        "warnings": [],
+    },
+    "observe-record": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "recorded": [{"check": "c", "value": True, "verdict": "pass"}],
+        "problems": [],
+        "warnings": [],
+    },
+    "observe-fallback": {
+        "version": 1,
+        "task": "TS-5",
+        "day": "2026-12-09",
+        "calls": [{"check": "b", "tool": "t", "arguments": {"from": "f"}}],
+        "record": [{"check": "b", "hash": "h", "command": "ws observe record TS-5"}],
+        "problems": [],
+    },
+    "observe-check": {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": "p",
+        "checks": ["a"],
+        "problems": [],
+        "warnings": [],
+    },
+    "observe-close": {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": "p",
+        "closed": "2026-12-16",
+        "problems": [],
+        "warnings": [],
+    },
+    "card-write": {
+        "$schema": "card-write",
+        "version": 1,
+        "op": "move",
+        "key": "TS-5",
+        "status": "in_progress",
+    },
+    "card-plan": {
+        "$schema": "card-plan",
+        "version": 1,
+        "tracker": "t",
+        "target": "https://tracker.example",
+        "today": "2026-12-09",
+        "steps": [
+            {
+                "draft": {"path": "p.md", "sha256": "a" * 64},
+                "op": "move",
+                "card": "TS-5",
+                "title": None,
+                "preview": ["Status: A fazer -> Em andamento"],
+                "warnings": [],
+                "problems": [],
+                "before": {"status": "A fazer"},
+                "native": [{"method": "POST", "path": "/t", "body": {"id": "1"}}],
+            }
+        ],
+        "summary": ["[1/1] Mover card TS-5 (p.md)"],
+        "code": "0123456789ab",
+    },
+    "card-result": {
+        "$schema": "card-result",
+        "version": 1,
+        "steps": [
+            {
+                "draft": {"path": "p.md", "sha256": "a" * 64},
+                "status": "applied",
+                "sent": [{"method": "POST", "path": "/t", "body": {"id": "1"}}],
+                "created": None,
+                "url": "https://tracker.example/TS-5",
+                "error": None,
+            }
+        ],
+    },
 }
+
+
+@pytest.mark.parametrize(
+    ("name", "document"),
+    [
+        (
+            "observe-run",
+            {
+                **VALID["observe-run"],
+                "day": None,
+                "day_number": None,
+                "window": None,
+                "observability": None,
+            },
+        ),
+        ("observe-record", {**VALID["observe-record"], "day": None}),
+        ("observe-close", {**VALID["observe-close"], "closed": None}),
+    ],
+)
+def test_outputs_stopped_before_the_day_are_valid(name, document):
+    assert validate(document, name) == []
+
+
+def test_run_observability_needs_the_printed_lines():
+    observability = dict(VALID["observe-run"]["observability"])
+    del observability["record"]
+    document = {**VALID["observe-run"], "observability": observability}
+    assert validate(document, "observe-run") == ["$.observability: missing required key record"]
 
 
 @pytest.mark.parametrize("name", sorted(VALID))
@@ -189,6 +324,15 @@ def test_each_schema_refuses_another_version(name):
 def test_status_day_is_a_number():
     document = copy_status(day="3")
     assert validate(document, "observe-status") == ["$.plans[0].day: expected integer, got string"]
+
+
+def test_status_plan_carries_first_day_not_switched_off():
+    document = copy_status(switched_off="2026-12-08")
+    del document["plans"][0]["first_day"]
+    assert validate(document, "observe-status") == [
+        "$.plans[0]: missing required key first_day",
+        "$.plans[0].switched_off: unexpected key",
+    ]
 
 
 def copy_status(**changes):

@@ -1,0 +1,151 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "task": {
+      "type": "string"
+    },
+    "day": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "day_number": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "window": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "recorded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          }
+        },
+        "required": [
+          "check",
+          "value",
+          "verdict"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "observability": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next": {
+          "type": "string"
+        },
+        "record": {
+          "type": "string"
+        },
+        "fallback": {
+          "type": "string"
+        },
+        "result_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "checks",
+        "next",
+        "record",
+        "fallback",
+        "result_path"
+      ],
+      "additionalProperties": false
+    },
+    "ask": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "yes": {
+            "type": "string"
+          },
+          "no": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "check",
+          "question",
+          "yes",
+          "no"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "task",
+    "day",
+    "day_number",
+    "window",
+    "recorded",
+    "observability",
+    "ask",
+    "problems",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

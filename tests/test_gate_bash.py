@@ -3434,3 +3434,453 @@ def test_python_that_cannot_write_through_ws_stays_silent(command, env):
 )
 def test_python_that_may_reach_ws_still_asks_when_it_cannot_be_told_apart(command, title, env):
     assert box(command, env).splitlines()[0] == title
+
+
+OBSERVE_TITLE = "Consulta a réplica de produção (TS-5)"
+OBSERVE_LINES = ["open-batches → replica", "stuck-files → history"]
+OBSERVE_SQL = "select count(*) from batches where open and updated_at < :day_to"
+OBSERVE_PLAN = f"""version = 1
+task = "TS-5"
+job = "fechamento de lotes"
+switched_off = 2026-12-08
+days = 5
+
+[[checks]]
+id = "sweep-calls"
+kind = "observability"
+signal = "traces"
+query = "service:sweep"
+expect = "== 0"
+
+[[checks]]
+id = "open-batches"
+kind = "database"
+sql = "{OBSERVE_SQL}"
+expect = "== 0"
+
+[[checks]]
+id = "stuck-files"
+kind = "database"
+database = "history"
+sql = "select count(*) from files where stuck"
+expect = "<= 2"
+label = "arquivos parados"
+
+[[checks]]
+id = "file-vs-db"
+kind = "manual"
+question = "O arquivo bate com o banco?"
+"""
+
+
+def write_plan(env, project="demo", task="TS-5", text=OBSERVE_PLAN):
+    folder = Path(env["WS_DATA_DIR"]) / "projects" / project / "observations"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{task}.toml").write_text(text, encoding="utf-8")
+
+
+def test_observe_run_asks_with_the_database_checks(env):
+    write_plan(env)
+
+    text = box("ws observe run TS-5", env)
+
+    assert text.splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+    assert "select" not in text
+    assert "sweep-calls" not in text
+    assert decision("ws observe run TS-5", env)["permissionDecision"] == "ask"
+
+
+OBSERVE_RUN_FORMS = [
+    "ws observe run TS-5",
+    "ws observe run TS-5 --day 2026-12-09",
+    "ws observe run --day=2026-12-09 TS-5",
+    "uv run ws observe run TS-5",
+    "uv run --no-sync ws observe run TS-5",
+    "/srv/ws/.venv/bin/ws observe run TS-5",
+    "~/.local/bin/ws observe run TS-5",
+    "bash -c 'ws observe run TS-5'",
+    "cd /x && ws observe run TS-5 | tail -5",
+    "python3 -m ws observe run TS-5",
+    "uv run -m ws.cli observe run TS-5",
+    "uv run python -m ws observe run TS-5",
+    "python3 -m runpy ws observe run TS-5",
+    f'python3 -c "{MAIN}" observe run TS-5',
+    f'uv run python -c "{MAIN}" observe run TS-5',
+    f"python3 - observe run TS-5 <<< '{MAIN}'",
+    "python3 -c \"import subprocess; subprocess.run(['ws','observe','run','TS-5'])\"",
+    "python3 -c \"import subprocess; subprocess.run(['uv','run','ws','observe','run','TS-5'])\"",
+    "python3 -c \"import subprocess; subprocess.run('ws observe run TS-5', shell=True)\"",
+    "python3 -c \"import os; os.system('ws observe run TS-5')\"",
+    "python3 -c \"import os,sys; os.system(sys.argv[1])\" 'ws observe run TS-5'",
+    "python3 script.py 'ws observe run TS-5'",
+    "python3 script.py observe run TS-5",
+]
+
+
+@pytest.mark.parametrize("command", OBSERVE_RUN_FORMS)
+def test_observe_run_through_python_and_uv_asks(command, env):
+    write_plan(env)
+
+    assert box(command, env).splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "ws observe status",
+        "ws observe status --json",
+        "ws observe status --project demo",
+        "ws observe show TS-5 --json",
+        "ws observe check TS-5",
+        "ws observe report TS-5",
+        "ws observe request TS-5",
+        "ws observe record TS-5 --result /x/r.json",
+        "ws observe record TS-5 --check file-vs-db --yes",
+        "ws observe fallback TS-5",
+        "ws observe new TS-5 --project demo --job x --switched-off 2026-12-08",
+        "uv run ws observe status --json",
+        "python3 -m ws observe show TS-5",
+        "ws observe --help",
+        "python3 -c 'from ws.observedef import parse_plan; print(parse_plan)'",
+    ],
+)
+def test_observe_reads_stay_silent(command, env):
+    write_plan(env)
+
+    assert box(command, env) is None
+
+
+def test_observe_run_without_a_plan_asks_unsure(env):
+    lines = box("ws observe run TS-5", env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "TS-5" in lines[1]
+    assert "plano" in lines[1]
+
+
+def test_observe_run_with_an_unreadable_plan_asks_unsure(env):
+    write_plan(env, text="version = \n")
+
+    lines = box("ws observe run TS-5", env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert "TS-5" in lines[1]
+
+
+def test_observe_run_lists_only_the_chosen_checks(env):
+    write_plan(env)
+
+    assert box("ws observe run TS-5 --check stuck-files", env).splitlines() == [
+        OBSERVE_TITLE,
+        "stuck-files → history",
+    ]
+    assert box("ws observe run TS-5 --check=open-batches", env).splitlines() == [
+        OBSERVE_TITLE,
+        "open-batches → replica",
+    ]
+
+
+def test_observe_run_with_no_database_check_still_asks_and_says_so(env):
+    write_plan(env)
+
+    lines = box("ws observe run TS-5 --check sweep-calls", env).splitlines()
+
+    assert lines[0] == OBSERVE_TITLE
+    assert lines[1] == "Nenhuma checagem de banco será rodada"
+
+
+def test_observe_run_reads_the_plan_of_the_named_project(env):
+    write_plan(env)
+    write_plan(env, project="other", text=OBSERVE_PLAN.replace("stuck-files", "late-files"))
+
+    lines = box("ws observe run TS-5 --project other", env).splitlines()
+    assert lines == [OBSERVE_TITLE, "open-batches → replica", "late-files → history"]
+    two = box("ws observe run TS-5", env).splitlines()
+    assert two[0] == OBSERVE_TITLE
+    assert two[1] == "2 planos para TS-5 (demo, other); sem --project o ws recusa"
+
+
+@pytest.mark.parametrize(
+    ("command", "reason"),
+    [
+        ('ws observe run "$TASK"', "A tarefa vem de uma variável ou comando"),
+        ('ws observe run TS-5 --project "$P"', "O projeto vem de uma variável ou comando"),
+        ("WS_DATA_DIR=/x ws observe run TS-5", "Pode mudar a pasta de onde o ws lê o plano"),
+        ("WS_CONFIG_DIR=/x ws observe run TS-5", "Pode mudar a pasta de onde o ws lê o plano"),
+        ("ws observe run $TASK", "Tem $, crase ou chaves fora de aspas"),
+    ],
+)
+def test_observe_run_that_the_gate_cannot_read_asks_unsure(command, reason, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert lines[1].startswith(reason)
+
+
+@pytest.mark.parametrize(
+    ("command", "reason"),
+    [
+        ("ws observe run", "Falta a tarefa; o ws vai recusar"),
+        ("ws observe run ts-5", "Tarefa inválida; o ws vai recusar"),
+        ("ws observe run ../TS-5", "Tarefa inválida; o ws vai recusar"),
+        ("ws observe run TS-5 --project ../x", "Projeto inválido; o ws vai recusar"),
+    ],
+)
+def test_observe_run_the_ws_will_refuse_still_asks(command, reason, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == "Consulta a réplica de produção"
+    assert lines[1].startswith(reason)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws.observe_cli import run_day; run_day('demo', p, None, [])",
+        "import ws.observe_cli as o; o.run_day('demo', p, None, [])",
+        "from ws import observe_cli; observe_cli.run_day('demo', p, None, [])",
+        "from ws import database; database.scalar(db, 'select 1', b, 30)",
+        "from ws.database import open_database; open_database('replica').scalar_text('x', b, 9)",
+        "from ws.database import open_database; db = open_database('replica')",
+        "import ws.database as d; print(d.open_database('replica').rules)",
+        "from ws import observe_cli as o; o._query(c, db, d, w, p)",
+        "from ws.observe_cli import _query; _query(c, db, d, w, p)",
+    ],
+)
+def test_python_that_may_query_the_replica_asks(code, env):
+    lines = box(f'python3 -c "{code}"', env).splitlines()
+
+    assert lines[0] == "Consulta a réplica de produção"
+    assert lines[1].startswith("Python que chama o ws e pode consultar a réplica")
+
+
+PLAN_FILE = "~/.local/share/workspace/projects/demo/observations/TS-5.toml"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"echo 'x' >> {PLAN_FILE} && ws observe run TS-5",
+        f"cat new.toml > {PLAN_FILE}; ws observe run TS-5",
+        f"sed -i 's/stuck/late/' {PLAN_FILE} && ws observe run TS-5",
+        f"sed -ni 's/stuck/late/' {PLAN_FILE} && ws observe run TS-5",
+        f"cp new.toml {PLAN_FILE} && uv run ws observe run TS-5",
+        "mv /x/new.toml ~/.local/share/workspace/projects/demo/observations/ && "
+        "ws observe run TS-5",
+        f"echo 'x' | tee -a {PLAN_FILE} && ws observe run TS-5",
+        "cd ~/.local/share/workspace/projects/demo/observations && cp /x/a TS-5.toml && "
+        "ws observe run TS-5",
+        f"bash -c 'echo x >> {PLAN_FILE}; ws observe run TS-5'",
+        f"cp new.toml {PLAN_FILE} && python3 -m ws observe run TS-5",
+    ],
+)
+def test_observe_run_after_a_change_to_the_plan_asks_unsure(command, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert lines[1].startswith("O comando muda o plano antes de rodar")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"cat {PLAN_FILE} && ws observe run TS-5",
+        f"grep -c database {PLAN_FILE}; ws observe run TS-5",
+        f"sed -n '1,5p' {PLAN_FILE} && ws observe run TS-5",
+        "cd ~/.local/share/workspace/projects/demo/observations && ws observe run TS-5",
+        "cp a.toml b/TS-6.toml && ws observe run TS-5",
+    ],
+)
+def test_observe_run_after_reading_the_plan_shows_the_box(command, env):
+    write_plan(env)
+
+    assert box(command, env).splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws import observestatus; print('running')",
+        "import ws; print('observed', 'runner')",
+        "from ws.observedef import parse_plan; parse_plan(t).checks; print('runs')",
+        "from ws import observestatus; print('my_query')",
+    ],
+)
+def test_python_that_names_observe_and_run_only_inside_other_words_stays_silent(code, env):
+    assert box(f'python3 -c "{code}"', env) is None
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws import observe_cli; observe_cli.run_x(1)",
+        "import ws.observe as o; o.run(1)",
+    ],
+)
+def test_python_that_names_observe_and_run_as_words_asks(code, env):
+    assert box(f'python3 -c "{code}"', env).splitlines()[0] == "Consulta a réplica de produção"
+
+
+WAIT_LOOP_DENIAL = (
+    "Waiting in a loop is refused: a `while`/`until` loop with `sleep` can outlive the agent. "
+    "Run the long command with run_in_background and wait for its notification, or wrap the "
+    "wait in `timeout <seconds> bash -c '...'`."
+)
+SELF_MATCH_DENIAL = (
+    "`pgrep -f`/`pkill -f` also match the Bash tool's own shell, which holds the same text, so a "
+    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) and "
+    "keep the target word out of the rest of the command, or use `pgrep -A`, or kill by PID."
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'while pgrep -f "worktrees/x/.venv/bin/pytest" >/dev/null; do sleep 5; done',
+        'until ! pgrep -f "pytest -q -x"; do sleep 3; done',
+        'until grep -q "^finished" log; do sleep 5; done',
+        "while true; do sleep 1; done",
+        "bash -c 'until test -f x; do sleep 2; done'",
+        "while :; do\n  sleep 1\ndone",
+        "(while true; do sleep 1; done) &",
+        "{ until test -f x; do sleep 1; done; }",
+        "echo start; while sleep 5; do echo tick; done",
+        "while true; do for i in 1 2; do sleep 1; done; done",
+        "if true; then until test -f x; do sleep 2; done; fi",
+        "while true; do /bin/sleep 1; done",
+        "while true; do timeout 5 sleep 1; done",
+        "while ((1)); do sleep 1; done",
+        "sh -c \"bash -c 'while true; do sleep 1; done'\"",
+        "bash -lc 'until test -f x; do sleep 2; done'",
+        "bash <<< 'while true; do sleep 1; done'",
+        "bash <<'EOF'\nwhile true; do sleep 1; done\nEOF",
+        'echo "$(until test -f x; do sleep 1; done)"',
+        "eval 'while true; do sleep 1; done'",
+        "nohup bash -c 'while true; do sleep 1; done' &",
+        "timeout 0 bash -c 'while true; do sleep 1; done'",
+        "timeout 0s bash -c 'while true; do sleep 1; done'",
+        "timeout inf bash -c 'while true; do sleep 1; done'",
+        "timeout $T bash -c 'while true; do sleep 1; done'",
+        "timeout 600 bash -c 'echo x'; while true; do sleep 1; done",
+        "timeout 600 cat <(while true; do sleep 1; done)",
+        "function wait_x { while true; do sleep 1; done; }; wait_x",
+        "function wait_x() { until test -f x; do sleep 1; done; }; wait_x",
+        "wait_x() { while true; do sleep 1; done; }; wait_x",
+        "coproc while true; do sleep 1; done",
+        "coproc W { while true; do sleep 1; done; }",
+        "timeout 600 bash -c 'while true; do sleep 1; done &'",
+        "timeout 600 bash -c 'nohup bash -c \"while true; do sleep 1; done\" &'",
+        "timeout 600 bash -c 'nohup bash -c \"while true; do sleep 1; done\"'",
+        "timeout 600 bash -c 'setsid bash -c \"until test -f x; do sleep 1; done\"'",
+        "timeout 600 bash -c 'bash -c \"while true; do sleep 1; done\" &'",
+        "timeout 600 bash -c '(while true; do sleep 1; done) &'",
+        "timeout 600 bash -c '{ while true; do sleep 1; done; } &'",
+        "timeout 600 bash -c 'while true; do sleep 1; done | cat &'",
+        "timeout 600 bash -c 'echo $(while true; do sleep 1; done) &'",
+        "while true; do x=$(sleep 5); done",
+        "until test -f x; do echo `sleep 1`; done",
+        'while true; do echo "$(sleep 1)"; done',
+        "while true; do cat <(sleep 1); done",
+    ],
+)
+def test_a_wait_loop_with_sleep_is_denied_with_a_reason_for_the_model(command, env):
+    assert WAIT_LOOP_DENIAL in denial(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pkill -f pytest",
+        'pgrep -af "worktrees/x"',
+        "pgrep -fl pytest",
+        "pgrep -fa pytest",
+        "pgrep pytest -f",
+        "pgrep --full pytest",
+        "pgrep --ful pytest",
+        "pgrep -u me -f pytest",
+        "pgrep -d , -f pytest",
+        "pkill --signal TERM -f pytest",
+        "pkill -9 -f pytest",
+        "pkill -HUP -f pytest",
+        "sudo pkill -f pytest",
+        "/usr/bin/pgrep -f pytest",
+        "bash -c 'pgrep -f pytest'",
+        "echo $(pgrep -f pytest)",
+        "(pkill -f pytest)",
+        "ls && pkill -f pytest || true",
+        "pgrep -f",
+        'pgrep -f "$PATTERN"',
+        "uv run pytest -q & pgrep -f '[p]ytest'",
+        "pgrep -f 'py[t]est' && echo pytest started",
+        "pgrep -if '[P]ytest' # PYTEST",
+        "pkill -vf '[p]ytest'",
+        "pgrep -f '[^z]ytest'",
+        "pkill -A -f pytest",
+        "pkill --ignore-ancestors -f pytest",
+    ],
+)
+def test_pgrep_or_pkill_on_full_command_lines_is_denied_with_a_reason(command, env):
+    assert SELF_MATCH_DENIAL in denial(command, env)
+
+
+def test_a_wait_loop_that_also_uses_pgrep_full_gets_both_reasons(env):
+    reason = denial('until ! pgrep -f "pytest -q -x"; do sleep 3; done', env)
+
+    assert WAIT_LOOP_DENIAL in reason
+    assert SELF_MATCH_DENIAL in reason
+
+
+def test_a_bounded_wait_that_uses_pgrep_full_gets_only_the_pgrep_reason(env):
+    reason = denial("timeout 600 bash -c 'while pgrep -f pytest; do sleep 5; done'", env)
+
+    assert reason == SELF_MATCH_DENIAL
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "timeout 600 bash -c 'until grep -q y f; do sleep 5; done'",
+        'while read l; do echo "$l"; done < f',
+        "for f in a b; do echo $f; done",
+        "pgrep -f '[p]ytest'",
+        "pgrep pytest",
+        "kill 1234",
+        "sleep 3 && echo x",
+        "timeout 10m sh -c 'while ! test -f x; do sleep 1; done'",
+        "timeout -k 5 1.5h bash -c 'until test -f x; do sleep 1; done'",
+        "timeout --signal=KILL 600 bash -c 'until test -f x; do sleep 1; done'",
+        "nohup timeout 600 bash -c 'until test -f x; do sleep 1; done' &",
+        "timeout 600 bash -c \"bash -c 'until test -f x; do sleep 1; done'\"",
+        "timeout 600 bash <<'EOF'\nuntil grep -q y f; do sleep 5; done\nEOF",
+        "for i in 1 2 3; do sleep 1; done",
+        "while read l; do echo $l; done < f; sleep 1",
+        "echo while; sleep 1; echo done",
+        "pkill pytest",
+        "pgrep -a pytest",
+        "pgrep -l -u me pytest",
+        "pkill -f '[p]ytest -q'",
+        "pgrep -af 'worktrees/x/[.]venv/bin/pytest'",
+        "pgrep -if '[P]YTEST'",
+        "pgrep -- -f",
+        "kill $(pgrep -f '[p]ytest')",
+        "echo 'pgrep -f x' > notes.txt",
+        "cat <<'EOF' > wait.sh\nwhile true; do sleep 1; done\nEOF",
+        "pgrep -A -f pytest",
+        "pgrep --ignore-ancestors -f pytest",
+        "pgrep -Af pytest",
+        "timeout 600 bash -c 'uv run pytest > log & until grep -q done log; do sleep 5; done'",
+        "timeout 600 setsid bash -c 'until test -f x; do sleep 1; done'",
+        "timeout 600 bash -c 'nohup timeout 60 bash -c \"until test -f x; do sleep 1; done\" &'",
+        "timeout 600 bash -c 'x=$(until test -f x; do sleep 1; done); echo $x'",
+        "while read l; do x=$(echo $l); done < f",
+        "function show { echo hi; }; show",
+    ],
+)
+def test_bounded_or_finite_waits_and_plain_process_lookups_pass(command, env):
+    assert decision(command, env) is None

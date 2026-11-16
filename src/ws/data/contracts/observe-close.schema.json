@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "task": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "closed": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "task",
+    "project",
+    "path",
+    "closed",
+    "problems",
+    "warnings"
+  ],
+  "additionalProperties": false
+}
