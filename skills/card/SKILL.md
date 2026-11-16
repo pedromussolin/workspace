@@ -1,14 +1,14 @@
 ---
 name: card
-description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card iniciar TS-5431" (start the task: branches and the move to in progress), "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
-disable-model-invocation: true
+description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to align the project items with the tracker ("reorganizar", "sincronizar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
 ---
 
 # Card
 
 Writes to Jira, so the order is fixed: draft, check, preview, approval (the apply). The model writes
 the prose and picks values; `ws card` builds the requests, checks the rules and calls the REST API.
-Nothing is written through the Atlassian MCP, ever.
+Nothing is written through the Atlassian MCP, ever. The model may start this skill by itself, but
+never answers the approval box for the user: the apply waits for the user's yes.
 
 ## Steps
 
