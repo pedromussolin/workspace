@@ -1,14 +1,15 @@
 ---
 name: card
-description: Creates and updates Jira cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card iniciar TS-5431" (start the task: branches and the move to in progress), "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
+description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use only when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação", "/card sincronizar", "/card iniciar TS-5431" (start the task: branches and the move to in progress), "/card reorganizar" (align the project items with the tracker) or the daily's "para aplicar".
 disable-model-invocation: true
 ---
 
 # Card
 
-Writes to Jira, so the order is fixed: draft, check, preview, approval (the apply). The model writes
-the prose and picks values; `ws card` builds the requests, checks the rules and calls the REST API.
-Nothing is written through the Atlassian MCP, ever.
+Writes to the tracker, so the order is fixed: draft, check, preview, approval (the apply). The model
+writes the prose and picks values; `ws card` builds the requests, checks the rules and calls the
+tracker's API. Nothing is written through a tracker MCP, ever. What is specific to one tracker
+(site shape, search syntax, the API key command, screen limits) is in `references/jira.md`.
 
 ## Steps
 
@@ -27,19 +28,20 @@ Nothing is written through the Atlassian MCP, ever.
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
-3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to Jira. Show the preview
+3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to the tracker. Show the preview
    exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
    and the Claude Code prompt on it is the approval: the approval gate (`hooks/approval_gate.py`)
    stops the command and shows the user the preview's summary, and the user's yes in that box
    approves exactly that. The gate reads the command text, so a script file or a
    `setsid`/`nohup` background process is not seen. The user can also run the same command by hand
-   in their own terminal: it prints the summary and asks `Gravar no Jira? [s/N]`. Never ask the user
+   in their own terminal: it prints the summary and asks `Gravar no <tracker>? [s/N]` (the name `ws` prints). Never ask the user
    to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
    the prompt, and never run the preview and the apply in one command line: `apply` refuses when it
-   shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
+   shares the shell session with the preview. `ws card show <draft>` prints a draft as its
+   `card-write` JSON document (read only, writes nothing). If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
-   `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check Jira.
+   `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check the tracker.
    Exit 1 after a line `Card <ref> criado, mas o item <path> não foi atualizado (...); rode ws
    item set-card <path> <ref>`: the card exists and only the item's `card` line is missing. Run
    that printed `ws item set-card` command as printed (it writes only that line and clears the
@@ -152,7 +154,7 @@ branch.
    branch X; using it ...": show it. Then show `preview` exactly as printed, with the `code`.
 4. When `card_change` is null, there is no preview and nothing to apply. Do not say "already
    started" alone: it has three causes. The tracker cannot set a start date (a warning says so; the
-   card is left as is; with Jira, `[jira] start_date_field` is missing in `config.toml`), the card
+   card is left as is; the start-date setting is missing in `config.toml`), the card
    is already in progress with a start date, or there is nothing to change. Name the cause from the
    `warnings` and the card's status. A warning "removed start-TS-N.md from an earlier run" means
    an old draft that is no longer needed was deleted: say so in one line. Stop.
@@ -230,9 +232,9 @@ Trecho do log do erro, sem dado de cliente.
 - O filtro continua aplicado ao voltar para a aba.
 ```
 
-An epic: the title starts with its prefix and a space, and only `## Contexto` is required. This
-Jira's epic create and edit screens have no `parent`, so leave it out: after the epic is created,
-the user links it to its initiative by hand in the tracker (say so in the answer).
+An epic: the title starts with its prefix and a space, and only `## Contexto` is required. When the
+tracker's epic screens have no `parent` (the check says so), leave it out: after the epic is
+created, the user links it to its initiative by hand in the tracker (say so in the answer).
 
 ```text
 +++
@@ -248,7 +250,7 @@ O sistema ou objetivo que o épico cobre.
 
 A link: `TS-102` blocks `TS-103` and relates to `TS-104`. Both cards must exist, so a card created
 in the same batch is linked in a later run, and at least one of the two must be writable. A link
-already in Jira is skipped; its opposite, or the same link twice (or both ways) in one batch, is
+already in the tracker is skipped; its opposite, or the same link twice (or both ways) in one batch, is
 refused.
 
 ```text
@@ -321,13 +323,13 @@ day = 2026-10-28
 - **0:** ok, go on.
 - **1:** a rule failed; the JSON lists `problems`. Fix the draft, or ask the user when only they
   can decide (which epic, which date).
-- **2:** setup needed (a `[jira]` key missing in `config.toml`, or no API key). Say so: run
-  `ws config token jira` in the user's own terminal, outside Claude, or fill `config.toml` (README,
-  "Local config"; the site must be `https://<name>.atlassian.net`), or the Claude settings lack
-  the `ask` rule or the hook (`ws setup`). Stop.
-- **3:** Jira refused or is unreachable. Show the message as is. Never retry a write: an uncertain
-  result ("resultado incerto") means the user checks Jira; for a `create`, offer the JQL to look
-  for the title.
+- **2:** setup needed (a tracker key missing in `config.toml`, or no API key). Say so: the user
+  stores the key in their own terminal, outside Claude, or fills `config.toml` (README, "Local
+  config"), or the Claude settings lack the `ask` rule or the hook (`ws setup`); the exact command
+  and the site shape are in the tracker reference above. Stop.
+- **3:** the tracker refused or is unreachable. Show the message as is. Never retry a write: an
+  uncertain result ("resultado incerto") means the user checks the tracker; for a `create`, offer
+  a search for the title in the tracker's own syntax.
 
 Only cards where the user is the assignee or the reporter, in the configured project, are written
 (a link needs one of its two cards to be writable); a refusal for another person's card or another
