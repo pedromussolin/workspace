@@ -10,6 +10,7 @@ import urllib.request
 from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
+from ws.tracker.errors import TrackerError
 
 FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype", "assignee"]
 
@@ -52,14 +53,9 @@ def check_site(site: str) -> str:
     raise SiteRefused(f"Jira site {site!r} is refused: it must be https://<name>.atlassian.net")
 
 
-class JiraError(Exception):
+class JiraError(TrackerError):
     """`status` is the HTTP status (None without an answer); `uncertain` means a write may have
     been applied anyway (no answer, or a 5xx), so the caller checks before retrying."""
-
-    def __init__(self, message: str, status: int | None = None, uncertain: bool = False):
-        super().__init__(message)
-        self.status = status
-        self.uncertain = uncertain
 
 
 ROLES = ("mine", "following", "all")

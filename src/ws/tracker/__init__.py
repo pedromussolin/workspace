@@ -3,7 +3,7 @@
 Only the Jira adapter exists; its engine lives in `ws.card`, `ws.cardrules` and `ws.jira`.
 """
 
-ADAPTERS = {"jira": "ws.tracker.jira_adapter"}
+ADAPTERS = {"jira": "ws.tracker.jira"}
 KNOWN_KINDS = tuple(ADAPTERS)
 
 
