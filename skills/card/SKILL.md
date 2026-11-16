@@ -16,8 +16,9 @@ never answers the approval box for the user: the apply waits for the user's yes.
    type, the epic, the links and the sections. Ask only what is missing. For `create`: the type
    (propose one from the rules' ordered questions, with a one-line reason), the epic (run
    `ws card epics` and offer the list; empty, ask for an epic key; an epic or an initiative takes no
-   epic), the priority and, only when there is a sprint, the due date (a create has no start date:
-   it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
+   epic), the priority and the due date: always propose one (the sprint's end when the card goes
+   into a sprint; otherwise ask the user), and leave it out only when the user says so (a create
+   has no start date: it is set when the task starts). No sprint unless the user asks for one (`sprint = "active"`).
    The assignee and the reporter are the user (`me`) unless the user names someone else, by dev id
    (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
    colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is
