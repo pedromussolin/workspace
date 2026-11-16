@@ -55,6 +55,24 @@ def account_for(email) -> str | None:
     return _open().account_for(email)
 
 
+def card_url_template(config=None) -> str:
+    """The link of a task with `{key}` where the key goes; offline, from the config alone."""
+    if config is not None:
+        return _adapter(config).card_url_template(config.tracker_settings)
+    from ws import userconfig
+    from ws.tracker.errors import TrackerSetup
+
+    kind, table, path = userconfig.load_tracker_table()
+    try:
+        require_kind(kind)
+    except UnknownTracker as error:
+        raise TrackerSetup(str(error)) from None
+    try:
+        return importlib.import_module(ADAPTERS[kind]).card_url_template_from_table(table, path)
+    except userconfig.ConfigInvalid as error:
+        raise TrackerSetup(str(error)) from None
+
+
 def task_from_listing(card, config):
     adapter = _adapter(config)
     return adapter.task_from_listing(card, getattr(config, config.tracker_kind))

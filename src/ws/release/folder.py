@@ -197,8 +197,8 @@ def pr_drafts(folder: Path, repo: str) -> dict[str, PrDraft]:
     return {key: read_pr(path) for key, path in found.items()}
 
 
-def tasks_block(tasks: tuple[str, ...], site: str) -> str:
-    return "\n".join(f"- {key}: {site}/browse/{key}" for key in tasks)
+def tasks_block(tasks: tuple[str, ...], template: str) -> str:
+    return "\n".join(f"- {key}: {template.format(key=key)}" for key in tasks)
 
 
 def release_line(day: date) -> str:
@@ -220,11 +220,11 @@ def render(
     text: str,
     *,
     tasks: tuple[str, ...],
-    site: str,
+    template: str,
     day: date,
     known: dict[str, tuple[str, str, int]],
 ) -> str:
-    text = text.replace("{tasks}", tasks_block(tasks, site))
+    text = text.replace("{tasks}", tasks_block(tasks, template))
     text = text.replace("{release_date}", f"{day:%d/%m/%Y}")
     return resolve_refs(text, known)
 

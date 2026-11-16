@@ -222,7 +222,11 @@ def _repo_items(
 
 def _render(config: ReleaseConfig, create: _Create, day: date, known: dict) -> str:
     rendered = release_folder.render(
-        create.draft.body, tasks=create.draft.tasks, site=config.site, day=day, known=known
+        create.draft.body,
+        tasks=create.draft.tasks,
+        template=config.card_url_template,
+        day=day,
+        known=known,
     )
     parts = []
     if create.state.shape == "single":
@@ -302,7 +306,7 @@ def build_plan(
             continue
         body = _render(config, item, day, known)
         state["problems"] += rules.pr_text_problems(
-            item.state, item.kind, item.draft, body, day, config.site, refs, slugs
+            item.state, item.kind, item.draft, body, day, config.card_url_template, refs, slugs
         )
         calls.append(_create_call(config, item, body))
         path = f"pr/{item.draft.path.name}"

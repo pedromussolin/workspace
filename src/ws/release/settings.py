@@ -1,10 +1,11 @@
-"""The `[release]` table of config.toml and the `[tracker.jira] site` the release texts link to."""
+"""The `[release]` table of config.toml and the task link template the release texts use."""
 
 from dataclasses import dataclass
 from pathlib import Path
 
-from ws import userconfig
+from ws import tracker, userconfig
 from ws.release import ReleaseSetup
+from ws.tracker.errors import TrackerSetup
 
 HINT = 'see "Release" in the README'
 REPO_KEYS = {"slug", "path", "alembic"}
@@ -28,7 +29,7 @@ class ReleaseConfig:
     base_branch: str
     sandbox_branch: str
     repos: tuple[RepoEntry, ...]
-    site: str
+    card_url_template: str
 
     def entry(self, name: str) -> RepoEntry:
         for repo in self.repos:
@@ -72,11 +73,8 @@ def _repo(name: str, table: object) -> RepoEntry:
 def load_release_config() -> ReleaseConfig:
     try:
         release = userconfig.load_table("release")
-        tracker = userconfig.load_table("tracker")
-        jira = tracker.get("jira")
-        if not isinstance(jira, dict):
-            jira = userconfig.load_table("jira")
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        template = tracker.card_url_template()
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, TrackerSetup) as error:
         raise _fail(str(error)) from error
     unknown = sorted(set(release) - RELEASE_KEYS)
     if unknown:
@@ -84,12 +82,9 @@ def load_release_config() -> ReleaseConfig:
     repos = release.get("repos")
     if not isinstance(repos, dict) or not repos:
         raise _fail("release.repos must list at least one repo")
-    site = jira.get("site")
-    if not isinstance(site, str) or not site:
-        raise _fail("tracker.jira.site must be a non-empty string")
     return ReleaseConfig(
         base_branch=_text(release, "base_branch", "release", "master"),
         sandbox_branch=_text(release, "sandbox_branch", "release", "sandbox"),
         repos=tuple(_repo(name, table) for name, table in repos.items()),
-        site=site.rstrip("/"),
+        card_url_template=template,
     )
