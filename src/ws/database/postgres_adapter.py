@@ -22,6 +22,7 @@ from ws.database.port import Refused, Rules, Setup, Unreachable
 # read-only transaction. `uescape` would let `U&"..."` spell any name without a backslash.
 # `query_to_`, `cursor_to_`, `ts_stat` and `ts_rewrite` run SQL held in a literal, where the guard
 # does not look; `table_to_`, `schema_to_` and `database_to_` dump whole tables or schemas.
+# `brin_` and `gin_clean_pending_list` change an index even inside a read-only transaction.
 REFUSED = Rules(
     words=(
         "copy",
@@ -41,6 +42,7 @@ REFUSED = Rules(
         "uescape",
         "ts_stat",
         "ts_rewrite",
+        "gin_clean_pending_list",
     ),
     prefixes=(
         "pg_",
@@ -51,6 +53,7 @@ REFUSED = Rules(
         "database_to_",
         "schema_to_",
         "table_to_",
+        "brin_",
     ),
     marks=("\\", "$"),
 )

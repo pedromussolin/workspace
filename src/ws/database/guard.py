@@ -43,7 +43,7 @@ CALL = re.compile(r"\s*\(")
 ATTRIBUTE = re.compile(r"\.\s*(?:[Uu]&)?\Z")
 FIRST_WORDS = ("select", "with")
 PLACEHOLDER_HINT = "use :day, :day_from or :day_to"
-COLUMN_HINT = "quote a column named like a refused word"
+COLUMN_HINT = "quote it and drop the table qualifier"
 NO_RULES = Rules()
 
 
@@ -111,13 +111,15 @@ def _check_words(pieces: list[tuple[str, str]], rules: Rules) -> None:
     for index, (kind, text) in enumerate(pieces):
         if kind == "code":
             for match in WORD.finditer(text):
-                _check_name(match.group().lower(), words, prefixes, f"; {COLUMN_HINT}: ")
+                called = CALL.match(text, match.end()) is not None
+                _check_name(match.group().lower(), words, prefixes, None if called else COLUMN_HINT)
         elif kind == "identifier" and (_called(pieces, index) or _after_dot(pieces, index)):
             _check_name(text[1:-1].replace('""', '"').lower(), words, prefixes, None)
 
 
 def _check_name(name: str, words: set[str], prefixes: tuple[str, ...], hint: str | None) -> None:
-    advice = "" if hint is None else f'{hint}"{name}"'
+    """`hint` is for a name that may be a column: a function call or a quoted name gets none."""
+    advice = "" if hint is None else f'; {hint}: "{name}"'
     if name in words:
         raise Refused(f'"{name}" is not allowed outside a literal{advice}')
     for prefix in prefixes:

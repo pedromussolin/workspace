@@ -86,7 +86,24 @@ def test_refused_rules_cover_the_engine():
     assert {"query_to_", "cursor_to_", "database_to_", "schema_to_", "table_to_"} <= set(
         REFUSED.prefixes
     )
-    assert {"ts_stat", "ts_rewrite"} <= set(REFUSED.words)
+    assert {"ts_stat", "ts_rewrite", "gin_clean_pending_list"} <= set(REFUSED.words)
+    assert "brin_" in REFUSED.prefixes
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "select brin_summarize_new_values('t_brin_idx')",
+        "select brin_summarize_range('t_brin_idx', 0)",
+        "select brin_desummarize_range('t_brin_idx', 0)",
+        "select ('t_brin_idx').\"brin_summarize_new_values\"",
+        "select gin_clean_pending_list('t_gin_idx')",
+        "select ('t_gin_idx').\"gin_clean_pending_list\"",
+    ],
+)
+def test_postgres_rules_refuse_index_maintenance(sql):
+    with pytest.raises(Refused):
+        neutral_guard.guard(sql, REFUSED)
 
 
 @pytest.mark.parametrize(

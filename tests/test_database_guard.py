@@ -98,16 +98,38 @@ def test_guard_words_cover_writes_schema_and_session():
     assert "replace" not in WORDS
 
 
-def test_guard_word_refusal_says_how_to_name_a_column():
+@pytest.mark.parametrize(
+    "sql",
+    ["select count(*) from t where comment = 'x'", "select count(*) from t where t.comment = 'x'"],
+)
+def test_guard_word_refusal_says_how_to_name_a_column(sql):
     rules = Rules(words=("comment",))
     with pytest.raises(Refused) as caught:
-        guard("select count(*) from t where comment = 'x'", rules)
+        guard(sql, rules)
     assert str(caught.value) == (
         '"comment" is not allowed outside a literal; '
-        'quote a column named like a refused word: "comment"'
+        'quote it and drop the table qualifier: "comment"'
     )
-    sql = "select count(*) from t where \"comment\" = 'x'"
-    assert guard(sql, rules)[0] == sql
+    quoted = "select count(*) from t where \"comment\" = 'x'"
+    assert guard(quoted, rules)[0] == quoted
+
+
+@pytest.mark.parametrize(
+    ("sql", "reason"),
+    [
+        ("select query_to_xml('select 1', true, false, '')", "words starting with query_to_"),
+        ("select count(*) from t where query_to_xml ('x')", "words starting with query_to_"),
+        ("select count(*) from t where cleanup()", '"cleanup"'),
+        ("select count(*) from t where cleanup\n(1)", '"cleanup"'),
+    ],
+)
+def test_guard_function_call_gets_no_column_hint(sql, reason):
+    rules = Rules(words=("cleanup",), prefixes=("query_to_",))
+    with pytest.raises(Refused) as caught:
+        guard(sql, rules)
+    assert str(caught.value).startswith(reason)
+    assert "quote it" not in str(caught.value)
+    assert ";" not in str(caught.value)
 
 
 @pytest.mark.parametrize(
