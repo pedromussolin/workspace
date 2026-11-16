@@ -199,7 +199,7 @@ def test_status_ignored_repo_is_never_read(world, ws_config, capsys):
 
 
 BACKWARDS = (
-    "does not map back to {0} in [tracker.jira.status_overrides]; "
+    "does not map back to {0} in the status_overrides of the tracker settings; "
     "a card in it would be read wrong and could move backwards"
 )
 
@@ -242,7 +242,8 @@ def test_status_card_whose_board_name_reads_otherwise_is_skipped(
     result = json.loads(out)
     assert result["moves"] == result["held"] == result["limited"] == result["to_confirm"] == []
     assert result["warnings"] == [
-        f'card TS-101: status "{name}" reads as {reads}; check [tracker.jira.status_overrides]'
+        f'card TS-101: status "{name}" reads as {reads}; '
+        "check status_overrides in the tracker settings of config.toml"
     ]
 
 
@@ -254,7 +255,7 @@ def test_status_misread_card_is_not_asked_to_confirm(world, capsys, monkeypatch)
     result = json.loads(out)
     assert result["to_confirm"] == []
     assert result["warnings"] == [
-        'card TS-103: status "Em andamento" reads as validation; check [tracker.jira.status_overrides]'  # noqa: E501
+        'card TS-103: status "Em andamento" reads as validation; check status_overrides in the tracker settings of config.toml'  # noqa: E501
     ]
 
 

@@ -1,4 +1,4 @@
-"""`ws board`: Jira cards follow the code. `status` reads; `drafts` only writes draft files."""
+"""`ws board`: tasks follow the code. `status` reads; `drafts` only writes draft files."""
 
 import argparse
 import json
@@ -23,7 +23,7 @@ EPIC_WARNING = "cards without is_epic: epics known only as parents; run ws task 
 
 
 def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
-    parser = subparsers.add_parser("board", help="Make Jira cards follow the code.")
+    parser = subparsers.add_parser("board", help="Make tracker tasks follow the code.")
     commands = parser.add_subparsers(dest="board_command", required=True)
     status = commands.add_parser(
         "status",
@@ -68,7 +68,7 @@ def _misread(
         if expected is not None and task.status != expected:
             warnings.append(
                 f'card {task.key}: status "{card["status_name"]}" reads as {task.status.value}; '
-                "check [tracker.jira.status_overrides]"
+                "check status_overrides in the tracker settings of config.toml"
             )
             keys.add(task.key)
     return keys
@@ -127,7 +127,7 @@ def _draft_text(move: object) -> tuple[str, str]:
         raise ValueError("a move must be an object")
     key, to_name = move.get("key"), move.get("to_name")
     if not isinstance(key, str) or not KEY.fullmatch(key):
-        raise ValueError(f"move key {key!r} is not a Jira key")
+        raise ValueError(f"move key {key!r} is not a task key")
     if not isinstance(to_name, str) or not to_name.strip():
         raise ValueError(f"move {key}: to_name must be a non-empty string")
     text = f'+++\nop = "move"\nkey = {toml_string(key)}\nto = {toml_string(to_name)}\n+++\n'

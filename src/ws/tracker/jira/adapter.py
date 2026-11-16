@@ -357,7 +357,7 @@ def task_from_listing(card: dict, settings: JiraConfig) -> Task:
 
 def open_tracker(config: UserConfig, connection_only: bool = False) -> JiraTracker:
     if connection_only:
-        return JiraTracker(_LazyClient(config.jira), config.jira)
+        return JiraTracker(_LazyClient(config.tracker_settings), config.tracker_settings)
     from ws import card
 
     try:

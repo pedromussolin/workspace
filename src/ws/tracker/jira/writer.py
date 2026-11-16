@@ -47,7 +47,7 @@ def session(needed: set[str], *, timeout: int = REQUEST_TIMEOUT) -> tuple[JiraCo
         require_kind(config.tracker_kind)
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise TrackerSetup(str(error)) from None
-    settings = config.jira
+    settings = config.tracker_settings
     missing = [name for name in sorted(needed) if not getattr(settings, name)]
     if missing:
         tables = {"types": "[tracker.jira.types]", "links": "[tracker.jira.links]"}
