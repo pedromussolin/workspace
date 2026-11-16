@@ -94,6 +94,8 @@ TASK_REF = re.compile(r"[A-Z][A-Z0-9_]*-[1-9]\d*")
 PROJECT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 DEFAULT_DATABASE = "replica"
 MAX_PLAN_BYTES = 1 << 20
+PLAN_FOLDER = re.compile(r"\bobservations\b")
+SED_IN_PLACE = re.compile(r"-[^-]*i|--in-place")
 GIT_DIRECTORY_VARIABLE = re.compile(r"GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE)=")
 
 CATCH_ALL_HARMLESS = set("echo printf grep rg cat head tail ls wc test [ which type".split())
@@ -1460,9 +1462,39 @@ def _database_checks(path: Path) -> list[tuple[str, str]] | None:
     return found
 
 
-def _observe_run(texts: list[str], args: list[Word], scan: Scan) -> Finding:
+def _changes_plan(scan: Scan, command: Command, task: str) -> str | None:
+    """A word of the command line that may change the plan of `task` before the run reads it.
+
+    A redirection to the plan, or another command that is not read-only (`cp`, `mv`, `tee`,
+    `sed -i`, a script) and names the `observations` folder or `<TASK>.toml`.
+    """
+
+    def names_plan(text: str) -> bool:
+        return bool(PLAN_FOLDER.search(text)) or f"{task}.toml" in text
+
+    for each in scan.commands:
+        for target in each.writes:
+            if names_plan(target):
+                return target
+        if each is command:
+            continue
+        texts = [word.text for word in each.words]
+        index = shell.locate_program(texts)
+        program = "" if index is None else program_name(texts[index])
+        args = texts if index is None else texts[index + 1 :]
+        if program in HARMLESS or (program == "sed" and not any(map(SED_IN_PLACE.match, args))):
+            continue
+        for text in args:
+            if names_plan(text):
+                return text
+    return None
+
+
+def _observe_run(command: Command, args: list[Word], scan: Scan) -> Finding:
     """The box of `ws observe run` with `args` (the words after `run`): each database check the
-    run may query, from the plan file. A plan the gate cannot find or read asks as unsure."""
+    run may query, from the plan file. A plan the gate cannot find or read, or one the same
+    command line may change first, asks as unsure."""
+    texts = [word.text for word in command.words]
     positionals, values = _observe_arguments(args)
     if not positionals:
         return _found(TITLE_REPLICA, "Falta a tarefa; o ws vai recusar", _snippet(texts))
@@ -1481,6 +1513,8 @@ def _observe_run(texts: list[str], args: list[Word], scan: Scan) -> Finding:
     if changed := _store_change(scan):
         reason = "Pode mudar a pasta de onde o ws lê o plano; não sei o que será consultado"
         return _found(TITLE_UNSURE, reason, changed)
+    if changed := _changes_plan(scan, command, task.text):
+        return _found(TITLE_UNSURE, "O comando muda o plano antes de rodar", changed)
     try:
         plans = _observe_plans(task.text, project.text if project else None)
     except OSError:
@@ -1558,7 +1592,7 @@ def _ws(command: Command, args: list[Word], scan: Scan) -> list[Finding]:
     if names == ["gate", "catalog"]:
         return _gate_catalog(texts, args, top)
     if names == ["observe", "run"]:
-        return [_observe_run(texts, args[top.positions[1] + 1 :], scan)]
+        return [_observe_run(command, args[top.positions[1] + 1 :], scan)]
     if names == ["card", "apply"]:
         kind = "card"
     elif names[:1] == ["release"] and names[1:] in (["publish"], ["move"]):
@@ -2089,8 +2123,8 @@ RELEASE_WRITE_NAME = re.compile(r"(?<![A-Za-z])(?:run_publish|run_move)")
 RELEASE_WRITE_WORD = re.compile(r"(?<![A-Za-z])(?:publish|move)")
 RELEASE_WORD = re.compile(r"(?<![A-Za-z])release")
 REPLICA_QUERY_NAME = re.compile(r"(?<![A-Za-z])(?:run_day|scalar_text)")
-OBSERVE_WORD = re.compile(r"(?<![A-Za-z])observe")
-RUN_WORD = re.compile(r"(?<![A-Za-z])run")
+OBSERVE_WORD = re.compile(r"(?<![A-Za-z])observe(?![A-Za-z])")
+RUN_WORD = re.compile(r"(?<![A-Za-z])run(?![A-Za-z])")
 DATABASE_WORD = re.compile(r"(?<![A-Za-z])database")
 SCALAR_WORD = re.compile(r"(?<![A-Za-z])scalar")
 # `exec`, `eval` and `compile` count only as bare names: `re.compile(...)` and `m.eval()` are

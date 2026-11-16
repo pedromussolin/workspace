@@ -3652,3 +3652,71 @@ def test_python_that_may_query_the_replica_asks(code, env):
 
     assert lines[0] == "Consulta a réplica de produção"
     assert lines[1].startswith("Python que chama o ws e pode consultar a réplica")
+
+
+PLAN_FILE = "~/.local/share/workspace/projects/demo/observations/TS-5.toml"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"echo 'x' >> {PLAN_FILE} && ws observe run TS-5",
+        f"cat new.toml > {PLAN_FILE}; ws observe run TS-5",
+        f"sed -i 's/stuck/late/' {PLAN_FILE} && ws observe run TS-5",
+        f"sed -ni 's/stuck/late/' {PLAN_FILE} && ws observe run TS-5",
+        f"cp new.toml {PLAN_FILE} && uv run ws observe run TS-5",
+        "mv /x/new.toml ~/.local/share/workspace/projects/demo/observations/ && "
+        "ws observe run TS-5",
+        f"echo 'x' | tee -a {PLAN_FILE} && ws observe run TS-5",
+        "cd ~/.local/share/workspace/projects/demo/observations && cp /x/a TS-5.toml && "
+        "ws observe run TS-5",
+        f"bash -c 'echo x >> {PLAN_FILE}; ws observe run TS-5'",
+        f"cp new.toml {PLAN_FILE} && python3 -m ws observe run TS-5",
+    ],
+)
+def test_observe_run_after_a_change_to_the_plan_asks_unsure(command, env):
+    write_plan(env)
+
+    lines = box(command, env).splitlines()
+
+    assert lines[0] == UNSURE
+    assert lines[1].startswith("O comando muda o plano antes de rodar")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"cat {PLAN_FILE} && ws observe run TS-5",
+        f"grep -c database {PLAN_FILE}; ws observe run TS-5",
+        f"sed -n '1,5p' {PLAN_FILE} && ws observe run TS-5",
+        "cd ~/.local/share/workspace/projects/demo/observations && ws observe run TS-5",
+        "cp a.toml b/TS-6.toml && ws observe run TS-5",
+    ],
+)
+def test_observe_run_after_reading_the_plan_shows_the_box(command, env):
+    write_plan(env)
+
+    assert box(command, env).splitlines() == [OBSERVE_TITLE, *OBSERVE_LINES]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws import observestatus; print('running')",
+        "import ws; print('observed', 'runner')",
+        "from ws.observedef import parse_plan; parse_plan(t).checks; print('runs')",
+    ],
+)
+def test_python_that_names_observe_and_run_only_inside_other_words_stays_silent(code, env):
+    assert box(f'python3 -c "{code}"', env) is None
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from ws import observe_cli; observe_cli.run_x(1)",
+        "import ws.observe as o; o.run(1)",
+    ],
+)
+def test_python_that_names_observe_and_run_as_words_asks(code, env):
+    assert box(f'python3 -c "{code}"', env).splitlines()[0] == "Consulta a réplica de produção"
