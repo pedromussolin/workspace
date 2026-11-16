@@ -28,6 +28,7 @@ tracker's API. Nothing is written through a tracker MCP, ever. What is specific 
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
+   A draft may also be a `card-write` JSON file (`NAME.json`); `ws card check` accepts it, and a `card-plan` one too.
 3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to the tracker. Show the preview
    exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,

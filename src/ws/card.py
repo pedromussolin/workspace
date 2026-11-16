@@ -11,7 +11,7 @@ import re
 import shlex
 import shutil
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -145,7 +145,8 @@ def drafts_folder(name: str) -> Path:
     return folder
 
 
-_DRAFT_NAME = re.compile(r"[A-Za-z0-9._-]+\.md")
+_DRAFT_NAME = re.compile(r"[A-Za-z0-9._-]+\.(md|json)")
+_DRAFT_SUFFIXES = (".md", ".json")
 
 
 def _draft_path(name: str) -> Path:
@@ -204,7 +205,7 @@ def collect(argument: str, single: bool = False) -> list[Path]:
     if path.is_dir():
         found = []
         for item in sorted(path.iterdir()):
-            if item.suffix != ".md":
+            if item.suffix not in _DRAFT_SUFFIXES:
                 continue
             if item.is_symlink() or not item.resolve().is_relative_to(root):
                 raise DraftError([f"{item.name} is a symlink or leaves {root}"])
@@ -212,7 +213,7 @@ def collect(argument: str, single: bool = False) -> list[Path]:
                 found.append(item.resolve())
         if found:
             return found
-        raise DraftError([f"{argument} holds no .md drafts"])
+        raise DraftError([f"{argument} holds no .md or .json drafts"])
     raise DraftError([f"{argument} does not exist"])
 
 
@@ -221,11 +222,43 @@ def load(path: Path) -> Loaded:
         raw = path.read_bytes()
     except OSError as error:
         return Loaded(path, None, None, [f"cannot read the draft: {error.strerror}"])
+    if path.suffix == ".json":
+        return _load_json(path, raw)
     try:
         draft = parse_draft(raw)
     except DraftError as error:
         return Loaded(path, None, hashlib.sha256(raw).hexdigest(), error.problems)
     return Loaded(path, draft, draft.sha256, write.check_document(write.to_document(draft)))
+
+
+def _load_json(path: Path, raw: bytes) -> Loaded:
+    """A `.json` draft is a `card-write` document; the pending record keeps the file's sha256."""
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return Loaded(path, None, digest, ["draft is not valid JSON"])
+    if not isinstance(document, dict):
+        return Loaded(path, None, digest, ["draft must be a JSON object"])
+    if document.get("$schema") != "card-write":
+        return Loaded(path, None, digest, ["$schema: a draft must be a card-write document"])
+    problems = write.check_document(document)
+    if problems:
+        return Loaded(path, None, digest, problems)
+    return Loaded(path, replace(write.from_document(document), sha256=digest), digest, [])
+
+
+def _card_plan_problems(path: Path) -> list[str] | None:
+    """The schema problems of a `card-plan` JSON document; None when the file is not one."""
+    if path.suffix != ".json":
+        return None
+    try:
+        document = json.loads(path.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(document, dict) or document.get("$schema") != "card-plan":
+        return None
+    return write.check_document(document)
 
 
 def show(path: str) -> dict:
@@ -343,6 +376,10 @@ def run_check(argument: str) -> int:
     except DraftError as error:
         _print_check(error.problems)
         return 1
+    plan_problems = _card_plan_problems(path)
+    if plan_problems is not None:
+        _print_check(plan_problems)
+        return 1 if plan_problems else 0
     item = load(path)
     if item.draft is None:
         _print_check(item.problems)
