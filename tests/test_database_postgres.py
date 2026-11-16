@@ -83,6 +83,52 @@ def test_refused_rules_cover_the_engine():
         REFUSED.words
     )
     assert "dblink" in REFUSED.prefixes
+    assert {"query_to_", "cursor_to_", "database_to_", "schema_to_", "table_to_"} <= set(
+        REFUSED.prefixes
+    )
+    assert {"ts_stat", "ts_rewrite", "gin_clean_pending_list"} <= set(REFUSED.words)
+    assert "brin_" in REFUSED.prefixes
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "select brin_summarize_new_values('t_brin_idx')",
+        "select brin_summarize_range('t_brin_idx', 0)",
+        "select brin_desummarize_range('t_brin_idx', 0)",
+        "select ('t_brin_idx').\"brin_summarize_new_values\"",
+        "select gin_clean_pending_list('t_gin_idx')",
+        "select ('t_gin_idx').\"gin_clean_pending_list\"",
+    ],
+)
+def test_postgres_rules_refuse_index_maintenance(sql):
+    with pytest.raises(Refused):
+        neutral_guard.guard(sql, REFUSED)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        'select (1.5)."pg_sleep"',
+        'select (12345)."pg_terminate_backend"',
+        "select ('/etc/hostname').\"pg_read_file\"",
+        "select ('sq').\"nextval\"",
+        "select ('conn').\"dblink_connect\"",
+        "select query_to_xml('select pg_sleep(1)', true, false, '')",
+        "select length(query_to_xmlschema('select 1', true, false, '')::text)",
+        "select length(query_to_xml_and_xmlschema('select 1', true, false, '')::text)",
+        "select length(cursor_to_xml('c', 1, true, false, '')::text)",
+        "select count(*) from ts_stat('select to_tsvector(pg_sleep(1)::text)')",
+        "select numnode(ts_rewrite('a'::tsquery, 'select a, b from t'))",
+        "select length(table_to_xml('t', true, false, '')::text)",
+        "select length(schema_to_xml('public', true, false, '')::text)",
+        "select length(database_to_xml(true, false, '')::text)",
+        'select (1)."QUERY_TO_XML"',
+    ],
+)
+def test_postgres_rules_refuse_attribute_calls_and_sql_strings(sql):
+    with pytest.raises(Refused):
+        neutral_guard.guard(sql, REFUSED)
 
 
 @pytest.mark.parametrize(
@@ -119,6 +165,9 @@ def test_postgres_rules_refuse_through_the_guard(sql):
         "SELECT coalesce(sum(v), 0)::numeric FROM t WHERE u >= :day_from AND u < :day_to",
         "SELECT count(*) FROM \"pg_like_name\" WHERE note = 'pg_sleep(1); delete'",
         "WITH open AS (SELECT id FROM batches WHERE closed_at IS NULL) SELECT count(*) FROM open",
+        "SELECT count(*) FROM t WHERE replace(code, '.', '') = '123'",
+        'SELECT count(*) FROM t WHERE "comment" IS NOT NULL',
+        'SELECT count(*) FROM t WHERE "pg_x" > 0',
     ],
 )
 def test_postgres_rules_keep_plain_reads(sql):
@@ -128,7 +177,7 @@ def test_postgres_rules_keep_plain_reads(sql):
 def test_postgres_command_mounts_pgpass_read_only(pgpass):
     opened = database(pgpass, docker_args=["--network", "host"])
     argv = opened.command({"day_from": BOUNDS["day_from"], "day_to": BOUNDS["day_to"]})
-    assert argv[:4] == ["docker", "run", "--rm", "-i"]
+    assert argv[:5] == ["docker", "run", "--rm", "-i", "--pull=never"]
     assert f"{pgpass}:/tmp/pgpass:ro" in argv
     assert argv[argv.index(f"{pgpass}:/tmp/pgpass:ro") - 1] == "-v"
     assert "PGPASSFILE=/tmp/pgpass" in argv
@@ -280,7 +329,7 @@ def test_postgres_stderr_becomes_a_fixed_reason(pgpass, fragment, kind, text):
         database(pgpass, run).scalar_text("select 1", {}, 120)
     error = caught.value
     assert type(error) is kind
-    assert str(error) == text
+    assert str(error) == text.format(image="postgres:16")
     assert "ABC123" not in str(error)
     assert "ABC123" not in repr(error.args)
     assert error.__context__ is None
@@ -313,14 +362,34 @@ def adapter_locals(error: BaseException) -> str:
         ("permission denied while trying to connect to the Docker daemon socket", Setup),
         ('ERROR:  permission denied for table "ABC123"', Unreachable),
         ('ERROR:  syntax error at or near "ABC123"', Refused),
+        ('ERROR:  invalid input syntax for type date: "ABC123"', Refused),
+        ('ERROR:  invalid input syntax for type integer: "ABC123"', Refused),
+        (
+            "ERROR:  WITH clause containing a data-modifying statement must be at the top level",
+            Refused,
+        ),
+        ("ERROR:  SELECT ... INTO is not allowed here", Refused),
+        ("docker: Error response from daemon: No such image: postgres:16", Setup),
     ],
 )
 def test_postgres_known_messages(pgpass, stderr, kind):
     run = FakeRun(stdout="", stderr=stderr, returncode=1)
     with pytest.raises(kind) as caught:
         database(pgpass, run).scalar_text("select 1", {}, 120)
+    assert type(caught.value) is kind
     assert "ABC123" not in str(caught.value)
     assert caught.value.__context__ is None
+
+
+def test_postgres_missing_image_says_how_to_pull_it(pgpass):
+    stderr = "docker: Error response from daemon: No such image: postgres:16-alpine\n"
+    run = FakeRun(stdout="", stderr=stderr, returncode=125)
+    with pytest.raises(Setup) as caught:
+        database(pgpass, run, image="postgres:16-alpine").scalar_text("select 1", {}, 120)
+    assert str(caught.value) == (
+        "the image postgres:16-alpine is not on this machine; "
+        "pull it once: docker pull postgres:16-alpine"
+    )
 
 
 def test_postgres_unknown_failure_is_unreachable(pgpass):

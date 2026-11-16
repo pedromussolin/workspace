@@ -31,10 +31,9 @@ def result(**changes):
         "verdict": "pass",
         "started": "2026-12-10T09:00:00Z",
         "finished": "2026-12-10T09:00:01Z",
-        "window": {"from": "2026-12-09T00:00:00-03:00", "to": "2026-12-10T00:00:00-03:00"},
+        "window": ["2026-12-09T03:00:00Z", "2026-12-10T03:00:00Z"],
         "hash": "abc",
         "times": "run",
-        "by": None,
     }
     document.update(changes)
     return document
@@ -63,6 +62,10 @@ def test_validate_missing_and_unexpected_keys():
         ("observe-result", result(expect=None), []),
         ("observe-result", result(expect="> 0"), []),
         ("observe-result", result(value="x"), ["$.value: expected number or boolean, got string"]),
+        ("observe-result", result(by="tester"), []),
+        ("observe-result", result(by=None), ["$.by: expected string, got null"]),
+        ("observe-result", result(window={"from": "a"}), ["$.window: expected array, got object"]),
+        ("observe-result", result(window=["a", 1]), ["$.window[1]: expected string, got integer"]),
     ],
 )
 def test_validate_types(schema, document, expected):
@@ -116,9 +119,9 @@ VALID = {
                 "task": "TS-5",
                 "project": "demo",
                 "job": "demo-job",
-                "switched_off": "2026-12-08",
                 "days": 5,
                 "due_day": "2026-12-15",
+                "first_day": "2026-12-09",
                 "day": 3,
                 "pending": ["a"],
                 "missing_days": ["2026-12-09"],
@@ -176,6 +179,15 @@ def test_each_schema_refuses_another_version(name):
 def test_status_day_is_a_number():
     document = copy_status(day="3")
     assert validate(document, "observe-status") == ["$.plans[0].day: expected integer, got string"]
+
+
+def test_status_plan_carries_first_day_not_switched_off():
+    document = copy_status(switched_off="2026-12-08")
+    del document["plans"][0]["first_day"]
+    assert validate(document, "observe-status") == [
+        "$.plans[0]: missing required key first_day",
+        "$.plans[0].switched_off: unexpected key",
+    ]
 
 
 def copy_status(**changes):

@@ -38,20 +38,10 @@
       "type": "string"
     },
     "window": {
-      "type": "object",
-      "properties": {
-        "from": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "from",
-        "to"
-      ],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "hash": {
       "type": "string"
@@ -64,10 +54,7 @@
       ]
     },
     "by": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     }
   },
   "required": [
@@ -82,8 +69,7 @@
     "finished",
     "window",
     "hash",
-    "times",
-    "by"
+    "times"
   ],
   "additionalProperties": false
 }

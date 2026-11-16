@@ -65,13 +65,19 @@ def scalar(db: Database, sql: str, bounds: dict[str, str], *, lock: Path | None 
         answer = db.scalar_text(text, {name: bounds[name] for name in used}, db.timeout)
     finally:
         os.close(descriptor)
-    return _number(answer)
+    number = _number(answer)
+    # The traceback keeps this frame alive: an answer that is not a number may hold row values.
+    del answer
+    if isinstance(number, str):
+        raise Refused(number)
+    return number
 
 
-def _number(answer: str) -> Decimal:
+def _number(answer: str) -> Decimal | str:
+    """The number, or the reason to refuse it; it never raises, so no traceback keeps its frame."""
     value = answer.strip()
     if not value:
-        raise Refused("the query returned null; wrap the aggregate in coalesce(..., 0)")
+        return "the query returned null; wrap the aggregate in coalesce(..., 0)"
     if not NUMBER.fullmatch(value):
-        raise Refused("the query must return one number")
+        return "the query must return one number"
     return Decimal(value)
