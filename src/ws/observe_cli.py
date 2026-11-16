@@ -420,6 +420,13 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
         extra = _holidays()
         if document["task"] != plan.task:
             raise Invalid(f"the result is for {document['task']}, not {plan.task}")
+        kind = _open_observability().kind
+        # The provider named in the answer is not ours to echo.
+        if document["provider"] != kind:
+            raise Invalid(
+                "the result comes from another provider than the configured observability tool "
+                f"({kind})"
+            )
         chosen = _closed_day(plan, _day(document["day"], "day"), _today(plan.timezone), extra)
     except (Failure, Invalid) as error:
         return _stopped(report, error)

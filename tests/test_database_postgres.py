@@ -325,6 +325,30 @@ def test_postgres_timeout_argument_drives_both_timeouts(pgpass):
     assert "SET statement_timeout = '10s';" in kwargs["input"]
 
 
+@pytest.mark.parametrize(("timeout", "connect"), [(10, 10), (120, 15), (600, 15), (1, 1)])
+def test_postgres_container_gives_up_connecting_before_the_run_timeout(pgpass, timeout, connect):
+    run = FakeRun()
+    database(pgpass, run).scalar_text("select 1", {}, timeout)
+    argv, kwargs = run.calls[0]
+    flags = argv[: argv.index("postgres:16")]
+    assert flags[flags.index(f"PGCONNECT_TIMEOUT={connect}") - 1] == "-e"
+    assert connect + timeout < kwargs["timeout"]
+    assert f"PGCONNECT_TIMEOUT={connect}" in database(pgpass).command({}, timeout)
+
+
+def test_postgres_command_defaults_to_the_configured_connect_timeout(pgpass):
+    argv = database(pgpass, timeout_seconds=12).command({})
+    assert "PGCONNECT_TIMEOUT=12" in argv[: argv.index("postgres:16")]
+
+
+def test_postgres_local_runner_sets_the_connect_timeout(pgpass):
+    run = FakeRun()
+    database(pgpass, run, runner="local").scalar_text("select 1", {}, 120)
+    argv, kwargs = run.calls[0]
+    assert kwargs["env"]["PGCONNECT_TIMEOUT"] == "15"
+    assert not any("PGCONNECT_TIMEOUT" in arg for arg in argv)
+
+
 def test_postgres_local_runner_names_the_pgpass_in_the_environment(pgpass, monkeypatch):
     monkeypatch.setenv("WS_TEST_MARK", "kept")
     run = FakeRun()

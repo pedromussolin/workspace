@@ -77,6 +77,21 @@ def test_extra_holidays_from_config(tmp_path, monkeypatch):
     assert extra_holidays() == frozenset()
 
 
+@pytest.mark.parametrize(
+    "item", ["2026-12-24T00:00:00", "2026-12-24T00:00:00-03:00", "2026-12-24 08:00:00Z"]
+)
+def test_extra_holidays_refuse_a_date_time(tmp_path, monkeypatch, item):
+    from ws.userconfig import ConfigInvalid
+    from ws.workdays import extra_holidays
+
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "config.toml").write_text(f"[workdays]\nholidays = [2026-12-31, {item}]\n")
+    with pytest.raises(
+        ConfigInvalid, match=r"^workdays\.holidays\[1\] must be a YYYY-MM-DD date, not a date-time$"
+    ):
+        extra_holidays()
+
+
 def test_movable_holidays_are_not_business_days():
     from ws.workdays import is_business_day, next_business_day
 

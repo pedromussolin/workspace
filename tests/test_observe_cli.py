@@ -552,7 +552,7 @@ def tool_result(path: Path, **changes) -> dict:
         "version": 1,
         "task": "TS-5",
         "day": "2026-12-09",
-        "provider": "any",
+        "provider": "datadog",
         "counts": [
             {
                 "check": "sweep-calls",
@@ -573,6 +573,25 @@ def write_result(path: Path, document: dict | None, text: str | None = None) -> 
     target.write_text(json.dumps(document) if text is None else text, encoding="utf-8")
     target.chmod(0o644)
     return target
+
+
+def test_record_result_refuses_another_provider(env, capsys):
+    path = write_plan()
+    target = write_result(path, tool_result(path, provider="elsewhere"))
+    code, out, err = ws_json(capsys, "record", "TS-5", "--result", str(target))
+    assert code == 1
+    assert out["problems"] == [
+        "the result comes from another provider than the configured observability tool (datadog)"
+    ]
+    assert "elsewhere" not in json.dumps(out) + err
+    assert rows(path) == []
+
+    env.write_config(REPLICA)
+    target = write_result(path, tool_result(path))
+    code, out, err = ws_json(capsys, "record", "TS-5", "--result", str(target))
+    assert code == 2
+    assert "[observability] provider is not set" in err
+    assert rows(path) == []
 
 
 def test_record_result_checks_hashes(env, capsys):

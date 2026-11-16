@@ -20,11 +20,12 @@ def _offset(moment: datetime) -> str:
 
 
 def _times(row: dict, zone: ZoneInfo) -> str:
-    if row.get("times") == "record":
-        return "horário do registro"
     if not row.get("started") or not row.get("finished"):
         return ""
     started = datetime.fromisoformat(row["started"]).astimezone(zone)
+    if row.get("times") == "record":
+        # A value typed by a person has one moment: when it was recorded.
+        return f"registrado às {started:%H:%M:%S} ({_offset(started)})"
     finished = datetime.fromisoformat(row["finished"]).astimezone(zone)
     return f"{started:%H:%M:%S}–{finished:%H:%M:%S} ({_offset(started)})"
 
@@ -50,7 +51,7 @@ def _cell(row: dict | None, hashes: dict[str, str], zone: ZoneInfo) -> str:
     text = " · ".join(parts)
     if row.get("hash") != hashes.get(row["check"]):
         text += " (desatualizado)"
-    return text
+    return _escape(text)
 
 
 def _escape(text: str) -> str:

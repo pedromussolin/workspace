@@ -283,6 +283,56 @@ def test_program_timeout_is_a_failure_not_zero(tmp_path, signal):
 
 
 @needs_node
+@pytest.mark.parametrize("signal", ["traces", "logs"])
+@pytest.mark.parametrize(
+    "first",
+    [
+        {},
+        {"computes": {}},
+        {"computes": {"c0": None}},
+        {"computes": {"c0": "x"}},
+        {"computes": {"c0": "3"}},
+        {"attributes": {"computes": {"c1": 2}}},
+        None,
+    ],
+)
+def test_program_bucket_without_a_number_is_a_failure_not_zero(tmp_path, signal, first):
+    kind = "spans" if signal == "traces" else "logs"
+    response = {"data": {"buckets": [first]}}
+    out = node_run(tmp_path, document(count("c1", signal)), [{"kind": kind, "response": response}])
+    assert out["result"]["counts"] == []
+    assert out["result"]["failed"] == [{"check": "c1", "reason": "unexpected response"}]
+
+
+@needs_node
+@pytest.mark.parametrize("response", [{}, {"data": {}}, {"data": None}, {"data": {"buckets": 3}}])
+def test_program_response_without_a_bucket_list_is_a_failure_not_zero(tmp_path, response):
+    out = node_run(
+        tmp_path, document(count("c1", "logs")), [{"kind": "logs", "response": response}]
+    )
+    assert out["result"]["counts"] == []
+    assert out["result"]["failed"] == [{"check": "c1", "reason": "unexpected response"}]
+
+
+@needs_node
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"data": {"buckets": []}},
+        {"data": []},
+        {"data": [{"attributes": {"computes": {"c0": 0}}}]},
+        {"data": {"buckets": [{"computes": {"c0": 0}}]}},
+    ],
+)
+def test_program_no_bucket_or_a_zero_count_is_zero(tmp_path, response):
+    out = node_run(
+        tmp_path, document(count("c1", "logs")), [{"kind": "logs", "response": response}]
+    )
+    assert out["result"]["failed"] == []
+    assert out["result"]["counts"][0]["value"] == 0
+
+
+@needs_node
 @pytest.mark.parametrize(
     ("response", "reason"),
     [

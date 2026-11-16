@@ -1,12 +1,18 @@
 """The daily results rows (`<TASK>.results.jsonl`, beside the plan, mode 600)."""
 
+import fcntl
 import json
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from ws.observedef import RESULTS_SUFFIX, Check, Invalid, check_hash, meets
+from ws.observedef import PRIVATE_FILE, RESULTS_SUFFIX, Check, Invalid, check_hash, meets
 from ws.privatefile import private_file
+
+LOCK_SUFFIX = ".lock"
 
 
 def results_path(plan: Path) -> Path:
@@ -76,14 +82,27 @@ def make_row(
     return row
 
 
+@contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """An exclusive lock on `<results>.lock`, beside the results: two runs of one plan at once
+    would each read the rows, add one and replace the file, and the first row would be lost."""
+    lock = path.with_name(path.name + LOCK_SUFFIX)
+    descriptor = os.open(lock, os.O_RDWR | os.O_CREAT, PRIVATE_FILE)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
+
+
 def put_row(path: Path, row: dict) -> None:
     if "day" not in row or "check" not in row:
         raise Invalid("row: day and check are required")
-    rows = [
-        r for r in load_rows(path) if (r.get("day"), r.get("check")) != (row["day"], row["check"])
-    ]
-    rows.append(row)
-    rows.sort(key=lambda r: (str(r.get("day", "")), str(r.get("check", ""))))
-    with private_file(path) as stream:
-        for each in rows:
-            stream.write((json.dumps(each, ensure_ascii=False, sort_keys=True) + "\n").encode())
+    key = (row["day"], row["check"])
+    with _locked(path):
+        rows = [r for r in load_rows(path) if (r.get("day"), r.get("check")) != key]
+        rows.append(row)
+        rows.sort(key=lambda r: (str(r.get("day", "")), str(r.get("check", ""))))
+        with private_file(path) as stream:
+            for each in rows:
+                stream.write((json.dumps(each, ensure_ascii=False, sort_keys=True) + "\n").encode())

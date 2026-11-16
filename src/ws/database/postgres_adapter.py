@@ -78,6 +78,11 @@ DEFAULT_IMAGE = "postgres:16"
 PGPASS_IN_CONTAINER = "/tmp/pgpass"
 PGPASS_VARIABLE = "PGPASSFILE"
 TIMEOUT_MARGIN = 30
+# libpq gives up connecting after this many seconds at most: connect plus statement then end
+# before the run's own timeout (statement + TIMEOUT_MARGIN), which would only kill the docker
+# client and could leave the container running.
+CONNECT_VARIABLE = "PGCONNECT_TIMEOUT"
+MAX_CONNECT_SECONDS = TIMEOUT_MARGIN // 2
 PLAIN = re.compile(r"[^\s-]\S*")
 DAY = re.compile(r"\d{4}-\d{2}-\d{2}", re.ASCII)
 MOMENT = re.compile(
@@ -148,8 +153,9 @@ class Postgres:
     rules: Rules = REFUSED
     run: Callable[..., subprocess.CompletedProcess] = subprocess.run
 
-    def command(self, bounds: dict[str, str]) -> list[str]:
-        """The argv; each bound becomes a psql variable, once it is an ISO date or moment."""
+    def command(self, bounds: dict[str, str], timeout: int | None = None) -> list[str]:
+        """The argv; each bound becomes a psql variable, once it is an ISO date or moment.
+        `timeout` (default: the configured one) sets the connect timeout of the container."""
         for bound, value in bounds.items():
             _check_bound(bound, value)
         psql = [
@@ -187,6 +193,8 @@ class Postgres:
             f"{self.pgpass}:{PGPASS_IN_CONTAINER}:ro",
             "-e",
             f"{PGPASS_VARIABLE}={PGPASS_IN_CONTAINER}",
+            "-e",
+            f"{CONNECT_VARIABLE}={_connect_seconds(self.timeout if timeout is None else timeout)}",
             self.image,
             *psql,
         ]
@@ -213,7 +221,7 @@ class Postgres:
     def scalar_text(self, sql: str, bounds: dict[str, str], timeout: int) -> str:
         if not self.pgpass.is_file():
             raise Setup(f"database.{self.name}.pgpass names no file; create it or fix the path")
-        outcome = self._call(self.command(bounds), self.script(sql, timeout), timeout)
+        outcome = self._call(self.command(bounds, timeout), self.script(sql, timeout), timeout)
         if isinstance(outcome, Exception):
             raise outcome
         if outcome.returncode != 0:
@@ -232,7 +240,11 @@ class Postgres:
         original one (and its captured output) as `__context__`."""
         environment = None
         if self.runner == "local":
-            environment = {**os.environ, PGPASS_VARIABLE: str(self.pgpass)}
+            environment = {
+                **os.environ,
+                PGPASS_VARIABLE: str(self.pgpass),
+                CONNECT_VARIABLE: str(_connect_seconds(timeout)),
+            }
         try:
             return self.run(
                 argv,
@@ -246,6 +258,10 @@ class Postgres:
             return Setup(f"{argv[0]} not found")
         except subprocess.TimeoutExpired:
             return Unreachable(TIMED_OUT)
+
+
+def _connect_seconds(timeout: int) -> int:
+    return max(1, min(int(timeout), MAX_CONNECT_SECONDS))
 
 
 def from_config(name: str, table: dict) -> Postgres:
