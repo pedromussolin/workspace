@@ -1,7 +1,6 @@
 ---
 name: release
-description: Builds, publishes, moves and reports the release of the company repos (release branches, the merge into the sandbox, the PRs, a new date, the PR links for the GMUD) through the `ws release` commands, with a preview and an approval prompt before any GitHub write. Use only when the user types /release, for example "/release monta a release de 20/11 com TS-101 e TS-102", "/release publica", "/release move a de 20/11 para 27/11" or "/release status".
-disable-model-invocation: true
+description: Builds, publishes, moves and reports the release of the company repos (release branches, the merge into the sandbox, the PRs, a new date, the PR links for the GMUD) through the `ws release` commands, with a preview and an approval prompt before any GitHub write. Use when the user asks to build, publish, move or check a release ("monta a release de 20/11 com TS-101 e TS-102", "publica a release", "move a release de 20/11 para 27/11", "como está a release?") or types /release. The model may start it by itself; every GitHub write still waits for the user's approval box.
 ---
 
 # Release
@@ -11,7 +10,8 @@ order is fixed: understand, build, validate, write the PR texts, preview, approv
 The model decides, asks and writes the PR prose; `ws release` builds the branches, checks the rules,
 calls `gh` and `git push`. Nothing goes to GitHub through the GitHub MCP, ever. Never run
 `gh pr merge`, never push to `master` or `sandbox`: the user merges the PRs on GitHub. Never wrap or
-disguise a command to avoid the approval prompt.
+disguise a command to avoid the approval prompt. The model may start this skill by itself, but never
+answers the approval box for the user: `publish` and `move` wait for the user's yes.
 
 Terms: the release branch `release/YYYYMMDD` merges the task branches of a repo; a `-sdbx` branch
 is a copy of it that also merges `origin/sandbox`, made only when the code branch conflicts with the
