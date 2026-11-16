@@ -142,7 +142,7 @@ class FakeTracker:
         document = entry["write"]
         step = {
             "draft": entry["source"],
-            "op": document["op"] if document else "create",
+            "op": document["op"] if document else "unknown",
             "card": None,
             "title": None,
             "preview": [],

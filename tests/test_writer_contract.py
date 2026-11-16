@@ -1,6 +1,8 @@
 """What every `Writer` must do, checked on the Jira writer (through the fake Jira server) and on
 the in-memory tracker, so the port is shown to be neutral."""
 
+import json
+
 import fake_tracker
 import pytest
 from fake_tracker import FakeTracker, make_card
@@ -72,6 +74,26 @@ def test_unknown_card_is_a_problem_not_a_call(opened):
     assert step["problems"]
     assert step["native"] == []
     assert contracts.validate(plan, "card-plan") == []
+
+
+def test_a_draft_that_did_not_parse_is_planned_with_no_op(opened, capsys):
+    path = make_draft("1-bad.md", "link", "texto\n", key="TS-101", blocks=["TS-102"])
+    [entry] = _entries([path])
+
+    plan = opened([path]).plan([entry])
+
+    [step] = plan["steps"]
+    assert entry["write"] is None
+    assert (step["op"], step["problems"], step["native"]) == (
+        "unknown",
+        ["a link draft has no body"],
+        [],
+    )
+    assert contracts.validate(plan, "card-plan") == []
+    assert main(["card", "preview", "--json", str(path)]) == 1
+    shown = json.loads(capsys.readouterr().out)
+    assert [step["op"] for step in shown["steps"]] == ["unknown"]
+    assert shown["summary"] == ["[1/1] ? (1-bad.md)"]
 
 
 def test_apply_yields_valid_card_result_steps(opened):

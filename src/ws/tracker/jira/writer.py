@@ -129,7 +129,7 @@ def _step(entry: dict, verdict: rules.Verdict) -> dict:
     write = entry["write"] or {}
     return {
         "draft": entry["source"],
-        "op": write.get("op", "create"),
+        "op": write.get("op", "unknown"),
         "card": verdict.resolved.get("card", {}).get("key"),
         "title": write.get("title") if write.get("op") == "create" else None,
         "preview": verdict.preview,

@@ -65,7 +65,8 @@
               "move",
               "comment",
               "worklog",
-              "link"
+              "link",
+              "unknown"
             ]
           },
           "card": {

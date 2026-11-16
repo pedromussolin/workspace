@@ -80,7 +80,8 @@ request on 16/11.
 
 - `tracker` (kind), `target` (the instance the plan is bound to; Jira: the site, no trailing `/`),
   `today` (the day in the user's tracker time zone, the one the rules used);
-- `steps[]`, one per draft in order: `draft` (`path`, `sha256`), `op`, `card` (key or null),
+- `steps[]`, one per draft in order: `draft` (`path`, `sha256`), `op` (`unknown` for a draft that
+  did not parse), `card` (key or null),
   `title`, `preview` (PT-BR lines), `warnings`, `problems`, `before` (the card state the preview
   showed), `native` (the calls: `method`, `path`, `body`);
 - `summary` (the PT-BR lines the person approves) and `code`, both added by the core.
