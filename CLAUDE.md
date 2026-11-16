@@ -119,8 +119,10 @@ edits `~/.claude/settings.json`: it prints the JSON to add.
   script bundled with the skill), and the skill calls it. The model only decides, asks and writes
   the prose; it never builds by hand what a script can build (files, JSON, commands, git steps).
   Scripts make fewer mistakes, give the same result every time and cost fewer tokens.
-- A skill that writes outside the repo (Jira, GMUD, GitHub) sets `disable-model-invocation: true`
-  and follows plan, validate (`--dry-run`), explicit approval, execute.
+- A skill that writes outside the repo (Jira, GMUD, GitHub) follows plan, validate (`--dry-run`),
+  explicit approval, execute. The approval is the Claude Code box on the write (an `ask` rule or
+  the gate), so the model may start such a skill by itself (`/card` since 16/11/2026);
+  `disable-model-invocation: true` stays only on a skill whose writes are not all behind a box.
 - Always-loaded files stay small: this file under 200 lines, project `CLAUDE.md` short,
   `MEMORY.md` an index. Procedures live in skills, detail in the project files.
 - A hard rule is a hook or a deny rule, never prose alone.
