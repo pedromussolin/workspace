@@ -14,6 +14,7 @@ import pytest
 
 pytest.register_assert_rewrite("release_helpers", "fake_gh")
 
+from ws import userconfig  # noqa: E402
 from ws.names import NamesTable, load_names  # noqa: E402
 
 NAMES_TOML = """\
@@ -74,6 +75,12 @@ def ws_dictionaries(
     monkeypatch.setenv("WS_DATA_DIR", str(data))
     monkeypatch.setenv("WS_SYSTEM_DICT_DIR", str(data / "no-system-dict"))
     return folder
+
+
+@pytest.fixture(autouse=True)
+def fresh_deprecation_notice(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The old `[jira]` notice prints once per process; each test starts as a new process would."""
+    monkeypatch.setattr(userconfig, "_deprecation_shown", False)
 
 
 @pytest.fixture(autouse=True)
