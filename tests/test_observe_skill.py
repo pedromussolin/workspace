@@ -74,6 +74,26 @@ def test_daily_has_the_observation_line():
     assert "observação:" in text
 
 
+def test_daily_keeps_the_valid_plans_at_exit_1():
+    text = (ROOT / "skills" / "daily" / "SKILL.md").read_text()
+    step = text.split("3c. **Observations.**", 1)[1].split("\n4. ", 1)[0]
+    for phrase in (
+        "`pending`",
+        "`done`",
+        "`attention`",
+        "`missing_days`",
+        "`stale`",
+        "Exit 1 with JSON on stdout",
+        "each item of `problems` as one warning",
+        "Exit 2",
+        "no JSON",
+    ):
+        assert phrase in step, phrase
+    assert "A non-zero exit" not in step
+    note = text.split('one "observação: ', 1)[1].split("\n- ", 1)[0]
+    assert "faltam dd/mm" in note
+
+
 def test_change_request_survey_uses_the_report():
     text = (ROOT / "skills" / "change-request" / "SKILL.md").read_text()
     assert "ws observe report" in text
