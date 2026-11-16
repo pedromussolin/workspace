@@ -1,4 +1,4 @@
-"""`ws board`: Jira cards follow the code. `status` reads; `drafts` only writes draft files."""
+"""`ws board`: tasks follow the code. `status` reads; `drafts` only writes draft files."""
 
 import argparse
 import json
@@ -23,7 +23,7 @@ EPIC_WARNING = "cards without is_epic: epics known only as parents; run ws task 
 
 
 def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
-    parser = subparsers.add_parser("board", help="Make Jira cards follow the code.")
+    parser = subparsers.add_parser("board", help="Make tracker tasks follow the code.")
     commands = parser.add_subparsers(dest="board_command", required=True)
     status = commands.add_parser(
         "status",
@@ -54,7 +54,7 @@ def _read_cards(path: Path) -> list[dict]:
 
 
 def _misread(
-    cards: list[dict], tasks: list[Task], cfg: BoardConfig, warnings: list[str]
+    cards: list[dict], tasks: list[Task], cfg: BoardConfig, warnings: list[str], table: str
 ) -> set[str]:
     """Cards in a `[board.statuses]` name that the tracker's mapping reads as another status.
 
@@ -68,7 +68,7 @@ def _misread(
         if expected is not None and task.status != expected:
             warnings.append(
                 f'card {task.key}: status "{card["status_name"]}" reads as {task.status.value}; '
-                "check [tracker.jira.status_overrides]"
+                f"check {table}"
             )
             keys.add(task.key)
     return keys
@@ -89,7 +89,8 @@ def _status(args: argparse.Namespace) -> int:
         overrides = tracker.status_overrides(config)
     except TrackerSetup as error:
         return _fail("status", error)
-    problem = unmapped_status(cfg, overrides)
+    table = f"[tracker.{config.tracker_kind}.status_overrides]"
+    problem = unmapped_status(cfg, overrides, table)
     if problem is not None:
         return _fail("status", problem)
     try:
@@ -106,7 +107,7 @@ def _status(args: argparse.Namespace) -> int:
         for repo in find_repos(config.standup, repo_root(), warnings)
         if not cfg.ignored(repo.name)
     ]
-    misread = _misread(cards, tasks, cfg, warnings)
+    misread = _misread(cards, tasks, cfg, warnings, table)
     keys = {task.key for task in tasks if task.status in RUNG and task.status != Status.DONE}
     keys -= misread
     stale: set[str] = set()
@@ -127,7 +128,7 @@ def _draft_text(move: object) -> tuple[str, str]:
         raise ValueError("a move must be an object")
     key, to_name = move.get("key"), move.get("to_name")
     if not isinstance(key, str) or not KEY.fullmatch(key):
-        raise ValueError(f"move key {key!r} is not a Jira key")
+        raise ValueError(f"move key {key!r} is not a task key")
     if not isinstance(to_name, str) or not to_name.strip():
         raise ValueError(f"move {key}: to_name must be a non-empty string")
     text = f'+++\nop = "move"\nkey = {toml_string(key)}\nto = {toml_string(to_name)}\n+++\n'

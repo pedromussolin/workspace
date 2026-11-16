@@ -425,11 +425,12 @@ def parse_board(table: dict, path: Path) -> BoardConfig:
     )
 
 
-def unmapped_status(cfg: BoardConfig, overrides: dict[str, str]) -> str | None:
+def unmapped_status(cfg: BoardConfig, overrides: dict[str, str], table: str) -> str | None:
     """The first `[board.statuses]` name the tracker's mapping would read as another status.
 
     `validation` and `ready_deploy` have no tracker category of their own, so their names must be
-    in the overrides; `in_progress` and `done` may rely on the category.
+    in the overrides; `in_progress` and `done` may rely on the category. `table` names the config
+    table of the overrides, for the message.
     """
     for status, name in cfg.statuses.items():
         mapped = overrides.get(name)
@@ -437,8 +438,7 @@ def unmapped_status(cfg: BoardConfig, overrides: dict[str, str]) -> str | None:
             continue
         return (
             f'board.statuses.{status.value} "{name}" does not map back to {status.value} in '
-            "[tracker.jira.status_overrides]; a card in it would be read wrong and could move "
-            "backwards"
+            f"{table}; a card in it would be read wrong and could move backwards"
         )
     return None
 
