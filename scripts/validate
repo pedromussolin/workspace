@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# The quick checks of a change, before the focused tests and the full suite
+# (docs/how-to/validate-change.md): lint, format, the boundary and skill-word tests, the agent docs
+# test and the new words still waiting for an answer. Every check runs; at the end the script
+# prints the ones that failed and exits 1, or exits 0 when all of them passed.
+set -uo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+# /tmp is a small tmpfs: pytest writes under the cache and the folder goes away afterwards.
+basetemp="${XDG_CACHE_HOME:-$HOME/.cache}/ws-pytest/validate"
+tests=(
+  tests/test_tracker_boundary.py
+  tests/test_observe_boundaries.py
+  tests/test_card_skill_words.py
+  tests/test_daily_skill.py
+  tests/test_agent_docs.py
+)
+failed=()
+
+check() {
+  local name="$1"
+  shift
+  echo "== $name"
+  if ! "$@"; then
+    failed+=("$name")
+  fi
+}
+
+new_words() {
+  # `ws names pending` exits 0 with words listed; any word left is a failure here.
+  local listing
+  if ! listing="$(uv run ws names pending --json)"; then
+    return 1
+  fi
+  if [ "$listing" != "[]" ]; then
+    uv run ws names pending
+    echo "Answer each word first: docs/conventions/confidentiality.md, \"New words\"." >&2
+    return 1
+  fi
+}
+
+check "ruff check" uv run ruff check
+check "ruff format --check" uv run ruff format --check
+check "boundary, skill-word and agent docs tests" \
+  uv run pytest -q -p no:cacheprovider --basetemp="$basetemp" "${tests[@]}"
+chmod -R u+w "$basetemp" 2>/dev/null
+rm -rf "$basetemp"
+check "ws names pending" new_words
+
+echo
+if [ "${#failed[@]}" -eq 0 ]; then
+  echo "validate: everything passed"
+  exit 0
+fi
+echo "validate: failed:"
+printf '  - %s\n' "${failed[@]}"
+exit 1
