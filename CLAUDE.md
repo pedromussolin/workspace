@@ -123,6 +123,15 @@ edits `~/.claude/settings.json`: it prints the JSON to add.
   explicit approval, execute. The approval is the Claude Code box on the write (an `ask` rule or
   the gate), so the model may start such a skill by itself (`/card` since 16/11/2026);
   `disable-model-invocation: true` stays only on a skill whose writes are not all behind a box.
+- Provider agnostic: tracker, observability, database, code host, secrets and deploy each have a
+  neutral port and one adapter per provider; the provider is chosen in `config.toml` (`[tracker]
+  kind`, `[observability] provider`, ...) and its name appears only in the adapter, the config and
+  the skill's `references/<kind>.md`. Ports exchange versioned JSON contracts, with a schema in
+  `src/ws/data/contracts/`.
+- Reads go through `ws` first. When the `ws` command fails, the skill falls back to the MCP of the
+  provider selected in the config, following `references/<kind>.md`; with no reference or no
+  working MCP, it says the data is missing. Writes never go through an MCP: only through `ws`, with
+  the preview and the approval box.
 - Always-loaded files stay small: this file under 200 lines, project `CLAUDE.md` short,
   `MEMORY.md` an index. Procedures live in skills, detail in the project files.
 - A hard rule is a hook or a deny rule, never prose alone.
