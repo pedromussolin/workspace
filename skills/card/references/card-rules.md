@@ -20,8 +20,8 @@ in the next plan, will refuse the same).
 - An initiative is an objective that crosses systems (for example, switching a machine off). It has
   no cards of its own, only epics **[code: a card's parent is an epic]**.
 - An epic is one system or one objective inside an initiative, and closes when done. Its `parent`
-  is its initiative **[code: a level-2 card that is not done]**. This Jira's epic screens have no
-  `parent`, so the check refuses it and the user links the epic to its initiative by hand.
+  is its initiative **[code: a level-2 card that is not done]**. When the tracker's epic screens have no
+  `parent`, the check refuses it and the user links the epic to its initiative by hand.
 - A card has exactly one epic **[code: `epic` is required for the five card types and refused for
   `epic` and `initiative`]**. The epic is the system the code changes. When the card exists only to
   migrate or switch something off, it goes to the initiative's epic and links to the system's cards.
@@ -59,7 +59,7 @@ several repos when it is one delivery (the same task ID in each repo's branch).
 - Only these three **[code]**. A card never links to itself, and the same card is never in `blocks`
   and `blocked_by` of one draft **[code]**.
 - At least one of the two cards must be writable (section 6) **[code]**.
-- A link already in Jira is skipped; its opposite is refused **[code]**. In one batch, the same
+- A link already in the tracker is skipped; its opposite is refused **[code]**. In one batch, the same
   link twice (`A blocks B` and `B blocked_by A`, or `relates` both ways) or a link both ways is
   refused on the later draft **[code]**.
 - A link adds, never removes. Both cards must exist, so a card created in the same batch is linked
@@ -78,7 +78,7 @@ current card, unless the user says to include it.
   the repo is shared with another developer, so they hold dev ids only.
 - `ws people me` prints the user's own dev id. `ws people add EMAIL` prints the config block to
   paste for a colleague (it needs `--account ID` when the tracker hides e-mails). A dev id missing
-  from the config, or there without a `jira` id, fails the check with that hint **[code]**.
+  from the config, or there without a tracker id, fails the check with that hint **[code]**.
 - A card is writable when the user is its assignee or its reporter **[code]**; anyone else's card is
   refused for every op (a link needs one writable side), and the user does it by hand.
 - A `reporter` the draft leaves out is not sent: the tracker makes the creator the reporter. What
