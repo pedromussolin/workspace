@@ -2,7 +2,7 @@ import json
 import tomllib
 
 from ws.cli import main
-from ws.tracker.jira_discover import discover_toml
+from ws.tracker.jira.discover import discover_toml
 from ws.userconfig import save_jira_token
 
 TYPES = [

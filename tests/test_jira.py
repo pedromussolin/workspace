@@ -6,7 +6,8 @@ from datetime import date
 import pytest
 
 from ws.cli import main
-from ws.jira import (
+from ws.taskmodel import Status
+from ws.tracker.jira.client import (
     FIELDS,
     JiraClient,
     JiraError,
@@ -16,7 +17,6 @@ from ws.jira import (
     status_of,
     task_from_card,
 )
-from ws.taskmodel import Status
 from ws.userconfig import save_jira_token
 
 EMAIL = "dev@example.com"
@@ -539,7 +539,7 @@ def test_the_client_refuses_to_send_the_key_anywhere_else(site):
 def test_the_test_seam_is_empty_by_default_and_opens_only_what_it_lists(fake_jira, monkeypatch):
     assert JiraClient(fake_jira.site, EMAIL, CREDENTIAL).site == fake_jira.site
 
-    monkeypatch.setattr("ws.jira.EXTRA_ALLOWED_SITES", set())
+    monkeypatch.setattr("ws.tracker.jira.client.EXTRA_ALLOWED_SITES", set())
 
     with pytest.raises(SiteRefused):
         JiraClient(fake_jira.site, EMAIL, CREDENTIAL)

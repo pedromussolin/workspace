@@ -5,16 +5,14 @@ import pytest
 from test_card import claude_settings, world  # noqa: F401
 from test_jira import CARD, REST_ISSUE
 
-import ws.tracker.jira
-import ws.tracker.jira.adapter
-import ws.tracker.jira_adapter
 from ws.taskmodel import Status
 from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.jira import JIRA_CAPABILITIES, open_tracker, task_from_listing
 from ws.tracker.jira.adapter import JiraTracker, _LazyClient
 from ws.tracker.jira.client import JiraError, tasks_jql
+from ws.tracker.jira.settings import JiraConfig
 from ws.tracker.port import open_tracker as open_port_tracker
-from ws.userconfig import JiraConfig, load_config
+from ws.userconfig import load_config
 
 
 def test_jira_error_is_a_tracker_error():
@@ -96,10 +94,6 @@ def test_task_from_listing_needs_no_session():
     assert task.ref == "jira:TS-101"
     assert task.url == "https://example.atlassian.net/browse/TS-101"
     assert task.status is Status.DONE
-
-
-def test_old_jira_adapter_path_is_the_adapter():
-    assert ws.tracker.jira_adapter is ws.tracker.jira.adapter
 
 
 def test_connection_only_tracker_asks_for_the_card_keys_at_the_first_card(ws_config, fake_jira):

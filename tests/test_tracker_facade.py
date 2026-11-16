@@ -9,12 +9,13 @@ from test_jira import CARD, REST_ISSUE
 from ws import tracker
 from ws.taskmodel import Status
 from ws.tracker.errors import TrackerSetup
-from ws.userconfig import JiraConfig, StandupConfig, UserConfig
+from ws.tracker.jira.settings import JiraConfig
+from ws.userconfig import StandupConfig, UserConfig
 
 
 def _config(kind="jira", overrides=None):
     return UserConfig(
-        jira=JiraConfig(
+        tracker_settings=JiraConfig(
             site="https://example.atlassian.net",
             email="dev@example.com",
             status_overrides=overrides or {},

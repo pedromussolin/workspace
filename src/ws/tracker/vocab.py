@@ -1,6 +1,7 @@
 """Neutral words for cards, shared by the drafts, the config and the skills."""
 
 import re
+import unicodedata
 
 CARD_TYPES = ("task", "bug", "hotfix", "improvement", "feature")
 UPPER_TYPES = ("epic", "initiative")
@@ -40,6 +41,13 @@ _SECTIONS = {
 
 def required_sections(type_: str) -> tuple[str, ...]:
     return _SECTIONS[type_]
+
+
+def fold(text: str) -> str:
+    """`text` for comparing names: no accents, case folded, spaces collapsed."""
+    decomposed = unicodedata.normalize("NFD", text)
+    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(bare.casefold().split())
 
 
 STATUS_LABELS = {

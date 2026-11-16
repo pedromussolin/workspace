@@ -1,7 +1,6 @@
 """The rules of `ws card`: what each draft may do to which card, and the request it becomes."""
 
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
@@ -75,12 +74,6 @@ def _instant(value) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-
-
-def fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFD", text)
-    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
-    return " ".join(bare.casefold().split())
 
 
 def adf_text(node: dict) -> str:
@@ -891,9 +884,11 @@ def _transitions_to(
         ]
         label = f"the status {wanted!r}"
     else:
-        target = fold(draft.values["to"])
+        target = vocab.fold(draft.values["to"])
         matches = [
-            item for item in available if fold((item.get("to") or {}).get("name") or "") == target
+            item
+            for item in available
+            if vocab.fold((item.get("to") or {}).get("name") or "") == target
         ]
         label = repr(draft.values["to"])
     if not matches:

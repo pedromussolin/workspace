@@ -277,7 +277,7 @@ def fake_jira(monkeypatch):
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     fake = FakeJira(server)
     state["fake"] = fake
-    monkeypatch.setattr("ws.jira.EXTRA_ALLOWED_SITES", {fake.site})
+    monkeypatch.setattr("ws.tracker.jira.client.EXTRA_ALLOWED_SITES", {fake.site})
     thread = threading.Thread(
         target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
     )

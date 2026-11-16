@@ -89,6 +89,7 @@ def _status(args: argparse.Namespace) -> int:
         overrides = tracker.status_overrides(config)
     except TrackerSetup as error:
         return _fail("status", error)
+    # status_overrides refuses a config whose kind has no adapter, so the kind is set here.
     table = f"[tracker.{config.tracker_kind}.status_overrides]"
     problem = unmapped_status(cfg, overrides, table)
     if problem is not None:

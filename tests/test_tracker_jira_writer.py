@@ -12,11 +12,12 @@ from test_card import (
 from test_card_epics import searches  # noqa: F401
 from test_card_golden import DRAFTS, ISSUE_LINK
 
-from ws import cardrules, contracts, userconfig
+from ws import contracts, userconfig
 from ws.carddraft import parse_draft
 from ws.config import data_dir
 from ws.tracker.jira import adf, rules, writer
 from ws.tracker.jira.client import JiraClient
+from ws.tracker.jira.settings import JiraConfig
 from ws.tracker.write import from_document, to_document
 
 SITE = "https://example.atlassian.net"
@@ -40,7 +41,7 @@ def _plan(world, entries):  # noqa: F811
     config = userconfig.load_config()
     return writer.plan(
         _client(world),
-        config.jira,
+        config.tracker_settings,
         entries,
         people=config.people,
         identity_email=config.identity_email,
@@ -54,7 +55,7 @@ def test_plan_steps_carry_the_rules_requests(world):  # noqa: F811
     entries = [_entry(DRAFTS[op](f"{number}-{op}.md")) for number, op in enumerate(DRAFTS, 1)]
     config = userconfig.load_config()
     context = rules.Context.load(
-        _client(world), config.jira, NOW, config.people, config.identity_email
+        _client(world), config.tracker_settings, NOW, config.people, config.identity_email
     )
 
     plan = _plan(world, entries)
@@ -154,14 +155,14 @@ def test_render_body_is_to_adf():
 def test_card_url_and_template():
     assert writer.card_url(SITE, "TS-7") == f"{SITE}/browse/TS-7"
     assert writer.card_url(f"{SITE}/", "TS-7") == f"{SITE}/browse/TS-7"
-    settings = userconfig.JiraConfig(site=f"{SITE}/", email=EMAIL, status_overrides={})
+    settings = JiraConfig(site=f"{SITE}/", email=EMAIL, status_overrides={})
     assert writer.card_url_template(settings) == f"{SITE}/browse/{{key}}"
     assert writer.created_key({"key": "TS-9"}) == "TS-9"
     assert writer.created_key("") is None
 
 
 def test_epics_lists_open_epics_and_initiatives(world, searches):  # noqa: F811
-    settings = userconfig.load_config().jira
+    settings = userconfig.load_config().tracker_settings
 
     found = writer.epics(_client(world), settings)
 
@@ -186,7 +187,3 @@ def test_needed_keys_follow_the_operations():
         "project",
         "start_date_field",
     }
-
-
-def test_old_cardrules_path_is_the_rules_module():
-    assert cardrules is rules

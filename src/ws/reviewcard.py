@@ -2,8 +2,8 @@
 
 import re
 
-from ws.cardrules import fold
 from ws.tracker.port import Tracker
+from ws.tracker.vocab import fold
 
 _HEADING = re.compile(r"^#+\s+(.*)$")
 _SECTION = "pronto quando"

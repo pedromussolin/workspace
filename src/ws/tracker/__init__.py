@@ -1,7 +1,7 @@
 """Neutral tracker layer: the vocabulary every skill and the core use, and the adapter check.
 
-Only the Jira adapter exists; its engine lives in `ws.card`, `ws.cardrules` and `ws.jira`.
-The functions below are the facade: they pick the adapter from `config.tracker_kind`, and no
+Each adapter is a package named in `ADAPTERS` (only `ws.tracker.jira` today). The functions
+below are the facade: they pick the adapter from `config.tracker_kind` by that name, and no
 adapter is imported at module top.
 """
 
@@ -62,22 +62,22 @@ def card_url_template(config=None) -> str:
     from ws import userconfig
     from ws.tracker.errors import TrackerSetup
 
-    kind, table, path = userconfig.load_tracker_table()
+    kind, table, path, section = userconfig.load_tracker_table()
     try:
         require_kind(kind)
     except UnknownTracker as error:
         raise TrackerSetup(str(error)) from None
+    adapter = importlib.import_module(ADAPTERS[kind])
     try:
-        return importlib.import_module(ADAPTERS[kind]).card_url_template_from_table(table, path)
+        return adapter.card_url_template_from_table(table, path, section)
     except userconfig.ConfigInvalid as error:
         raise TrackerSetup(str(error)) from None
 
 
 def task_from_listing(card, config):
-    adapter = _adapter(config)
-    return adapter.task_from_listing(card, getattr(config, config.tracker_kind))
+    return _adapter(config).task_from_listing(card, config.tracker_settings)
 
 
 def status_overrides(config) -> dict[str, str]:
     _adapter(config)
-    return dict(getattr(config, config.tracker_kind).status_overrides)
+    return dict(config.tracker_settings.status_overrides)

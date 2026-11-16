@@ -5,7 +5,7 @@ from datetime import date
 from ws.taskmodel import Status
 from ws.tracker import write
 from ws.tracker.errors import TrackerError
-from ws.tracker.jira_adapter import JIRA_CAPABILITIES
+from ws.tracker.jira.adapter import JIRA_CAPABILITIES
 from ws.tracker.port import CAPABILITIES, Card, CardQuery
 
 NEEDS = {

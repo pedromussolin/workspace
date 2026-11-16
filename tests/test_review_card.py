@@ -2,7 +2,7 @@ from fake_tracker import FakeTracker, make_card
 
 from ws.reviewcard import card_context, done_when
 from ws.taskmodel import Status
-from ws.tracker.jira_adapter import JIRA_CAPABILITIES
+from ws.tracker.jira.adapter import JIRA_CAPABILITIES
 
 TEXT = "## Contexto\nx\n## Pronto quando\n- a\n- b\n## Como reproduzir\ny"
 
