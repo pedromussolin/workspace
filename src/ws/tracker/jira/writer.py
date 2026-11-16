@@ -43,27 +43,29 @@ def needed_keys(writes: list[dict]) -> set[str]:
 
 def session(needed: set[str], *, timeout: int | None = None) -> tuple[JiraConfig, JiraClient]:
     """The settings and a client, after checking the `needed` keys; with no `timeout`, the
-    module's `REQUEST_TIMEOUT` as it is at the call (a test patches it)."""
+    module's `REQUEST_TIMEOUT` as it is at the call (a test patches it). The messages name the
+    table the user has: `[tracker.jira]`, or the old `[jira]`."""
     try:
         config = userconfig.load_config()
         require_kind(config.tracker_kind)
+        section = userconfig.load_tracker_table()[3]
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise TrackerSetup(str(error)) from None
     settings = config.tracker_settings
     missing = [name for name in sorted(needed) if not getattr(settings, name)]
     if missing:
-        tables = {"types": "[tracker.jira.types]", "links": "[tracker.jira.links]"}
+        tables = {"types": f"[{section}.types]", "links": f"[{section}.links]"}
         hints = []
         if any(name not in tables for name in missing):
             hints.append('see the README section "Local config"')
         if any(name in tables for name in missing):
             hints.append("run ws tracker discover and paste its output into config.toml")
         raise TrackerSetup(
-            f"config.toml [tracker.jira] is missing "
+            f"config.toml [{section}] is missing "
             f"{', '.join(tables.get(name, name) for name in missing)}; {'; '.join(hints)}"
         )
     if not _PROJECT.fullmatch(settings.project):
-        raise TrackerSetup("config.toml [tracker.jira] project is not a valid project key")
+        raise TrackerSetup(f"config.toml [{section}] project is not a valid project key")
     try:
         credential = userconfig.load_jira_token()
     except userconfig.ConfigMissing:

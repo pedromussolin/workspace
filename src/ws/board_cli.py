@@ -78,6 +78,7 @@ def _status(args: argparse.Namespace) -> int:
     try:
         config = userconfig.load_config()
         cfg = load_board()
+        section = userconfig.load_tracker_table()[3]
     except BoardMissing:
         return _fail(
             "status",
@@ -89,8 +90,9 @@ def _status(args: argparse.Namespace) -> int:
         overrides = tracker.status_overrides(config)
     except TrackerSetup as error:
         return _fail("status", error)
-    # status_overrides refuses a config whose kind has no adapter, so the kind is set here.
-    table = f"[tracker.{config.tracker_kind}.status_overrides]"
+    # status_overrides refuses a config whose kind has no adapter, so the section names that
+    # kind's table: `[tracker.<kind>]`, or the old `[jira]` the user still has.
+    table = f"[{section}.status_overrides]"
     problem = unmapped_status(cfg, overrides, table)
     if problem is not None:
         return _fail("status", problem)
