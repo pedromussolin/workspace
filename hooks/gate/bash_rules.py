@@ -380,14 +380,16 @@ WAIT_LOOP_DENIAL = (
 )
 SELF_MATCH_DENIAL = (
     "`pgrep -f`/`pkill -f` also match the Bash tool's own shell, which holds the same text, so a "
-    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) or "
-    "kill by PID."
+    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) and "
+    "keep the target word out of the rest of the command, or use `pgrep -A`, or kill by PID."
 )
 WAIT_LOOPS = {"while", "until"}
 LIST_LOOPS = {"for", "select"}
 # Words that may lead a command before a loop opens or after one closes (`then while`, `do until`).
-LEADING_KEYWORDS = {"if", "then", "else", "elif", "do", "!", "{", "}", "fi", "esac", "time"}
+LEADING_KEYWORDS = set("if then else elif do ! { } fi esac time coproc".split())
+COMPOUND_HEADS = {"{", "if", "case"} | WAIT_LOOPS | LIST_LOOPS
 PROCESS_MATCHERS = {"pgrep", "pkill"}
+IGNORE_ANCESTORS = ("-A", "--ignore-ancestors")
 PROCESS_VALUE_FLAGS = set(
     "-d --delimiter -g --pgroup -G --group -O --older -P --parent -s --session -t --terminal "
     "-u --euid -U --uid -F --pidfile -q --queue -r --runstates --signal --cgroup --ns --nslist "
@@ -2421,31 +2423,66 @@ def _script_findings(scan: Scan, cwd: str, depth: int) -> list[Finding]:
     return found
 
 
-def _waits_in_loop(commands: list[Command]) -> bool:
-    """A `while`/`until` loop runs `sleep`, in its condition or body (a nested loop's too).
+def _runs_sleep(command: Command) -> bool:
+    """The command runs `sleep`, itself or in a `$(...)`, backticks or `<(...)` of its words."""
+    if any(name == "sleep" for name, _ in shell.invocations(command)):
+        return True
+    texts = list(command.inner)
+    texts += [
+        text for word in command.words if word.expands for text in shell.substitutions(word.text)
+    ]
+    return any(
+        name == "sleep"
+        for text in texts
+        for each in shell.scan(text).commands
+        for name, _ in shell.invocations(each)
+    )
+
+
+def _wait_loop_start(commands: list[Command]) -> int | None:
+    """Where the first `while`/`until` loop that runs `sleep` (in its condition or body, a nested
+    loop's too) opens: the index of the outermost such loop around the `sleep`, or None.
 
     The scan cuts a loop at its `;` and newlines, so the words that lead each command open
     (`while`, `until`, `for`, `select`) and close (`done`) the loops around the next commands.
+    A function name (`function NAME {`, `coproc NAME {`) may come before them.
     """
-    loops: list[bool] = []
-    for command in commands:
-        for word in command.words:
-            if word.text in WAIT_LOOPS | LIST_LOOPS:
-                loops.append(word.text in WAIT_LOOPS)
-            elif word.text == "done":
+    loops: list[tuple[bool, int]] = []
+    for position, command in enumerate(commands):
+        texts = [word.text for word in command.words]
+        index = 0
+        while index < len(texts):
+            text = texts[index]
+            if text in WAIT_LOOPS | LIST_LOOPS:
+                loops.append((text in WAIT_LOOPS, position))
+            elif text == "done":
                 if loops:
                     loops.pop()
-            elif word.text not in LEADING_KEYWORDS:
+            elif text == "function" or (
+                text == "coproc"
+                and texts[index + 2 : index + 3]
+                and texts[index + 2] in COMPOUND_HEADS
+            ):
+                index += 1
+            elif text not in LEADING_KEYWORDS:
                 break
-        if any(loops) and any(name == "sleep" for name, _ in shell.invocations(command)):
-            return True
-    return False
+            index += 1
+        waits = [start for waiting, start in loops if waiting]
+        if waits and _runs_sleep(command):
+            return waits[0]
+    return None
 
 
 def _wait_loops(scan: Scan) -> list[Finding]:
-    """A loop that waits with `sleep` can run forever, unless a `timeout` runs its text."""
-    if any(not each.timed and _waits_in_loop(each.commands) for each in scan.lists):
-        return [Finding(TITLE_WAIT_LOOP, (), denial=WAIT_LOOP_DENIAL)]
+    """A loop that waits with `sleep` can run forever, unless a `timeout` runs its text and the
+    loop stays in the foreground: `timeout` returns with its own child, so an `&` from the loop
+    on (`loop &`, `(loop) &`) leaves the loop running after it."""
+    for each in scan.lists:
+        start = _wait_loop_start(each.commands)
+        if start is None:
+            continue
+        if not each.timed or any(command.background for command in each.commands[start:]):
+            return [Finding(TITLE_WAIT_LOOP, (), denial=WAIT_LOOP_DENIAL)]
     return []
 
 
@@ -2464,11 +2501,14 @@ def _matches_itself(name: str, args: list[Word], command: str) -> list[Finding]:
     """`pgrep -f`/`pkill -f` read the full command line of every process, the Bash tool's own
     shell included, and its command line is this command. Only a pattern with a bracket class
     (`[p]ytest`) that does not match the command can miss that shell; with `-v` the processes
-    the pattern misses are the ones picked, so nothing excuses it."""
+    the pattern misses are the ones picked, so the bracket excuses nothing. `pgrep -A` leaves out
+    its own ancestors, that shell among them; `pkill` has no such option."""
     if name not in PROCESS_MATCHERS:
         return []
     parsed = parse_flags(args, PROCESS_VALUE_FLAGS)
     if not any(flag in FULL_FLAGS for flag, _ in parsed.flags):
+        return []
+    if name == "pgrep" and parsed.has(*IGNORE_ANCESTORS):
         return []
     pattern = parsed.positionals[0].text if parsed.positionals else ""
     ignore_case = parsed.has("-i", "--ignore-case")

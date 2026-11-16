@@ -30,6 +30,7 @@ WALK_SECONDS = 2.0
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 TIMEOUT_DURATION = re.compile(r"(\d+(?:\.\d*)?|\.\d+)[smhd]?")
+DETACHING = {"nohup", "setsid"}
 HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PYTHON = re.compile(r"python[0-9.]*")
 
@@ -247,17 +248,27 @@ def locate_program(words: list[str]) -> int | None:
     return _unwrap(words)[0]
 
 
+def _wrappers(words: list[str]) -> list[tuple[str, int]]:
+    """The wrappers before the program, each with the index of the word after its flags."""
+    passed: list[tuple[str, int]] = []
+    _unwrap(words, passed)
+    return passed
+
+
 def runs_under_timeout(words: list[str]) -> bool:
     """A `timeout` with a literal, non-zero duration runs the command, so it ends what the command
     starts (`timeout 600 bash -c '...'`). `timeout 0` never ends it, and a duration that is not a
     plain number (`$T`, `inf`) may not."""
-    passed: list[tuple[str, int]] = []
-    _unwrap(words, passed)
-    for name, index in passed:
+    for name, index in _wrappers(words):
         found = TIMEOUT_DURATION.fullmatch(words[index]) if index < len(words) else None
         if name == "timeout" and found and float(found.group(1)) > 0:
             return True
     return False
+
+
+def detaches(words: list[str]) -> bool:
+    """`nohup` or `setsid` runs the command, which may then outlive a `timeout` around it."""
+    return any(name in DETACHING for name, _ in _wrappers(words))
 
 
 def wrapper_scripts(words: list["Word"]) -> list["Word"]:
@@ -613,6 +624,8 @@ def inspect_variable(commands: list["Command"]) -> bool:
 
 @dataclass
 class Command:
+    """`background`: an `&` sends it (or the pipeline or group it ends) to the background."""
+
     words: list[Word] = field(default_factory=list)
     writes: list[str] = field(default_factory=list)
     piped: bool = False
@@ -620,6 +633,7 @@ class Command:
     here_string: str | None = None
     here_string_expands: bool = False
     inner: list[str] = field(default_factory=list)
+    background: bool = False
 
     @property
     def reads_file(self) -> bool:
@@ -934,6 +948,16 @@ def _read_word(text: str, start: int) -> tuple[Word, int]:
     return Word("".join(value), bare_expansion or brace, expands or brace), index
 
 
+def _to_background(commands: list[Command], current: Command) -> None:
+    """Mark what an `&` ends: the current command, or the last one when the `&` follows a `)`
+    (`(loop) &`), and the commands piped into it (`loop | cat &`)."""
+    chain = commands + [current] if current.words or current.writes else commands
+    for command in reversed(chain):
+        command.background = True
+        if not command.piped:
+            break
+
+
 def parse_commands(text: str) -> list[Command]:
     """Simple commands of `text` with quoting kept as flags; raises ValueError on bad quoting."""
     commands: list[Command] = []
@@ -968,6 +992,8 @@ def parse_commands(text: str) -> list[Command]:
         elif char in ";&|()<>":
             operator = next(op for op in OPERATORS if text.startswith(op, index))
             index += len(operator)
+            if operator == "&":
+                _to_background(commands, current)
             if operator in SEPARATORS:
                 finish(operator in ("|", "|&"))
             else:
@@ -1012,7 +1038,12 @@ def invocations(command: Command) -> list[tuple[str, list[Word]]]:
 
 
 def _walk(text: str, result: Scan, depth: int, timed: bool = False) -> None:
-    """`timed`: a `timeout` runs this text, and so every text inside it."""
+    """`timed`: a `timeout` runs this text, and so every text inside it, except what leaves it.
+
+    `timeout` returns when its own child does, so a command sent off with `&` or run by `nohup`
+    or `setsid` can outlive it: the texts it runs are not `timed` unless a `timeout` of their own
+    runs them. A heredoc body is `timed` only by its own command's `timeout`.
+    """
     result.walks += 1
     if result.overrun or result.walks > MAX_WALKS or time.monotonic() > result.deadline:
         result.overrun = True
@@ -1030,9 +1061,11 @@ def _walk(text: str, result: Scan, depth: int, timed: bool = False) -> None:
     result.lists.append(CommandList(commands, timed))
     for command in commands:
         result.commands.append(command)
+        words = [word.text for word in command.words]
+        stays = timed and not command.background and not detaches(words)
         for inner in command.inner:
-            _walk(inner, result, depth + 1, timed)
-        runs_timed = timed or runs_under_timeout([word.text for word in command.words])
+            _walk(inner, result, depth + 1, stays)
+        runs_timed = stays or runs_under_timeout(words)
         for script in wrapper_scripts(command.words):
             _walk(script.text, result, depth + 1, runs_timed)
         for name, args in invocations(command):
@@ -1044,24 +1077,26 @@ def _walk(text: str, result: Scan, depth: int, timed: bool = False) -> None:
                 if script is not None:
                     _walk(script, result, depth + 1, runs_timed)
             elif name == "eval":
-                _walk(" ".join(texts), result, depth + 1, timed)
+                _walk(" ".join(texts), result, depth + 1, stays)
             for program in python_programs(name, args):
                 result.scripts += python_codes(program)
                 inspect = inspect_variable(result.commands)
                 if command.here_string is not None and reads_stdin_code(program, inspect):
                     result.scripts.append(python_source(command.here_string))
+    # The text's `$(...)` are not tied to their command here, so one `&` in the text unties all.
+    substitutions_timed = timed and not any(command.background for command in commands)
     for inner in substitutions(kept):
-        _walk(inner, result, depth + 1, timed)
+        _walk(inner, result, depth + 1, substitutions_timed)
     for heredoc in heredocs:
         if heredoc.owner in RUNS_ITS_INPUT:
-            _walk(heredoc.body, result, depth + 1, timed or heredoc.timed)
+            _walk(heredoc.body, result, depth + 1, heredoc.timed)
         elif heredoc.owner and (PYTHON.fullmatch(heredoc.owner) or heredoc.owner in ("uv", "uvx")):
             result.scripts.append(python_source(heredoc.body))
             if not heredoc.quoted and ("$" in heredoc.body or "`" in heredoc.body):
                 result.opaque_python.append(heredoc.body)
         if not heredoc.quoted and heredoc.owner not in RUNS_ITS_INPUT:
             for inner in substitutions(heredoc.body, quoting=False):
-                _walk(inner, result, depth + 1, timed)
+                _walk(inner, result, depth + 1, substitutions_timed)
 
 
 def scan(text: str, seconds: float = WALK_SECONDS) -> Scan:

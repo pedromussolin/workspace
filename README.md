@@ -445,8 +445,8 @@ reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_
 The gate also denies two waits that may never end (no box, the reason goes to the model), in any
 part of the command, `bash -c` scripts and subshells included:
 
-- a `while`/`until` loop that runs `sleep`, unless `timeout` with a non-zero duration runs it (`timeout 600 bash -c '...'`);
-- `pgrep -f`/`pkill -f` (`--full`, `-af`), whose pattern also matches the Bash tool's own shell, unless it holds a bracket class that does not match the command (`'[p]ytest'`).
+- a `while`/`until` loop that runs `sleep`, unless `timeout` with a non-zero duration runs it (`timeout 600 bash -c '...'`) and the loop is not sent off with `&`, `nohup` or `setsid` inside it;
+- `pgrep -f`/`pkill -f` (`--full`, `-af`), whose pattern also matches the Bash tool's own shell, unless it holds a bracket class that does not match the command (`'[p]ytest'`) or `pgrep -A` leaves out its ancestors.
 
 Another clone whose settings still register the old card hook keeps working:
 `hooks/ask_card_apply.py` now runs the gate. After a pull, run `ws setup` there and apply what

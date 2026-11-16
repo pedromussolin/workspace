@@ -3734,8 +3734,8 @@ WAIT_LOOP_DENIAL = (
 )
 SELF_MATCH_DENIAL = (
     "`pgrep -f`/`pkill -f` also match the Bash tool's own shell, which holds the same text, so a "
-    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) or "
-    "kill by PID."
+    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) and "
+    "keep the target word out of the rest of the command, or use `pgrep -A`, or kill by PID."
 )
 
 
@@ -3769,6 +3769,24 @@ SELF_MATCH_DENIAL = (
         "timeout $T bash -c 'while true; do sleep 1; done'",
         "timeout 600 bash -c 'echo x'; while true; do sleep 1; done",
         "timeout 600 cat <(while true; do sleep 1; done)",
+        "function wait_x { while true; do sleep 1; done; }; wait_x",
+        "function wait_x() { until test -f x; do sleep 1; done; }; wait_x",
+        "wait_x() { while true; do sleep 1; done; }; wait_x",
+        "coproc while true; do sleep 1; done",
+        "coproc W { while true; do sleep 1; done; }",
+        "timeout 600 bash -c 'while true; do sleep 1; done &'",
+        "timeout 600 bash -c 'nohup bash -c \"while true; do sleep 1; done\" &'",
+        "timeout 600 bash -c 'nohup bash -c \"while true; do sleep 1; done\"'",
+        "timeout 600 bash -c 'setsid bash -c \"until test -f x; do sleep 1; done\"'",
+        "timeout 600 bash -c 'bash -c \"while true; do sleep 1; done\" &'",
+        "timeout 600 bash -c '(while true; do sleep 1; done) &'",
+        "timeout 600 bash -c '{ while true; do sleep 1; done; } &'",
+        "timeout 600 bash -c 'while true; do sleep 1; done | cat &'",
+        "timeout 600 bash -c 'echo $(while true; do sleep 1; done) &'",
+        "while true; do x=$(sleep 5); done",
+        "until test -f x; do echo `sleep 1`; done",
+        'while true; do echo "$(sleep 1)"; done',
+        "while true; do cat <(sleep 1); done",
     ],
 )
 def test_a_wait_loop_with_sleep_is_denied_with_a_reason_for_the_model(command, env):
@@ -3803,6 +3821,8 @@ def test_a_wait_loop_with_sleep_is_denied_with_a_reason_for_the_model(command, e
         "pgrep -if '[P]ytest' # PYTEST",
         "pkill -vf '[p]ytest'",
         "pgrep -f '[^z]ytest'",
+        "pkill -A -f pytest",
+        "pkill --ignore-ancestors -f pytest",
     ],
 )
 def test_pgrep_or_pkill_on_full_command_lines_is_denied_with_a_reason(command, env):
@@ -3851,6 +3871,15 @@ def test_a_bounded_wait_that_uses_pgrep_full_gets_only_the_pgrep_reason(env):
         "kill $(pgrep -f '[p]ytest')",
         "echo 'pgrep -f x' > notes.txt",
         "cat <<'EOF' > wait.sh\nwhile true; do sleep 1; done\nEOF",
+        "pgrep -A -f pytest",
+        "pgrep --ignore-ancestors -f pytest",
+        "pgrep -Af pytest",
+        "timeout 600 bash -c 'uv run pytest > log & until grep -q done log; do sleep 5; done'",
+        "timeout 600 setsid bash -c 'until test -f x; do sleep 1; done'",
+        "timeout 600 bash -c 'nohup timeout 60 bash -c \"until test -f x; do sleep 1; done\" &'",
+        "timeout 600 bash -c 'x=$(until test -f x; do sleep 1; done); echo $x'",
+        "while read l; do x=$(echo $l); done < f",
+        "function show { echo hi; }; show",
     ],
 )
 def test_bounded_or_finite_waits_and_plain_process_lookups_pass(command, env):
