@@ -394,6 +394,13 @@ def preview_plan(argument: str) -> dict:
     return _previewed(argument)[1]
 
 
+def preview_json(argument: str) -> tuple[dict, int]:
+    """The `card-plan` document (empty when no plan could be made) and the exit status of one
+    preview: the same pending record, code and status as `preview`."""
+    result, plan = _previewed(argument)
+    return plan, result.status
+
+
 def _previewed(argument: str) -> tuple[Preview, dict]:
     try:
         loaded = [load(path) for path in collect(argument)]
