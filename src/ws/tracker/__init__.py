@@ -9,6 +9,7 @@ import importlib
 
 ADAPTERS = {"jira": "ws.tracker.jira"}
 KNOWN_KINDS = tuple(ADAPTERS)
+ROLES = ("mine", "following", "all")
 
 
 class UnknownTracker(Exception):
@@ -33,7 +34,7 @@ def _adapter(config):
 def _open():
     from ws.tracker import port
 
-    return port.open_tracker()
+    return port.open_tracker(connection_only=True)
 
 
 def list_tasks(since, role) -> dict:
@@ -42,6 +43,10 @@ def list_tasks(since, role) -> dict:
 
 def discover_toml() -> str:
     return _open().discover_toml()
+
+
+def accounts_for(email) -> list[str]:
+    return _open().accounts_for(email)
 
 
 def account_for(email) -> str | None:
