@@ -8,17 +8,19 @@ from pathlib import Path
 
 import pytest
 
-from ws import card, cardrules, humans
-from ws.adf import to_adf
+from ws import card, humans
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
 from ws.config import data_dir
 from ws.identity import dev_id
+from ws.tracker import write
+from ws.tracker.jira import adapter, rules, writer
+from ws.tracker.jira.adf import to_adf
 from ws.userconfig import save_jira_token
 
 EMAIL = "dev@example.com"
 TRACKER_TABLES = f"""
-[jira.types]
+[tracker.jira.types]
 task = "3"
 bug = "4"
 hotfix = "5"
@@ -27,7 +29,7 @@ feature = "7"
 epic = "8"
 initiative = "9"
 
-[jira.links]
+[tracker.jira.links]
 blocks = "Blocks"
 relates = "Relates"
 
@@ -203,13 +205,14 @@ def claude_settings(tmp_path, monkeypatch):
 @pytest.fixture
 def world(ws_config, fake_jira, monkeypatch, claude_settings):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "{EMAIL}"\nproject = "TS"\n'  # noqa: E501
         f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
         f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
     )
     save_jira_token("sample-value")
     monkeypatch.setattr(card, "_now", lambda: NOW)
+    monkeypatch.setattr(adapter, "_now", lambda: NOW)
     sessions = itertools.count(1000)
     monkeypatch.setattr(card, "_session_id", lambda: next(sessions))
     monkeypatch.setattr(card, "_interactive", lambda: False)
@@ -450,7 +453,7 @@ def test_create_warns_when_the_active_sprint_ended(world, capsys):
 
 
 def test_today_comes_from_the_jira_time_zone_not_the_machine(world, capsys, monkeypatch):
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
 
     verdict = passing(create_draft(due=date(2026, 10, 27)), capsys)
 
@@ -681,7 +684,7 @@ def test_move_to_another_status_never_adds_the_start_request(world, capsys):
 
 def test_move_start_date_is_today_in_the_users_zone(world, capsys, monkeypatch):
     world.set_card("TS-101", **{START_FIELD: None})
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
 
     verdict = passing(start_move(), capsys)
 
@@ -691,7 +694,7 @@ def test_move_start_date_is_today_in_the_users_zone(world, capsys, monkeypatch):
 def test_move_follows_the_status_overrides_for_in_progress(world, capsys, ws_config):
     config = ws_config / "config.toml"
     config.write_text(
-        config.read_text() + '\n[jira.status_overrides]\n"Em Validação" = "in_progress"\n',
+        config.read_text() + '\n[tracker.jira.status_overrides]\n"Em Validação" = "in_progress"\n',
         encoding="utf-8",
     )
     world.set_card("TS-101", **{START_FIELD: None})
@@ -705,7 +708,7 @@ def test_move_follows_the_status_overrides_for_in_progress(world, capsys, ws_con
 def test_move_override_can_take_an_in_progress_category_out(world, capsys, ws_config):
     config = ws_config / "config.toml"
     config.write_text(
-        config.read_text() + '\n[jira.status_overrides]\n"Em Andamento" = "blocked"\n',
+        config.read_text() + '\n[tracker.jira.status_overrides]\n"Em Andamento" = "blocked"\n',
         encoding="utf-8",
     )
     world.set_card("TS-101", **{START_FIELD: None})
@@ -899,7 +902,7 @@ def test_worklog_start_is_nine_in_the_users_zone_without_a_colon_in_the_offset(w
 
 
 def test_worklog_day_defaults_to_today_and_cannot_be_after_it(world, capsys, monkeypatch):
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 1, 30, tzinfo=UTC))
     verdict = passing(make_draft("w1.md", "worklog", key="TS-101", time="1h"), capsys)
     assert verdict["requests"][0]["body"]["started"] == "2026-10-27T09:00:00.000-0300"
     assert "comment" not in verdict["requests"][0]["body"]
@@ -1272,7 +1275,7 @@ def test_a_connection_error_after_sending_is_uncertain(world, capsys, monkeypatc
     path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
     _, code = preview(path, capsys)
     world.fake.write_delay = 3
-    monkeypatch.setattr(card, "REQUEST_TIMEOUT", 1)
+    monkeypatch.setattr(writer, "REQUEST_TIMEOUT", 1)
     capsys.readouterr()
 
     assert approve(path, code) == 3
@@ -1491,7 +1494,8 @@ def test_epics_with_none_prints_an_empty_list(world, capsys):
 @pytest.mark.parametrize("command", [["check"], ["epics"], ["preview"]])
 def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\n',  # noqa: E501
+        encoding="utf-8",
     )
     argv = ["card", command[0]]
     if command[0] != "epics":
@@ -1508,13 +1512,13 @@ def test_missing_config_keys_exit_2_naming_them(world, capsys, command, ws_confi
 def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_config):
     config = ws_config / "config.toml"
     text = config.read_text(encoding="utf-8")
-    config.write_text(text[: text.index("[jira.types]")], encoding="utf-8")
+    config.write_text(text[: text.index("[tracker.jira.types]")], encoding="utf-8")
 
     assert main(["card", "check", str(create_draft())]) == 2
 
     err = capsys.readouterr().err
     assert (
-        "config.toml [jira] is missing [jira.types]; run ws tracker discover and paste its "
+        "config.toml [tracker.jira] is missing [tracker.jira.types]; run ws tracker discover and paste its "  # noqa: E501
         "output into config.toml"
     ) in err
     assert "Local config" not in err
@@ -1522,12 +1526,13 @@ def test_missing_tracker_tables_point_to_ws_tracker_discover(world, capsys, ws_c
 
 def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS"\n',  # noqa: E501
+        encoding="utf-8",
     )
 
     assert main(["card", "check", str(create_draft())]) == 2
     err = capsys.readouterr().err
-    for name in ["board_id", "[jira.types]", "sprint_field"]:
+    for name in ["board_id", "[tracker.jira.types]", "sprint_field"]:
         assert name in err
     capsys.readouterr()
     assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 0
@@ -1535,7 +1540,9 @@ def test_create_needs_all_keys_but_a_comment_needs_only_the_project(world, capsy
 
 def test_an_unknown_tracker_kind_exits_2(world, capsys, ws_config):
     config = ws_config / "config.toml"
-    config.write_text('[tracker]\nkind = "linear"\n' + config.read_text(), encoding="utf-8")
+    config.write_text(
+        config.read_text().replace('kind = "jira"', 'kind = "linear"'), encoding="utf-8"
+    )
 
     assert main(["card", "check", str(create_draft())]) == 2
     assert "no adapter" in capsys.readouterr().err
@@ -1544,7 +1551,7 @@ def test_an_unknown_tracker_kind_exits_2(world, capsys, ws_config):
 
 def _keys(op, **values):
     draft = card.Draft(op, values, None, "", "x")
-    return card._needed_keys([card.Loaded(Path("d.md"), draft, "x", [])])
+    return writer.needed_keys([write.to_document(draft)])
 
 
 def test_a_type_change_needs_the_types_but_a_plain_edit_does_not():
@@ -1612,7 +1619,7 @@ def test_guard_allows_only_the_five_shapes_on_cards_of_the_project():
         {"method": "POST", "path": "/rest/api/3/issue/TS-1/comment"},
         {"method": "POST", "path": "/rest/api/3/issue/TS-1/worklog"},
     ]
-    assert card.guard("TS", good) is None
+    assert writer.guard("TS", good) is None
     for method, path in [
         ("DELETE", "/rest/api/3/issue/TS-1"),
         ("PUT", "/rest/api/3/issue/OTHER-1"),
@@ -1621,7 +1628,7 @@ def test_guard_allows_only_the_five_shapes_on_cards_of_the_project():
         ("POST", "/rest/api/3/issue/TS-1/worklog/9"),
         ("POST", "/rest/api/3/issue/TS-1/../TS-2"),
     ]:
-        assert card.guard("TS", [{"method": method, "path": path}]) == f"{method} {path}"
+        assert writer.guard("TS", [{"method": method, "path": path}]) == f"{method} {path}"
 
 
 def read_record():
@@ -1869,9 +1876,9 @@ def test_a_pending_record_that_is_a_symlink_is_refused(world, capsys, tmp_path):
 def test_a_day_rollover_between_preview_and_approve_says_so(world, capsys, monkeypatch):
     world.set_card("TS-101", **{START_FIELD: None})
     path = make_draft("m.md", "move", key="TS-101", to="Em Andamento")
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
     _, code = preview(path, capsys)
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
 
     assert approve(path, code) == 1
 
@@ -1883,9 +1890,9 @@ def test_a_day_rollover_between_preview_and_approve_says_so(world, capsys, monke
 
 def test_a_day_rollover_does_not_matter_when_nothing_depends_on_today(world, capsys, monkeypatch):
     path = create_draft()
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 2, 50, tzinfo=UTC))
     _, code = preview(path, capsys)
-    monkeypatch.setattr(card, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
+    monkeypatch.setattr(adapter, "_now", lambda: datetime(2026, 10, 28, 3, 10, tzinfo=UTC))
 
     assert approve(path, code) == 0
 
@@ -1980,12 +1987,12 @@ def test_an_odd_answer_to_a_write_does_not_turn_a_success_into_an_error(world, c
 
 
 def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys, monkeypatch):
-    forged = cardrules.Verdict(
+    forged = rules.Verdict(
         requests=[{"method": "DELETE", "path": "/rest/api/3/issue/TS-101", "body": {}}],
         preview=["forjado"],
         resolved={"today": "2026-10-27"},
     )
-    monkeypatch.setattr(cardrules, "check", lambda context, draft: forged)
+    monkeypatch.setattr(rules, "check", lambda context, draft: forged)
     path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
     _, code = preview(path, capsys)
 
@@ -1998,7 +2005,7 @@ def test_approve_stops_a_forged_request_shape_and_keeps_the_record(world, capsys
 
 def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys, ws_config):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{world.fake.site}"\nemail = "{EMAIL}"\nproject = "TS\\n"\n'  # noqa: E501
         f'board_id = 7\nstart_date_field = "{START_FIELD}"\n'
         f'sprint_field = "{SPRINT_FIELD}"\n' + TRACKER_TABLES,
         encoding="utf-8",
@@ -2012,7 +2019,8 @@ def test_a_project_key_with_a_trailing_newline_is_a_setup_problem(world, capsys,
 def test_a_site_that_is_not_atlassian_cloud_exits_2_before_any_request(world, capsys, ws_config):
     for site in ["http://example.atlassian.net", "https://evil.example"]:
         (ws_config / "config.toml").write_text(
-            f'[jira]\nsite = "{site}"\nemail = "{EMAIL}"\nproject = "TS"\n', encoding="utf-8"
+            f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{site}"\nemail = "{EMAIL}"\nproject = "TS"\n',  # noqa: E501
+            encoding="utf-8",
         )
 
         assert main(["card", "check", str(OPS["comment"]("TS-101"))]) == 2

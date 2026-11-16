@@ -1,16 +1,36 @@
 """The tracker port: what the core reads from a tracker, whatever the tracker is.
 
-The port only reads cards and reports what the tracker can do; every write goes through the
-`ws card` drafts. People are tracker account ids here; the dev ids of the repo are mapped by
-`People`.
+`Tracker` reads cards and reports what the tracker can do; `Writer` plans and sends the `ws card`
+drafts, the only way a write reaches a tracker. People are tracker account ids here; the dev ids
+of the repo are mapped by `People`.
 """
 
+import importlib
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
+from types import ModuleType
 from typing import Protocol, runtime_checkable
 
+from ws import userconfig
 from ws.taskmodel import Status
+from ws.tracker import ADAPTERS, UnknownTracker, require_kind
+from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.userconfig import Person, UserConfig
+
+__all__ = [
+    "CAPABILITIES",
+    "Card",
+    "CardQuery",
+    "Link",
+    "People",
+    "Tracker",
+    "TrackerError",
+    "TrackerSetup",
+    "Writer",
+    "open_tracker",
+    "open_writer",
+]
 
 CAPABILITIES = (
     "worklog",
@@ -23,14 +43,6 @@ CAPABILITIES = (
     "link_types",
     "description",
 )
-
-
-class TrackerSetup(Exception):
-    """The tracker is not configured or reachable by configuration (exit 2)."""
-
-
-class TrackerError(Exception):
-    """The tracker answered wrongly or not at all (exit 3)."""
 
 
 @dataclass(frozen=True)
@@ -100,7 +112,9 @@ class People:
     def from_config(cls, config: UserConfig, own_account: str) -> "People":
         from ws.identity import dev_id
 
-        return cls(config.people, config.tracker_kind, dev_id(config.identity_email), own_account)
+        return cls(
+            config.people, config.tracker_kind, dev_id(config.require_identity_email()), own_account
+        )
 
     def account(self, dev_id: str) -> str | None:
         if dev_id == self._own_dev_id:
@@ -133,12 +147,49 @@ class People:
         return None
 
 
-def open_tracker() -> Tracker:
-    from ws import card
-    from ws.tracker.jira_adapter import JiraTracker
+@runtime_checkable
+class Writer(Tracker, Protocol):
+    name: str
+    target: str
 
+    def plan(self, entries: list[dict]) -> dict: ...
+
+    def guard(self, calls: list) -> str | None: ...
+
+    def send(self, call: object) -> object: ...
+
+    def apply(self, plan: dict, send: Callable | None = None) -> Iterator[dict]: ...
+
+    def created_key(self, reply: object) -> str | None: ...
+
+    def find_hint(self, title: str) -> str: ...
+
+    def render_body(self, markdown: str) -> object:
+        """Raises `ValueError` with a `line` attribute for text the tracker cannot hold."""
+        ...
+
+    def card_url(self, key: str) -> str: ...
+
+
+def _adapter() -> tuple[UserConfig, ModuleType]:
     try:
-        settings, client = card.session({"project", "types"})
-    except card.SetupNeeded as error:
+        config = userconfig.load_config()
+        require_kind(config.tracker_kind)
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise TrackerSetup(str(error)) from None
-    return JiraTracker(client, settings)
+    return config, importlib.import_module(ADAPTERS[config.tracker_kind])
+
+
+def open_tracker(connection_only: bool = False) -> Tracker:
+    """The tracker of the config. `connection_only` asks for the listings and the account
+    lookups, which need no more than the connection: each read then checks its own config."""
+    config, adapter = _adapter()
+    if connection_only:
+        return adapter.open_tracker(config, connection_only=True)
+    return adapter.open_tracker(config)
+
+
+def open_writer(entries: list[dict]) -> Writer:
+    """The writer of the configured tracker, set up for the `card-write` entries it will plan."""
+    config, adapter = _adapter()
+    return adapter.open_writer(config, entries)

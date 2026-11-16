@@ -9,7 +9,7 @@ SEARCH = ("GET", "/rest/api/3/user/search")
 
 def setup(ws_config, fake_jira):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n',
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n',  # noqa: E501
         encoding="utf-8",
     )
     save_jira_token("sample-value")

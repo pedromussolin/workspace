@@ -21,8 +21,9 @@ release texts link `/browse/`, the daily has an ungated MCP path. This step puts
 - **Goals.** Stage A, no behaviour change: the `card-write`, `card-plan` and `card-result`
   contracts, the `Writer` port, every Jira payload, ADF, transition and REST call under
   `src/ws/tracker/jira/`, `open_tracker()` dispatching on `[tracker] kind`; existing tests pass
-  unchanged, approval codes stay byte-identical. Stage B: `[tracker.jira]`, `card_url`, no daily
-  MCP fallback, neutral skill words, a boundary test, an in-memory tracker on the contract tests.
+  unchanged, approval codes stay byte-identical. Stage B: `[tracker.jira]`, `card_url`, the daily's
+  MCP fallback through the configured tracker's `references/<kind>.md` (user decision, 16/11),
+  neutral skill words, a boundary test, an in-memory tracker on the contract tests.
 - **Non-goals.** A second real tracker; the other ports of the audit; neutral priority names.
 - **Anti-goals.** No change to the safety flow (preview with code and pending record, apply behind
   the gate in a separate step, 30-minute window, stop at the first failure, never retry, uncertain
@@ -55,8 +56,8 @@ onto it; `ws card show DRAFT` prints it. Keys by `op` (required in bold):
 
 | op | keys |
 |---|---|
-| `create` | **`type`** (`task`, `bug`, `hotfix`, `improvement`, `feature`, `epic`, `initiative`), **`priority`** (a priority name of the tracker), **`title`**, `body`, `epic`, `parent`, `assignee`, `reporter`, `sprint` (`"active"`), `due`, `item` |
-| `edit` | **`key`**, `title`, `priority`, `start`, `due`, `epic`, `type`, `assignee`, `reporter`, `parent`, `sprint`, `body` (new description) |
+| `create` | **`type`** (`task`, `bug`, `hotfix`, `improvement`, `feature`, `epic`, `initiative`), **`priority`** (a priority name of the tracker), **`title`**, `body`, `epic`, `parent`, `assignee`, `reporter`, `sprint` (`"active"`, `"next"` or the exact name of an open sprint), `due`, `item` |
+| `edit` | **`key`**, `title`, `priority`, `start`, `due`, `epic`, `type`, `assignee`, `reporter`, `parent`, `sprint` (`"active"`, `"next"`, `"backlog"` or the exact name of an open sprint), `body` (new description) |
 | `move` | **`key`**, `to` (a status name of the tracker); Stage B adds `status` (`todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`); exactly one |
 | `comment` | **`key`**, **`body`** |
 | `worklog` | **`key`**, **`time`** (`2h`, `30m`, `1h 30m`), `day`, `body` (worklog comment) |
@@ -64,17 +65,23 @@ onto it; `ws card show DRAFT` prints it. Keys by `op` (required in bold):
 
 People are aliases (dev ids of `[people]`), never tracker accounts; dates `YYYY-MM-DD`; bodies Markdown.
 
+`sprint` takes `"active"` (the board's one active sprint), `"next"` (its earliest future sprint),
+`"backlog"` (out of every open sprint; edit only, a create without `sprint` already goes there)
+or the exact name of an active or future sprint. Task 19 added all but `"active"` at the user's
+request on 16/11.
+
 ```json
 {"$schema": "card-write", "version": 1, "op": "create", "type": "improvement",
  "priority": "Medium", "title": "[FRONT] Tarefa de exemplo", "epic": "TS-100", "assignee": "dev-b",
- "sprint": "active", "due": "2026-11-20", "body": "## Contexto\n...\n\n## Pronto quando\n- ..."}
+ "sprint": "next", "due": "2026-11-20", "body": "## Contexto\n...\n\n## Pronto quando\n- ..."}
 ```
 
 ### `card-plan` (version 1): what preview shows, the code digests and apply executes
 
 - `tracker` (kind), `target` (the instance the plan is bound to; Jira: the site, no trailing `/`),
   `today` (the day in the user's tracker time zone, the one the rules used);
-- `steps[]`, one per draft in order: `draft` (`path`, `sha256`), `op`, `card` (key or null),
+- `steps[]`, one per draft in order: `draft` (`path`, `sha256`), `op` (`unknown` for a draft that
+  did not parse), `card` (key or null),
   `title`, `preview` (PT-BR lines), `warnings`, `problems`, `before` (the card state the preview
   showed), `native` (the calls: `method`, `path`, `body`);
 - `summary` (the PT-BR lines the person approves) and `code`, both added by the core.
@@ -128,7 +135,7 @@ aliases (`sys.modules[__name__] = new_module`) so tests patching `cardrules.chec
 | contract | Jira |
 |---|---|
 | `type`; `epic`, `parent`; people | type id from `types`, level from `hierarchyLevel`; `fields.parent`; `accountId` from `[people.<dev id>] ids.jira` |
-| `sprint`, `start`, `due` | active sprint in `sprint_field`; `start_date_field`; `duedate` |
+| `sprint`, `start`, `due` | the sprint id in `sprint_field` (`"active"`: the read of active sprints; `"next"` and a name: the board's active and future sprints), `null` for `"backlog"`; `start_date_field`; `duedate` |
 | `to` / `status` | the one transition whose destination folds equal / maps to it by `status_overrides`, then category |
 | `body` | ADF (`adf.to_adf`); nodes `ws` cannot write back refuse an edit |
 | link kinds | link type names from `links`; `blocked_by` is `blocks` reversed |
@@ -146,8 +153,10 @@ only with the old table. Tokens stay `ws config token <kind>`; `[people] ids` ar
 
 - Release and board use `card_url_template` and `task_from_listing` ("not a card key"). `move`
   takes the neutral `status`; drafts may also be `.json` `card-write` documents.
-- The daily uses `ws task list` only: on failure the standup has no cards and says "Tracker
-  indisponível". The MCP fallback is deleted; the report key `jira` becomes `tracker`.
+- The daily uses `ws task list` first; on failure it falls back to the MCP of the tracker selected
+  in the config (`[tracker] kind`), through `skills/daily/references/<kind>.md`, read only (user
+  decision, 16/11). With both failing the standup has no cards and says "Tracker indisponível".
+  The report key `jira` becomes `tracker`.
 - `skills/card/SKILL.md` says "the tracker", quotes `Gravar no <tracker>?` (name from `ws` output);
   Jira specifics (site shape, JQL, token) go to `skills/card/references/jira.md`.
 - `tests/test_tracker_boundary.py`: no module of `src/ws` or `hooks` outside `ws/tracker/` imports

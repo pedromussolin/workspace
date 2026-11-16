@@ -3,18 +3,17 @@
 import hashlib
 import re
 import tomllib
-from dataclasses import dataclass
 from datetime import date
 
-from ws.itemfile import ITEM_PATH
-from ws.tracker.vocab import ALL_TYPES, CARD_TYPES, LINK_KINDS, UPPER_TYPES
+from ws.tracker.vocab import LINK_KINDS
+from ws.tracker.write import Draft, draft_problems, repeated_problem
 
 OPS = ("create", "edit", "move", "comment", "worklog", "link")
 
 REQUIRED = {
     "create": {"type", "priority"},
     "edit": {"key"},
-    "move": {"key", "to"},
+    "move": {"key"},
     "comment": {"key"},
     "worklog": {"key", "time"},
     "link": {"key"},
@@ -33,7 +32,7 @@ OPTIONAL = {
         "parent",
         "sprint",
     },
-    "move": set(),
+    "move": {"to", "status"},
     "comment": set(),
     "worklog": {"day"},
     "link": set(LINK_KINDS),
@@ -49,15 +48,6 @@ class DraftError(Exception):
     def __init__(self, problems: list[str]):
         super().__init__("; ".join(problems))
         self.problems = problems
-
-
-@dataclass(frozen=True)
-class Draft:
-    op: str
-    values: dict
-    title: str | None
-    body: str
-    sha256: str
 
 
 def parse_draft(raw: bytes) -> Draft:
@@ -110,88 +100,15 @@ def _values(op: str, front: dict) -> dict:
             if name in LIST_KEYS:
                 kind = "a list of card keys"
             problems.append(f"{name} must be {kind}")
-        elif name in LIST_KEYS and len(set(parsed)) != len(parsed):
-            twice = next(item for item in parsed if parsed.count(item) > 1)
-            problems.append(f"{name} lists {twice} twice")
+        elif name in LIST_KEYS and (problem := repeated_problem(name, parsed)):
+            problems.append(problem)
         else:
             values[name] = parsed
     if not problems:
-        problems = _cross_rules(op, values)
+        problems = draft_problems(op, values)
     if problems:
         raise DraftError(problems)
     return values
-
-
-def _cross_rules(op: str, values: dict) -> list[str]:
-    problems = []
-    kind = values.get("type")
-    if kind is not None and kind not in ALL_TYPES:
-        problems.append(f"type must be one of {', '.join(ALL_TYPES)}")
-    elif op == "create":
-        problems += _create_rules(kind, values)
-    elif op == "edit":
-        problems += _edit_rules(kind, values)
-    if "sprint" in values and values["sprint"] != "active":
-        problems.append('sprint must be "active"')
-    if op == "link":
-        problems += _link_rules(values)
-    return problems
-
-
-def _item_rules(kind: str, values: dict) -> list[str]:
-    if "item" not in values:
-        return []
-    if not ITEM_PATH.fullmatch(values["item"]):
-        return ["item must be a path like projects/<slug>/tasks/NN-name.md"]
-    if kind not in CARD_TYPES:
-        return ["item is only for a card; an epic or an initiative has no item"]
-    return []
-
-
-def _create_rules(kind: str, values: dict) -> list[str]:
-    problems = _item_rules(kind, values)
-    return problems + _type_rules(kind, values)
-
-
-def _type_rules(kind: str, values: dict) -> list[str]:
-    if kind in CARD_TYPES:
-        if "parent" in values:
-            return ["parent is only for an epic; a card uses epic"]
-        if "epic" not in values:
-            return [f"a {kind} needs an epic"]
-    elif "epic" in values:
-        return ["an epic has no epic; use parent for its initiative"]
-    elif kind in UPPER_TYPES and kind != "epic" and "parent" in values:
-        return ["an initiative has no parent"]
-    return []
-
-
-def _edit_rules(kind: str | None, values: dict) -> list[str]:
-    problems = []
-    if kind in UPPER_TYPES:
-        problems.append(
-            f"type {kind} is not a card type: changing a card's level is done by hand in the "
-            "tracker"
-        )
-    if "epic" in values and "parent" in values:
-        problems.append("use epic for a card or parent for an epic, not both")
-    return problems
-
-
-def _link_rules(values: dict) -> list[str]:
-    lists = {name: values[name] for name in LINK_KINDS if values.get(name)}
-    if not lists:
-        return ["a link needs blocks, blocked_by or relates"]
-    seen = []
-    problems = []
-    for cards in lists.values():
-        for card in cards:
-            if card == values["key"]:
-                problems.append("a card cannot link to itself")
-            elif card in seen:
-                problems.append(f"{card} appears in more than one list")
-            seen.append(card)
-    return list(dict.fromkeys(problems))
 
 
 def _keys(value: object) -> list[str] | None:

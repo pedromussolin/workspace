@@ -1,4 +1,4 @@
-"""Detecta cards parados: em andamento ou em revisão, sem atividade e sem mexida no Jira."""
+"""Detecta cards parados: em andamento ou em revisão, sem atividade e sem mexida no tracker."""
 
 from datetime import date
 

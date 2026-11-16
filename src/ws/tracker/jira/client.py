@@ -10,12 +10,14 @@ import urllib.request
 from datetime import date, datetime
 
 from ws.taskmodel import Status, Task
+from ws.tracker.errors import TrackerError
 
 FIELDS = ["summary", "status", "parent", "reporter", "updated", "issuetype", "assignee"]
 
 PAGE_SIZE = 100
 META_PAGE_SIZE = 200
 MAX_META_PAGES = 50
+SPRINT_PAGE_SIZE = 50
 
 CARD_FIELDS = (
     "key",
@@ -52,17 +54,10 @@ def check_site(site: str) -> str:
     raise SiteRefused(f"Jira site {site!r} is refused: it must be https://<name>.atlassian.net")
 
 
-class JiraError(Exception):
+class JiraError(TrackerError):
     """`status` is the HTTP status (None without an answer); `uncertain` means a write may have
     been applied anyway (no answer, or a 5xx), so the caller checks before retrying."""
 
-    def __init__(self, message: str, status: int | None = None, uncertain: bool = False):
-        super().__init__(message)
-        self.status = status
-        self.uncertain = uncertain
-
-
-ROLES = ("mine", "following", "all")
 
 _ROLE_JQL = {
     "mine": "assignee = currentUser()",
@@ -208,6 +203,26 @@ class JiraClient:
     def active_sprints(self, board_id: int) -> list[dict]:
         page = self.get(f"/rest/agile/1.0/board/{_segment(board_id)}/sprint", {"state": "active"})
         return (page or {}).get("values", [])
+
+    def open_sprints(self, board_id: int) -> list[dict]:
+        """The board's active and future sprints, every page, as Jira gives them (`id`,
+        `name`, `state`, `startDate`, `endDate`)."""
+        path = f"/rest/agile/1.0/board/{_segment(board_id)}/sprint"
+        sprints: list[dict] = []
+        for _ in range(MAX_META_PAGES):
+            query = {
+                "state": "active,future",
+                "startAt": str(len(sprints)),
+                "maxResults": str(SPRINT_PAGE_SIZE),
+            }
+            page = self.get(path, query) or {}
+            got = page.get("values")
+            if not isinstance(got, list):
+                break
+            sprints.extend(got)
+            if page.get("isLast", True) or not got:
+                break
+        return sprints
 
     def create_meta(self, project: str, type_id: str) -> dict:
         path = f"/rest/api/3/issue/createmeta/{_segment(project)}/issuetypes/{_segment(type_id)}"

@@ -1,12 +1,19 @@
-"""The Jira adapter of the tracker port: cards read through the REST API."""
+"""The Jira adapter of the tracker port: cards read and written through the REST API."""
 
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from ws import jira
-from ws.jira import JiraClient, JiraError
-from ws.tracker.port import Card, CardQuery, Link, TrackerError
-from ws.userconfig import JiraConfig
+from ws import userconfig
+from ws.taskmodel import Task
+from ws.tracker import write
+from ws.tracker.errors import TrackerError, TrackerSetup
+from ws.tracker.jira import client as jira
+from ws.tracker.jira import discover, writer
+from ws.tracker.jira.client import JiraClient, JiraError, SiteRefused
+from ws.tracker.jira.settings import JiraConfig
+from ws.tracker.port import Card, CardQuery, Link
+from ws.userconfig import UserConfig
 
 JIRA_CAPABILITIES = frozenset(
     {
@@ -62,18 +69,58 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class JiraTracker:
-    kind = "jira"
+class _LazyClient:
+    """The client of a tracker opened for reads that need only the connection: the token and the
+    site are checked when the first request is made, so each read checks its own keys first."""
 
-    def __init__(self, client: JiraClient, settings: JiraConfig):
+    def __init__(self, settings: JiraConfig):
+        self._settings = settings
+        self._client: JiraClient | None = None
+
+    def __getattr__(self, name: str):
+        if self._client is None:
+            try:
+                self._client = JiraClient(
+                    self._settings.site, self._settings.email, userconfig.load_jira_token()
+                )
+            except (userconfig.ConfigMissing, userconfig.ConfigInvalid, SiteRefused) as error:
+                raise TrackerSetup(str(error)) from None
+        return getattr(self._client, name)
+
+
+class JiraTracker:
+    """Reads cards and, as the `Writer` of `ws card`, plans and sends the drafts.
+
+    `config` gives the people and the identity the rules resolve (loaded when the plan needs it
+    if not given); `today` and the plan start from the module's `_now`, which a test patches.
+    `resolved` holds what the rules resolved for each step of the last plan.
+    """
+
+    kind = "jira"
+    name = "Jira"
+
+    def __init__(
+        self,
+        client: JiraClient,
+        settings: JiraConfig,
+        config: UserConfig | None = None,
+    ):
         self._client = client
         self._settings = settings
+        self._config = config
+        self.target = settings.site.rstrip("/")
         self.capabilities = (
             JIRA_CAPABILITIES if settings.start_date_field else JIRA_CAPABILITIES - {"start_date"}
         )
+        self.resolved: list[dict] = []
         self._myself: dict | None = None
         self._cards: dict[str, Card | None] = {}
         self._names: dict[str, str] = {}
+
+    def _require(self) -> None:
+        """What reading cards needs in the config: the project and the types, as `ws card`."""
+        if isinstance(self._client, _LazyClient):
+            self._settings, self._client = writer.session({"project", "types"})
 
     def _fields(self) -> list[str]:
         names = list(_BASE_FIELDS)
@@ -84,6 +131,7 @@ class JiraTracker:
         return names
 
     def _account_data(self) -> dict:
+        self._require()
         if self._myself is None:
             try:
                 data = self._client.myself()
@@ -105,6 +153,7 @@ class JiraTracker:
             raise TrackerError(f"unusable tracker time zone {zone!r}: {error}") from None
 
     def card(self, ref: str) -> Card | None:
+        self._require()
         if ref in self._cards:
             return self._cards[ref]
         try:
@@ -125,6 +174,7 @@ class JiraTracker:
         return found
 
     def cards(self, query: CardQuery) -> list[Card]:
+        self._require()
         if not query.parent_in:
             return []
         clauses = [
@@ -144,6 +194,7 @@ class JiraTracker:
         return found
 
     def display_name(self, account: str) -> str:
+        self._require()
         if account not in self._names:
             try:
                 name = (self._client.user(account) or {}).get("displayName")
@@ -153,6 +204,7 @@ class JiraTracker:
         return self._names[account]
 
     def description(self, ref: str) -> str | None:
+        self._require()
         try:
             issue = self._client.issue(ref, ["description"])
         except JiraError as error:
@@ -165,6 +217,79 @@ class JiraTracker:
         except (TypeError, AttributeError) as error:
             raise TrackerError(str(error)) from None
         return text or None
+
+    def list_tasks(self, since: date, role: str) -> dict:
+        try:
+            account_id = self._client.myself()["accountId"]
+            issues = self._client.search(jira.tasks_jql(since, role), jira.FIELDS)
+            cards = [jira.card_from_issue(issue, account_id) for issue in issues]
+        except (JiraError, KeyError, TypeError, ValueError) as error:
+            raise TrackerError(str(error)) from None
+        return {"platform": "jira", "role": role, "cards": cards}
+
+    def discover_toml(self) -> str:
+        if not self._settings.project:
+            raise TrackerSetup("[tracker.jira] project is not set")
+        try:
+            return discover.discover_toml(
+                self._client.issue_types(self._settings.project), self._client.link_types()
+            )
+        except (JiraError, TypeError, ValueError) as error:
+            raise TrackerError(str(error)) from None
+
+    def accounts_for(self, email: str) -> list[str]:
+        try:
+            users = [u for u in self._client.user_search(email.strip()) if u.get("accountId")]
+        except (JiraError, TypeError, AttributeError) as error:
+            raise TrackerError(str(error)) from None
+        return [user["accountId"] for user in users]
+
+    def account_for(self, email: str) -> str | None:
+        found = self.accounts_for(email)
+        return found[0] if len(found) == 1 else None
+
+    def plan(self, entries: list[dict]) -> dict:
+        config = self._config if self._config is not None else userconfig.load_config()
+        try:
+            found, self.resolved = writer.plan_and_resolved(
+                self._client,
+                self._settings,
+                entries,
+                people=config.people,
+                identity_email=config.identity_email,
+                now=_now(),
+            )
+        except (KeyError, TypeError, AttributeError) as error:
+            raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
+        return found
+
+    def guard(self, calls: list[dict]) -> str | None:
+        return writer.guard(self._settings.project, calls)
+
+    def send(self, call: dict) -> object:
+        return writer.send(self._client, call)
+
+    def apply(self, plan: dict, send: Callable[[dict], object] | None = None) -> Iterator[dict]:
+        return write.apply_steps(self, plan, send or self.send)
+
+    def created_key(self, reply: object) -> str | None:
+        return writer.created_key(reply)
+
+    def find_hint(self, title: str) -> str:
+        return writer.find_hint(self._settings.project, title)
+
+    def render_body(self, markdown: str) -> dict:
+        return writer.render_body(markdown)
+
+    def card_url(self, key: str) -> str:
+        return writer.card_url(self._settings.site, key)
+
+    def epics(self) -> list[dict]:
+        """The open epics and initiatives the user works on, for `ws card epics`."""
+        try:
+            return writer.epics(self._client, self._settings)
+        except (KeyError, TypeError, AttributeError) as error:
+            raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
 
     def _neutral(self, issue: dict) -> Card:
         settings = self._settings
@@ -217,3 +342,22 @@ class JiraTracker:
             elif name and name == relates and (outward or inward):
                 found.append(Link("relates", outward or inward))
         return tuple(found)
+
+
+def task_from_listing(card: dict, settings: JiraConfig) -> Task:
+    return jira.task_from_card(card, settings.site, settings.status_overrides)
+
+
+def open_tracker(config: UserConfig, connection_only: bool = False) -> JiraTracker:
+    if connection_only:
+        return JiraTracker(_LazyClient(config.tracker_settings), config.tracker_settings)
+    settings, client = writer.session({"project", "types"})
+    return JiraTracker(client, settings)
+
+
+def open_writer(config: UserConfig, entries: list[dict]) -> JiraTracker:
+    """The writer of `ws card`: the session checks the keys the drafts need; `today` and the plan
+    start from this module's `_now`."""
+    writes = [entry["write"] for entry in entries if entry["write"]]
+    settings, client = writer.session(writer.needed_keys(writes))
+    return JiraTracker(client, settings, config)

@@ -1,0 +1,113 @@
+{
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "op"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "card-write"
+    },
+    "version": {
+      "const": 1
+    },
+    "op": {
+      "enum": [
+        "create",
+        "edit",
+        "move",
+        "comment",
+        "worklog",
+        "link"
+      ]
+    },
+    "type": {
+      "enum": [
+        "task",
+        "bug",
+        "hotfix",
+        "improvement",
+        "feature",
+        "epic",
+        "initiative"
+      ]
+    },
+    "priority": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "key": {
+      "type": "string"
+    },
+    "epic": {
+      "type": "string"
+    },
+    "parent": {
+      "type": "string"
+    },
+    "assignee": {
+      "type": "string"
+    },
+    "reporter": {
+      "type": "string"
+    },
+    "sprint": {
+      "type": "string"
+    },
+    "start": {
+      "type": "string"
+    },
+    "due": {
+      "type": "string"
+    },
+    "day": {
+      "type": "string"
+    },
+    "item": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "todo",
+        "in_progress",
+        "review",
+        "validation",
+        "ready_deploy",
+        "blocked",
+        "done",
+        "cancelled"
+      ]
+    },
+    "time": {
+      "type": "string"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocked_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

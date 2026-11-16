@@ -10,8 +10,8 @@ under `src/ws/tracker/jira/`, picked by `[tracker] kind`; the approval flow is u
 the schemas and the neutral module `ws.tracker.write`, the errors and the port, the Jira modules
 moved under `ws/tracker/jira/` with the old paths kept as `sys.modules` aliases, `ws card` on the
 port, and the CLI through `ws.tracker`. Stage B (Tasks 10–18) changes behaviour on purpose:
-`[tracker.jira]` config, `card_url_template`, the daily without the MCP fallback, neutral skill
-words, move by neutral status, JSON drafts, an in-memory tracker on the contract tests, and the
+`[tracker.jira]` config, `card_url_template`, the daily with a neutral MCP fallback (the
+configured tracker's; user decision, 16/11), neutral skill words, move by neutral status, JSON drafts, an in-memory tracker on the contract tests, and the
 removal of the aliases with a boundary test.
 
 **Tech Stack:** Python 3.12+, standard library only at runtime; `uv`, `pytest`, `ruff`.
@@ -56,7 +56,7 @@ This plan never creates or edits `ws.contracts`; it only adds schema files.
 2. An old `[jira]` config still loads, with exactly one deprecation line per process and no other output change; both tables at once is refused (Task 10).
 3. The approval code of the same drafts and the same fake Jira is byte-identical before and after Stage A (golden of Task 1; Tasks 2, 5, 7).
 4. ADF round-trips: `render_body` equals `to_adf`, preview lines from `adf_text` are unchanged, and an edit over foreign nodes is still refused (Tasks 4, 5, 7).
-5. The daily without the fallback: `ws task list` exit 1 or 2 gives a standup without cards, "Tracker indisponível", and no MCP call is named anywhere in the skill (Task 11).
+5. The daily with a neutral fallback: `ws task list` exit 1 or 2 falls back to the configured tracker's MCP through `references/<kind>.md`; with both failing, a standup without cards and "Tracker indisponível"; no vendor call is named in `SKILL.md` (Task 11, changed by the user on 16/11).
 
 ## Parallel waves
 
@@ -359,14 +359,19 @@ paths are aliases, so `ws.jira is ws.tracker.jira.client`.
 - [ ] **Step 4: Run** `uv run pytest -q`; ruff clean.
 - [ ] **Step 5: Commit** `feat: config [tracker.jira] com leitura do [jira] antigo`.
 
-### Task 11: The daily without the MCP fallback
+### Task 11: The daily with a neutral MCP fallback
+
+The user changed this task on 16/11: the fallback stays, through the configured tracker's MCP.
 
 **Files:**
+- Create: `skills/daily/references/jira.md` (the MCP calls of the jira kind, read only)
 - Modify: `skills/daily/SKILL.md`, `skills/daily/references/detailed.md`, `src/ws/standupreport.py`,
   `tests/test_standupreport.py` (also switched to `[tracker.jira]`)
 - Test: `tests/test_daily_skill.py`
 
-**Interfaces:** step 3 "Fallback: the Atlassian MCP" is deleted; when `ws task list` exits 1 or 2
+**Interfaces:** step 3 "Fallback: the Atlassian MCP" becomes "Fallback: the tracker's MCP": when
+`ws task list` exits 1 or 2, the skill reads `[tracker] kind` and follows
+`references/<kind>.md`, read only; `SKILL.md` names no vendor call. When the fallback fails too,
 the skill goes to the report without `--cards` and says "Tracker indisponível" (setup hint for
 exit 2 kept, with `ws config token <kind>`). The report key `jira` becomes `tracker` (bool); the
 skill and `references/detailed.md` read `tracker` and say "Tracker indisponível: sem status nem

@@ -6,6 +6,7 @@ import pytest
 from ws.release import ReleaseRefused, ReleaseSetup, folder
 
 SITE = "https://example.atlassian.net"
+TEMPLATE = f"{SITE}/browse/{{key}}"
 
 
 @pytest.fixture
@@ -174,7 +175,7 @@ def test_render_tasks_and_date():
     text = folder.render(
         "{tasks}\n{release_date}",
         tasks=("TS-101", "TS-102"),
-        site=SITE,
+        template=TEMPLATE,
         day=date(2026, 11, 20),
         known={},
     )
@@ -182,10 +183,20 @@ def test_render_tasks_and_date():
     assert folder.release_line(date(2026, 11, 20)) == "Release: 20/11/2026"
 
 
+def test_release_links_use_the_tracker_template():
+    other = "https://tasks.example.com/item/{key}"
+
+    assert folder.tasks_block(("TS-7", "TS-8"), other) == (
+        "- TS-7: https://tasks.example.com/item/TS-7\n- TS-8: https://tasks.example.com/item/TS-8"
+    )
+
+
 def test_render_keeps_unknown_refs():
     known = {"repo-b": ("acme/repo-b#5", "https://github.com/acme/repo-b/pull/5", 5)}
     text = "{pr:repo-b} {url:repo-b} {num:repo-b} {pr:repo-a-sandbox}"
-    out = folder.render(text, tasks=("TS-1",), site=SITE, day=date(2026, 11, 20), known=known)
+    out = folder.render(
+        text, tasks=("TS-1",), template=TEMPLATE, day=date(2026, 11, 20), known=known
+    )
     assert out == ("acme/repo-b#5 https://github.com/acme/repo-b/pull/5 5 {pr:repo-a-sandbox}")
     assert folder.pending_refs(out) == ["repo-a-sandbox"]
     assert folder.resolve_refs("{num:repo-b}", known) == "5"

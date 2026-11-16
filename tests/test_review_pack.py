@@ -18,7 +18,7 @@ from ws import reviewpack
 from ws.cli import main
 from ws.config import data_dir
 from ws.taskmodel import Status
-from ws.tracker.jira_adapter import JIRA_CAPABILITIES
+from ws.tracker.jira.adapter import JIRA_CAPABILITIES
 from ws.tracker.port import TrackerError, TrackerSetup
 
 Git = Callable[..., subprocess.CompletedProcess[str]]

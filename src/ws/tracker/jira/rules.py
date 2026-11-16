@@ -1,18 +1,18 @@
 """The rules of `ws card`: what each draft may do to which card, and the request it becomes."""
 
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
-from ws.adf import AdfError, foreign_nodes, to_adf
-from ws.carddraft import Draft
 from ws.identity import dev_id
-from ws.jira import CATEGORY_STATUS, JiraClient, JiraError
 from ws.taskmodel import Status
 from ws.tracker import vocab
-from ws.userconfig import JiraConfig, Person
+from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
+from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
+from ws.tracker.jira.settings import JiraConfig
+from ws.tracker.write import Draft
+from ws.userconfig import Person
 
 MAX_SUMMARY = 255
 WORKLOG_HOUR = 9
@@ -39,10 +39,41 @@ class Verdict:
         return self.requests[0] if self.requests else None
 
 
-def fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFD", text)
-    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
-    return " ".join(bare.casefold().split())
+@dataclass(frozen=True)
+class Sprint:
+    """The sprint a draft puts a card in."""
+
+    id: int
+    name: str
+    end: date | None
+    active: bool
+
+    def label(self, *, create: bool) -> str:
+        """The sprint as the preview shows it. The active sprint keeps the lines it always had:
+        its full end date on a create, no date on an edit."""
+        if self.end is None or (self.active and not create):
+            return self.name
+        if self.active:
+            return f"{self.name} (termina em {self.end.isoformat()})"
+        return f"{self.name} (termina em {self.end:%d/%m})"
+
+
+def _sprint_order(sprint: dict) -> tuple:
+    """Earliest start date first; sprints with no start date after them, by id."""
+    start = _instant(sprint.get("startDate"))
+    number = sprint.get("id")
+    if isinstance(number, bool) or not isinstance(number, int):
+        number = float("inf")
+    return (start is None, start.timestamp() if start else 0.0, number)
+
+
+def _instant(value) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def adf_text(node: dict) -> str:
@@ -85,7 +116,8 @@ class Context:
         self.today: date = today
         self._issues: dict[str, dict | None] = {}
         self._meta: dict[str, list[dict]] = {}
-        self._sprints: list[dict] | None = None
+        self._active_sprints: list[dict] | None = None
+        self._open_sprints: list[dict] | None = None
 
     @classmethod
     def load(
@@ -193,7 +225,8 @@ class Context:
         found = self.settings.types.get(type_)
         if not found:
             verdict.problems.append(
-                f"type {type_!r} has no issue type id: add it to [jira.types] (ws tracker discover)"
+                f"type {type_!r} has no issue type id: add it to [tracker.jira.types] "
+                "(ws tracker discover)"
             )
         return found
 
@@ -201,7 +234,8 @@ class Context:
         found = self.settings.links.get(kind)
         if not found:
             verdict.problems.append(
-                f"link kind {kind!r} has no link type: add it to [jira.links] (ws tracker discover)"
+                f"link kind {kind!r} has no link type: add it to [tracker.jira.links] "
+                "(ws tracker discover)"
             )
         return found
 
@@ -275,18 +309,21 @@ class Context:
         label = self.people[ref].label if ref in self.people else None
         return name or label or account_id
 
-    def sprint(self, verdict: Verdict) -> dict | None:
-        if self._sprints is None:
-            self._sprints = self.client.active_sprints(self.settings.board_id)
-        if len(self._sprints) != 1:
-            names = ", ".join(str(item.get("name")) for item in self._sprints) or "none"
-            verdict.problems.append(
-                f"the board needs exactly one active sprint, found {len(self._sprints)} ({names})"
-            )
+    def sprint(self, value: str, verdict: Verdict) -> Sprint | None:
+        """The sprint a draft's `sprint` names: "active" (the board's one active sprint),
+        "next" (its earliest future sprint) or the exact name of an open sprint of the board;
+        None with the problem."""
+        if value == "active":
+            found = self._active_sprint(verdict)
+        elif value == "next":
+            found = self._next_sprint(verdict)
+        else:
+            found = self._named_sprint(value, verdict)
+        if found is None:
             return None
-        found = self._sprints[0]
         if isinstance(found.get("id"), bool) or not isinstance(found.get("id"), int):
-            verdict.problems.append("the active sprint has no numeric id")
+            what = "the active sprint" if value == "active" else f"the sprint {found.get('name')}"
+            verdict.problems.append(f"{what} has no numeric id")
             return None
         end = self._end_date(found.get("endDate"))
         verdict.resolved["sprint"] = {
@@ -294,19 +331,57 @@ class Context:
             "name": found.get("name"),
             "end_date": end.isoformat() if end else None,
         }
-        if end and end < self.today:
+        active = value == "active" or found.get("state") == "active"
+        if active and end and end < self.today:
             verdict.warnings.append(
                 f"the sprint {found.get('name')} ended on {end.isoformat()} and is still active"
             )
-        return found
+        return Sprint(found["id"], str(found.get("name")), end, active)
+
+    def _active_sprint(self, verdict: Verdict) -> dict | None:
+        """The board's one active sprint, from the read of the active sprints alone."""
+        if self._active_sprints is None:
+            self._active_sprints = self.client.active_sprints(self.settings.board_id)
+        if len(self._active_sprints) != 1:
+            names = ", ".join(str(item.get("name")) for item in self._active_sprints) or "none"
+            verdict.problems.append(
+                "the board needs exactly one active sprint, found "
+                f"{len(self._active_sprints)} ({names})"
+            )
+            return None
+        return self._active_sprints[0]
+
+    def _open(self) -> list[dict]:
+        if self._open_sprints is None:
+            self._open_sprints = self.client.open_sprints(self.settings.board_id)
+        return self._open_sprints
+
+    def _next_sprint(self, verdict: Verdict) -> dict | None:
+        future = [item for item in self._open() if item.get("state") == "future"]
+        if not future:
+            verdict.problems.append('the board has no future sprint for sprint = "next"')
+            return None
+        return min(future, key=_sprint_order)
+
+    def _named_sprint(self, name: str, verdict: Verdict) -> dict | None:
+        sprints = self._open()
+        named = [item for item in sprints if item.get("name") == name]
+        if len(named) == 1:
+            return named[0]
+        listed = ", ".join(str(item.get("name")) for item in sprints) or "none"
+        if named:
+            verdict.problems.append(
+                f"{len(named)} open sprints of the board are named {name!r}; open sprints: {listed}"
+            )
+        else:
+            verdict.problems.append(
+                f"no open sprint of the board is named {name!r}; open sprints: {listed}"
+            )
+        return None
 
     def _end_date(self, value) -> date | None:
-        if not isinstance(value, str):
-            return None
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(self.tz).date()
-        except ValueError:
-            return None
+        moment = _instant(value)
+        return moment.astimezone(self.tz).date() if moment else None
 
 
 def check(ctx: Context, draft: Draft) -> Verdict:
@@ -461,11 +536,13 @@ def _create_issue(
     assignee = ctx.person(assignee_ref, verdict)
     reporter = ctx.person(reporter_ref, verdict)
     due = values.get("due")
-    wants_sprint = values.get("sprint") == "active"
+    # "backlog" is refused on a create by the card-write check; here it sends no sprint.
+    sprint_value = values.get("sprint")
+    wants_sprint = sprint_value not in (None, "backlog")
     if due and due < ctx.today:
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
     if wants_sprint and due is None:
-        verdict.problems.append('due is required with sprint = "active"')
+        verdict.problems.append(f'due is required with sprint = "{sprint_value}"')
     sent = ["summary", "description", "assignee"]
     sent += ["reporter"] if "reporter" in values else []
     sent += ["parent"] if type_ in vocab.CARD_TYPES else []
@@ -476,7 +553,7 @@ def _create_issue(
             verdict.problems.append(
                 f"the create screen of {vocab.TYPE_LABELS[type_]} has no {name}"
             )
-    sprint = ctx.sprint(verdict) if wants_sprint else None
+    sprint = ctx.sprint(sprint_value, verdict) if wants_sprint else None
     if verdict.problems or not (assignee and reporter and description):
         return
     if link_required and not link:
@@ -499,11 +576,8 @@ def _create_issue(
         fields["duedate"] = due.isoformat()
     sprint_line = "Sprint: (nenhuma)"
     if sprint:
-        fields[ctx.settings.sprint_field] = sprint["id"]
-        sprint_end = verdict.resolved["sprint"]["end_date"]
-        sprint_line = f"Sprint: {sprint.get('name')}" + (
-            f" (termina em {sprint_end})" if sprint_end else ""
-        )
+        fields[ctx.settings.sprint_field] = sprint.id
+        sprint_line = f"Sprint: {sprint.label(create=True)}"
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
     heading = {"epic": "épico", "initiative": "iniciativa"}.get(type_, "card")
     verdict.preview = [
@@ -672,8 +746,8 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["duedate"] = old_due.isoformat() if old_due else None
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
-    if values.get("sprint") == "active":
-        _edit_sprint(ctx, current, verdict, changes, before, lines)
+    if "sprint" in values:
+        _edit_sprint(ctx, values["sprint"], current, verdict, changes, before, lines)
 
     if draft.body.strip():
         sections = _card_type(ctx, current) or "task"
@@ -715,44 +789,53 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
 
 
 def _edit_sprint(
-    ctx: Context, current: dict, verdict: Verdict, changes: dict, before: dict, lines: list[str]
+    ctx: Context,
+    value: str,
+    current: dict,
+    verdict: Verdict,
+    changes: dict,
+    before: dict,
+    lines: list[str],
 ) -> None:
-    sprint = ctx.sprint(verdict)
-    if sprint is None:
-        return
+    """Puts the card in the sprint `value` names, or out of its open sprint for "backlog"
+    (the field set to null). Closed sprints in the field are history: they are not the
+    card's sprint. For "active" the line stays as it always was, every sprint of the field
+    shown."""
     field = ctx.settings.sprint_field
     old = [item for item in (current.get(field) or []) if isinstance(item, dict)]
-    if any(item.get("id") == sprint["id"] for item in old):
-        return
-    changes[field] = sprint["id"]
+    held = [item for item in old if item.get("state") != "closed"]
+    if value == "backlog":
+        if not held:
+            return
+        target, label = None, "backlog (nenhuma sprint)"
+    else:
+        sprint = ctx.sprint(value, verdict)
+        if sprint is None or any(item.get("id") == sprint.id for item in old):
+            return
+        target, label = sprint.id, sprint.label(create=False)
+    changes[field] = target
     before[field] = [item.get("id") for item in old] or None
-    names = ", ".join(str(item.get("name")) for item in old) or "(nenhuma)"
-    lines.append(f"Sprint: {names} -> {sprint.get('name')}")
+    shown = old if value == "active" else held
+    names = ", ".join(str(item.get("name")) for item in shown) or "(nenhuma)"
+    lines.append(f"Sprint: {names} -> {label}")
 
 
 def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
+    if "to" in draft.values and "status" in draft.values:
+        verdict.problems.append("a move needs exactly one of to or status, not both")
+        return
+    if "to" not in draft.values and "status" not in draft.values:
+        verdict.problems.append("missing key 'to' for op move")
+        return
     if draft.body.strip():
         verdict.problems.append("a move has no body")
     current = ctx.writable_card(key, verdict)
     if current is None:
         return
-    target = fold(draft.values["to"])
     available = ctx.client.transitions(key)
-    matches = [
-        item for item in available if fold((item.get("to") or {}).get("name") or "") == target
-    ]
-    names = ", ".join(sorted({(item.get("to") or {}).get("name") or "?" for item in available}))
-    if not matches:
-        verdict.problems.append(
-            f"no available transition leads to {draft.values['to']!r}; available: {names or 'none'}"
-        )
-        return
-    if len(matches) > 1:
-        listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
-        verdict.problems.append(
-            f"more than one transition leads to {draft.values['to']!r}: {listing}"
-        )
+    matches = _transitions_to(ctx, draft, available, verdict)
+    if matches is None:
         return
     chosen = matches[0]
     if not chosen.get("id"):
@@ -788,6 +871,56 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         _add_start_date(ctx, key, current, verdict)
 
 
+def _transitions_to(
+    ctx: Context, draft: Draft, available: list[dict], verdict: Verdict
+) -> list[dict] | None:
+    """The one transition the draft's `to` (a status name) or `status` (a neutral status) points
+    at; a problem naming the options when there is none or more than one."""
+    names = ", ".join(sorted({(item.get("to") or {}).get("name") or "?" for item in available}))
+    if "status" in draft.values:
+        wanted = draft.values["status"]
+        matches = [
+            item for item in available if _destination_status(ctx, item.get("to") or {}) == wanted
+        ]
+        label = f"the status {wanted!r}"
+    else:
+        target = vocab.fold(draft.values["to"])
+        matches = [
+            item
+            for item in available
+            if vocab.fold((item.get("to") or {}).get("name") or "") == target
+        ]
+        label = repr(draft.values["to"])
+    if not matches:
+        hint = "; use to with one of them" if "status" in draft.values else ""
+        verdict.problems.append(
+            f"no available transition leads to {label}; available: {names or 'none'}{hint}"
+        )
+        return None
+    if len(matches) > 1:
+        listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
+        hint = ""
+        if "status" in draft.values:
+            names = sorted({(item.get("to") or {}).get("name") or "?" for item in matches})
+            listing += f"; destinations: {', '.join(names)}"
+            hint = "; use to with one of the destinations"
+            if len(names) == 1:
+                hint = "; the destination name does not tell them apart, do it by hand"
+        verdict.problems.append(f"more than one transition leads to {label}: {listing}{hint}")
+        return None
+    return matches
+
+
+def _destination_status(ctx: Context, destination: dict) -> str | None:
+    name = destination.get("name") or ""
+    overrides = ctx.settings.status_overrides
+    if name in overrides:
+        return str(overrides[name])
+    category = (destination.get("statusCategory") or {}).get("key")
+    status = CATEGORY_STATUS.get(category)
+    return status.value if status else None
+
+
 def _starts_work(ctx: Context, destination: dict) -> bool:
     name = destination.get("name") or ""
     overrides = ctx.settings.status_overrides
@@ -803,7 +936,7 @@ def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> 
     field_name = ctx.settings.start_date_field
     if not field_name:
         verdict.warnings.append(
-            "start_date_field is not in config.toml [jira]; the start date will not be set"
+            "start_date_field is not in config.toml [tracker.jira]; the start date will not be set"
         )
         return
     old_start = _parse_day(current.get(field_name))

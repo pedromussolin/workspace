@@ -2,7 +2,7 @@ import json
 import tomllib
 
 from ws.cli import main
-from ws.tracker.jira_discover import discover_toml
+from ws.tracker.jira.discover import discover_toml
 from ws.userconfig import save_jira_token
 
 TYPES = [
@@ -24,13 +24,13 @@ def test_discover_maps_known_names():
     assert 'relates = "Relates"' in text
     assert '# "Duplicate"' in text
     parsed = tomllib.loads(text)
-    assert parsed["jira"]["types"]["task"] == "10002"
-    assert parsed["jira"]["links"] == {"blocks": "Blocks", "relates": "Relates"}
+    assert parsed["tracker"]["jira"]["types"]["task"] == "10002"
+    assert parsed["tracker"]["jira"]["links"] == {"blocks": "Blocks", "relates": "Relates"}
 
 
 def test_discover_cli_reads_the_project(ws_config, fake_jira, capsys):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n',
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n',  # noqa: E501
         encoding="utf-8",
     )
     save_jira_token("sample-value")
@@ -43,12 +43,12 @@ def test_discover_cli_reads_the_project(ws_config, fake_jira, capsys):
         json.dumps({"issueLinkTypes": LINKS}),
     )
     assert main(["tracker", "discover"]) == 0
-    assert capsys.readouterr().out.startswith("[jira.types]")
+    assert capsys.readouterr().out.startswith("[tracker.jira.types]")
 
 
 def test_discover_with_the_old_issue_type_says_to_delete_it_first(ws_config, fake_jira, capsys):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'  # noqa: E501
         'issue_type = "Tarefa"\n',
         encoding="utf-8",
     )
@@ -56,5 +56,5 @@ def test_discover_with_the_old_issue_type_says_to_delete_it_first(ws_config, fak
     assert main(["tracker", "discover"]) == 2
 
     err = capsys.readouterr().err
-    assert "delete the issue_type line from [jira], then run `ws tracker discover`" in err
+    assert "delete the issue_type line from [tracker.jira], then run `ws tracker discover`" in err
     assert fake_jira.requests == []

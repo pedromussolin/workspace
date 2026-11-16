@@ -44,7 +44,7 @@ Algum desses é impedimento?
   has no list of held or limited cards, so do not write one; `/card sincronizar` shows them.
 - Status names in PT-BR, also for a suggestion's `from` and `to`: `todo` "a fazer", `in_progress` "em andamento", `review` "em code review", `validation` "em
   validação", `ready_deploy` "pronto para deploy", `blocked` "bloqueado", `done` "concluída", `cancelled` "cancelada".
-- `jira` false: start the text with "Jira indisponível: sem status nem títulos dos cards"; list
+- `tracker` false: start the text with "Tracker indisponível: sem status nem títulos dos cards"; list
   the `yesterday` topics by key, with the PR title when there is one; under **Hoje** only the
   `next_steps`; under **Impedimentos** write "indisponível".
 - Dates in the text are `dd/mm` (`blockers[].updated` is ISO in the report).

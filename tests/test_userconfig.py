@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from ws import userconfig
 from ws.cli import main
 from ws.identity import dev_id
+from ws.tracker.port import TrackerSetup, open_tracker
 from ws.userconfig import (
     ConfigInvalid,
     ConfigMissing,
@@ -55,9 +57,9 @@ def test_load_config_reads_every_field(config_dir, tmp_path, monkeypatch):
 
     config = load_config()
 
-    assert config.jira.site == "https://example.atlassian.net"
-    assert config.jira.email == "dev@example.com"
-    assert config.jira.status_overrides == {
+    assert config.tracker_settings.site == "https://example.atlassian.net"
+    assert config.tracker_settings.email == "dev@example.com"
+    assert config.tracker_settings.status_overrides == {
         "In Validation": "validation",
         "Cancelled Late": "cancelled",
     }
@@ -98,7 +100,7 @@ def test_override_to_the_workflow_stages_is_valid(config_dir):
     )
     (config_dir / "config.toml").write_text(text, encoding="utf-8")
 
-    overrides = load_config().jira.status_overrides
+    overrides = load_config().tracker_settings.status_overrides
 
     assert overrides["Ready Deploy"] == "ready_deploy"
     assert overrides["Code Review"] == "review"
@@ -287,7 +289,7 @@ def test_card_keys_are_read(config_dir):
     text = CONFIG.replace('email = "dev@example.com"\n', 'email = "dev@example.com"\n' + CARD_KEYS)
     (config_dir / "config.toml").write_text(text, encoding="utf-8")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.project == "TS"
     assert jira.board_id == 12
@@ -298,7 +300,7 @@ def test_card_keys_are_read(config_dir):
 def test_card_keys_are_none_when_absent(config_dir):
     (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.project is None
     assert jira.board_id is None
@@ -514,7 +516,7 @@ def test_jira_types_and_links_are_read(config_dir):
         '\n[jira.links]\nblocks = "Blocks"\n',
     )
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.types == {"task": "10002", "improvement": "10010"}
     assert jira.links == {"blocks": "Blocks"}
@@ -523,7 +525,7 @@ def test_jira_types_and_links_are_read(config_dir):
 def test_jira_types_and_links_default_to_empty(config_dir):
     _with(config_dir, "")
 
-    jira = load_config().jira
+    jira = load_config().tracker_settings
 
     assert jira.types == {} and jira.links == {}
 
@@ -603,3 +605,87 @@ def test_issue_type_key_is_refused_with_the_new_block(config_dir):
         "[jira] issue_type was replaced by [jira.types]; delete the issue_type line from "
         "[jira], then run `ws tracker discover` and paste its output into config.toml"
     )
+
+
+NEW_CONFIG = """\
+[tracker]
+kind = "jira"
+
+[tracker.jira]
+site = "https://example.atlassian.net"
+email = "dev@example.com"
+
+[tracker.jira.status_overrides]
+"In Validation" = "validation"
+"""
+
+
+def test_tracker_jira_table_loads(config_dir, capsys):
+    (config_dir / "config.toml").write_text(NEW_CONFIG, encoding="utf-8")
+
+    config = load_config()
+
+    assert config.tracker_kind == "jira"
+    assert config.tracker_settings.site == "https://example.atlassian.net"
+    assert config.tracker_settings.status_overrides == {"In Validation": "validation"}
+    assert config.identity_email == "dev@example.com"
+    assert capsys.readouterr().err == ""
+
+
+def test_old_jira_table_loads_with_one_deprecation_line(config_dir, capsys, monkeypatch):
+    monkeypatch.setattr(userconfig, "_deprecation_shown", False)
+    (config_dir / "config.toml").write_text(CONFIG, encoding="utf-8")
+
+    first = load_config()
+    load_config()
+
+    assert first.tracker_kind == "jira"
+    assert first.tracker_settings.email == "dev@example.com"
+    assert capsys.readouterr().err == (
+        "config.toml: [jira] is deprecated; move it under [tracker.jira]\n"
+    )
+
+
+def test_both_jira_tables_are_refused(config_dir):
+    (config_dir / "config.toml").write_text(NEW_CONFIG + CONFIG, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=r"\[jira\] and \[tracker.jira\]"):
+        load_config()
+
+
+def test_kind_is_required_without_the_old_table(config_dir):
+    (config_dir / "config.toml").write_text('[standup]\nrepo_roots = ["~/x"]\n', encoding="utf-8")
+
+    config = load_config()
+
+    assert config.standup.repo_roots == (Path("~/x").expanduser(),)
+    with pytest.raises(TrackerSetup, match=r"\[tracker\] kind"):
+        open_tracker()
+    assert config.tracker_settings is None
+
+
+def test_unknown_kind_is_refused(config_dir):
+    (config_dir / "config.toml").write_text(
+        '[tracker]\nkind = "other"\n[tracker.other]\nsite = "x"\n', encoding="utf-8"
+    )
+
+    assert load_config().tracker_kind == "other"
+    with pytest.raises(TrackerSetup, match="other"):
+        open_tracker()
+
+
+def test_jira_settings_refuse_a_site_outside_atlassian_cloud(config_dir):
+    text = NEW_CONFIG.replace("https://example.atlassian.net", "https://evil.example.com")
+    (config_dir / "config.toml").write_text(text, encoding="utf-8")
+
+    with pytest.raises(ConfigInvalid, match=r"tracker\.jira\.site"):
+        load_config()
+
+
+def test_new_table_messages_name_the_new_table(config_dir):
+    (config_dir / "config.toml").write_text(
+        NEW_CONFIG + '[tracker.jira.types]\nbogus = "1"\n', encoding="utf-8"
+    )
+
+    with pytest.raises(ConfigInvalid, match=r"tracker\.jira\.types\.bogus"):
+        load_config()

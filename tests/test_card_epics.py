@@ -4,7 +4,7 @@ import pytest
 from test_card import claude_settings, world  # noqa: F401
 
 from ws.cli import main
-from ws.jira import JiraClient
+from ws.tracker.jira.client import JiraClient
 
 
 def _issue(key, summary, type_id, parent=None):

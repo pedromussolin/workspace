@@ -1,6 +1,6 @@
 from datetime import date
 
-from release_helpers import DAY, REV_BASE, SITE, World
+from release_helpers import DAY, LINK_TEMPLATE, REV_BASE, SITE, World
 
 from ws.release import folder, rules
 from ws.release.settings import load_release_config
@@ -248,14 +248,14 @@ def draft_for(world: World, file: str, title: str, tasks: list[str], body: str):
 
 
 def good_body(state: rules.RepoState, tasks: list[str], extra: str = "") -> str:
-    lines = [folder.tasks_block(tuple(tasks), SITE), folder.release_line(DAY_DATE), extra]
+    lines = [folder.tasks_block(tuple(tasks), LINK_TEMPLATE), folder.release_line(DAY_DATE), extra]
     lines += state.headings
     return "\n\n".join(lines) + "\n"
 
 
 def r6(state, kind, draft, body=None):
     return rules.pr_text_problems(
-        state, kind, draft, draft.body if body is None else body, DAY_DATE, SITE,
+        state, kind, draft, draft.body if body is None else body, DAY_DATE, LINK_TEMPLATE,
         {"repo-a", "repo-b"}, SLUGS,
     )  # fmt: skip
 
@@ -324,6 +324,19 @@ def test_r6_body_needs_the_link_of_every_task(world: World):
     body = good_body(state, tasks).replace(f"{SITE}/browse/TS-101", "TS-101")
     draft = draft_for(world, "repo-a", f"release {DAY}: x", tasks, body)
     assert "repo-a: the description lacks the link of TS-101" in r6(state, "code", draft)
+
+
+def test_release_rules_check_the_template_link(world: World):
+    state = multi_state(world)
+    tasks = ["TS-101", "TS-102"]
+    other = "https://tasks.example.com/item/{key}"
+    body = good_body(state, tasks).replace(f"{SITE}/browse/", "https://tasks.example.com/item/")
+    draft = draft_for(world, "repo-a", f"release {DAY}: x", tasks, body)
+    assert r6(state, "code", draft) != []
+    found = rules.pr_text_problems(
+        state, "code", draft, body, DAY_DATE, other, {"repo-a", "repo-b"}, SLUGS
+    )
+    assert found == []
 
 
 def test_r6_body_needs_the_headings_of_the_template(world: World):

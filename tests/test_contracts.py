@@ -99,7 +99,9 @@ def test_load_schema_refuses_unknown_names_and_keywords():
 def test_every_schema_pins_version_and_is_closed():
     folder = resources.files("ws") / "data" / "contracts"
     names = {
-        p.name.removesuffix(".schema.json") for p in folder.iterdir() if p.name.endswith(".json")
+        p.name.removesuffix(".schema.json")
+        for p in folder.iterdir()
+        if p.name.endswith(".schema.json")
     }
     assert names == {
         "database-request",
@@ -114,13 +116,16 @@ def test_every_schema_pins_version_and_is_closed():
         "observe-result",
         "observe-run",
         "observe-status",
+        "card-write",
+        "card-plan",
+        "card-result",
     }
     assert names == set(VALID)
     for name in names:
         schema = load_schema(name)
-        assert schema["properties"]["version"] == {"const": 1}
-        assert "version" in schema["required"]
-        assert schema["additionalProperties"] is False
+        assert schema["properties"]["version"] == {"const": 1}, name
+        assert "version" in schema["required"], name
+        assert schema["additionalProperties"] is False, name
         json.dumps(schema)
 
 
@@ -231,6 +236,49 @@ VALID = {
         "closed": "2026-12-16",
         "problems": [],
         "warnings": [],
+    },
+    "card-write": {
+        "$schema": "card-write",
+        "version": 1,
+        "op": "move",
+        "key": "TS-5",
+        "status": "in_progress",
+    },
+    "card-plan": {
+        "$schema": "card-plan",
+        "version": 1,
+        "tracker": "t",
+        "target": "https://tracker.example",
+        "today": "2026-12-09",
+        "steps": [
+            {
+                "draft": {"path": "p.md", "sha256": "a" * 64},
+                "op": "move",
+                "card": "TS-5",
+                "title": None,
+                "preview": ["Status: A fazer -> Em andamento"],
+                "warnings": [],
+                "problems": [],
+                "before": {"status": "A fazer"},
+                "native": [{"method": "POST", "path": "/t", "body": {"id": "1"}}],
+            }
+        ],
+        "summary": ["[1/1] Mover card TS-5 (p.md)"],
+        "code": "0123456789ab",
+    },
+    "card-result": {
+        "$schema": "card-result",
+        "version": 1,
+        "steps": [
+            {
+                "draft": {"path": "p.md", "sha256": "a" * 64},
+                "status": "applied",
+                "sent": [{"method": "POST", "path": "/t", "body": {"id": "1"}}],
+                "created": None,
+                "url": "https://tracker.example/TS-5",
+                "error": None,
+            }
+        ],
     },
 }
 

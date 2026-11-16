@@ -1,0 +1,388 @@
+{
+  "site": "https://example.atlassian.net",
+  "today": "2026-10-27",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issue",
+      "body": {
+        "fields": {
+          "project": {
+            "key": "TS"
+          },
+          "issuetype": {
+            "id": "3"
+          },
+          "summary": "[FRONT] Título curto",
+          "description": {
+            "type": "doc",
+            "version": 1,
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Contexto"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Algo a explicar."
+                  }
+                ]
+              },
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Pronto quando"
+                  }
+                ]
+              },
+              {
+                "type": "bulletList",
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [
+                      {
+                        "type": "paragraph",
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "feito"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "priority": {
+            "name": "High"
+          },
+          "assignee": {
+            "accountId": "acc-me"
+          },
+          "parent": {
+            "key": "TS-100"
+          },
+          "duedate": "2026-10-31",
+          "customfield_10020": 55
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issue",
+      "body": {
+        "fields": {
+          "project": {
+            "key": "TS"
+          },
+          "issuetype": {
+            "id": "8"
+          },
+          "summary": "[FRONT] Épico novo",
+          "description": {
+            "type": "doc",
+            "version": 1,
+            "content": [
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Contexto"
+                  }
+                ]
+              },
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Algo a explicar."
+                  }
+                ]
+              },
+              {
+                "type": "heading",
+                "attrs": {
+                  "level": 2
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Pronto quando"
+                  }
+                ]
+              },
+              {
+                "type": "bulletList",
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [
+                      {
+                        "type": "paragraph",
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "feito"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "priority": {
+            "name": "High"
+          },
+          "assignee": {
+            "accountId": "acc-me"
+          },
+          "duedate": "2026-10-31"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/rest/api/3/issue/TS-101",
+      "body": {
+        "fields": {
+          "priority": {
+            "name": "High"
+          },
+          "duedate": "2026-11-12"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issue/TS-101/transitions",
+      "body": {
+        "transition": {
+          "id": "21"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/rest/api/3/issue/TS-101",
+      "body": {
+        "fields": {
+          "customfield_10015": "2026-10-27"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issue/TS-101/comment",
+      "body": {
+        "body": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Passos:"
+                }
+              ]
+            },
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "um"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "dois"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "python"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "print(1)"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issue/TS-101/worklog",
+      "body": {
+        "timeSpent": "1h 30m",
+        "started": "2026-10-26T09:00:00.000-0300",
+        "comment": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Revisão."
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issueLink",
+      "body": {
+        "type": {
+          "name": "Blocks"
+        },
+        "inwardIssue": {
+          "key": "TS-101"
+        },
+        "outwardIssue": {
+          "key": "TS-120"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/api/3/issueLink",
+      "body": {
+        "type": {
+          "name": "Relates"
+        },
+        "inwardIssue": {
+          "key": "TS-101"
+        },
+        "outwardIssue": {
+          "key": "TS-102"
+        }
+      }
+    }
+  ],
+  "before": [
+    {},
+    {},
+    {
+      "priority": "Medium",
+      "duedate": "2026-11-05"
+    },
+    {
+      "status": "In Progress",
+      "customfield_10015": null
+    },
+    {},
+    {},
+    {}
+  ],
+  "summary": [
+    "[1/7] Criar card (1-create.md)",
+    "  Criar card no projeto TS",
+    "  Tipo: Tarefa",
+    "  Título: [FRONT] Título curto",
+    "  Épico: TS-100 [FRONT] Épico de exemplo",
+    "  Prioridade: High",
+    "  Responsável: Dev Example",
+    "  Relator: Dev Example",
+    "  Sprint: Sprint 55 (termina em 2026-11-10)",
+    "  Prazo: 2026-10-31",
+    "  Descrição:",
+    "    ## Contexto",
+    "    Algo a explicar.",
+    "    ## Pronto quando",
+    "    - feito",
+    "[2/7] Criar card (2-create-epic.md)",
+    "  Criar épico no projeto TS",
+    "  Tipo: Épico",
+    "  Título: [FRONT] Épico novo",
+    "  Prioridade: High",
+    "  Responsável: Dev Example",
+    "  Relator: Dev Example",
+    "  Sprint: (nenhuma)",
+    "  Prazo: 2026-10-31",
+    "  Descrição:",
+    "    ## Contexto",
+    "    Algo a explicar.",
+    "    ## Pronto quando",
+    "    - feito",
+    "[3/7] Editar card TS-101 (3-edit.md)",
+    "  Editar o card TS-101",
+    "  Prioridade: Medium -> High",
+    "  Prazo: 2026-11-05 -> 2026-11-12",
+    "[4/7] Mover card TS-101 (4-move.md)",
+    "  Mover o card TS-101",
+    "  Status: In Progress -> Em Andamento",
+    "  Data de início: hoje, 27/10",
+    "[5/7] Comentar no card TS-101 (5-comment.md)",
+    "  Comentar no card TS-101",
+    "    Passos:",
+    "    - um",
+    "    - dois",
+    "    print(1)",
+    "[6/7] Lançar horas no card TS-101 (6-worklog.md)",
+    "  Lançar horas no card TS-101",
+    "  Tempo: 1h 30m",
+    "  Início: 2026-10-26T09:00:00.000-0300",
+    "  Comentário:",
+    "    Revisão.",
+    "[7/7] Vincular cards TS-101 (7-link.md)",
+    "  TS-101 bloqueia TS-120",
+    "  TS-101 relaciona-se com TS-102"
+  ]
+}

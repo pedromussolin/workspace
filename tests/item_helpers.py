@@ -9,12 +9,15 @@ ME = dev_id("dev@example.com")
 ANA = dev_id("ana@example.com")
 TEMPLATES = Path(__file__).resolve().parents[1] / "templates" / "item"
 
-CONFIG = f"""[jira]
+CONFIG = f"""[tracker]
+kind = "jira"
+
+[tracker.jira]
 site = "https://example.atlassian.net"
 email = "dev@example.com"
 project = "TS"
 
-[jira.types]
+[tracker.jira.types]
 task = "3"
 bug = "4"
 hotfix = "5"
@@ -23,7 +26,7 @@ feature = "7"
 epic = "8"
 initiative = "9"
 
-[jira.links]
+[tracker.jira.links]
 blocks = "Blocks"
 relates = "Relates"
 
