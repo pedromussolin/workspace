@@ -8,6 +8,7 @@ from test_card import (
     approve,
     claude_settings,  # noqa: F401
     create_draft,
+    folder_with_three,
     make_draft,
     pending_files,
     preview,
@@ -18,7 +19,55 @@ from test_card_golden import DRAFTS, prepare
 from ws import card, contracts
 from ws.carddraft import DraftError, parse_draft
 from ws.cli import main
+from ws.config import data_dir
 from ws.tracker import port, write
+
+
+class _Wrapped:
+    """A writer that hands everything to the real Jira writer except what a subclass replaces."""
+
+    def __init__(self, real):
+        self.real = real
+
+    def __getattr__(self, name):
+        return getattr(self.real, name)
+
+
+class _ForgetsParseProblems(_Wrapped):
+    def plan(self, entries):
+        found = self.real.plan(entries)
+        for entry, step in zip(entries, found["steps"], strict=True):
+            if entry["write"] is None:
+                step["problems"] = []
+        return found
+
+
+class _StopsAfterOneResult(_Wrapped):
+    def apply(self, plan, send=None):
+        yield next(iter(self.real.apply(plan, send)))
+
+
+class _ReportsAnotherDraft(_Wrapped):
+    def apply(self, plan, send=None):
+        other = plan["steps"][1]["draft"]
+        yield {
+            "draft": other,
+            "status": "applied",
+            "sent": [],
+            "created": None,
+            "url": None,
+            "error": None,
+        }
+
+
+def _use(monkeypatch, wrapper):
+    real_open = port.open_writer
+    monkeypatch.setattr(port, "open_writer", lambda entries: wrapper(real_open(entries)))
+
+
+def _folder(name):
+    return sorted(path.name for path in (data_dir() / "cards" / name).glob("*.md"))
+
 
 CARD_TEST_DRAFTS = {
     **DRAFTS,
@@ -256,3 +305,71 @@ def test_card_core_builds_no_jira_request():
     assert "/rest/api" not in source
     assert "/browse/" not in source
     assert "cardrules" not in source
+
+
+def test_apply_runs_the_card_write_validator_again(world, capsys, monkeypatch):  # noqa: F811
+    path = make_draft("c.md", "comment", "Oi.\n", key="TS-101")
+    _, code = preview(path, capsys)
+    monkeypatch.setattr(write, "check_document", lambda document: ["$.key: refused here"])
+
+    assert approve(path, code) == 1
+
+    out = capsys.readouterr().out
+    assert out == "Nada foi enviado. Problemas encontrados:\n  c.md: $.key: refused here\n"
+    assert world.writes() == []
+    assert len(pending_files()) == 1
+    assert path.exists()
+
+
+def test_a_parse_problem_the_writer_drops_still_refuses_the_draft(world, capsys, monkeypatch):  # noqa: F811
+    folder = data_dir() / "cards" / "drafts"
+    make_draft("1-comment.md", "comment", "Oi.\n", key="TS-101")
+    make_draft("2-move.md", "move", key="TS-101")
+    _use(monkeypatch, _ForgetsParseProblems)
+
+    assert main(["card", "preview", str(folder)]) == 1
+
+    out = capsys.readouterr().out
+    assert out == (
+        "Nada foi enviado. Problemas encontrados:\n  2-move.md: missing key 'to' for op move\n"
+    )
+    assert pending_files() == []
+
+
+def test_a_writer_that_stops_reporting_leaves_the_rest_not_sent(world, capsys, monkeypatch):  # noqa: F811
+    drafts = folder_with_three()
+    _, code = preview(drafts, capsys)
+    _use(monkeypatch, _StopsAfterOneResult)
+
+    assert approve(drafts, code) == 3
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        f"Aplicado: 1-comment.md {world.fake.site}/browse/TS-101\n"
+        "Já aplicados: 1-comment.md\n"
+        "Nada mais foi enviado, e a aprovação foi consumida; refaça a prévia para tentar de novo.\n"
+        "Não enviados: 2-edit.md, 3-worklog.md\n"
+    )
+    assert "Jira did not return the result of 2-edit.md" in captured.err
+    assert [r["path"] for r in world.writes()] == ["/rest/api/3/issue/TS-101/comment"]
+    assert _folder("drafts") == ["2-edit.md", "3-worklog.md"]
+    assert _folder("done") == ["1-comment.md"]
+    assert pending_files() == []
+
+
+def test_a_result_for_another_draft_sends_nothing_more(world, capsys, monkeypatch):  # noqa: F811
+    drafts = folder_with_three()
+    _, code = preview(drafts, capsys)
+    _use(monkeypatch, _ReportsAnotherDraft)
+
+    assert approve(drafts, code) == 3
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "Nada mais foi enviado, e a aprovação foi consumida; refaça a prévia para tentar de novo.\n"
+        "Não enviados: 1-comment.md, 2-edit.md, 3-worklog.md\n"
+    )
+    assert "Jira did not return the result of 1-comment.md" in captured.err
+    assert world.writes() == []
+    assert _folder("drafts") == ["1-comment.md", "2-edit.md", "3-worklog.md"]
+    assert _folder("done") == []

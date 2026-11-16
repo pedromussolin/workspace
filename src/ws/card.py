@@ -283,11 +283,12 @@ def _run(command: str, action) -> int:
 
 def _plan(writer: Writer, loaded: list[Loaded]) -> Plan:
     """The writer's plan of the drafts, with the core's checks on top and the `summary` the
-    person approves. The tracker's verdict comes first; a draft it accepts still fails on what the
-    `card-write` contract refuses in it, and on the item a create names."""
+    person approves. The tracker's verdict comes first; a draft it accepts still fails on what
+    `load` found in it (parse problems, or what the `card-write` contract refuses), and on the
+    item a create names."""
     document = writer.plan([item.entry for item in loaded])
     for item, step in zip(loaded, document["steps"], strict=True):
-        if item.draft and item.problems and not step["problems"]:
+        if item.problems and not step["problems"]:
             step["problems"] = list(item.problems)
             step["native"] = []
     _item_problems(loaded, document["steps"])
@@ -599,9 +600,13 @@ def _send_all(writer: Writer, plan: Plan) -> int:
     applied: list[str] = []
     applied_paths: list[Path] = []
     write_back_failed = False
-    results = writer.apply(plan.document, lambda call: _send(writer, call))
-    for index, result in enumerate(results):
-        item = plan.loaded[index]
+    results = iter(writer.apply(plan.document, lambda call: _send(writer, call)))
+    for index, item in enumerate(plan.loaded):
+        result = next(results, None)
+        if result is None or result.get("draft") != item.entry["source"]:
+            _report_unreported(writer, plan, index, applied)
+            _drop_records_for(applied_paths)
+            return 3
         if result["status"] != "applied":
             _report_failure(writer, plan, index, result, applied)
             _drop_records_for([*applied_paths, item.path])
@@ -726,6 +731,22 @@ def _report_failure(
     pending = [other.path.name for other in plan.loaded[index + 1 :]]
     if pending:
         print(f"Não enviados: {', '.join(pending)}")
+
+
+def _report_unreported(writer: Writer, plan: Plan, index: int, applied: list[str]) -> None:
+    """The writer stopped reporting, or reported another draft, at draft `index`: nothing more is
+    asked of it, and that draft and the rest stay in `drafts/` as not sent."""
+    item = plan.loaded[index]
+    print(
+        f"ws card apply: {writer.name} did not return the result of {item.path.name}",
+        file=sys.stderr,
+    )
+    if applied:
+        print(f"Já aplicados: {', '.join(applied)}")
+    print(
+        "Nada mais foi enviado, e a aprovação foi consumida; refaça a prévia para tentar de novo."
+    )
+    print(f"Não enviados: {', '.join(other.path.name for other in plan.loaded[index:])}")
 
 
 def _unique(folder: str, name: str) -> Path:
