@@ -76,7 +76,11 @@ class UserConfig:
             object.__setattr__(self, name, value)
 
     @property
-    def identity_email(self) -> str:
+    def identity_email(self) -> str | None:
+        return self.identity or None
+
+    def require_identity_email(self) -> str:
+        """Your e-mail; raises when neither `[identity]` nor the tracker settings have one."""
         if not self.identity:
             raise ConfigInvalid(
                 "config.toml: identity.email is not set; set it or the tracker e-mail"

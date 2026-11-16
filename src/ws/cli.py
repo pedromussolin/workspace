@@ -906,7 +906,7 @@ def _add_people(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]
 
 def _cmd_people_me(args: argparse.Namespace) -> int:
     try:
-        email = userconfig.load_config().identity_email
+        email = userconfig.load_config().require_identity_email()
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
         print(f"ws people me: {error}", file=sys.stderr)
         return 2

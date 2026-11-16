@@ -112,7 +112,9 @@ class People:
     def from_config(cls, config: UserConfig, own_account: str) -> "People":
         from ws.identity import dev_id
 
-        return cls(config.people, config.tracker_kind, dev_id(config.identity_email), own_account)
+        return cls(
+            config.people, config.tracker_kind, dev_id(config.require_identity_email()), own_account
+        )
 
     def account(self, dev_id: str) -> str | None:
         if dev_id == self._own_dev_id:

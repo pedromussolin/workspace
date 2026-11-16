@@ -106,7 +106,7 @@ def test_cli_names_no_jira_module():
 @pytest.fixture
 def other_kind(world, ws_config):  # noqa: F811
     path = ws_config / "config.toml"
-    path.write_text('[tracker]\nkind = "monday"\n' + path.read_text(encoding="utf-8"))
+    path.write_text(path.read_text(encoding="utf-8").replace('kind = "jira"', 'kind = "monday"'))
 
 
 def _inputs(tmp_path):
