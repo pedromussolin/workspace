@@ -3,6 +3,9 @@
   "mcpServers": {
     "atlassian": {
       "command": "false"
+    },
+    "datadog": {
+      "command": "false"
     }
   }
 }
