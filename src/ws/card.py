@@ -1,4 +1,8 @@
-"""`ws card`: check, preview and apply the model's drafts to the user's Jira, behind an approval."""
+"""`ws card`: check, preview and apply the model's drafts to the user's tracker, behind an approval.
+
+The tracker is reached only through the `Writer` port: it plans the drafts (`card-plan`), guards
+and sends its own calls; this module shows the plan, keeps the approval and reports the result.
+"""
 
 import hashlib
 import json
@@ -11,14 +15,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ws import approval, bootstrap, cardrules, humans, itemrecord, userconfig
+from ws import approval, bootstrap, humans, itemrecord, userconfig
 from ws.carddraft import Draft, DraftError, parse_draft
-from ws.cardrules import Verdict
 from ws.config import claude_settings_path, data_dir, repo_root
+from ws.identity import dev_id
 from ws.itemfile import ItemError
-from ws.jira import JiraClient, JiraError
-from ws.tracker.errors import TrackerSetup
-from ws.tracker.jira import writer
+from ws.tracker import port, write
+from ws.tracker.errors import TrackerError, TrackerSetup
+from ws.tracker.port import Writer
 
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = approval.APPROVAL_WINDOW
@@ -40,10 +44,22 @@ SetupNeeded = TrackerSetup
 
 @dataclass
 class Loaded:
+    """A draft as read. With no `draft`, `problems` are why it did not parse; with one, they are
+    what the `card-write` contract refuses in it (shown only if the tracker accepts the draft)."""
+
     path: Path
     draft: Draft | None
     sha256: str | None
     problems: list[str]
+
+    @property
+    def entry(self) -> dict:
+        """What the writer plans: where the draft is, its `card-write` document, its problems."""
+        return {
+            "source": {"path": str(self.path), "sha256": self.sha256},
+            "write": write.to_document(self.draft) if self.draft else None,
+            "problems": self.problems,
+        }
 
 
 @dataclass(frozen=True)
@@ -55,24 +71,22 @@ class Preview:
 
 @dataclass
 class Plan:
+    """The drafts and the `card-plan` document the writer made of them."""
+
     loaded: list[Loaded]
-    verdicts: list[Verdict]
+    document: dict
+
+    @property
+    def steps(self) -> list[dict]:
+        return self.document["steps"]
 
     @property
     def ok(self) -> bool:
-        return all(not verdict.problems for verdict in self.verdicts)
-
-    @property
-    def requests(self) -> list[dict]:
-        return [request for verdict in self.verdicts for request in verdict.requests]
-
-    @property
-    def befores(self) -> list[dict]:
-        return [verdict.before for verdict in self.verdicts]
+        return all(not step["problems"] for step in self.steps)
 
     @property
     def today(self) -> str | None:
-        return self.verdicts[0].resolved.get("today") if self.verdicts else None
+        return self.document["today"]
 
     @property
     def blocks(self) -> list[list[str]]:
@@ -80,15 +94,15 @@ class Plan:
         preview lines and the warnings. The printed preview and the pending record both use it."""
         total = len(self.loaded)
         blocks = []
-        for number, (item, verdict) in enumerate(zip(self.loaded, self.verdicts, strict=True), 1):
+        for number, (item, step) in enumerate(zip(self.loaded, self.steps, strict=True), 1):
             label = _OPERATIONS.get(item.draft.op, item.draft.op) if item.draft else "?"
-            key = verdict.resolved.get("card", {}).get("key")
+            key = step["card"]
             header = f"[{number}/{total}] {label}{f' {key}' if key else ''} ({item.path.name})"
             blocks.append(
                 [
                     header,
-                    *[f"  {line}" for line in verdict.preview],
-                    *[f"  Aviso: {warning}" for warning in verdict.warnings],
+                    *[f"  {line}" for line in step["preview"]],
+                    *[f"  Aviso: {warning}" for warning in step["warnings"]],
                 ]
             )
         return blocks
@@ -211,31 +225,43 @@ def load(path: Path) -> Loaded:
         draft = parse_draft(raw)
     except DraftError as error:
         return Loaded(path, None, hashlib.sha256(raw).hexdigest(), error.problems)
-    return Loaded(path, draft, draft.sha256, [])
+    return Loaded(path, draft, draft.sha256, write.check_document(write.to_document(draft)))
+
+
+def show(path: str) -> dict:
+    """The `card-write` document of a draft under `cards/drafts/`; `DraftError` when the draft
+    does not parse or the contract refuses it."""
+    [found] = collect(str(path), single=True)
+    item = load(found)
+    if item.draft is None or item.problems:
+        raise DraftError(item.problems)
+    return write.to_document(item.draft)
 
 
 def _needed_keys(loaded: list[Loaded]) -> set[str]:
-    needed = {"project"}
-    for item in loaded:
-        if item.draft is None:
-            continue
-        op, values = item.draft.op, item.draft.values
-        if op == "create":
-            needed |= {"board_id", "types", "sprint_field"}
-        if op == "edit":
-            if "priority" in values or "type" in values:
-                needed.add("types")
-            if "start" in values:
-                needed.add("start_date_field")
-            if "sprint" in values:
-                needed |= {"board_id", "sprint_field"}
-        if op == "link":
-            needed.add("links")
-    return needed
+    """The Jira writer's `needed_keys` over drafts; its tests reach it here until Task 18."""
+    from ws.tracker.jira import writer
+
+    return writer.needed_keys([write.to_document(item.draft) for item in loaded if item.draft])
 
 
-def session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
+def guard(project: str, requests: list[dict]) -> str | None:
+    """The Jira writer's `guard`; its tests reach it here until Task 18."""
+    from ws.tracker.jira import writer
+
+    return writer.guard(project, requests)
+
+
+def session(needed: set[str]):
+    """The Jira session with this module's `REQUEST_TIMEOUT`, which a test patches; the Jira
+    adapter opens its writer through it until Task 18."""
+    from ws.tracker.jira import writer
+
     return writer.session(needed, timeout=REQUEST_TIMEOUT)
+
+
+def _open_writer(loaded: list[Loaded]) -> Writer:
+    return port.open_writer([item.entry for item in loaded])
 
 
 def _run(command: str, action) -> int:
@@ -244,30 +270,38 @@ def _run(command: str, action) -> int:
     except SetupNeeded as error:
         print(f"ws card {command}: {error}", file=sys.stderr)
         return 2
-    except JiraError as error:
+    except TrackerError as error:
         print(f"ws card {command}: {error}", file=sys.stderr)
         return 3
     except (KeyError, TypeError, AttributeError) as error:
-        print(f"ws card {command}: unexpected answer from Jira ({error!r})", file=sys.stderr)
+        print(f"ws card {command}: unexpected answer from the tracker ({error!r})", file=sys.stderr)
         return 3
     except OSError as error:
         print(f"ws card {command}: file error: {error}", file=sys.stderr)
         return 1
 
 
-def build_plan(client: JiraClient, settings, loaded: list[Loaded]) -> Plan:
-    config = userconfig.load_config()
-    context = cardrules.Context.load(client, settings, _now(), config.people, config.identity_email)
-    verdicts = [
-        cardrules.check(context, item.draft) if item.draft else Verdict(problems=item.problems)
-        for item in loaded
-    ]
-    _batch_link_problems(settings, loaded, verdicts)
-    _item_problems(context.own_dev_id or "", loaded, verdicts)
-    return Plan(loaded, verdicts)
+def _plan(writer: Writer, loaded: list[Loaded]) -> Plan:
+    """The writer's plan of the drafts, with the core's checks on top and the `summary` the
+    person approves. The tracker's verdict comes first; a draft it accepts still fails on what the
+    `card-write` contract refuses in it, and on the item a create names."""
+    document = writer.plan([item.entry for item in loaded])
+    for item, step in zip(loaded, document["steps"], strict=True):
+        if item.draft and item.problems and not step["problems"]:
+            step["problems"] = list(item.problems)
+            step["native"] = []
+    _item_problems(loaded, document["steps"])
+    plan = Plan(loaded, document)
+    document["summary"] = plan.summary
+    return plan
 
 
-def _item_problems(own_dev_id: str, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
+def _own_dev_id() -> str:
+    email = userconfig.load_config().identity_email
+    return dev_id(email) if email else ""
+
+
+def _item_problems(loaded: list[Loaded], steps: list[dict]) -> None:
     """A create naming an item must match it and be the only create for it: the card key goes
     back into the item, and a second create would make a duplicate."""
     creators: dict[str, list[int]] = {}
@@ -275,6 +309,7 @@ def _item_problems(own_dev_id: str, loaded: list[Loaded], verdicts: list[Verdict
         values = item.draft.values if item.draft and item.draft.op == "create" else {}
         if "item" in values:
             creators.setdefault(values["item"], []).append(index)
+    own_dev_id = _own_dev_id() if creators else ""
     for rel, indexes in creators.items():
         for index in indexes:
             values = loaded[index].draft.values
@@ -282,44 +317,8 @@ def _item_problems(own_dev_id: str, loaded: list[Loaded], verdicts: list[Verdict
             if len(indexes) > 1:
                 problems.append(f"two drafts create a card for item {rel}")
             if problems:
-                verdicts[index].problems.extend(problems)
-                verdicts[index].requests = []
-
-
-def _batch_link_problems(settings, loaded: list[Loaded], verdicts: list[Verdict]) -> None:
-    """Each draft checks its links against Jira alone; across the drafts of one batch, a link
-    asked twice, or asked both ways, is refused on the later draft."""
-    symmetric = settings.links.get("relates")
-    seen: dict[tuple[str, str, str], Path] = {}
-    for item, verdict in zip(loaded, verdicts, strict=True):
-        mine = []
-        for request in verdict.requests:
-            if request["path"] != "/rest/api/3/issueLink":
-                continue
-            body = request["body"]
-            link = (
-                body["type"]["name"],
-                body["inwardIssue"]["key"],
-                body["outwardIssue"]["key"],
-            )
-            type_name, inward, outward = link
-            reverse = (type_name, outward, inward)
-            if link in seen or (type_name == symmetric and reverse in seen):
-                earlier = seen.get(link) or seen[reverse]
-                verdict.problems.append(
-                    f"the {type_name} link between {inward} and {outward} is also asked by "
-                    f"{earlier.name}"
-                )
-            elif reverse in seen:
-                verdict.problems.append(
-                    f"{inward} and {outward} are linked by {type_name} in both directions: here "
-                    f"and in {seen[reverse].name}; keep one"
-                )
-            mine.append(link)
-        for link in mine:
-            seen.setdefault(link, item.path)
-        if verdict.problems:
-            verdict.requests = []
+                steps[index]["problems"].extend(problems)
+                steps[index]["native"] = []
 
 
 def approval_code(site: str, requests: list[dict], befores: list[dict], summary: list[str]) -> str:
@@ -341,115 +340,74 @@ def run_check(argument: str) -> int:
     try:
         [path] = collect(argument, single=True)
     except DraftError as error:
-        _print_verdict(Verdict(problems=error.problems))
+        _print_check(error.problems)
         return 1
     item = load(path)
     if item.draft is None:
-        _print_verdict(Verdict(problems=item.problems))
+        _print_check(item.problems)
         return 1
 
     def action() -> int:
-        settings, client = session(_needed_keys([item]))
+        writer = _open_writer([item])
         _ensure_store()
-        verdict = build_plan(client, settings, [item]).verdicts[0]
-        _print_verdict(verdict)
-        return 1 if verdict.problems else 0
+        [step] = _plan(writer, [item]).steps
+        resolved = getattr(writer, "resolved", None) or [{}]
+        _print_check(step["problems"], step["warnings"], resolved[0], step["native"])
+        return 1 if step["problems"] else 0
 
     return _run("check", action)
 
 
-def _print_verdict(verdict: Verdict) -> None:
+def _print_check(
+    problems: list[str],
+    warnings: list[str] | None = None,
+    resolved: dict | None = None,
+    requests: list[dict] | None = None,
+) -> None:
     payload = {
-        "ok": not verdict.problems,
-        "problems": verdict.problems,
-        "warnings": verdict.warnings,
-        "resolved": verdict.resolved,
-        "requests": verdict.requests,
+        "ok": not problems,
+        "problems": problems,
+        "warnings": warnings or [],
+        "resolved": resolved or {},
+        "requests": requests or [],
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
-def _epic_entry(issue: dict, level: int, parent: str | None) -> dict:
-    fields = issue.get("fields") or {}
-    title = fields.get("summary") or ""
-    prefix = re.match(r"^\[[^\]]+\]", title)
-    return {
-        "key": issue["key"],
-        "title": title,
-        "prefix": prefix.group(0) if prefix else None,
-        "status": (fields.get("status") or {}).get("name"),
-        "level": level,
-        "parent": parent,
-    }
-
-
-def _owned_levels(types: dict[str, str]) -> dict[str, int]:
-    levels = {"epic": 1, "initiative": 2}
-    return {types[name]: level for name, level in levels.items() if types.get(name)}
-
-
 def run_epics() -> int:
     def action() -> int:
-        settings, client = session({"project"})
-        jql = (
-            f'assignee = currentUser() AND project = "{settings.project}" '
-            "AND statusCategory != Done"
-        )
-        epics: dict[str, dict] = {}
-        for issue in client.search(jql, ["parent"]):
-            parent = (issue.get("fields") or {}).get("parent") or {}
-            fields = parent.get("fields") or {}
-            status = fields.get("status") or {}
-            done = (status.get("statusCategory") or {}).get("key") == "done"
-            if (fields.get("issuetype") or {}).get("hierarchyLevel") != 1 or done:
-                continue
-            epics.setdefault(parent["key"], _epic_entry(parent, 1, None))
-        levels = _owned_levels(settings.types)
-        if levels:
-            wanted = ", ".join(levels)
-            owned = (
-                f"issuetype in ({wanted}) AND (assignee = currentUser() "
-                "OR reporter = currentUser()) AND statusCategory != Done "
-                f'AND project = "{settings.project}"'
-            )
-            fields = ["summary", "status", "issuetype", "parent"]
-            found = client.search(owned, fields)
-            initiatives = []
-            for issue in found:
-                issue_fields = issue.get("fields") or {}
-                level = levels.get((issue_fields.get("issuetype") or {}).get("id"))
-                if level is None:
-                    continue
-                parent = (issue_fields.get("parent") or {}).get("key")
-                entry = _epic_entry(issue, level, parent)
-                epics[issue["key"]] = {**epics.get(issue["key"], {}), **entry}
-                if level == 2:
-                    initiatives.append(issue["key"])
-            if initiatives:
-                children = f"parent in ({', '.join(initiatives)}) AND statusCategory != Done"
-                for issue in client.search(children, fields):
-                    parent = ((issue.get("fields") or {}).get("parent") or {}).get("key")
-                    epics.setdefault(issue["key"], _epic_entry(issue, 1, parent))
-        print(json.dumps({"epics": list(epics.values())}, ensure_ascii=False, indent=2))
+        found = port.open_writer([]).epics()
+        print(json.dumps({"epics": found}, ensure_ascii=False, indent=2))
         return 0
 
     return _run("epics", action)
 
 
 def preview(argument: str) -> Preview:
+    return _previewed(argument)[0]
+
+
+def preview_plan(argument: str) -> dict:
+    """The preview as a `card-plan` document, with `summary`, and with `code` when the pending
+    record was saved (the same record and code as `preview`); empty when no plan could be made,
+    the reason on stderr."""
+    return _previewed(argument)[1]
+
+
+def _previewed(argument: str) -> tuple[Preview, dict]:
     try:
         loaded = [load(path) for path in collect(argument)]
     except DraftError as error:
         print(f"ws card preview: {'; '.join(error.problems)}", file=sys.stderr)
-        return Preview(1, "", None)
-    results: list[Preview] = []
+        return Preview(1, "", None), {}
+    results: list[tuple[Preview, dict]] = []
 
     def action() -> int:
         results.append(_preview(argument, loaded))
-        return results[0].status
+        return results[0][0].status
 
     status = _run("preview", action)
-    return results[0] if results else Preview(status, "", None)
+    return results[0] if results else (Preview(status, "", None), {})
 
 
 def run_preview(argument: str) -> int:
@@ -475,8 +433,8 @@ def run_apply(argument: str, approve: str | None) -> int:
 
 def _problem_lines(plan: Plan) -> list[str]:
     lines = ["Nada foi enviado. Problemas encontrados:"]
-    for item, verdict in zip(plan.loaded, plan.verdicts, strict=True):
-        lines.extend(f"  {item.path.name}: {problem}" for problem in verdict.problems)
+    for item, step in zip(plan.loaded, plan.steps, strict=True):
+        lines.extend(f"  {item.path.name}: {problem}" for problem in step["problems"])
     return lines
 
 
@@ -484,52 +442,43 @@ def _print_problems(plan: Plan) -> None:
     print("\n".join(_problem_lines(plan)))
 
 
-def _preview(argument: str, loaded: list[Loaded]) -> Preview:
-    settings, client = session(_needed_keys(loaded))
+def _preview(argument: str, loaded: list[Loaded]) -> tuple[Preview, dict]:
+    writer = _open_writer(loaded)
     _ensure_store()
-    plan = build_plan(client, settings, loaded)
+    plan = _plan(writer, loaded)
     if not plan.ok:
-        return Preview(1, "\n".join(_problem_lines(plan)) + "\n", None)
-    code = approval_code(settings.site, plan.requests, plan.befores, plan.summary)
+        return Preview(1, "\n".join(_problem_lines(plan)) + "\n", None), plan.document
+    code = write.plan_code(plan.document)
     try:
         _purge_expired()
-        _write_pending(code, settings.site, plan)
+        _write_pending(plan)
     except OSError as error:
         print(
             f"ws card preview: could not save the pending record: {error.strerror or error}",
             file=sys.stderr,
         )
-        return Preview(1, "", None)
-    lines = [f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao Jira."]
-    for block, verdict in zip(plan.blocks, plan.verdicts, strict=True):
+        return Preview(1, "", None), plan.document
+    plan.document["code"] = code
+    lines = [f"Prévia de {len(loaded)} mudança(s); nada foi enviado ao {writer.name}."]
+    for block, step in zip(plan.blocks, plan.steps, strict=True):
         lines.append("")
         lines.extend(block)
-        for request in verdict.requests:
-            lines.append(f"  Requisição: {request['method']} {request['path']}")
-            body = json.dumps(request["body"], ensure_ascii=False, indent=2)
+        for call in step["native"]:
+            lines.append(f"  Requisição: {call['method']} {call['path']}")
+            body = json.dumps(call["body"], ensure_ascii=False, indent=2)
             lines.extend(f"    {line}" for line in body.splitlines())
     lines.append(f"\nCódigo de aprovação: {code}")
     lines.append(f"Para aplicar: ws card apply {shlex.quote(argument)} --approve {code}")
-    return Preview(0, "\n".join(lines) + "\n", code)
+    return Preview(0, "\n".join(lines) + "\n", code), plan.document
 
 
 def _pending_path(code: str) -> Path:
     return _store("pending", f"{code}.json")
 
 
-def _write_pending(code: str, site: str, plan: Plan) -> None:
-    record = {
-        "code": code,
-        "created_at": _now().isoformat(),
-        "site": site.rstrip("/"),
-        "today": plan.today,
-        "sid": _session_id(),
-        "drafts": [{"path": str(item.path), "sha256": item.sha256} for item in plan.loaded],
-        "requests": plan.requests,
-        "before": plan.befores,
-        "summary": plan.summary,
-    }
-    approval.write_pending(_store("pending"), code, record)
+def _write_pending(plan: Plan) -> None:
+    record = write.pending_record(plan.document, created_at=_now().isoformat(), sid=_session_id())
+    approval.write_pending(_store("pending"), record["code"], record)
 
 
 def _read_pending(code: str) -> tuple[dict | None, str | None]:
@@ -544,10 +493,10 @@ def _interactive() -> bool:
     return humans.by_hand()
 
 
-def _confirm(summary: list[str]) -> bool:
+def _confirm(summary: list[str], tracker: str) -> bool:
     print("\n".join(summary))
     try:
-        answer = input("Gravar no Jira? [s/N] ")
+        answer = input(f"Gravar no {tracker}? [s/N] ")
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -608,21 +557,18 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
             file=sys.stderr,
         )
         return 1
-    settings, client = session(_needed_keys(loaded))
-    plan = build_plan(client, settings, loaded)
+    writer = _open_writer(loaded)
+    plan = _plan(writer, loaded)
     if not plan.ok:
         _print_problems(plan)
         return 1
-    site = settings.site.rstrip("/")
-    if approval_code(site, plan.requests, plan.befores, plan.summary) != code or (
-        record.get("site") != site
-    ):
-        print(f"ws card apply: {_why_it_differs(record, plan, site)}", file=sys.stderr)
+    if write.plan_code(plan.document) != code or record.get("site") != writer.target:
+        print(f"ws card apply: {_why_it_differs(record, plan, writer)}", file=sys.stderr)
         return 1
-    if (refused := guard(settings.project, plan.requests)) is not None:
+    if (refused := writer.guard(write.calls(plan.document))) is not None:
         print(f"ws card apply: request outside the allowed shapes: {refused}", file=sys.stderr)
         return 1
-    if by_hand and not _confirm(plan.summary):
+    if by_hand and not _confirm(plan.summary, writer.name):
         print("Nada foi enviado.")
         return 1
     try:
@@ -630,81 +576,40 @@ def _approve(code: str, loaded: list[Loaded]) -> int:
     except FileNotFoundError:
         print(f"ws card apply: the preview {code} was already used", file=sys.stderr)
         return 1
-    return _send_all(settings, client, plan)
+    return _send_all(writer, plan)
 
 
-def _why_it_differs(record: dict, plan: Plan, site: str) -> str:
+def _why_it_differs(record: dict, plan: Plan, writer: Writer) -> str:
     if record.get("today") != plan.today:
         return "a data de hoje mudou desde a prévia; rode o ws card preview de novo"
-    if record.get("site") == site and record.get("requests") == plan.requests:
-        return "o card mudou no Jira desde a prévia; rode o ws card preview de novo"
+    if record.get("site") == writer.target and record.get("requests") == write.calls(plan.document):
+        return f"o card mudou no {writer.name} desde a prévia; rode o ws card preview de novo"
     return (
-        "the site or the requests now differ from the preview (Jira changed); "
+        f"the site or the requests now differ from the preview ({writer.name} changed); "
         "run ws card preview again"
     )
 
 
-def guard(project: str, requests: list[dict]) -> str | None:
-    """The last line of defence: only the known request shapes, only on cards of the project."""
-    key = rf"{re.escape(project)}-[1-9]\d*"
-    allowed = {
-        ("POST", re.compile(r"/rest/api/3/issue")),
-        ("PUT", re.compile(rf"/rest/api/3/issue/{key}")),
-        ("POST", re.compile(rf"/rest/api/3/issue/{key}/(transitions|comment|worklog)")),
-    }
-    for request in requests:
-        if request["method"] == "POST" and request["path"] == "/rest/api/3/issueLink":
-            body = request.get("body") or {}
-            sides = [(body.get(side) or {}).get("key") for side in ("inwardIssue", "outwardIssue")]
-            if all(isinstance(side, str) and re.fullmatch(key, side) for side in sides):
-                continue
-        if not any(
-            request["method"] == method and pattern.fullmatch(request["path"])
-            for method, pattern in allowed
-        ):
-            return f"{request['method']} {request['path']}"
-    return None
+def _send(writer: Writer, call: dict):
+    """The one function every write leaves by: `apply` gets it, so a test can watch each send."""
+    return writer.send(call)
 
 
-def _send(client: JiraClient, request: dict):
-    if request["method"] == "PUT":
-        return client.put(request["path"], request["body"])
-    return client.post(request["path"], request["body"])
-
-
-def _jql_for(project: str, title: str) -> str:
-    def escape(text: str) -> str:
-        return text.replace("\\", "\\\\").replace('"', '\\"')
-
-    phrase = f'"{escape(title)}"'
-    return f'project = "{project}" AND summary ~ "{escape(phrase)}" ORDER BY created DESC'
-
-
-def _send_all(settings, client: JiraClient, plan: Plan) -> int:
-    site = settings.site.rstrip("/")
+def _send_all(writer: Writer, plan: Plan) -> int:
     applied: list[str] = []
     applied_paths: list[Path] = []
     write_back_failed = False
-    for index, (item, verdict) in enumerate(zip(plan.loaded, plan.verdicts, strict=True)):
-        answer = None
-        for sent, request in enumerate(verdict.requests):
-            try:
-                reply = _send(client, request)
-            except JiraError as error:
-                _report_failure(settings, plan, index, error, applied, sent)
-                _drop_records_for([*applied_paths, item.path])
-                return 3
-            except Exception as error:
-                unknown = JiraError(f"{type(error).__name__}: {error}", uncertain=True)
-                _report_failure(settings, plan, index, unknown, applied, sent)
-                _drop_records_for([*applied_paths, item.path])
-                return 3
-            if sent == 0:
-                answer = reply
+    results = writer.apply(plan.document, lambda call: _send(writer, call))
+    for index, result in enumerate(results):
+        item = plan.loaded[index]
+        if result["status"] != "applied":
+            _report_failure(writer, plan, index, result, applied)
+            _drop_records_for([*applied_paths, item.path])
+            return 3
         applied_paths.append(item.path)
         applied.append(item.path.name)
-        created = _report_applied(site, item, verdict, answer)
-        if not _write_back_item(item, created):
+        created = _report_applied(plan, index, result)
+        if not _write_back_item(item, created, writer.name):
             write_back_failed = True
         try:
             _move_to_done(item.path)
@@ -729,31 +634,33 @@ def _drop_records_for(paths: list[Path]) -> None:
             record.unlink(missing_ok=True)
 
 
-def _report_applied(site: str, item: Loaded, verdict: Verdict, answer) -> str | None:
+def _report_applied(plan: Plan, index: int, result: dict) -> str | None:
     """Prints the line of the applied draft; returns the key of the card it created, if any."""
-    if item.draft and item.draft.op == "link":
-        for line in verdict.preview:
+    item, step = plan.loaded[index], plan.steps[index]
+    if step["op"] == "link":
+        for line in step["preview"]:
             if not line.endswith(": já existe"):
                 print(f"Vinculado: {line}")
         return None
-    creating = verdict.request["path"] == "/rest/api/3/issue"
-    key = answer.get("key") if creating and isinstance(answer, dict) else None
-    key = key or verdict.resolved.get("card", {}).get("key")
-    link = f" {site}/browse/{key}" if key else ""
+    creating = step["op"] == "create"
+    key = result["created"] or step["card"]
+    link = f" {result['url']}" if result["url"] else ""
     print(f"{'Criado' if creating else 'Aplicado'}: {item.path.name}{link}")
     if creating and key:
-        _log_created(item.path.name, key, verdict.resolved.get("today"))
+        _log_created(item.path.name, key, plan.today)
     return key if creating else None
 
 
-def _write_back_item(item: Loaded, key: str | None) -> bool:
+def _write_back_item(item: Loaded, key: str | None, tracker: str) -> bool:
     """The card is already created: a write-back that fails is reported and recorded, and the
     rest of the batch goes on. True when there was nothing to write or it was written."""
     rel = item.draft.values.get("item") if item.draft else None
     if not rel:
         return True
     if not key:
-        print(f"O Jira não devolveu a chave do card; o item {rel} ficou registrado como incerto")
+        print(
+            f"O {tracker} não devolveu a chave do card; o item {rel} ficou registrado como incerto"
+        )
         _record_item(rel, None)
         return False
     try:
@@ -777,7 +684,7 @@ def _record_item(rel: str, ref: str | None) -> None:
 
 
 def _log_created(name: str, key: str, today: str | None) -> None:
-    """`today` is the day in the user's Jira time zone, the one the rules used. The card is
+    """`today` is the day in the user's tracker time zone, the one the rules used. The card is
     already created, so a log that cannot be written never stops the rest of the batch."""
     try:
         with _store("created.tsv").open("a", encoding="utf-8") as log:
@@ -787,30 +694,31 @@ def _log_created(name: str, key: str, today: str | None) -> None:
 
 
 def _report_failure(
-    settings, plan: Plan, index: int, error: JiraError, applied: list[str], sent: int = 0
+    writer: Writer, plan: Plan, index: int, result: dict, applied: list[str]
 ) -> None:
-    """`sent` counts the requests of this draft that already succeeded."""
-    item, verdict = plan.loaded[index], plan.verdicts[index]
-    kept = _keep_aside(item.path)
+    """`result` is the `card-result` step of the draft that failed; its `sent` holds the calls of
+    this draft that already succeeded."""
+    item, step = plan.loaded[index], plan.steps[index]
+    sent = len(result["sent"])
+    kept = _keep_aside(item.path, writer.name)
     if applied:
         print(f"Já aplicados: {', '.join(applied)}")
-    if sent and item.draft and item.draft.op == "link":
-        created = [line for line in verdict.preview if not line.endswith(": já existe")][:sent]
+    if sent and step["op"] == "link":
+        created = [line for line in step["preview"] if not line.endswith(": já existe")][:sent]
         print(f"{item.path.name}: {sent} vínculo(s) já criado(s); o restante não foi enviado")
         print(*[f"  Vinculado: {line}" for line in created], sep="\n")
     elif sent:
         print(f"{item.path.name}: a transição foi aplicada, mas a data de início não")
-    if error.uncertain:
-        print(f"{item.path.name}: resultado incerto: confira no Jira ({error})")
-        if verdict.request["path"] == "/rest/api/3/issue":
-            title = verdict.request["body"]["fields"]["summary"]
-            print(f"Para procurar o card, use esta JQL: {_jql_for(settings.project, title)}")
+    if result["status"] == "uncertain":
+        print(f"{item.path.name}: resultado incerto: confira no {writer.name} ({result['error']})")
+        if step["op"] == "create":
+            print(f"Para procurar o card, {writer.find_hint(step['title'])}")
             rel = item.draft.values.get("item") if item.draft else None
             if rel:
                 _record_item(rel, None)
                 print(f"O item {rel} ficou registrado como incerto; veja ws item set-card")
     else:
-        print(f"{item.path.name}: o Jira recusou: {error}")
+        print(f"{item.path.name}: o {writer.name} recusou: {result['error']}")
     print(
         "Nada mais foi enviado, e a aprovação foi consumida; refaça a prévia para tentar de novo."
     )
@@ -843,11 +751,11 @@ def _move_to_done(path: Path) -> None:
     _move_inside_drafts(path, "done")
 
 
-def _keep_aside(path: Path) -> str:
+def _keep_aside(path: Path, tracker: str) -> str:
     """A draft whose write failed or is uncertain leaves `drafts/`, so it is never sent again
-    by a later preview of the folder; the user decides after checking Jira."""
+    by a later preview of the folder; the user decides after checking the tracker."""
     try:
         target = _move_inside_drafts(path, "uncertain")
     except OSError as error:
         return f"Não consegui tirar {path.name} de drafts/ ({error}); confira antes de repetir."
-    return f"O rascunho {path.name} foi para {target}; confira no Jira antes de repetir."
+    return f"O rascunho {path.name} foi para {target}; confira no {tracker} antes de repetir."

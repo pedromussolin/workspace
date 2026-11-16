@@ -1,12 +1,15 @@
-"""The Jira adapter of the tracker port: cards read through the REST API."""
+"""The Jira adapter of the tracker port: cards read and written through the REST API."""
 
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ws import userconfig
 from ws.taskmodel import Task
+from ws.tracker import write
 from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.jira import client as jira
-from ws.tracker.jira import discover
+from ws.tracker.jira import discover, writer
 from ws.tracker.jira.client import JiraClient, JiraError
 from ws.tracker.port import Card, CardQuery, Link
 from ws.userconfig import JiraConfig, UserConfig
@@ -66,17 +69,38 @@ def _now() -> datetime:
 
 
 class JiraTracker:
-    kind = "jira"
+    """Reads cards and, as the `Writer` of `ws card`, plans and sends the drafts.
 
-    def __init__(self, client: JiraClient, settings: JiraConfig):
+    `config` gives the people and the identity the rules resolve (loaded when the plan needs it
+    if not given); `clock` gives the time `today` and the plan start from (the module's `_now`
+    if not given). `resolved` holds what the rules resolved for each step of the last plan.
+    """
+
+    kind = "jira"
+    name = "Jira"
+
+    def __init__(
+        self,
+        client: JiraClient,
+        settings: JiraConfig,
+        config: UserConfig | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ):
         self._client = client
         self._settings = settings
+        self._config = config
+        self._clock = clock
+        self.target = settings.site.rstrip("/")
         self.capabilities = (
             JIRA_CAPABILITIES if settings.start_date_field else JIRA_CAPABILITIES - {"start_date"}
         )
+        self.resolved: list[dict] = []
         self._myself: dict | None = None
         self._cards: dict[str, Card | None] = {}
         self._names: dict[str, str] = {}
+
+    def _time(self) -> datetime:
+        return self._clock() if self._clock else _now()
 
     def _fields(self) -> list[str]:
         names = list(_BASE_FIELDS)
@@ -103,7 +127,7 @@ class JiraTracker:
     def today(self) -> date:
         zone = self._account_data().get("timeZone")
         try:
-            return _now().astimezone(ZoneInfo(zone)).date()
+            return self._time().astimezone(ZoneInfo(zone)).date()
         except (ZoneInfoNotFoundError, ValueError, TypeError, OSError) as error:
             raise TrackerError(f"unusable tracker time zone {zone!r}: {error}") from None
 
@@ -193,6 +217,49 @@ class JiraTracker:
             raise TrackerError(str(error)) from None
         return users[0]["accountId"] if len(users) == 1 else None
 
+    def plan(self, entries: list[dict]) -> dict:
+        config = self._config if self._config is not None else userconfig.load_config()
+        try:
+            found, self.resolved = writer.plan_and_resolved(
+                self._client,
+                self._settings,
+                entries,
+                people=config.people,
+                identity_email=config.identity_email,
+                now=self._time(),
+            )
+        except (KeyError, TypeError, AttributeError) as error:
+            raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
+        return found
+
+    def guard(self, calls: list[dict]) -> str | None:
+        return writer.guard(self._settings.project, calls)
+
+    def send(self, call: dict) -> object:
+        return writer.send(self._client, call)
+
+    def apply(self, plan: dict, send: Callable[[dict], object] | None = None) -> Iterator[dict]:
+        return write.apply_steps(self, plan, send or self.send)
+
+    def created_key(self, reply: object) -> str | None:
+        return writer.created_key(reply)
+
+    def find_hint(self, title: str) -> str:
+        return writer.find_hint(self._settings.project, title)
+
+    def render_body(self, markdown: str) -> dict:
+        return writer.render_body(markdown)
+
+    def card_url(self, key: str) -> str:
+        return writer.card_url(self._settings.site, key)
+
+    def epics(self) -> list[dict]:
+        """The open epics and initiatives the user works on, for `ws card epics`."""
+        try:
+            return writer.epics(self._client, self._settings)
+        except (KeyError, TypeError, AttributeError) as error:
+            raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
+
     def _neutral(self, issue: dict) -> Card:
         settings = self._settings
         fields = jira._required(issue, "fields", "issue")
@@ -258,3 +325,13 @@ def open_tracker(config: UserConfig) -> JiraTracker:
     except card.SetupNeeded as error:
         raise TrackerSetup(str(error)) from None
     return JiraTracker(client, settings)
+
+
+def open_writer(config: UserConfig, entries: list[dict]) -> JiraTracker:
+    """Until the old paths go (Task 18), the session and the clock come from `ws.card`, whose
+    tests patch its request timeout and its `_now`."""
+    from ws import card
+
+    writes = [entry["write"] for entry in entries if entry["write"]]
+    settings, client = card.session(writer.needed_keys(writes))
+    return JiraTracker(client, settings, config, clock=lambda: card._now())
