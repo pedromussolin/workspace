@@ -54,6 +54,15 @@ TS-5585 → TS-5567 (Fase 2, coluna `proc_id`) → TS-5572 (tabela `liquidacao_r
 com migration sai da anterior (empilhada por merge) e a PR entra nessa ordem. TS-5567 Fase 1, TS-5571,
 TS-5596, TS-5568 e TS-5624 não têm migration.
 
+**Release 1 (data provável 24/11), sem card próprio:** a montagem fecha os cards que já estão na
+sprint; o registro formal do deploy é a GMUD.
+- [ ] Antes: TS-5624 no navegador; revisão da DBA na TS-5596; snapshot OpenAPI da TS-5584; horário
+      do job da TS-5585.
+- [ ] Na montagem: `down_revision` da `5d2e8f1a9c47` (cessão, TS-5583) e da `c4d8a1f65b27`
+      (shared, TS-5585) apontando para a cabeça da master no dia; conferir com o Alembic (ver
+      `CONTINUE.md`, 16/11).
+- [ ] `/release`, sandbox, GMUD, deploy na ordem shared → cessão → BFF → front, `deploy-check`.
+
 1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). Só as guardas, com BFF e front
    na mesma branch; a limpeza ficou na TS-5596.
 2. **TS-5583** (duas colunas): migration, enums, `apply_closing_modality` (com o padrão seguro de
