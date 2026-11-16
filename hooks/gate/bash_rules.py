@@ -2122,7 +2122,7 @@ def _applies_card(code: str) -> bool:
 RELEASE_WRITE_NAME = re.compile(r"(?<![A-Za-z])(?:run_publish|run_move)")
 RELEASE_WRITE_WORD = re.compile(r"(?<![A-Za-z])(?:publish|move)")
 RELEASE_WORD = re.compile(r"(?<![A-Za-z])release")
-REPLICA_QUERY_NAME = re.compile(r"(?<![A-Za-z])(?:run_day|scalar_text)")
+REPLICA_QUERY_NAME = re.compile(r"(?<![A-Za-z])(?:run_day|scalar_text|open_database|_query)")
 OBSERVE_WORD = re.compile(r"(?<![A-Za-z])observe(?![A-Za-z])")
 RUN_WORD = re.compile(r"(?<![A-Za-z])run(?![A-Za-z])")
 DATABASE_WORD = re.compile(r"(?<![A-Za-z])database")
@@ -2195,8 +2195,8 @@ def _writes_release(code: str) -> bool:
 
 
 def _queries_replica(code: str) -> bool:
-    """Python that may query a database: it names `run_day` or `scalar_text`, or imports `ws` and
-    names `observe` with `run` or `database` with `scalar`."""
+    """Python that may query a database: it names `run_day`, `scalar_text`, `open_database` or
+    `_query`, or imports `ws` and names `observe` with `run` or `database` with `scalar`."""
     if REPLICA_QUERY_NAME.search(code):
         return True
     if not WS_IMPORT.search(code):

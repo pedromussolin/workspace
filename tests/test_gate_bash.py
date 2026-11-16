@@ -3645,6 +3645,10 @@ def test_observe_run_the_ws_will_refuse_still_asks(command, reason, env):
         "from ws import observe_cli; observe_cli.run_day('demo', p, None, [])",
         "from ws import database; database.scalar(db, 'select 1', b, 30)",
         "from ws.database import open_database; open_database('replica').scalar_text('x', b, 9)",
+        "from ws.database import open_database; db = open_database('replica')",
+        "import ws.database as d; print(d.open_database('replica').rules)",
+        "from ws import observe_cli as o; o._query(c, db, d, w, p)",
+        "from ws.observe_cli import _query; _query(c, db, d, w, p)",
     ],
 )
 def test_python_that_may_query_the_replica_asks(code, env):
@@ -3705,6 +3709,7 @@ def test_observe_run_after_reading_the_plan_shows_the_box(command, env):
         "from ws import observestatus; print('running')",
         "import ws; print('observed', 'runner')",
         "from ws.observedef import parse_plan; parse_plan(t).checks; print('runs')",
+        "from ws import observestatus; print('my_query')",
     ],
 )
 def test_python_that_names_observe_and_run_only_inside_other_words_stays_silent(code, env):
