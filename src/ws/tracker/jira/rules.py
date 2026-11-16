@@ -795,7 +795,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             verdict.problems.append(f"the edit screen of {key} has no {name}")
     if not changes and not links and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
-        if lines[-1].endswith(": já existe"):
+        if lines and lines[-1].endswith(": já existe"):
             # The plan shows the initiative's link that is already there, as the `link` op does.
             verdict.preview = lines
     if verdict.problems:

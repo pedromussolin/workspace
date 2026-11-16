@@ -27,6 +27,7 @@ from ws.tracker import write
 from ws.tracker.jira.settings import parse_settings
 from ws.userconfig import ConfigInvalid
 
+TASK = {"id": "3", "name": "Tarefa", "hierarchyLevel": 0}
 EPIC = {"id": "8", "name": "Epic", "hierarchyLevel": 1}
 INITIATIVE = {"id": "9", "name": "Iniciativa", "hierarchyLevel": 2}
 ISSUE_LINK = ("POST", "/rest/api/3/issueLink")
@@ -170,6 +171,19 @@ def test_parent_without_premium_already_linked_changes_nothing(world, capsys, si
     [step] = card.preview_plan(str(path))["steps"]
     assert step["preview"][-1] == "Iniciativa: TS-140 (por link Relates): já existe"
     assert (step["problems"], step["native"]) == (["the draft changes nothing on the card"], [])
+    assert pending_files() == []
+    assert world.writes() == []
+
+
+@pytest.mark.parametrize("issuetype", [TASK, EPIC], ids=["card", "epic"])
+def test_edit_with_the_current_value_changes_nothing(world, capsys, ws_config, issuetype):  # noqa: F811
+    set_premium(ws_config)
+    world.set_card("TS-101", issuetype=issuetype, parent=None)
+    path = make_draft("same.md", "edit", key="TS-101", priority="Medium")
+
+    assert problems(path, capsys) == "the draft changes nothing on the card"
+    [step] = card.preview_plan(str(path))["steps"]
+    assert (step["preview"], step["native"]) == ([], [])
     assert pending_files() == []
     assert world.writes() == []
 
