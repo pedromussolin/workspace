@@ -23,6 +23,7 @@ import pytest
 TODAY = date(2026, 11, 13)
 DAY = "20261120"
 SITE = "https://example.atlassian.net"
+LINK_TEMPLATE = f"{SITE}/browse/{{key}}"
 REV_BASE = "aaa000000001"
 SLUG = "demo"
 IDENTITY = {

@@ -5,7 +5,10 @@ import pytest
 from ws.release import ReleaseSetup
 from ws.release.settings import load_release_config
 
-JIRA = '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net/"\n'
+JIRA = (
+    '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net/"\n'
+    'email = "dev@example.com"\n'
+)
 README = 'see "Release" in the README'
 
 
@@ -35,7 +38,7 @@ def test_release_config_reads_repos_in_file_order(config_dir):
 
     assert config.base_branch == "main"
     assert config.sandbox_branch == "sbx"
-    assert config.site == "https://example.atlassian.net"
+    assert config.card_url_template == "https://example.atlassian.net/browse/{key}"
     assert tuple(entry.name for entry in config.repos) == ("repo-b", "repo-a")
     first, second = config.repos
     assert first.path == Path.home() / "x"
@@ -78,10 +81,10 @@ def test_release_config_refuses_unknown_keys(config_dir):
     assert str(error.value).endswith(README)
 
 
-def test_release_config_needs_the_jira_site(config_dir):
+def test_release_config_without_tracker_fails(config_dir):
     _write(config_dir, '[release.repos.repo-a]\nslug = "acme/repo-a"\npath = "/s"\n')
 
-    with pytest.raises(ReleaseSetup, match="jira.site") as error:
+    with pytest.raises(ReleaseSetup, match=r"\[tracker\] kind") as error:
         load_release_config()
 
     assert str(error.value).endswith(README)

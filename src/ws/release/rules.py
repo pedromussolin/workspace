@@ -423,7 +423,7 @@ def pr_text_problems(
     draft: PrDraft,
     body: str,
     day: date,
-    site: str,
+    template: str,
     refs: set[str],
     slugs: dict[str, str],
 ) -> list[str]:
@@ -451,7 +451,7 @@ def pr_text_problems(
     for key in sorted(wanted - set(draft.tasks)):
         problems.append(f"{name}: tasks lacks {key}, which an include carries")
     for key in draft.tasks:
-        if f"{site}/browse/{key}" not in body:
+        if template.format(key=key) not in body:
             problems.append(f"{name}: the description lacks the link of {key}")
     lines = {line.strip() for line in body.splitlines()}
     for heading in state.headings:
