@@ -1,14 +1,15 @@
 """The tracker port: what the core reads from a tracker, whatever the tracker is.
 
-The port only reads cards and reports what the tracker can do; every write goes through the
-`ws card` drafts. People are tracker account ids here; the dev ids of the repo are mapped by
-`People`.
+`Tracker` reads cards and reports what the tracker can do; `Writer` plans and sends the `ws card`
+drafts, the only way a write reaches a tracker. People are tracker account ids here; the dev ids
+of the repo are mapped by `People`.
 """
 
 import importlib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import date
+from types import ModuleType
 from typing import Protocol, runtime_checkable
 
 from ws import userconfig
@@ -28,6 +29,7 @@ __all__ = [
     "TrackerSetup",
     "Writer",
     "open_tracker",
+    "open_writer",
 ]
 
 CAPABILITIES = (
@@ -167,11 +169,21 @@ class Writer(Tracker, Protocol):
     def card_url(self, key: str) -> str: ...
 
 
-def open_tracker() -> Tracker:
+def _adapter() -> tuple[UserConfig, ModuleType]:
     try:
         config = userconfig.load_config()
         require_kind(config.tracker_kind)
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
         raise TrackerSetup(str(error)) from None
-    adapter = importlib.import_module(ADAPTERS[config.tracker_kind])
+    return config, importlib.import_module(ADAPTERS[config.tracker_kind])
+
+
+def open_tracker() -> Tracker:
+    config, adapter = _adapter()
     return adapter.open_tracker(config)
+
+
+def open_writer(entries: list[dict]) -> Writer:
+    """The writer of the configured tracker, set up for the `card-write` entries it will plan."""
+    config, adapter = _adapter()
+    return adapter.open_writer(config, entries)

@@ -11,6 +11,12 @@ def open_tracker(config):
     return adapter.open_tracker(config)
 
 
+def open_writer(config, entries):
+    from ws.tracker.jira import adapter
+
+    return adapter.open_writer(config, entries)
+
+
 def task_from_listing(card, settings):
     from ws.tracker.jira import adapter
 

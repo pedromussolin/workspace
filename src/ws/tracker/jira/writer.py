@@ -87,6 +87,22 @@ def plan(
     identity_email,
     now: datetime,
 ) -> dict:
+    found, _ = plan_and_resolved(
+        client, settings, entries, people=people, identity_email=identity_email, now=now
+    )
+    return found
+
+
+def plan_and_resolved(
+    client: JiraClient,
+    settings,
+    entries: list[dict],
+    *,
+    people,
+    identity_email,
+    now: datetime,
+) -> tuple[dict, list[dict]]:
+    """The plan, and what the rules resolved for each step (`ws card check` prints it)."""
     context = rules.Context.load(client, settings, now, people, identity_email)
     verdicts = [
         rules.check(context, from_document(entry["write"]))
@@ -95,7 +111,7 @@ def plan(
         for entry in entries
     ]
     _batch_link_problems(settings, entries, verdicts)
-    return {
+    found = {
         "$schema": "card-plan",
         "version": 1,
         "tracker": "jira",
@@ -103,6 +119,7 @@ def plan(
         "today": context.today.isoformat(),
         "steps": [_step(entry, verdict) for entry, verdict in zip(entries, verdicts, strict=True)],
     }
+    return found, [verdict.resolved for verdict in verdicts]
 
 
 def _step(entry: dict, verdict: rules.Verdict) -> dict:
