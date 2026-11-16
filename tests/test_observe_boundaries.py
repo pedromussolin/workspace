@@ -23,7 +23,18 @@ NEUTRAL = (
     "database/guard.py",
 )
 PROVIDER_WORDS = ("datadog", "postgres", "psql", "docker", "jira", "execute_code", "pg_")
-SUBCOMMANDS = ("new", "check", "show", "run", "request", "fallback", "record", "status", "report")
+SUBCOMMANDS = (
+    "new",
+    "check",
+    "show",
+    "run",
+    "request",
+    "fallback",
+    "record",
+    "status",
+    "report",
+    "close",
+)
 
 
 def neutral_files() -> list[Path]:

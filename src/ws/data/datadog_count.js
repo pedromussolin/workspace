@@ -6,25 +6,30 @@ const P = /*ws:params*/null;
 
 const REASON_CHARS = 120;
 
+// Only an empty bucket list means zero: a missing list, or a bucket without a number, is an
+// unexpected response, never a silent zero.
 function buckets(response) {
   const data = response && response.data;
   if (Array.isArray(data)) return data;
-  return (data && data.buckets) || [];
+  if (data && Array.isArray(data.buckets)) return data.buckets;
+  throw new Error("unexpected response");
 }
 
 function bucketValue(bucket) {
-  const attributes = bucket.attributes || {};
-  const computes = bucket.computes || attributes.computes || attributes.compute || bucket.compute || {};
+  const attributes = (bucket && bucket.attributes) || {};
+  const computes =
+    (bucket && bucket.computes) || attributes.computes || attributes.compute || (bucket && bucket.compute) || {};
   const value = computes.c0;
-  return value === undefined || value === null ? 0 : Number(value);
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("unexpected response");
+  return value;
 }
 
 function totalOf(response) {
   if (response && response.meta && response.meta.status === "timeout") {
     throw new Error("partial result: timeout");
   }
-  const first = buckets(response)[0];
-  return first ? bucketValue(first) : 0;
+  const found = buckets(response);
+  return found.length ? bucketValue(found[0]) : 0;
 }
 
 function scalarSum(response) {

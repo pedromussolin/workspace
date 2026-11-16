@@ -1,5 +1,7 @@
 import json
 import stat
+import threading
+import time
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -50,6 +52,33 @@ def test_put_row_replaces_the_same_day_and_check(tmp_path, monkeypatch):
     assert rows[0]["verdict"] == "pass"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert len(path.read_text().splitlines()) == 2
+
+
+def test_put_row_locks_the_read_and_the_replace(tmp_path, monkeypatch):
+    """Two writers at once: the second reads only after the first has replaced the file."""
+    monkeypatch.setenv("WS_DATA_DIR", str(tmp_path))
+    path = tmp_path / "TS-5.results.jsonl"
+    first = row(Check(id="a", kind="manual", question="ok?"), date(2026, 12, 9), True)
+    second = row(Check(id="b", kind="manual", question="ok?"), date(2026, 12, 9), True)
+    real = observeresults.load_rows
+    loaded = threading.Event()
+
+    def slow_load(target):
+        found = real(target)
+        if threading.current_thread().name == "first":
+            loaded.set()
+            time.sleep(0.3)
+        return found
+
+    monkeypatch.setattr(observeresults, "load_rows", slow_load)
+    writer = threading.Thread(target=observeresults.put_row, args=(path, first), name="first")
+    writer.start()
+    assert loaded.wait(5)
+    observeresults.put_row(path, second)
+    writer.join(5)
+    assert [each["check"] for each in real(path)] == ["a", "b"]
+    lock = tmp_path / "TS-5.results.jsonl.lock"
+    assert stat.S_IMODE(lock.stat().st_mode) == 0o600
 
 
 def test_results_path_is_beside_the_plan(tmp_path):

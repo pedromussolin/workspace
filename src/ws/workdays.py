@@ -3,7 +3,7 @@
 """
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import cache
 
 from ws.userconfig import ConfigInvalid, ConfigMissing, load_table
@@ -56,6 +56,11 @@ def national_holidays(year: int) -> frozenset[date]:
 
 
 def _holiday(index: int, item: object) -> date:
+    # A TOML date-time is a `date` too, but it never equals a day: refused, not silently ignored.
+    if isinstance(item, datetime):
+        raise ConfigInvalid(
+            f"workdays.holidays[{index}] must be a YYYY-MM-DD date, not a date-time"
+        )
     if isinstance(item, date):
         return item
     if isinstance(item, str) and ISO_DATE.fullmatch(item):

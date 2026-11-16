@@ -6,14 +6,14 @@ import os
 import re
 import tomllib
 from dataclasses import dataclass, fields
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ws import userconfig
 from ws.config import data_dir
-from ws.privatefile import PRIVATE_FOLDER, private_folder
+from ws.privatefile import PRIVATE_FOLDER, private_file, private_folder
 from ws.project import SLUG_PATTERN
 from ws.tracker.vocab import REF
 
@@ -25,6 +25,8 @@ DEFAULT_DATABASE = "replica"
 CHECK_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 EXPECT = re.compile(r"(==|<=) ?(\d+)")
 DATABASE_NAME = re.compile(r"[a-z0-9_-]+")
+ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}", re.ASCII)
+TABLE_HEADER = re.compile(r"\s*\[")
 PRIVATE_FILE = 0o600
 RESULTS_SUFFIX = ".results.jsonl"
 
@@ -61,12 +63,14 @@ class Plan:
     days: int
     timezone: str
     checks: tuple[Check, ...]
+    closed: date | None = None
 
 
 def plan_document(table: dict) -> dict:
     document = dict(table)
-    if isinstance(document.get("switched_off"), date):
-        document["switched_off"] = document["switched_off"].isoformat()
+    for key in ("switched_off", "closed"):
+        if isinstance(document.get(key), date) and not isinstance(document[key], datetime):
+            document[key] = document[key].isoformat()
     document.setdefault("days", DEFAULT_DAYS)
     document.setdefault("timezone", DEFAULT_TIMEZONE)
     checks = []
@@ -119,7 +123,20 @@ def parse_check(raw: object, index: int, where: str, seen: set[str]) -> Check:
     return Check(**raw)
 
 
-PLAN_KEYS = ("version", "task", "job", "switched_off", "days", "timezone", "checks")
+PLAN_KEYS = ("version", "task", "job", "switched_off", "days", "timezone", "checks", "closed")
+
+
+def _closed(document: dict, where: str) -> date | None:
+    """The day the observation was closed: `ws observe close` writes it; absent while open."""
+    if "closed" not in document:
+        return None
+    value = document["closed"]
+    if isinstance(value, str) and ISO_DAY.fullmatch(value):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            pass
+    raise Invalid(f"{where}: closed: must be a date YYYY-MM-DD")
 
 
 def parse_plan(document: dict, where: str) -> Plan:
@@ -149,7 +166,7 @@ def parse_plan(document: dict, where: str) -> Plan:
         raise Invalid(f"{where}: checks: at least one check is required")
     seen: set[str] = set()
     checks = tuple(parse_check(raw, i, where, seen) for i, raw in enumerate(raw_checks))
-    return Plan(task, job, switched_off, days, zone, checks)
+    return Plan(task, job, switched_off, days, zone, checks, _closed(document, where))
 
 
 def load_plan(path: Path) -> tuple[dict, Plan]:
@@ -282,6 +299,45 @@ def write_new(project: str, task: str, text: str) -> Path:
         path.unlink(missing_ok=True)
         raise
     return path
+
+
+def closed_text(text: str, day: date) -> str:
+    """The plan text with `closed = "<day>"` as a top-level key. It goes after the last key
+    before the first table, so the comments stay where they are; when that place is inside a
+    multi-line value, it goes on the first line. Either way the result is checked by parsing."""
+    line = f'closed = "{day.isoformat()}"\n'
+    lines = text.splitlines(keepends=True)
+    first_table = next(
+        (index for index, each in enumerate(lines) if TABLE_HEADER.match(each)), len(lines)
+    )
+    keys = [
+        index
+        for index in range(first_table)
+        if lines[index].strip() and not lines[index].lstrip().startswith("#")
+    ]
+    after = keys[-1] + 1 if keys else 0
+    before = lines[:after]
+    if before and not before[-1].endswith("\n"):
+        before[-1] += "\n"
+    expected = {**tomllib.loads(text), "closed": day.isoformat()}
+    for candidate in ("".join([*before, line, *lines[after:]]), line + text):
+        try:
+            if tomllib.loads(candidate) == expected:
+                return candidate
+        except tomllib.TOMLDecodeError:
+            continue
+    raise Invalid('cannot add closed to the plan; add closed = "YYYY-MM-DD" by hand')
+
+
+def write_closed(path: Path, day: date) -> None:
+    """Closes the plan file in place: a 600 temp file beside it replaces it."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise Invalid(f"{path}: cannot be read: {error.strerror}") from None
+    closed = closed_text(text, day)
+    with private_file(path) as stream:
+        stream.write(closed.encode("utf-8"))
 
 
 def tighten(path: Path) -> list[str]:

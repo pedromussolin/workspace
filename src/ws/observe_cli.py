@@ -13,6 +13,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 from datetime import UTC, date, datetime
@@ -99,7 +100,12 @@ def _fail(error: Exception) -> int:
     return code
 
 
-def _emit(report: dict, code: int) -> int:
+def _emit(report: dict, code: int, contract: str) -> int:
+    """Prints `report` once it is checked against its contract; a broken one is a problem."""
+    broken = contracts.validate(report, contract)
+    if broken:
+        report["problems"].extend(broken)
+        code = _ranked([code, EXIT_PROBLEM])
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if code != EXIT_OK:
         for problem in report.get("problems", []):
@@ -126,6 +132,14 @@ def _plan(path: Path) -> tuple[dict, Plan]:
     _valid(document, "observe-plan", str(path))
     if plan.task != path.stem:
         raise Invalid(f"{path}: task {plan.task} does not match the file name")
+    return document, plan
+
+
+def _open_plan(path: Path) -> tuple[dict, Plan]:
+    """A plan that still records: a closed one only answers `show`, `check` and `report`."""
+    document, plan = _plan(path)
+    if plan.closed is not None:
+        raise Invalid(f"{plan.task} was closed on {plan.closed}; it records nothing more")
     return document, plan
 
 
@@ -286,6 +300,7 @@ def _query(
 
 def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tuple[dict, int]:
     report: dict = {
+        "version": 1,
         "task": path.stem,
         "day": None,
         "day_number": None,
@@ -297,7 +312,7 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
         "warnings": [],
     }
     try:
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         for check_id in only:
             _check(plan, check_id)
@@ -345,11 +360,14 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
 
     if tool is not None:
         subset = "".join(f" --check {check.id}" for check in probes) if only else ""
+        result_path = str(path.parent / f"{plan.task}.{chosen}.result.json")
         report["observability"] = {
             "tool": tool.tool,
             "checks": [check.id for check in probes],
             "next": f"ws observe request {plan.task}{where} --day {chosen}{subset}",
-            "result_path": str(path.parent / f"{plan.task}.{chosen}.result.json"),
+            "record": f"ws observe record {plan.task}{where} --result {shlex.quote(result_path)}",
+            "fallback": f"ws observe fallback {plan.task}{where} --day {chosen}{subset}",
+            "result_path": result_path,
         }
     manual = [check for check in selected if check.kind == "manual"]
     if manual:
@@ -390,7 +408,7 @@ def _moment(text: str, what: str) -> datetime:
 
 
 def _record_report(task: str) -> dict:
-    return {"task": task, "day": None, "recorded": [], "problems": [], "warnings": []}
+    return {"version": 1, "task": task, "day": None, "recorded": [], "problems": [], "warnings": []}
 
 
 def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
@@ -398,10 +416,17 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
     report = _record_report(path.stem)
     try:
         _valid(document, "observability-result", "the result")
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         if document["task"] != plan.task:
             raise Invalid(f"the result is for {document['task']}, not {plan.task}")
+        kind = _open_observability().kind
+        # The provider named in the answer is not ours to echo.
+        if document["provider"] != kind:
+            raise Invalid(
+                "the result comes from another provider than the configured observability tool "
+                f"({kind})"
+            )
         chosen = _closed_day(plan, _day(document["day"], "day"), _today(plan.timezone), extra)
     except (Failure, Invalid) as error:
         return _stopped(report, error)
@@ -470,7 +495,7 @@ def record_one(
     """One value typed by a person: a fallback count or a manual answer."""
     report = _record_report(path.stem)
     try:
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         check = _check(plan, check_id)
         if check.kind == "database":
@@ -512,6 +537,7 @@ def record_one(
 def check_plan(project: str, path: Path) -> tuple[dict, int]:
     """The contract, the plan rules and the guard on every SQL; modes back to 700 and 600."""
     report: dict = {
+        "version": 1,
         "task": path.stem,
         "project": project,
         "path": str(path),
@@ -556,6 +582,8 @@ def status_report(project: str | None) -> tuple[dict, int]:
         except Invalid as error:
             problems.append(str(error))
             continue
+        if plan.closed is not None:
+            continue
         today = _today(plan.timezone)
         entries.append(plan_status(document, name, _hashes(plan), found, today, extra))
     report = status_document(entries, _today(), problems)
@@ -563,10 +591,44 @@ def status_report(project: str | None) -> tuple[dict, int]:
     return report, EXIT_PROBLEM if report["problems"] else EXIT_OK
 
 
+def close_plan(project: str, path: Path, force: bool) -> tuple[dict, int]:
+    """Writes today, in the plan's zone, as the plan's `closed` day; the plan and its rows stay as
+    the change record evidence. Only a `done` plan closes, unless `force`."""
+    report: dict = {
+        "version": 1,
+        "task": path.stem,
+        "project": project,
+        "path": str(path),
+        "closed": None,
+        "problems": [],
+        "warnings": [],
+    }
+    try:
+        document, plan = _plan(path)
+        if plan.closed is not None:
+            raise Invalid(f"{plan.task} was closed on {plan.closed}")
+        extra = _holidays()
+        today = _today(plan.timezone)
+        entry = plan_status(document, project, _hashes(plan), _rows(path), today, extra)
+        state = entry["state"]
+        if state != "done" and not force:
+            raise Invalid(
+                f"{plan.task} is not done ({state}, day {entry['day']} of {entry['days']}); "
+                "pass --force to close it anyway"
+            )
+        observedef.write_closed(path, today)
+    except (Failure, Invalid) as error:
+        return _stopped(report, error)
+    report["closed"] = today.isoformat()
+    if state != "done":
+        report["warnings"].append(f"{plan.task} was closed before it was done ({state})")
+    return report, EXIT_OK
+
+
 def _observability_document(
     path: Path, day: date | None, only: list[str]
 ) -> tuple[Observability, Plan, dict]:
-    _, plan = _plan(path)
+    _, plan = _open_plan(path)
     extra = _holidays()
     chosen = _closed_day(plan, day, _today(plan.timezone), extra)
     if not any(check.kind == "observability" for check in plan.checks):
@@ -651,7 +713,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
     except Invalid as error:
         return _fail(error)
-    return _emit(*check_plan(project, path))
+    return _emit(*check_plan(project, path), "observe-check")
 
 
 def _cmd_show(args: argparse.Namespace) -> int:
@@ -663,9 +725,10 @@ def _cmd_show(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(document, ensure_ascii=False, indent=2))
         return EXIT_OK
+    closed = f"; closed {plan.closed}" if plan.closed is not None else ""
     print(
         f"{plan.task}: {plan.job}; switched off {plan.switched_off}; "
-        f"{plan.days} business days; {plan.timezone}"
+        f"{plan.days} business days; {plan.timezone}{closed}"
     )
     for check in plan.checks:
         print(f"- {check.id} ({check.kind})" + (f": {check.label}" if check.label else ""))
@@ -678,7 +741,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
     except Invalid as error:
         return _fail(error)
-    return _emit(*run_day(project, path, day, args.checks))
+    return _emit(*run_day(project, path, day, args.checks), "observe-run")
 
 
 def _cmd_request(args: argparse.Namespace) -> int:
@@ -711,9 +774,15 @@ def _cmd_fallback(args: argparse.Namespace) -> int:
         }
         for count in document["counts"]
     ]
-    report = {"task": plan.task, "day": day, "calls": tool.fallback(document), "record": record}
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    return EXIT_OK
+    report = {
+        "version": 1,
+        "task": plan.task,
+        "day": day,
+        "calls": tool.fallback(document),
+        "record": record,
+        "problems": [],
+    }
+    return _emit(report, EXIT_OK, "observe-fallback")
 
 
 def _cmd_record(args: argparse.Namespace) -> int:
@@ -728,7 +797,7 @@ def _cmd_record(args: argparse.Namespace) -> int:
         project, path = observedef.find_plan(args.task, args.project)
         if args.result is not None:
             document = _read_result(Path(args.result), path.parent)
-            return _emit(*record_result(project, path, document))
+            return _emit(*record_result(project, path, document), "observe-record")
         if [args.value is not None, args.yes, args.no].count(True) != 1:
             raise Invalid("pass exactly one of --value N, --yes or --no")
         if args.value is not None and not VALUE.fullmatch(args.value):
@@ -737,7 +806,9 @@ def _cmd_record(args: argparse.Namespace) -> int:
         day = _day(args.day)
     except Invalid as error:
         return _fail(error)
-    return _emit(*record_one(project, path, args.check, day, value, args.hash, args.by))
+    return _emit(
+        *record_one(project, path, args.check, day, value, args.hash, args.by), "observe-record"
+    )
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -766,9 +837,19 @@ def _cmd_report(args: argparse.Namespace) -> int:
     except (Failure, Invalid) as error:
         return _fail(error)
     hashes = _hashes(plan)
-    entry = plan_status(document, project, hashes, found, _today(plan.timezone), extra)
+    # A closed plan reports as it stood on its closing day, so the evidence no longer grows.
+    today = plan.closed or _today(plan.timezone)
+    entry = plan_status(document, project, hashes, found, today, extra)
     sys.stdout.write(render(document, hashes, found, entry, _title(plan.task), extra))
     return EXIT_OK
+
+
+def _cmd_close(args: argparse.Namespace) -> int:
+    try:
+        project, path = observedef.find_plan(args.task, args.project)
+    except Invalid as error:
+        return _fail(error)
+    return _emit(*close_plan(project, path, args.force), "observe-close")
 
 
 def _task(parser: argparse.ArgumentParser) -> None:
@@ -910,3 +991,16 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     )
     _task(report)
     report.set_defaults(handler=_cmd_report)
+
+    close = commands.add_parser(
+        "close",
+        help="End an observation that is done.",
+        description="Writes today as the plan's closed day: status and the daily leave it out, "
+        "and run, request, record and fallback refuse it; show and report still read it. Only "
+        "a done plan closes, unless --force.",
+    )
+    _task(close)
+    close.add_argument(
+        "--force", action="store_true", help="close a plan that is not done (ended early)"
+    )
+    close.set_defaults(handler=_cmd_close)

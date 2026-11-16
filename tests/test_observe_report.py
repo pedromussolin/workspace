@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from ws.observereport import render
@@ -72,14 +73,28 @@ def test_report_manual_record_stale_and_title():
         row("2026-12-09", "calls", hash_="old"),
     ]
     text = build(rows, today=date(2026, 12, 10), title="Fechamento")
-    assert "sim · por pat" in text
-    assert "horário do registro" in text
+    assert "sim · por pat · registrado às 08:02:03 (-03:00)" in text
+    assert "horário do registro" not in text
     assert "(desatualizado)" in text
     assert text.startswith("# Observação TS-5: Fechamento")
     assert build(rows, today=date(2026, 12, 10)).startswith(
         "# Observação TS-5: fechamento de lotes"
     )
     assert "Consultas:" in text and "calls 222222222222" in text
+
+
+def test_report_typed_count_shows_its_record_time():
+    typed = row("2026-12-09", "calls", value=2, verdict="fail", times="record", by="ana")
+    text = build([typed], today=date(2026, 12, 10))
+    assert "2 · falhou · registrado às 08:02:03 (-03:00)" in text
+
+
+def test_report_escapes_a_pipe_in_every_cell():
+    rows = [row("2026-12-09", "ok-man", value=True, by="a|b", times="record")]
+    text = build(rows, today=date(2026, 12, 10))
+    [line] = [each for each in text.splitlines() if each.startswith("| 1 · 09/12")]
+    assert "por a\\|b" in line
+    assert len(re.findall(r"(?<!\\)\|", line)) == 2 + len(PLAN["checks"]) + 1
 
 
 def test_report_never_prints_queries():

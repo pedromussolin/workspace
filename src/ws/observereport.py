@@ -20,11 +20,12 @@ def _offset(moment: datetime) -> str:
 
 
 def _times(row: dict, zone: ZoneInfo) -> str:
-    if row.get("times") == "record":
-        return "horário do registro"
     if not row.get("started") or not row.get("finished"):
         return ""
     started = datetime.fromisoformat(row["started"]).astimezone(zone)
+    if row.get("times") == "record":
+        # A value typed by a person has one moment: when it was recorded.
+        return f"registrado às {started:%H:%M:%S} ({_offset(started)})"
     finished = datetime.fromisoformat(row["finished"]).astimezone(zone)
     return f"{started:%H:%M:%S}–{finished:%H:%M:%S} ({_offset(started)})"
 
@@ -50,7 +51,7 @@ def _cell(row: dict | None, hashes: dict[str, str], zone: ZoneInfo) -> str:
     text = " · ".join(parts)
     if row.get("hash") != hashes.get(row["check"]):
         text += " (desatualizado)"
-    return text
+    return _escape(text)
 
 
 def _escape(text: str) -> str:
@@ -84,12 +85,15 @@ def render(
     latest = {(item["day"], item["check"]): item for item in rows}
     due = date.fromisoformat(entry["due_day"])
     days = business_days(switched_off, due, extra)
+    closed = ""
+    if plan.get("closed"):
+        closed = f"; observação encerrada em {date.fromisoformat(plan['closed']):%d/%m/%Y}"
 
     lines = [
         f"# Observação {plan['task']}: {title or plan.get('job', '')}",
         "",
         f"Desligado em {switched_off:%d/%m/%Y}; {entry['days']} dias úteis de observação; "
-        f"fuso {timezone}.",
+        f"fuso {timezone}{closed}.",
         "",
         "| Dia | Janela | " + " | ".join(_escape(c.get("label") or c["id"]) for c in checks) + " |",
         "|---|---|" + "---|" * len(checks),

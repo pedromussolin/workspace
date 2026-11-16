@@ -197,3 +197,52 @@ def test_write_new_removes_the_file_when_the_write_fails(env):
     with pytest.raises(UnicodeEncodeError):
         observedef.write_new("demo", "TS-5", "\ud800")
     assert not observedef.plan_path("demo", "TS-5").exists()
+
+
+@pytest.mark.parametrize("closed", ["2026-12-16", date(2026, 12, 16)])
+def test_closed_is_an_optional_date(closed):
+    document = observedef.plan_document({**TABLE, "closed": closed})
+    assert document["closed"] == "2026-12-16"
+    assert observedef.parse_plan(document, "p").closed == date(2026, 12, 16)
+    assert observedef.parse_plan(observedef.plan_document(TABLE), "p").closed is None
+
+
+@pytest.mark.parametrize("closed", ["16/12/2026", "2026-12-32", 20261216, True, ""])
+def test_closed_refuses_anything_but_a_date(closed):
+    document = observedef.plan_document({**TABLE, "closed": closed})
+    with pytest.raises(Invalid, match="p: closed: must be a date YYYY-MM-DD"):
+        observedef.parse_plan(document, "p")
+
+
+CHECKS = '\n[[checks]]\nid = "c"\nkind = "manual"\nquestion = "ok?"\n'
+
+
+def test_closed_text_goes_after_the_header():
+    head = observedef.new_plan_text("TS-5", "Job A", date(2026, 12, 8), 5, "America/Sao_Paulo")
+    text = head + CHECKS
+    closed = observedef.closed_text(text, date(2026, 12, 16))
+    assert tomllib.loads(closed) == {**tomllib.loads(text), "closed": "2026-12-16"}
+    assert 'timezone = "America/Sao_Paulo"\nclosed = "2026-12-16"\n' in closed
+    assert closed.replace('closed = "2026-12-16"\n', "") == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'version = 1\ntask = "TS-5"\njob = """\n[x]\n"""\nswitched_off = 2026-12-08' + CHECKS,
+        'version = 1\ntask = "TS-5"\nswitched_off = 2026-12-08\njob = """a\nb"""' + CHECKS,
+        'version = 1\ntask = "TS-5"\njob = "a"\nswitched_off = 2026-12-08\nchecks = []',
+    ],
+)
+def test_closed_text_stays_a_top_level_key(text):
+    closed = observedef.closed_text(text, date(2026, 12, 16))
+    assert tomllib.loads(closed) == {**tomllib.loads(text), "closed": "2026-12-16"}
+
+
+def test_write_closed_keeps_the_file_private(env):
+    head = observedef.new_plan_text("TS-5", "Job A", date(2026, 12, 8), 5, "America/Sao_Paulo")
+    path = observedef.write_new("demo", "TS-5", head + CHECKS)
+    observedef.write_closed(path, date(2026, 12, 16))
+    assert mode(path) == 0o600
+    assert tomllib.loads(path.read_text(encoding="utf-8"))["closed"] == "2026-12-16"
+    assert [p.name for p in path.parent.iterdir()] == ["TS-5.toml"]

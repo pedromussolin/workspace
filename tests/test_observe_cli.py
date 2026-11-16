@@ -264,7 +264,10 @@ def test_check_uses_the_rules_of_the_database(env, capsys):
     env.fake.rules = Rules(words=("batches",))
     code, out, _ = ws_json(capsys, "check", "TS-5")
     assert code == 1
-    assert out["problems"] == ['open-batches: "batches" is not allowed outside a literal']
+    assert out["problems"] == [
+        'open-batches: "batches" is not allowed outside a literal; '
+        'quote it and drop the table qualifier: "batches"'
+    ]
 
 
 def test_check_with_the_real_adapter_rules(env, capsys, monkeypatch):
@@ -315,11 +318,15 @@ def test_run_records_database_checks(env, capsys):
     assert row["started"] == "2026-12-10T12:00:00Z"
     assert row["finished"] == "2026-12-10T12:00:01Z"
     assert "by" not in row
+    result = path.parent / "TS-5.2026-12-09.result.json"
+    assert out["version"] == 1
     assert out["observability"] == {
         "tool": "execute_code",
         "checks": ["sweep-calls"],
         "next": "ws observe request TS-5 --day 2026-12-09",
-        "result_path": str(path.parent / "TS-5.2026-12-09.result.json"),
+        "record": f"ws observe record TS-5 --result {result}",
+        "fallback": "ws observe fallback TS-5 --day 2026-12-09",
+        "result_path": str(result),
     }
     assert out["ask"] == [
         {
@@ -518,8 +525,10 @@ def test_fallback_prints_classic_calls(env, capsys):
     path = write_plan()
     code, out, _ = ws_json(capsys, "fallback", "TS-5")
     assert code == 0
+    assert out["version"] == 1
     assert out["task"] == "TS-5"
     assert out["day"] == "2026-12-09"
+    assert out["problems"] == []
     [call] = out["calls"]
     assert call["check"] == "sweep-calls"
     assert call["tool"] == "aggregate_spans"
@@ -543,7 +552,7 @@ def tool_result(path: Path, **changes) -> dict:
         "version": 1,
         "task": "TS-5",
         "day": "2026-12-09",
-        "provider": "any",
+        "provider": "datadog",
         "counts": [
             {
                 "check": "sweep-calls",
@@ -564,6 +573,25 @@ def write_result(path: Path, document: dict | None, text: str | None = None) -> 
     target.write_text(json.dumps(document) if text is None else text, encoding="utf-8")
     target.chmod(0o644)
     return target
+
+
+def test_record_result_refuses_another_provider(env, capsys):
+    path = write_plan()
+    target = write_result(path, tool_result(path, provider="elsewhere"))
+    code, out, err = ws_json(capsys, "record", "TS-5", "--result", str(target))
+    assert code == 1
+    assert out["problems"] == [
+        "the result comes from another provider than the configured observability tool (datadog)"
+    ]
+    assert "elsewhere" not in json.dumps(out) + err
+    assert rows(path) == []
+
+    env.write_config(REPLICA)
+    target = write_result(path, tool_result(path))
+    code, out, err = ws_json(capsys, "record", "TS-5", "--result", str(target))
+    assert code == 2
+    assert "[observability] provider is not set" in err
+    assert rows(path) == []
 
 
 def test_record_result_checks_hashes(env, capsys):
@@ -876,7 +904,13 @@ def test_report_with_and_without_the_tracker(env, capsys, monkeypatch):
 def test_two_plans_need_project(env, capsys):
     write_plan()
     write_plan(project="other")
-    for argv in (["run", "TS-5"], ["show", "TS-5"], ["check", "TS-5"], ["report", "TS-5"]):
+    for argv in (
+        ["run", "TS-5"],
+        ["show", "TS-5"],
+        ["check", "TS-5"],
+        ["report", "TS-5"],
+        ["close", "TS-5", "--force"],
+    ):
         code, _, err = ws(capsys, *argv)
         assert code == 1
         assert "TS-5 has plans in demo, other; pass --project" in err
@@ -885,6 +919,13 @@ def test_two_plans_need_project(env, capsys):
     assert code == 0
     assert out["observability"]["next"] == (
         "ws observe request TS-5 --project other --day 2026-12-09"
+    )
+    other = observedef.plan_path("other", "TS-5").parent / "TS-5.2026-12-09.result.json"
+    assert out["observability"]["record"] == (
+        f"ws observe record TS-5 --project other --result {other}"
+    )
+    assert out["observability"]["fallback"] == (
+        "ws observe fallback TS-5 --project other --day 2026-12-09"
     )
     assert out["ask"][0]["yes"] == (
         "ws observe record TS-5 --project other --check file-vs-db --day 2026-12-09 --yes"
@@ -978,6 +1019,9 @@ def test_a_check_subset_reaches_the_request(env, capsys):
     assert out["observability"]["next"] == (
         "ws observe request TS-5 --day 2026-12-09 --check job-errors"
     )
+    assert out["observability"]["fallback"] == (
+        "ws observe fallback TS-5 --day 2026-12-09 --check job-errors"
+    )
     assert ws_json(capsys, "run", "TS-5", "--check", "file-vs-db")[1]["observability"] is None
 
     code, text, _ = ws(capsys, "request", "TS-5", "--day", "2026-12-09", "--check", "job-errors")
@@ -995,3 +1039,95 @@ def test_a_check_subset_reaches_the_request(env, capsys):
         code, _, err = ws(capsys, command, "TS-5", "--check", "nope")
         assert code == 1
         assert "unknown check nope" in err
+
+
+DAYS = ("2026-12-09", "2026-12-10", "2026-12-11", "2026-12-14", "2026-12-15")
+
+
+def done_plan(env: Env, capsys) -> Path:
+    path = write_plan(HEADER + MANUAL)
+    env.set_today(date(2026, 12, 16))
+    for day in DAYS:
+        argv = ["record", "TS-5", "--check", "file-vs-db", "--day", day, "--yes"]
+        assert ws(capsys, *argv)[0] == 0
+    return path
+
+
+def test_close_a_done_plan(env, capsys):
+    path = done_plan(env, capsys)
+    assert ws_json(capsys, "status", "--json")[1]["plans"][0]["state"] == "done"
+    code, out, err = ws_json(capsys, "close", "TS-5")
+    assert code == 0, err
+    assert out == {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": str(path),
+        "closed": "2026-12-16",
+        "problems": [],
+        "warnings": [],
+    }
+    assert mode(path) == 0o600
+    assert 'days = 5\nclosed = "2026-12-16"\n' in path.read_text(encoding="utf-8")
+
+    code, out, _ = ws_json(capsys, "status", "--json")
+    assert code == 0
+    assert out["plans"] == []
+    assert ws(capsys, "status")[1] == "nenhuma observação\n"
+
+    env.set_today(date(2026, 12, 18))
+    code, text, _ = ws(capsys, "report", "TS-5")
+    assert code == 0
+    assert "observação encerrada em 16/12/2026" in text
+    assert "**Resultado:** pode desligar de vez: 5 dias úteis seguidos ok" in text
+    assert "6 · 16/12" not in text
+    code, shown, _ = ws_json(capsys, "show", "TS-5", "--json")
+    assert code == 0
+    assert shown["closed"] == "2026-12-16"
+    assert "closed 2026-12-16" in ws(capsys, "show", "TS-5")[1]
+
+    code, out, _ = ws_json(capsys, "close", "TS-5")
+    assert code == 1
+    assert out["problems"] == ["TS-5 was closed on 2026-12-16"]
+
+
+def test_close_refuses_a_plan_that_is_not_done(env, capsys):
+    path = write_plan()
+    text = path.read_text(encoding="utf-8")
+    code, out, err = ws_json(capsys, "close", "TS-5")
+    assert code == 1
+    assert out["closed"] is None
+    assert out["problems"] == [
+        "TS-5 is not done (observing, day 1 of 5); pass --force to close it anyway"
+    ]
+    assert "--force" in err
+    assert path.read_text(encoding="utf-8") == text
+
+    code, out, _ = ws_json(capsys, "close", "TS-5", "--force")
+    assert code == 0
+    assert out["closed"] == "2026-12-10"
+    assert out["warnings"] == ["TS-5 was closed before it was done (observing)"]
+    assert mode(path) == 0o600
+
+
+def test_a_closed_plan_records_nothing(env, capsys):
+    path = write_plan()
+    assert ws(capsys, "close", "TS-5", "--force")[0] == 0
+    target = write_result(path, tool_result(path))
+    refused = "TS-5 was closed on 2026-12-10; it records nothing more"
+    for argv in (
+        ["run", "TS-5"],
+        ["record", "TS-5", "--check", "file-vs-db", "--yes"],
+        ["record", "TS-5", "--result", str(target)],
+    ):
+        code, out, _ = ws_json(capsys, *argv)
+        assert code == 1, argv
+        assert out["problems"] == [refused]
+    for command in ("request", "fallback"):
+        code, out, err = ws(capsys, command, "TS-5")
+        assert code == 1
+        assert out == ""
+        assert refused in err
+    assert rows(path) == []
+    assert env.fake.calls == []
+    assert ws(capsys, "check", "TS-5")[0] == 0

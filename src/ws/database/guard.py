@@ -104,27 +104,43 @@ def _check_parentheses(pieces: list[tuple[str, str]]) -> None:
 
 
 def _check_words(pieces: list[tuple[str, str]], rules: Rules) -> None:
-    """Words of the code, and a quoted identifier that may name a function: one called as
-    `"name"(...)`, or one after a dot, since `(value)."name"` calls `name(value)`."""
-    words = set(WORDS) | {word.lower() for word in rules.words}
+    """Words of the code, and quoted identifiers. A quoted name always meets the prefixes: an
+    engine may read its catalog through `"<prefix>name"`. It meets the words only when it may
+    name a function: called as `"name"(...)`, or after a dot, since `(value)."name"` calls
+    `name(value)`; otherwise a column named like a refused word still works quoted."""
+    engine = {word.lower() for word in rules.words}
+    words = set(WORDS) | engine
     prefixes = tuple(prefix.lower() for prefix in rules.prefixes)
     for index, (kind, text) in enumerate(pieces):
         if kind == "code":
             for match in WORD.finditer(text):
+                name = match.group().lower()
                 called = CALL.match(text, match.end()) is not None
-                _check_name(match.group().lower(), words, prefixes, None if called else COLUMN_HINT)
-        elif kind == "identifier" and (_called(pieces, index) or _after_dot(pieces, index)):
-            _check_name(text[1:-1].replace('""', '"').lower(), words, prefixes, None)
+                _check_name(name, words, prefixes, _column_hint(name, engine, prefixes, called))
+        elif kind == "identifier":
+            name = text[1:-1].replace('""', '"').lower()
+            may_call = _called(pieces, index) or _after_dot(pieces, index)
+            _check_name(name, words if may_call else set(), prefixes, False)
 
 
-def _check_name(name: str, words: set[str], prefixes: tuple[str, ...], hint: str | None) -> None:
-    """`hint` is for a name that may be a column: a function call or a quoted name gets none."""
-    advice = "" if hint is None else f'; {hint}: "{name}"'
+def _column_hint(name: str, engine: set[str], prefixes: tuple[str, ...], called: bool) -> bool:
+    """Quoting saves only an engine word used as a column: not a statement word of the guard,
+    not a call, and not a name a prefix refuses even when quoted."""
+    return (
+        name in engine
+        and name not in WORDS
+        and not called
+        and not any(name.startswith(prefix) for prefix in prefixes)
+    )
+
+
+def _check_name(name: str, words: set[str], prefixes: tuple[str, ...], hint: bool) -> None:
+    advice = f'; {COLUMN_HINT}: "{name}"' if hint else ""
     if name in words:
         raise Refused(f'"{name}" is not allowed outside a literal{advice}')
     for prefix in prefixes:
         if name.startswith(prefix):
-            raise Refused(f"words starting with {prefix} are not allowed{advice}")
+            raise Refused(f"words starting with {prefix} are not allowed")
 
 
 def _called(pieces: list[tuple[str, str]], index: int) -> bool:
