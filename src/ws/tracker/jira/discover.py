@@ -1,4 +1,4 @@
-"""What `ws tracker discover` and `ws people add` print for the user's config.toml."""
+"""What `ws tracker discover` prints for the user's config.toml."""
 
 import json
 
@@ -63,8 +63,3 @@ def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str:
             lines.append(f"# {neutral} = ?  (no link type with a known name)")
     lines.extend(other)
     return "\n".join(lines) + "\n"
-
-
-def people_block(dev_id: str, kind: str, account: str) -> str:
-    """The `[people."dev-…"]` table to paste in config.toml; it never carries the e-mail."""
-    return f"[people.{_quote(dev_id)}]\n{kind} = {_quote(account)}\n"

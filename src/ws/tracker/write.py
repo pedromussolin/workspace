@@ -270,17 +270,36 @@ def calls(plan: dict) -> list[dict]:
     ]
 
 
-def digest_material(plan: dict) -> dict:
+def _material(site: str, requests: list[dict], before: list, summary: list[str]) -> dict:
+    """What the approval code covers: what is sent, the state of the cards the preview showed as
+    "before" and the text the person reads when approving, so the text cannot differ from what
+    is sent."""
     return {
-        "site": plan["target"].rstrip("/"),
-        "requests": calls(plan),
-        "before": [step["before"] for step in plan["steps"]],
-        "summary": plan["summary"],
+        "site": site.rstrip("/"),
+        "requests": [
+            {"method": call["method"], "path": call["path"], "body": call["body"]}
+            for call in requests
+        ],
+        "before": before,
+        "summary": summary,
     }
+
+
+def digest_material(plan: dict) -> dict:
+    before = [step["before"] for step in plan["steps"]]
+    return _material(plan["target"], calls(plan), before, plan["summary"])
 
 
 def plan_code(plan: dict) -> str:
     return approval.digest(digest_material(plan))
+
+
+def record_code(record: dict) -> str:
+    """The code of a pending record's own material; it is the record's `code` while the record
+    is as `pending_record` wrote it."""
+    return approval.digest(
+        _material(record["site"], record["requests"], record["before"], record["summary"])
+    )
 
 
 def pending_record(plan: dict, *, created_at: str, sid: int) -> dict:

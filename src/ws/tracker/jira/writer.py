@@ -41,8 +41,8 @@ def needed_keys(writes: list[dict]) -> set[str]:
     return needed
 
 
-def session(needed: set[str], *, timeout: int | None = None) -> tuple[JiraConfig, JiraClient]:
-    """The settings and a client, after checking the `needed` keys; with no `timeout`, the
+def session(needed: set[str]) -> tuple[JiraConfig, JiraClient]:
+    """The settings and a client, after checking the `needed` keys; the client's timeout is the
     module's `REQUEST_TIMEOUT` as it is at the call (a test patches it). The messages name the
     table the user has: `[tracker.jira]`, or the old `[jira]`."""
     try:
@@ -75,12 +75,7 @@ def session(needed: set[str], *, timeout: int | None = None) -> tuple[JiraConfig
     except userconfig.ConfigInvalid as error:
         raise TrackerSetup(str(error)) from None
     try:
-        client = JiraClient(
-            settings.site,
-            settings.email,
-            credential,
-            timeout=REQUEST_TIMEOUT if timeout is None else timeout,
-        )
+        client = JiraClient(settings.site, settings.email, credential, timeout=REQUEST_TIMEOUT)
     except SiteRefused as error:
         raise TrackerSetup(str(error)) from None
     return settings, client

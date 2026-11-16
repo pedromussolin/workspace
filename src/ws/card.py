@@ -334,18 +334,9 @@ def _item_problems(loaded: list[Loaded], steps: list[dict]) -> None:
 
 
 def approval_code(site: str, requests: list[dict], befores: list[dict], summary: list[str]) -> str:
-    """Covers what is sent, the state of the card the preview showed as "before" and the text the
-    person reads when approving, so the text cannot differ from what is sent."""
-    material = {
-        "site": site.rstrip("/"),
-        "requests": [
-            {"method": item["method"], "path": item["path"], "body": item["body"]}
-            for item in requests
-        ],
-        "before": befores,
-        "summary": summary,
-    }
-    return approval.digest(material)
+    """The code `write.record_code` gives this material; the tests and the golden pins name it."""
+    material = {"site": site, "requests": requests, "before": befores, "summary": summary}
+    return write.record_code(material)
 
 
 def run_check(argument: str) -> int:
@@ -528,9 +519,7 @@ def _confirm(summary: list[str], tracker: str) -> bool:
 
 def _record_matches_code(record: dict, code: str) -> bool:
     try:
-        return code == approval_code(
-            record["site"], record["requests"], record["before"], record["summary"]
-        )
+        return code == write.record_code(record)
     except (KeyError, TypeError, AttributeError):
         return False
 

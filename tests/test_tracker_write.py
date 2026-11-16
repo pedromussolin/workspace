@@ -187,6 +187,14 @@ def test_pending_record_has_the_nine_keys():
     assert record["requests"] == write.digest_material(plan)["requests"]
 
 
+def test_record_code_is_the_code_of_the_pending_record():
+    record = write.pending_record(plan_fixture(), created_at="2026-11-15T10:00:00-03:00", sid=42)
+
+    assert write.record_code(record) == record["code"]
+    assert write.record_code({**record, "summary": ["[1/2] Outro texto"]}) != record["code"]
+    assert write.record_code({**record, "site": "https://other.atlassian.net"}) != record["code"]
+
+
 class Writer:
     def created_key(self, reply):
         return reply["key"]
