@@ -131,6 +131,20 @@ def status_document(entries: list[dict], today: date, problems: list[str]) -> di
     return {"version": 1, "today": today.isoformat(), "plans": entries, "problems": problems}
 
 
+def _gaps(entry: dict) -> str:
+    """Past days without a full set of values and values recorded before a check changed: both
+    keep the streak from growing until `run --day` fills them."""
+    text = ""
+    missing = entry.get("missing_days", [])
+    if missing:
+        text += f"; {'falta' if len(missing) == 1 else 'faltam'} "
+        text += ", ".join(_short(day) for day in missing)
+    stale = len(entry.get("stale", []))
+    if stale:
+        text += f"; {stale} {'desatualizado' if stale == 1 else 'desatualizados'}"
+    return text
+
+
 def status_line(entry: dict) -> str:
     head = entry["task"]
     if entry.get("job"):
@@ -143,10 +157,11 @@ def status_line(entry: dict) -> str:
         return f"{head}: {progress}, pode desligar de vez"
     if state == "attention":
         dates = ", ".join(_short(day) for day in entry["attention_days"])
-        return f"{head}: {progress}, atenção em {dates}"
+        return f"{head}: {progress}, atenção em {dates}{_gaps(entry)}"
     text = f"{head}: {progress}"
     if entry["pending"]:
         text += f", pendente: {', '.join(entry['pending'])}"
+    text += _gaps(entry)
     streak = entry["streak"]
     if streak:
         text += f"; {streak} {'dia seguido' if streak == 1 else 'dias seguidos'} ok"

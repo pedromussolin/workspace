@@ -45,26 +45,35 @@ data, so a zero there is weaker evidence. Say so when the user picks the signal.
 
 ### Run
 
-1. Run `ws observe run TASK` as its own Bash call, with nothing chained to it. It queries the
+1. First run `ws observe status --json` (add `--project SLUG` when the task has plans in two
+   projects) and find the task's plan in `plans`. Two of its lists keep the streak from growing:
+   `missing_days` (past business days without a value for every check) and `stale` (values
+   recorded before a check was edited; each item has a `day` and a `check`). Take the days of
+   both, each day once, oldest first, and offer to fill them, in PT-BR ("faltam 09/12 e 10/12;
+   rodo esses dias?"). For each day the user accepts, run `ws observe run TASK --day YYYY-MM-DD`
+   (with `--project SLUG` when needed) under the rule of step 2, and follow steps 3 to 7 for its
+   output: the request, the record and the questions. Then go on with step 2 for the latest
+   closed day.
+2. Run `ws observe run TASK` as its own Bash call, with nothing chained to it. It queries the
    production replica, so Claude Code asks the user first. The approval box shows the task and the
    database checks, never the SQL, and the user approves there. If the user refuses, stop. Never try
    another way to query the database.
-2. Read the JSON: `day`, `day_number`, `recorded`, `observability`, `ask`, `problems`, `warnings`.
+3. Read the JSON: `day`, `day_number`, `recorded`, `observability`, `ask`, `problems`, `warnings`.
    Run the commands the JSON gives exactly as printed. Never rebuild them by hand: they carry the
    `--project` and `--check` flags the plan needs.
-3. When `observability` is not null: run the command in `observability.next` (a
+4. When `observability` is not null: run the command in `observability.next` (a
    `ws observe request` line with the right flags) and send its stdout to the tool named in
    `observability.tool`, verbatim: no edit, no summary. Save the tool's JSON answer with Write at
    `observability.result_path`, then run the command in `observability.record` (a
    `ws observe record` line). At a stale hash (`changed since the request`), run
    `observability.next` again.
-4. When the request fails or the tool does not answer, run the command in
+5. When the request fails or the tool does not answer, run the command in
    `observability.fallback` (a `ws observe fallback` line). It prints `calls`, the plain calls to
    make in the observability tool, and `record`, one item per check. For each answer, run that
    item's `command` with `<N>` replaced by the count.
-5. For each item of `ask`, ask the user its `question` in PT-BR, then run its `yes` or its `no`
+6. For each item of `ask`, ask the user its `question` in PT-BR, then run its `yes` or its `no`
    command (each is a `ws observe record` line). A "yes" passes. Never answer for the user.
-6. Say what ran, in PT-BR: the day, which checks passed or failed and which are missing. A failing
+7. Say what ran, in PT-BR: the day, which checks passed or failed and which are missing. A failing
    verdict is exit 0: report it, do not treat it as an error.
 
 Exit 1: show the problems in PT-BR and fix only what the user settles (`run` goes on with the other
@@ -97,4 +106,7 @@ Run `ws observe report TASK` and show its PT-BR Markdown as is. It is the eviden
   reach the database.
 - Never paste a row, a log line or a customer value in the chat or in a file.
 - Never edit a results file by hand; use `record`.
+- Editing a check (anything but its `label`) after day 1 makes the values already recorded for it
+  stale: those days leave the streak until they run again with `--day`. Tell the user before such
+  an edit, and after it offer the backfill of step 1 of Run.
 - Never send the observability tool anything but the text of `ws observe request`, verbatim.

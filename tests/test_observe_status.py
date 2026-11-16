@@ -171,3 +171,24 @@ def test_status_line_pt_br():
     bad = status([row("2026-12-09", "a", "fail"), row("2026-12-09", "b")], date(2026, 12, 10))
     assert "atenção em 09/12" in status_line(bad)
     assert status_line(status([], date(2026, 12, 9))).endswith("aguardando o dia 1 (09/12)")
+
+
+def test_status_line_names_missing_days_and_stale_checks():
+    head = "TS-5 (fechamento de lotes): "
+    missing = status(rows_for([11]), date(2026, 12, 14))
+    assert status_line(missing) == head + "dia 3 de 5; faltam 09/12, 10/12; 1 dia seguido ok"
+    one = status(rows_for([10]), date(2026, 12, 11))
+    assert status_line(one) == head + "dia 2 de 5; falta 09/12; 1 dia seguido ok"
+
+    rows = rows_for([9, 11, 14]) + [row("2026-12-10", "a"), row("2026-12-10", "b", hash_="old")]
+    stale = status(rows, date(2026, 12, 15))
+    assert status_line(stale) == (
+        head + "dia 4 de 5; falta 10/12; 1 desatualizado; 2 dias seguidos ok"
+    )
+    rows = rows_for([10]) + [row("2026-12-09", "a", hash_="x"), row("2026-12-09", "b", hash_="y")]
+    two = status(rows, date(2026, 12, 11))
+    assert status_line(two) == head + "dia 2 de 5; falta 09/12; 2 desatualizados; 1 dia seguido ok"
+
+    late = [row("2026-12-10", "a", "fail"), row("2026-12-10", "b")]
+    attention = status(late, date(2026, 12, 11))
+    assert status_line(attention) == head + "dia 2 de 5, atenção em 10/12; falta 09/12"

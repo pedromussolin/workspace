@@ -44,6 +44,22 @@ def test_skill_runs_the_printed_record_and_fallback_lines():
     assert "same flags as" not in run
 
 
+def test_skill_backfills_missing_and_stale_days_first():
+    run = run_section()
+    first = run.split("\n2. ", 1)[0]
+    for phrase in ("ws observe status --json", "missing_days", "stale", "oldest first"):
+        assert phrase in first, phrase
+    assert "ws observe run TASK --day" in first
+    assert first.index("ws observe status --json") < run.index("as its own Bash call")
+
+
+def test_skill_warns_before_editing_a_check_after_day_one():
+    rules = SKILL.read_text().split("## Rules", 1)[1]
+    assert "after day 1" in rules
+    assert "stale" in rules
+    assert "before" in rules
+
+
 def test_skill_closes_a_done_observation():
     text = SKILL.read_text()
     close = text.split("### Close", 1)[1].split("\n## ", 1)[0]
