@@ -4,7 +4,7 @@
 # Task TS-5 of project demo: a job switched off on Friday 2026-11-06, observed for 5 business days.
 # "Today" is Thursday 2026-11-12, so the latest closed day is 2026-11-11 (day 3). The variant
 # names the checks: `database` has one database count, `full` adds two observability counts and a
-# yes/no question. `ws observe` itself answers from evals/lib/observe_fake.py (see the ws shim):
+# yes/no question. `ws observe` itself answers from scripts/eval_observe.py (see the ws shim):
 # the replica host is db.invalid and is never reached.
 set -euo pipefail
 

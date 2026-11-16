@@ -6,7 +6,8 @@ shim answers `status`, `run`, `request`, `fallback` and `record` from here when 
 src/ws/data/contracts before it is printed, and the program of `request` and the calls of
 `fallback` come from the real adapter. `record --result` checks the saved answer like the real
 command: contract, task, provider, day and each check's hash. Made-up data only: task TS-5,
-project demo, host db.invalid.
+project demo, host db.invalid. The file sits in scripts/, not evals/: the eval sandbox hides
+evals/ from the run.
 """
 
 import argparse
