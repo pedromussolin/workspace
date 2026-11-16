@@ -103,8 +103,8 @@ nothing else. Write it for them, not for the developer:
 ## Artemis V2 project
 
 Also save the GMUD to `~/repos/workspace/projects/artemis-v2/gmud-ts-<id>.md`,
-following the root `CLAUDE.md` of `~/repos/workspace` (masked names,
-confidentiality check, commit and push to `main`). Model:
+following `AGENTS.md` and `docs/conventions/` of `~/repos/workspace` (masked
+names, confidentiality check, commit and push to `main`). Model:
 `gmud-ts-5377.md` in that folder.
 
 ## Common mistakes
