@@ -51,6 +51,7 @@ def test_skill_backfills_missing_and_stale_days_first():
         assert phrase in first, phrase
     assert "ws observe run TASK --day" in first
     assert first.index("ws observe status --json") < run.index("as its own Bash call")
+    assert "except `due_day`" in first
 
 
 def test_skill_warns_before_editing_a_check_after_day_one():

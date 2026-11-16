@@ -49,11 +49,11 @@ data, so a zero there is weaker evidence. Say so when the user picks the signal.
    projects) and find the task's plan in `plans`. Two of its lists keep the streak from growing:
    `missing_days` (past business days without a value for every check) and `stale` (values
    recorded before a check was edited; each item has a `day` and a `check`). Take the days of
-   both, each day once, oldest first, and offer to fill them, in PT-BR ("faltam 09/12 e 10/12;
-   rodo esses dias?"). For each day the user accepts, run `ws observe run TASK --day YYYY-MM-DD`
-   (with `--project SLUG` when needed) under the rule of step 2, and follow steps 3 to 7 for its
-   output: the request, the record and the questions. Then go on with step 2 for the latest
-   closed day.
+   both, each day once, oldest first, except `due_day` (the latest closed day, which step 2 runs),
+   and offer to fill them, in PT-BR ("faltam 09/12 e 10/12; rodo esses dias?"). For each day the
+   user accepts, run `ws observe run TASK --day YYYY-MM-DD` (with `--project SLUG` when needed)
+   under the rule of step 2, and follow steps 3 to 7 for its output: the request, the record and
+   the questions. Then go on with step 2 for the latest closed day.
 2. Run `ws observe run TASK` as its own Bash call, with nothing chained to it. It queries the
    production replica, so Claude Code asks the user first. The approval box shows the task and the
    database checks, never the SQL, and the user approves there. If the user refuses, stop. Never try
