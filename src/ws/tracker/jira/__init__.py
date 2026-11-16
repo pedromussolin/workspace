@@ -5,10 +5,10 @@ top-level import of `adapter` (which imports `userconfig`) would be an import cy
 """
 
 
-def open_tracker(config):
+def open_tracker(config, connection_only=False):
     from ws.tracker.jira import adapter
 
-    return adapter.open_tracker(config)
+    return adapter.open_tracker(config, connection_only)
 
 
 def open_writer(config, entries):

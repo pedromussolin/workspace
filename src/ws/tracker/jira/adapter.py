@@ -10,7 +10,7 @@ from ws.tracker import write
 from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.jira import client as jira
 from ws.tracker.jira import discover, writer
-from ws.tracker.jira.client import JiraClient, JiraError
+from ws.tracker.jira.client import JiraClient, JiraError, SiteRefused
 from ws.tracker.port import Card, CardQuery, Link
 from ws.userconfig import JiraConfig, UserConfig
 
@@ -68,6 +68,25 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+class _LazyClient:
+    """The client of a tracker opened for reads that need only the connection: the token and the
+    site are checked when the first request is made, so each read checks its own keys first."""
+
+    def __init__(self, settings: JiraConfig):
+        self._settings = settings
+        self._client: JiraClient | None = None
+
+    def __getattr__(self, name: str):
+        if self._client is None:
+            try:
+                self._client = JiraClient(
+                    self._settings.site, self._settings.email, userconfig.load_jira_token()
+                )
+            except (userconfig.ConfigMissing, userconfig.ConfigInvalid, SiteRefused) as error:
+                raise TrackerSetup(str(error)) from None
+        return getattr(self._client, name)
+
+
 class JiraTracker:
     """Reads cards and, as the `Writer` of `ws card`, plans and sends the drafts.
 
@@ -99,6 +118,13 @@ class JiraTracker:
         self._cards: dict[str, Card | None] = {}
         self._names: dict[str, str] = {}
 
+    def _require(self) -> None:
+        """What reading cards needs in the config: the project and the types, as `ws card`."""
+        if isinstance(self._client, _LazyClient):
+            from ws import card
+
+            self._settings, self._client = card.session({"project", "types"})
+
     def _time(self) -> datetime:
         return self._clock() if self._clock else _now()
 
@@ -111,6 +137,7 @@ class JiraTracker:
         return names
 
     def _account_data(self) -> dict:
+        self._require()
         if self._myself is None:
             try:
                 data = self._client.myself()
@@ -132,6 +159,7 @@ class JiraTracker:
             raise TrackerError(f"unusable tracker time zone {zone!r}: {error}") from None
 
     def card(self, ref: str) -> Card | None:
+        self._require()
         if ref in self._cards:
             return self._cards[ref]
         try:
@@ -152,6 +180,7 @@ class JiraTracker:
         return found
 
     def cards(self, query: CardQuery) -> list[Card]:
+        self._require()
         if not query.parent_in:
             return []
         clauses = [
@@ -171,6 +200,7 @@ class JiraTracker:
         return found
 
     def display_name(self, account: str) -> str:
+        self._require()
         if account not in self._names:
             try:
                 name = (self._client.user(account) or {}).get("displayName")
@@ -180,6 +210,7 @@ class JiraTracker:
         return self._names[account]
 
     def description(self, ref: str) -> str | None:
+        self._require()
         try:
             issue = self._client.issue(ref, ["description"])
         except JiraError as error:
@@ -203,6 +234,8 @@ class JiraTracker:
         return {"platform": "jira", "role": role, "cards": cards}
 
     def discover_toml(self) -> str:
+        if not self._settings.project:
+            raise TrackerSetup("[jira] project is not set")
         try:
             return discover.discover_toml(
                 self._client.issue_types(self._settings.project), self._client.link_types()
@@ -210,12 +243,16 @@ class JiraTracker:
         except (JiraError, TypeError, ValueError) as error:
             raise TrackerError(str(error)) from None
 
-    def account_for(self, email: str) -> str | None:
+    def accounts_for(self, email: str) -> list[str]:
         try:
             users = [u for u in self._client.user_search(email.strip()) if u.get("accountId")]
         except (JiraError, TypeError, AttributeError) as error:
             raise TrackerError(str(error)) from None
-        return users[0]["accountId"] if len(users) == 1 else None
+        return [user["accountId"] for user in users]
+
+    def account_for(self, email: str) -> str | None:
+        found = self.accounts_for(email)
+        return found[0] if len(found) == 1 else None
 
     def plan(self, entries: list[dict]) -> dict:
         config = self._config if self._config is not None else userconfig.load_config()
@@ -317,7 +354,9 @@ def task_from_listing(card: dict, settings: JiraConfig) -> Task:
     return jira.task_from_card(card, settings.site, settings.status_overrides)
 
 
-def open_tracker(config: UserConfig) -> JiraTracker:
+def open_tracker(config: UserConfig, connection_only: bool = False) -> JiraTracker:
+    if connection_only:
+        return JiraTracker(_LazyClient(config.jira), config.jira)
     from ws import card
 
     try:

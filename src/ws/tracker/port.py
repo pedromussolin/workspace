@@ -178,8 +178,12 @@ def _adapter() -> tuple[UserConfig, ModuleType]:
     return config, importlib.import_module(ADAPTERS[config.tracker_kind])
 
 
-def open_tracker() -> Tracker:
+def open_tracker(connection_only: bool = False) -> Tracker:
+    """The tracker of the config. `connection_only` asks for the listings and the account
+    lookups, which need no more than the connection: each read then checks its own config."""
     config, adapter = _adapter()
+    if connection_only:
+        return adapter.open_tracker(config, connection_only=True)
     return adapter.open_tracker(config)
 
 
