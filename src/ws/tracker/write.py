@@ -97,9 +97,20 @@ def _op_problems(document: dict, op: str) -> list[str]:
     for name in sorted(DATES & set(document)):
         if not _is_date(document[name]):
             problems.append(f"$.{name}: expected a date YYYY-MM-DD")
+    if "sprint" in document and "sprint" in OPTIONAL[op]:
+        problems += _sprint_problems(document["sprint"], op)
     if op == "link" and not any(document.get(kind) for kind in OPTIONAL["link"]):
         problems.append("$: a link needs blocks, blocked_by or relates")
     return problems
+
+
+def _sprint_problems(sprint: str, op: str) -> list[str]:
+    """`sprint` is "active", "next", "backlog" or a sprint's name; the tracker resolves it."""
+    if not sprint.strip():
+        return ["$.sprint: expected a non-empty string"]
+    if op == "create" and sprint == "backlog":
+        return ["$.sprint: a create without `sprint` already goes to the backlog"]
+    return []
 
 
 def _is_date(value: object) -> bool:

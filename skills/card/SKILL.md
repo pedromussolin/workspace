@@ -181,8 +181,8 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none, only `"active"`); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (only `"active"`: puts the card in the board's active sprint) | optional new description |
+| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint) | optional new description |
 | `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
 | `move` | `key`, `to` (target status name) | none |
 | `comment` | `key` | the comment, Markdown |
@@ -230,6 +230,16 @@ Trecho do log do erro, sem dado de cliente.
 
 ## Pronto quando
 - O filtro continua aplicado ao voltar para a aba.
+```
+
+A card taken out of its sprint, back to the backlog:
+
+```text
++++
+op = "edit"
+key = "TS-5431"
+sprint = "backlog"
++++
 ```
 
 An epic: the title starts with its prefix and a space, and only `## Contexto` is required. When the

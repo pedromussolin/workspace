@@ -5,6 +5,7 @@ import fake_tracker
 import pytest
 from fake_tracker import FakeTracker, make_card
 from test_card import (
+    SPRINT_FIELD,
     claude_settings,  # noqa: F401
     folder_with_three,
     make_draft,
@@ -199,3 +200,54 @@ def test_preview_and_apply_run_on_the_memory_tracker(
         "3-worklog.md",
     ]
     assert pending_files() == []
+
+
+BOARD_SPRINTS = [
+    {"id": 55, "name": "Sprint 55", "state": "active", "endDate": "2026-11-10T15:00:00.000Z"},
+    {"id": 57, "name": "Sprint 57", "state": "future", "startDate": "2026-11-24T15:00:00.000Z"},
+    {"id": 56, "name": "Sprint 56", "state": "future", "startDate": "2026-11-10T15:00:00.000Z"},
+]
+
+
+@pytest.fixture(params=["jira", "memory"])
+def sprinted(request, world):  # noqa: F811
+    """`opened`, with TS-101 in the active "Sprint 55" and "Sprint 56" and "Sprint 57" to come."""
+    if request.param == "jira":
+        world.set_sprints(BOARD_SPRINTS)
+        closed = {"id": 54, "name": "Sprint 54", "state": "closed"}
+        world.set_card("TS-101", fields={SPRINT_FIELD: [closed, BOARD_SPRINTS[0]]})
+        return lambda paths: port.open_writer(_entries(paths))
+    return lambda paths: FakeTracker([make_card("TS-101", sprint="Sprint 55")], kind="memory")
+
+
+@pytest.mark.parametrize(
+    "value, shown", [("backlog", "backlog"), ("next", "Sprint 56"), ("Sprint 57", "Sprint 57")]
+)
+def test_a_sprint_move_is_one_call_that_applies(sprinted, value, shown):
+    path = make_draft("1-edit.md", "edit", key="TS-101", sprint=value)
+    writer, plan = _planned(sprinted, [path])
+
+    [step] = plan["steps"]
+    assert contracts.validate(plan, "card-plan") == []
+    assert step["problems"] == [] and len(step["native"]) == 1
+    assert shown in " ".join(step["preview"])
+    assert [result["status"] for result in writer.apply(plan)] == ["applied"]
+
+
+def test_an_unknown_sprint_is_a_problem_naming_the_open_sprints(sprinted):
+    path = make_draft("1-edit.md", "edit", key="TS-101", sprint="Sprint 54")
+    _, plan = _planned(sprinted, [path])
+
+    [step] = plan["steps"]
+    assert step["native"] == []
+    named = " ".join(step["problems"])
+    assert "Sprint 54" in named
+    assert all(name in named for name in ("Sprint 55", "Sprint 56", "Sprint 57"))
+
+
+def test_the_backlog_for_a_card_in_no_sprint_is_a_problem(opened):
+    path = make_draft("1-edit.md", "edit", key="TS-101", sprint="backlog")
+    _, plan = _planned(opened, [path])
+
+    [step] = plan["steps"]
+    assert step["problems"] and step["native"] == []

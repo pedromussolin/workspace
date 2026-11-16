@@ -67,9 +67,14 @@ def test_draft_create_accepts_people_and_sprint():
     assert values["sprint"] == "active"
 
 
-def test_draft_sprint_accepts_only_active():
-    with pytest.raises(DraftError, match='sprint must be "active"'):
-        create('epic = "TS-1"\nsprint = "Sprint 9"')
+def test_draft_sprint_accepts_a_name_next_and_backlog():
+    for value in ("Sprint 9", "next", "backlog"):
+        edited = draft(f'op = "edit"\nkey = "TS-1"\nsprint = "{value}"', "")
+        assert edited.values["sprint"] == value
+    assert create('epic = "TS-1"\nsprint = "Sprint 9"').values["sprint"] == "Sprint 9"
+
+    with pytest.raises(DraftError, match="sprint must be a non-empty string"):
+        create('epic = "TS-1"\nsprint = ""')
 
 
 def test_draft_edit_accepts_type_people_and_parent():

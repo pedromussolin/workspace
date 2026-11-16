@@ -221,9 +221,15 @@ def test_edit_sprint_needs_exactly_one_active_sprint(world, capsys):  # noqa: F8
     assert "exactly one active sprint, found 2" in problems(path, capsys)
 
 
-def test_edit_sprint_other_than_active_is_refused(world, capsys):  # noqa: F811
+def test_edit_sprint_by_name_moves_the_card_to_that_sprint(world, capsys):  # noqa: F811
+    world.set_card("TS-101")
     path = make_draft("t.md", "edit", key="TS-101", sprint="Sprint 55")
-    assert 'sprint must be "active"' in problems(path, capsys)
+
+    out, code = preview(path, capsys)
+    assert "Sprint: (nenhuma) -> Sprint 55" in out
+    assert approve(path, code) == 0
+    body = world.requests_to("PUT", "/rest/api/3/issue/TS-101")[-1]["body"]
+    assert body["fields"] == {SPRINT_FIELD: 55}
 
 
 def test_edit_sprint_missing_from_the_edit_screen_is_refused(world, capsys):  # noqa: F811
