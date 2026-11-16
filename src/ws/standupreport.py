@@ -168,7 +168,7 @@ def build_report(
     keyless = [commit for commit in activity["commits"] if not commit["keys"]]
     return {
         "window": activity["window"],
-        "jira": tasks is not None,
+        "tracker": tasks is not None,
         "yesterday": yesterday,
         "today": today_entries,
         "next_steps": [

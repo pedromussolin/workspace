@@ -10,7 +10,10 @@ from ws.standupreport import build_report
 from ws.taskmodel import Status, Task
 
 TODAY = date(2026, 10, 27)
-JIRA_CONFIG = '[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+JIRA_CONFIG = (
+    '[tracker]\nkind = "jira"\n\n[tracker.jira]\n'
+    'site = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
+)
 
 
 def make_task(key: str, status: Status, title: str = "Titulo de exemplo", updated=None) -> Task:
@@ -63,7 +66,7 @@ def test_key_with_commits_and_merged_pr_is_one_entry_without_suggestion():
     commits[3] = make_commit("s3", "2026-10-27", "passo recente", ["TS-101"])
     activity = make_activity(commits=commits, prs=[make_pr(7, ["TS-101"], "2026-10-26T12:00:00Z")])
     report = build_report(activity, [make_task("TS-101", Status.IN_PROGRESS)], TODAY, 3)
-    assert report["jira"] is True
+    assert report["tracker"] is True
     assert len(report["yesterday"]) == 1
     entry = report["yesterday"][0]
     assert entry["key"] == "TS-101"
@@ -191,7 +194,7 @@ def test_cli_without_cards_needs_no_config(ws_config, tmp_path, capsys):
     out = capsys.readouterr().out
     payload = json.loads(out)
     assert code == 0
-    assert payload["jira"] is False
+    assert payload["tracker"] is False
     assert payload["today"] == [] and payload["blockers"] == []
     assert [entry["key"] for entry in payload["yesterday"]] == ["TS-101"]
     assert ", " not in out and ": " not in out
@@ -213,7 +216,7 @@ def test_cli_with_cards_and_config(ws_config, tmp_path, capsys):
     code = main(write_files(tmp_path, activity, [card]))
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert payload["jira"] is True
+    assert payload["tracker"] is True
     assert [entry["key"] for entry in payload["today"]] == ["TS-101"]
 
 
