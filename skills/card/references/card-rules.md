@@ -22,9 +22,10 @@ in the next plan, will refuse the same).
 - An epic is one system or one objective inside an initiative, and closes when done. Its `parent`
   is its initiative **[code: a level-2 card that is not done]**. The tracker may tie the two by a
   link instead of the parent field, as the config says: then `parent` on an epic edit adds that
-  link, and a create with `parent` is refused, so a new epic is created first and then edited with
-  `parent` **[code]**. When the tie is the parent field and the tracker's epic screens have no
-  `parent`, the check refuses it and the user links the epic to its initiative by hand.
+  link and goes alone in its draft, and a create with `parent` is refused, so a new epic is created
+  first and then edited with `parent` **[code]**. When the tie is the parent field and the
+  tracker's epic screens have no `parent`, the check refuses it and the user links the epic to its
+  initiative by hand.
 - A card has exactly one epic **[code: `epic` is required for the five card types and refused for
   `epic` and `initiative`]**. The epic is the system the code changes. When the card exists only to
   migrate or switch something off, it goes to the initiative's epic and links to the system's cards.

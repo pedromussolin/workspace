@@ -247,10 +247,12 @@ sprint = "backlog"
 ```
 
 An epic: the title starts with its prefix and a space, and only `## Contexto` is required. When the
-tracker's epic screens have no `parent` (the check says so), leave it out: after the epic is
-created, the user links it to its initiative by hand in the tracker (say so in the answer).
+tracker ties the initiative by the parent field and its epic screens have no `parent` (the check
+says so), leave it out: after the epic is created, the user links it to its initiative by hand in
+the tracker (say so in the answer).
 The tracker may tie an epic to its initiative by a link instead of a parent, as the config says
-(details in the tracker reference above): then create the epic first and edit it with `parent`.
+(details in the tracker reference above): then create the epic first and edit it with `parent`,
+alone in its own draft (a batch may hold it next to the other changes).
 Epics and initiatives stay out of sprints: leave `sprint` out; only their cards go into a sprint.
 
 ```text

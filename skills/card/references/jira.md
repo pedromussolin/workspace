@@ -13,7 +13,9 @@ What is specific to Jira in the `/card` flow. Read it when the tracker in `confi
   premium plan. Without it an epic cannot have an initiative as its parent, so `parent` on an epic
   `edit` adds the link `[tracker.jira] initiative_link` names (a key of `[tracker.jira.links]`,
   default `relates`), shown in the preview as `Iniciativa: TS-N (por link Relates)`; a link already
-  there, either way, changes nothing.
+  there, either way, changes nothing (the plan shows `Iniciativa: TS-N (por link Relates): já
+  existe`). That edit holds `parent` alone: with any other change it is refused, so the other
+  changes go in another draft, in the same batch if wanted (one preview, one approval).
 - **New epic with an initiative, without premium:** two steps. Create the epic without `parent`
   (a create with `parent` is refused: the link needs the new card's key), then edit it with
   `parent`.

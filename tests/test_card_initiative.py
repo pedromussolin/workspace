@@ -22,6 +22,7 @@ from test_card import (
 
 from ws import card
 from ws.cli import main
+from ws.config import data_dir
 from ws.tracker import write
 from ws.tracker.jira.settings import parse_settings
 from ws.userconfig import ConfigInvalid
@@ -110,24 +111,66 @@ def test_parent_without_premium_follows_the_configured_link_name(world, capsys, 
     assert related_code != relates_code
 
 
-def test_parent_without_premium_keeps_other_changes_in_the_same_approval(world, capsys):  # noqa: F811
+ALONE = "without premium the initiative is a link: put `parent` in its own draft"
+WITH_ANOTHER_CHANGE = [
+    pytest.param({"priority": "High"}, "", id="priority"),
+    pytest.param({"title": "[FRONT] Épico renomeado"}, "", id="title"),
+    pytest.param({}, "## Contexto\nNovo texto.\n", id="description"),
+]
+
+
+@pytest.mark.parametrize(("front", "body"), WITH_ANOTHER_CHANGE)
+def test_parent_without_premium_with_another_change_is_refused(world, capsys, front, body):  # noqa: F811
     epic_and_initiative(world)
-    path = make_draft("p.md", "edit", key="TS-101", parent="TS-140", priority="High")
+    path = make_draft("p.md", "edit", body, key="TS-101", parent="TS-140", **front)
 
-    verdict = passing(path, capsys)
+    assert problems(path, capsys) == ALONE
+    assert world.writes() == []
 
-    assert [(r["method"], r["path"]) for r in verdict["requests"]] == [
+
+@pytest.mark.parametrize(("front", "body"), WITH_ANOTHER_CHANGE)
+def test_parent_without_premium_with_another_change_is_refused_json(world, capsys, front, body):  # noqa: F811
+    epic_and_initiative(world)
+    md = make_draft("p.md", "edit", body, key="TS-101", parent="TS-140", **front)
+    js = card.write_draft("p.json", json.dumps(card.show(str(md)), ensure_ascii=False))
+
+    assert problems(js, capsys) == ALONE
+    assert world.writes() == []
+
+
+def test_parent_without_premium_with_another_draft_goes_in_one_batch(world, capsys):  # noqa: F811
+    epic_and_initiative(world)
+    world.fake.routes[ISSUE_LINK] = (201, "")
+    folder = data_dir() / "cards" / "drafts" / "batch"
+    folder.mkdir(parents=True)
+    make_draft("batch/1-priority.md", "edit", key="TS-101", priority="High")
+    make_draft("batch/2-parent.md", "edit", key="TS-101", parent="TS-140")
+
+    out, code = preview(folder, capsys)
+    [saved] = pending_files()
+    requests = json.loads(saved.read_text(encoding="utf-8"))["requests"]
+
+    assert out.count("Código de aprovação:") == 1
+    assert [(r["method"], r["path"]) for r in requests] == [
         ("PUT", "/rest/api/3/issue/TS-101"),
         ISSUE_LINK,
     ]
-    assert verdict["requests"][0]["body"] == {"fields": {"priority": {"name": "High"}}}
+    assert approve(folder, code) == 0
+    put = world.requests_to("PUT", "/rest/api/3/issue/TS-101")
+    assert [r["body"] for r in put] == [{"fields": {"priority": {"name": "High"}}}]
+    assert [r["body"] for r in world.requests_to(*ISSUE_LINK)] == [LINK_REQUEST["body"]]
 
 
 @pytest.mark.parametrize("side", ["outwardIssue", "inwardIssue"])
 def test_parent_without_premium_already_linked_changes_nothing(world, capsys, side):  # noqa: F811
     epic_and_initiative(world, issuelinks=[{"type": {"name": "Relates"}, side: {"key": "TS-140"}}])
+    path = parent_draft()
 
-    assert "the draft changes nothing on the card" in problems(parent_draft(), capsys)
+    assert problems(path, capsys) == "the draft changes nothing on the card"
+    [step] = card.preview_plan(str(path))["steps"]
+    assert step["preview"][-1] == "Iniciativa: TS-140 (por link Relates): já existe"
+    assert (step["problems"], step["native"]) == (["the draft changes nothing on the card"], [])
+    assert pending_files() == []
     assert world.writes() == []
 
 

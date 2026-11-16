@@ -712,7 +712,12 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             lines.append(f"{label}: {old_name or '(ninguém)'} -> {new_name}")
     links: list[dict] = []
     if "parent" in values and level == 1 and not settings.premium:
-        links = _initiative_link(ctx, key, values["parent"], current, verdict, lines)
+        if set(values) - {"key", "parent"} or draft.body.strip():
+            verdict.problems.append(
+                "without premium the initiative is a link: put `parent` in its own draft"
+            )
+        else:
+            links = _initiative_link(ctx, key, values["parent"], current, verdict, lines)
     elif "parent" in values and level == 1:
         initiative = ctx.initiative(values["parent"], verdict)
         if "parent" not in meta:
@@ -790,13 +795,14 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             verdict.problems.append(f"the edit screen of {key} has no {name}")
     if not changes and not links and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
+        if lines[-1].endswith(": já existe"):
+            # The plan shows the initiative's link that is already there, as the `link` op does.
+            verdict.preview = lines
     if verdict.problems:
         return
-    if changes:
-        verdict.requests.append(
-            {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": {"fields": changes}}
-        )
-    verdict.requests.extend(links)
+    verdict.requests = links or [
+        {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": {"fields": changes}}
+    ]
     verdict.before = before
     verdict.preview = lines
 
@@ -804,16 +810,18 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
 def _initiative_link(
     ctx: Context, key: str, initiative: str, current: dict, verdict: Verdict, lines: list[str]
 ) -> list[dict]:
-    """Without premium an epic cannot have an initiative as its parent, so `parent` ties them by
-    the `initiative_link` link, the request a `link` draft sends; nothing when that link is
-    already there, either way."""
+    """Without premium an epic cannot have an initiative as its parent, so `parent`, alone in its
+    draft, ties them by the `initiative_link` link, the request a `link` draft sends; nothing
+    when that link is already there, either way."""
     found = ctx.initiative(initiative, verdict)
     type_name = ctx.link_type(ctx.settings.initiative_link, verdict)
     if not (found and type_name):
         return []
+    line = f"Iniciativa: {initiative} (por link {type_name})"
     if _existing_link(current.get("issuelinks") or [], type_name, initiative):
+        lines.append(f"{line}: já existe")
         return []
-    lines.append(f"Iniciativa: {initiative} (por link {type_name})")
+    lines.append(line)
     return [_link_request(type_name, key, initiative)]
 
 
