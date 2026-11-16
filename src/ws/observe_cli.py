@@ -8,9 +8,12 @@ observability tool, and no output carries a query or a row.
 """
 
 import argparse
+import errno
 import getpass
 import json
+import os
 import re
+import stat
 import sys
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -56,6 +59,8 @@ VALUE = re.compile(r"\d+(\.\d+)?", re.ASCII)
 GATE_HINT = (
     "Run `ws setup` and add what it prints, so Claude Code asks you before every database query"
 )
+# The tool's own reason is dropped: it may echo the query.
+TOOL_GAVE_NO_COUNT = "the observability tool gave no count; run ws observe fallback for it"
 
 
 class Failure(Exception):
@@ -71,8 +76,10 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _today() -> date:
-    return date.today()
+def _today(timezone: str | None = None) -> date:
+    """Today in the plan's zone; without one, in the machine's zone."""
+    moment = _now()
+    return (moment.astimezone(ZoneInfo(timezone)) if timezone else moment.astimezone()).date()
 
 
 def _ranked(codes: list[int]) -> int:
@@ -202,8 +209,13 @@ def database_result(check: Check, value: Decimal, started: datetime, finished: d
 
 
 def observability_request(
-    plan: Plan, day: date, windows: tuple[datetime, datetime], hashes: dict[str, str]
+    plan: Plan,
+    day: date,
+    windows: tuple[datetime, datetime],
+    hashes: dict[str, str],
+    only: tuple[str, ...] = (),
 ) -> dict:
+    """The counts of the plan's observability checks; with `only`, of those checks alone."""
     start, end = (utc_text(moment) for moment in windows)
     counts = [
         {
@@ -215,7 +227,7 @@ def observability_request(
             "hash": hashes[check.id],
         }
         for check in plan.checks
-        if check.kind == "observability"
+        if check.kind == "observability" and (not only or check.id in only)
     ]
     return {"version": 1, "task": plan.task, "day": day.isoformat(), "counts": counts}
 
@@ -289,7 +301,7 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
         extra = _holidays()
         for check_id in only:
             _check(plan, check_id)
-        today = _today()
+        today = _today(plan.timezone)
         chosen = _closed_day(plan, day, today, extra)
     except (Failure, Invalid) as error:
         return _stopped(report, error)
@@ -332,10 +344,11 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
             )
 
     if tool is not None:
+        subset = "".join(f" --check {check.id}" for check in probes) if only else ""
         report["observability"] = {
             "tool": tool.tool,
             "checks": [check.id for check in probes],
-            "next": f"ws observe request {plan.task}{where} --day {chosen}",
+            "next": f"ws observe request {plan.task}{where} --day {chosen}{subset}",
             "result_path": str(path.parent / f"{plan.task}.{chosen}.result.json"),
         }
     manual = [check for check in selected if check.kind == "manual"]
@@ -389,7 +402,7 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
         extra = _holidays()
         if document["task"] != plan.task:
             raise Invalid(f"the result is for {document['task']}, not {plan.task}")
-        chosen = _closed_day(plan, _day(document["day"], "day"), _today(), extra)
+        chosen = _closed_day(plan, _day(document["day"], "day"), _today(plan.timezone), extra)
     except (Failure, Invalid) as error:
         return _stopped(report, error)
     report["day"] = chosen.isoformat()
@@ -401,12 +414,16 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
         check = checks.get(count["check"])
         try:
             if check is None or check.kind != "observability":
-                raise Invalid(f"{count['check']} is not an observability check of {plan.task}")
+                raise Invalid(
+                    f"{_named(count['check'])} is not an observability check of {plan.task}"
+                )
             if count["hash"] != hashes[check.id]:
                 raise Invalid(f"{check.id} changed since the request; run ws observe request again")
             started = _moment(count["started"], f"{check.id}: started")
             finished = _moment(count["finished"], f"{check.id}: finished")
             value = Decimal(str(count["value"]))
+            if not value.is_finite() or value < 0:
+                raise Invalid(f"{check.id}: the count must be a finite number, zero or more")
             row = make_row(
                 check,
                 chosen,
@@ -424,10 +441,14 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
             continue
         report["recorded"].append(_recorded(row))
     for failed in document["failed"]:
-        report["warnings"].append(
-            f"{failed['check']}: the observability tool gave no count: {failed['reason']}"
-        )
+        report["warnings"].append(f"{_named(failed['check'])}: {TOOL_GAVE_NO_COUNT}")
     return report, _ranked(codes)
+
+
+def _named(check_id: str) -> str:
+    """A check id from the tool's answer, shown only when it looks like one: the answer is not
+    ours, and its text may echo a query."""
+    return check_id if observedef.CHECK_ID.fullmatch(check_id) else "a check with an unknown id"
 
 
 def _login() -> str:
@@ -466,7 +487,7 @@ def record_one(
         if by is not None and (not by.strip() or not by.isprintable()):
             raise Invalid("--by must be a name on one line")
         who = by or _login()
-        chosen = _closed_day(plan, day, _today(), extra)
+        chosen = _closed_day(plan, day, _today(plan.timezone), extra)
         moment = _now()
         window = day_window(chosen, plan.switched_off, plan.timezone, extra)
         row = make_row(
@@ -525,7 +546,7 @@ def check_plan(project: str, path: Path) -> tuple[dict, int]:
 
 
 def status_report(project: str | None) -> tuple[dict, int]:
-    today = _today()
+    """Each plan counts its days from today in its own zone; `today` is the machine's."""
     extra = _holidays()
     entries, problems = [], []
     for name, path in observedef.all_plans(project):
@@ -535,21 +556,27 @@ def status_report(project: str | None) -> tuple[dict, int]:
         except Invalid as error:
             problems.append(str(error))
             continue
+        today = _today(plan.timezone)
         entries.append(plan_status(document, name, _hashes(plan), found, today, extra))
-    report = status_document(entries, today, problems)
+    report = status_document(entries, _today(), problems)
     report["problems"].extend(contracts.validate(report, "observe-status"))
     return report, EXIT_PROBLEM if report["problems"] else EXIT_OK
 
 
-def _observability_document(path: Path, day: date | None) -> tuple[Observability, Plan, dict]:
+def _observability_document(
+    path: Path, day: date | None, only: list[str]
+) -> tuple[Observability, Plan, dict]:
     _, plan = _plan(path)
     extra = _holidays()
-    chosen = _closed_day(plan, day, _today(), extra)
+    chosen = _closed_day(plan, day, _today(plan.timezone), extra)
     if not any(check.kind == "observability" for check in plan.checks):
         raise Invalid(f"{plan.task} has no observability check")
+    for check_id in only:
+        if _check(plan, check_id).kind != "observability":
+            raise Invalid(f"{check_id} is not an observability check of {plan.task}")
     tool = _open_observability()
     window = day_window(chosen, plan.switched_off, plan.timezone, extra)
-    document = observability_request(plan, chosen, window, _hashes(plan))
+    document = observability_request(plan, chosen, window, _hashes(plan), tuple(only))
     _valid(document, "observability-request", "the request")
     return tool, plan, document
 
@@ -566,36 +593,36 @@ def _title(task: str) -> str | None:
     return card.title
 
 
-def _read_result(file: Path) -> dict:
+def _read_result(file: Path, folder: Path) -> dict:
+    """The tool's JSON answer, read without following a symbolic link. Once it parses, a file
+    under the plan's folder is set to 600 like the plan: it holds company queries. A file
+    elsewhere keeps its mode, so a mistyped path never changes another file."""
     try:
-        with file.open("rb") as stream:
-            data = stream.read(MAX_RESULT_BYTES + 1)
+        descriptor = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise Invalid(f"{file}: a symbolic link; pass the file itself") from None
         raise Invalid(f"{file}: cannot be read: {error.strerror}") from None
-    finally:
-        _private(file)
-    if len(data) > MAX_RESULT_BYTES:
-        raise Invalid(f"{file}: larger than 1 MiB")
-    try:
-        document = json.loads(data.decode("utf-8"), parse_constant=_no_constant)
-    except ValueError:
-        raise Invalid(f"{file}: not JSON") from None
-    if not isinstance(document, dict):
-        raise Invalid(f"{file}: not a JSON object")
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise Invalid(f"{file}: not a regular file")
+    with os.fdopen(descriptor, "rb") as stream:
+        data = stream.read(MAX_RESULT_BYTES + 1)
+        if len(data) > MAX_RESULT_BYTES:
+            raise Invalid(f"{file}: larger than 1 MiB")
+        try:
+            document = json.loads(data.decode("utf-8"), parse_constant=_no_constant)
+        except ValueError:
+            raise Invalid(f"{file}: not JSON") from None
+        if not isinstance(document, dict):
+            raise Invalid(f"{file}: not a JSON object")
+        if file.resolve().is_relative_to(folder.resolve()):
+            os.fchmod(descriptor, PRIVATE_FILE)
     return document
 
 
 def _no_constant(name: str) -> None:
     raise ValueError(f"{name} is not a number")
-
-
-def _private(file: Path) -> None:
-    """The answer holds company queries: 600, like the plan."""
-    try:
-        if file.is_file():
-            file.chmod(PRIVATE_FILE)
-    except OSError:
-        pass
 
 
 def _cmd_new(args: argparse.Namespace) -> int:
@@ -657,7 +684,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 def _cmd_request(args: argparse.Namespace) -> int:
     try:
         _, path = observedef.find_plan(args.task, args.project)
-        tool, _, document = _observability_document(path, _day(args.day))
+        tool, _, document = _observability_document(path, _day(args.day), args.checks)
     except (Failure, Invalid) as error:
         return _fail(error)
     text = tool.request(document)
@@ -668,7 +695,7 @@ def _cmd_request(args: argparse.Namespace) -> int:
 def _cmd_fallback(args: argparse.Namespace) -> int:
     try:
         project, path = observedef.find_plan(args.task, args.project)
-        tool, plan, document = _observability_document(path, _day(args.day))
+        tool, plan, document = _observability_document(path, _day(args.day), args.checks)
         where = _where(project, plan.task)
     except (Failure, Invalid) as error:
         return _fail(error)
@@ -700,7 +727,7 @@ def _cmd_record(args: argparse.Namespace) -> int:
             raise Invalid("pass --result FILE or --check ID")
         project, path = observedef.find_plan(args.task, args.project)
         if args.result is not None:
-            document = _read_result(Path(args.result))
+            document = _read_result(Path(args.result), path.parent)
             return _emit(*record_result(project, path, document))
         if [args.value is not None, args.yes, args.no].count(True) != 1:
             raise Invalid("pass exactly one of --value N, --yes or --no")
@@ -739,7 +766,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     except (Failure, Invalid) as error:
         return _fail(error)
     hashes = _hashes(plan)
-    entry = plan_status(document, project, hashes, found, _today(), extra)
+    entry = plan_status(document, project, hashes, found, _today(plan.timezone), extra)
     sys.stdout.write(render(document, hashes, found, entry, _title(plan.task), extra))
     return EXIT_OK
 
@@ -756,6 +783,17 @@ def _day_flag(parser: argparse.ArgumentParser, what: str) -> None:
         "--day",
         metavar="DATE",
         help=f"{what} (YYYY-MM-DD); default: the latest closed business day",
+    )
+
+
+def _only_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--check",
+        dest="checks",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="only this observability check",
     )
 
 
@@ -825,6 +863,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     )
     _task(request)
     _day_flag(request, "the day to count")
+    _only_flag(request)
     request.set_defaults(handler=_cmd_request)
 
     fallback = commands.add_parser(
@@ -834,6 +873,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     )
     _task(fallback)
     _day_flag(fallback, "the day to count")
+    _only_flag(fallback)
     fallback.set_defaults(handler=_cmd_fallback)
 
     record = commands.add_parser(

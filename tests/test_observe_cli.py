@@ -20,6 +20,7 @@ from ws.privatefile import private_folder
 from ws.tracker import port
 from ws.tracker.port import TrackerError, TrackerSetup
 
+REAL_TODAY = observe_cli._today
 OBSERVABILITY = '[observability]\nprovider = "datadog"\n'
 REPLICA = """\
 [database.replica]
@@ -106,7 +107,7 @@ class Env:
     monkeypatch: pytest.MonkeyPatch
 
     def set_today(self, day: date) -> None:
-        self.monkeypatch.setattr(observe_cli, "_today", lambda: day)
+        self.monkeypatch.setattr(observe_cli, "_today", lambda timezone=None: day)
 
     def write_config(self, text: str) -> None:
         (self.root / "config" / "config.toml").write_text(text, encoding="utf-8")
@@ -135,7 +136,7 @@ def setup_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Env:
         return []
 
     monkeypatch.setattr(database, "open_database", open_fake)
-    monkeypatch.setattr(observe_cli, "_today", lambda: date(2026, 12, 10))
+    monkeypatch.setattr(observe_cli, "_today", lambda timezone=None: date(2026, 12, 10))
     monkeypatch.setattr(observe_cli, "_now", Clock(datetime(2026, 12, 10, 12, 0, tzinfo=UTC)))
     monkeypatch.setattr(humans, "by_hand", lambda: False)
     monkeypatch.setattr(bootstrap, "observe_gate_problems", no_gate_problems)
@@ -589,38 +590,42 @@ def test_record_result_checks_hashes(env, capsys):
     assert row["window"] == WINDOW
     assert mode(target) == 0o600
 
-    failed = [{"check": "sweep-calls", "reason": "partial result: timeout"}]
+    echo = f"query {QUERY} failed\nsecond line"
+    failed = [{"check": "sweep-calls", "reason": echo}, {"check": QUERY, "reason": "x"}]
     target = write_result(path, tool_result(path, counts=[], failed=failed))
-    code, out, _ = ws_json(capsys, "record", "TS-5", "--result", str(target))
+    code, out, err = ws_json(capsys, "record", "TS-5", "--result", str(target))
     assert code == 0
     assert out["warnings"] == [
-        "sweep-calls: the observability tool gave no count: partial result: timeout"
+        "sweep-calls: the observability tool gave no count; run ws observe fallback for it",
+        "a check with an unknown id: the observability tool gave no count; "
+        "run ws observe fallback for it",
     ]
+    assert QUERY not in json.dumps(out) + err
     assert len(rows(path)) == 1
 
 
 @pytest.mark.parametrize(
-    ("change", "text", "named"),
+    ("change", "text", "named", "parsed"),
     [
-        ({"task": "TS-6"}, None, "TS-6"),
-        ({"day": "2026-12-10"}, None, "the latest closed day is 2026-12-09"),
-        ({"day": "09/12/2026"}, None, "day"),
-        ({"failed": None}, None, "$.failed"),
-        ({"version": 2}, None, "$.version"),
-        ({}, "{not json", "not JSON"),
-        ({}, '{"value": NaN}', "not JSON"),
-        ({}, "[]", "not a JSON object"),
-        ({}, " " * (1024 * 1024 + 1), "larger than 1 MiB"),
+        ({"task": "TS-6"}, None, "TS-6", True),
+        ({"day": "2026-12-10"}, None, "the latest closed day is 2026-12-09", True),
+        ({"day": "09/12/2026"}, None, "day", True),
+        ({"failed": None}, None, "$.failed", True),
+        ({"version": 2}, None, "$.version", True),
+        ({}, "{not json", "not JSON", False),
+        ({}, '{"value": NaN}', "not JSON", False),
+        ({}, "[]", "not a JSON object", False),
+        ({}, " " * (1024 * 1024 + 1), "larger than 1 MiB", False),
     ],
 )
-def test_record_result_refuses_a_bad_document(env, capsys, change, text, named):
+def test_record_result_refuses_a_bad_document(env, capsys, change, text, named, parsed):
     path = write_plan()
     target = write_result(path, tool_result(path, **change), text)
     code, out, err = ws(capsys, "record", "TS-5", "--result", str(target))
     assert code == 1
     assert named in err
     assert rows(path) == []
-    assert mode(target) == 0o600
+    assert mode(target) == (0o600 if parsed else 0o644)
 
 
 @pytest.mark.parametrize(
@@ -628,18 +633,75 @@ def test_record_result_refuses_a_bad_document(env, capsys, change, text, named):
     [
         ({"check": "open-batches"}, "open-batches is not an observability check of TS-5"),
         ({"check": "nope"}, "nope is not an observability check of TS-5"),
+        ({"check": QUERY}, "a check with an unknown id is not an observability check"),
         ({"started": "yesterday"}, "sweep-calls: started"),
         ({"finished": "2026-12-10T12:30:02"}, "sweep-calls: finished"),
+        ({"value": -1}, "sweep-calls: the count must be a finite number, zero or more"),
+        ({"value": -0.5}, "sweep-calls: the count must be a finite number, zero or more"),
     ],
 )
 def test_record_result_refuses_a_bad_count(env, capsys, count, named):
     path = write_plan()
     document = tool_result(path)
     document["counts"][0].update(count)
-    code, out, _ = ws_json(capsys, "record", "TS-5", "--result", str(write_result(path, document)))
+    code, out, err = ws_json(
+        capsys, "record", "TS-5", "--result", str(write_result(path, document))
+    )
     assert code == 1
     assert named in out["problems"][0]
+    assert QUERY not in json.dumps(out) + err
     assert rows(path) == []
+
+
+def test_record_result_refuses_an_infinite_count(env, capsys):
+    path = write_plan()
+    text = json.dumps(tool_result(path)).replace('"value": 0', '"value": 1e400')
+    assert "1e400" in text
+    code, out, _ = ws_json(
+        capsys, "record", "TS-5", "--result", str(write_result(path, None, text))
+    )
+    assert code == 1
+    assert out["problems"] == ["sweep-calls: the count must be a finite number, zero or more"]
+    assert rows(path) == []
+
+
+def test_record_result_changes_no_mode_outside_the_plan_folder(env, capsys):
+    path = write_plan()
+    outside = env.root / "elsewhere.json"
+    outside.write_text(json.dumps(tool_result(path)), encoding="utf-8")
+    outside.chmod(0o644)
+    code, _, _ = ws(capsys, "record", "TS-5", "--result", str(outside))
+    assert code == 0
+    assert len(rows(path)) == 1
+    assert mode(outside) == 0o644
+
+    script = env.root / "script.sh"
+    script.write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
+    script.chmod(0o755)
+    code, _, err = ws(capsys, "record", "TS-5", "--result", str(script))
+    assert code == 1
+    assert "not JSON" in err
+    assert mode(script) == 0o755
+
+
+def test_record_result_never_follows_a_symlink(env, capsys):
+    path = write_plan()
+    target = env.root / "elsewhere.json"
+    target.write_text(json.dumps(tool_result(path)), encoding="utf-8")
+    target.chmod(0o755)
+    link = path.parent / "TS-5.2026-12-09.result.json"
+    link.symlink_to(target)
+    code, _, err = ws(capsys, "record", "TS-5", "--result", str(link))
+    assert code == 1
+    assert "a symbolic link" in err
+    assert mode(target) == 0o755
+    assert rows(path) == []
+
+    folder = path.parent / "a-folder.json"
+    folder.mkdir()
+    code, _, err = ws(capsys, "record", "TS-5", "--result", str(folder))
+    assert code == 1
+    assert "not a regular file" in err
 
 
 def test_record_one_rules(env, capsys):
@@ -866,3 +928,70 @@ def test_outputs_never_carry_queries_or_rows(env, capsys):
         assert SQL not in text
         assert QUERY not in text
         assert "from batches" not in text
+
+
+def test_today_is_the_plan_zones(env, capsys, monkeypatch):
+    monkeypatch.setattr(observe_cli, "_today", REAL_TODAY)
+    monkeypatch.setattr(observe_cli, "_now", lambda: datetime(2026, 12, 11, 1, 0, tzinfo=UTC))
+    assert observe_cli._today("America/Sao_Paulo") == date(2026, 12, 10)
+    assert observe_cli._today("UTC") == date(2026, 12, 11)
+    write_plan()
+    in_utc = PLAN.replace("days = 5\n", 'days = 5\ntimezone = "UTC"\n')
+    write_plan(in_utc, project="other", task="TS-6")
+    code, out, _ = ws_json(capsys, "status", "--json")
+    assert code == 0
+    assert {p["task"]: p["due_day"] for p in out["plans"]} == {
+        "TS-5": "2026-12-09",
+        "TS-6": "2026-12-10",
+    }
+    assert ws_json(capsys, "run", "TS-5")[1]["day"] == "2026-12-09"
+    assert ws_json(capsys, "run", "TS-6")[1]["day"] == "2026-12-10"
+    assert ws_json(capsys, "fallback", "TS-6")[1]["day"] == "2026-12-10"
+    code, out, _ = ws(capsys, "report", "TS-6")
+    assert code == 0 and "dia 2 de 5" in out
+
+
+LOGS = """
+[[checks]]
+id = "job-errors"
+kind = "observability"
+signal = "logs"
+query = "service:batch-closer status:error"
+expect = "== 0"
+"""
+
+
+def program_counts(text: str) -> list[str]:
+    [line] = [each for each in text.splitlines() if each.startswith("const P = ")]
+    params = json.loads(line.removeprefix("const P = ").removesuffix(";"))
+    return [count["check"] for count in params["counts"]]
+
+
+def test_a_check_subset_reaches_the_request(env, capsys):
+    write_plan(PLAN + LOGS)
+    code, out, _ = ws_json(capsys, "run", "TS-5")
+    assert out["observability"]["checks"] == ["sweep-calls", "job-errors"]
+    assert out["observability"]["next"] == "ws observe request TS-5 --day 2026-12-09"
+    code, out, _ = ws_json(capsys, "run", "TS-5", "--check", "job-errors")
+    assert code == 0
+    assert out["observability"]["checks"] == ["job-errors"]
+    assert out["observability"]["next"] == (
+        "ws observe request TS-5 --day 2026-12-09 --check job-errors"
+    )
+    assert ws_json(capsys, "run", "TS-5", "--check", "file-vs-db")[1]["observability"] is None
+
+    code, text, _ = ws(capsys, "request", "TS-5", "--day", "2026-12-09", "--check", "job-errors")
+    assert code == 0
+    assert program_counts(text) == ["job-errors"]
+    assert program_counts(ws(capsys, "request", "TS-5")[1]) == ["sweep-calls", "job-errors"]
+    code, out, _ = ws_json(capsys, "fallback", "TS-5", "--check", "job-errors")
+    assert [call["check"] for call in out["calls"]] == ["job-errors"]
+    assert [item["check"] for item in out["record"]] == ["job-errors"]
+
+    for command in ("request", "fallback"):
+        code, _, err = ws(capsys, command, "TS-5", "--check", "open-batches")
+        assert code == 1
+        assert "open-batches is not an observability check of TS-5" in err
+        code, _, err = ws(capsys, command, "TS-5", "--check", "nope")
+        assert code == 1
+        assert "unknown check nope" in err
