@@ -54,7 +54,7 @@ def _read_cards(path: Path) -> list[dict]:
 
 
 def _misread(
-    cards: list[dict], tasks: list[Task], cfg: BoardConfig, warnings: list[str]
+    cards: list[dict], tasks: list[Task], cfg: BoardConfig, warnings: list[str], table: str
 ) -> set[str]:
     """Cards in a `[board.statuses]` name that the tracker's mapping reads as another status.
 
@@ -68,7 +68,7 @@ def _misread(
         if expected is not None and task.status != expected:
             warnings.append(
                 f'card {task.key}: status "{card["status_name"]}" reads as {task.status.value}; '
-                "check status_overrides in the tracker settings of config.toml"
+                f"check {table}"
             )
             keys.add(task.key)
     return keys
@@ -89,7 +89,8 @@ def _status(args: argparse.Namespace) -> int:
         overrides = tracker.status_overrides(config)
     except TrackerSetup as error:
         return _fail("status", error)
-    problem = unmapped_status(cfg, overrides)
+    table = f"[tracker.{config.tracker_kind}.status_overrides]"
+    problem = unmapped_status(cfg, overrides, table)
     if problem is not None:
         return _fail("status", problem)
     try:
@@ -106,7 +107,7 @@ def _status(args: argparse.Namespace) -> int:
         for repo in find_repos(config.standup, repo_root(), warnings)
         if not cfg.ignored(repo.name)
     ]
-    misread = _misread(cards, tasks, cfg, warnings)
+    misread = _misread(cards, tasks, cfg, warnings, table)
     keys = {task.key for task in tasks if task.status in RUNG and task.status != Status.DONE}
     keys -= misread
     stale: set[str] = set()
