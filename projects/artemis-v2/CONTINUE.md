@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 13/11/2026
+Data: 16/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,32 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 16/11/2026
+
+**Board pronto.** Sprint 16.6.41 (16 a 29/11) com os cards da release 1, a TS-5737 e os da TS-5705,
+todos com prazo. A TS-5565 (passagem da VM) foi para Concluído: passagem feita com o Rafael Frankl,
+acesso à VM garantido; a VM segue rodando.
+
+**Release 1 conferida, sem montar** (`ws release branches`, só leitura). A data ainda não está
+fechada, possivelmente 24/11. Os 12 cards têm branch no remoto nos 4 repos, nenhuma mergeada nem
+atrás da cópia local; todas de 10 a 25 commits atrás da master. Ordem de merge sugerida:
+- cessão: 5582 → 5583 → 5569 → 5570 → 5585 → 5567 → 5624 → 5571 → 5572 → 5596;
+- shared: 5584 → 5585; BFF: 5582 → 5567 → 5568 → 5624; front: 5582 → 5567 → 5624 → 5571.
+
+**Duas cabeças do Alembic a acertar na montagem [C].** A release 20261112 (mergeada na master em
+12/11 à noite, depois das branches) trouxe migrations a partir do mesmo ponto que as nossas:
+- cessão: a master tem `c3f8a1d6e2b4` sobre `410aaaf27d06`; a nossa `5d2e8f1a9c47` (TS-5583)
+  também parte de `410aaaf27d06`;
+- shared: a master tem `b7e1d24c9f30` → `e6a4c82447c4` → `c3f81d5a92e7`; a nossa `c4d8a1f65b27`
+  (TS-5585) parte de `b7e1d24c9f30`.
+
+Correção: apontar o `down_revision` das nossas para a cabeça da master no dia da montagem (a
+master ainda pode andar até lá). Nenhuma das duas está na sandbox, então nunca rodaram em ambiente.
+Os planos já mandavam "conferir a cabeça no dia" (`tasks/13-plan-ts-5583.md`,
+`tasks/13-plan-ts-5569.md`), mas o choque com a master não estava registrado.
+
+`[release]` acrescentado ao `config.toml` local (shared → cessão → BFF → front).
 
 ### 11 a 13/11/2026
 
@@ -223,14 +249,14 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Board:** o Pietro reorganiza o Jira em sprints a partir da tabela "Estado por card (13/11)".
-   Faltam cards para a Fase 0 da tarefa 14 e, se ficar separado, para o upload da TS-5620.
+1. **Release 1 (data provável 24/11):** na montagem, acertar as duas cabeças do Alembic (ver 16/11)
+   e montar com `/release`.
 2. **Decisões do Pietro:** desenho do upload no shared ((a) fluxos do `report_transfer` ou (b)
    módulo simples); trava do duplo clique (TS-5620); decisões 1, 4 e 8 da Fase 0 da tarefa 14.
 3. **TS-5620:** revisão e commits do liquidar (`ts5620-cessao`, `ts5620-bff`, `ts5620-front`);
    depois da aprovação, upload no shared, BFF e front; data do lote.
 4. **Antes da release:** TS-5624 no navegador, revisão da DBA na TS-5596, snapshot OpenAPI da
-   TS-5584; depois montar a release única na ordem das migrations.
+   TS-5584, horário do job da TS-5585.
 5. **Tarefa 14:** conferir versão e `consumer_timeout` do RabbitMQ de produção.
 6. **Antigas, sem data:** `viva-production`, S1 a S14 de `tasks/02-03-sandbox-tests.md`, tradução
-   do `refact.py`, TS-5537 (B18), TS-5565 (confirmar se a passagem com o Rafael aconteceu).
+   do `refact.py`, TS-5537 (B18).
