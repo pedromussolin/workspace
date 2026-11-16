@@ -10,6 +10,7 @@ from test_card import (
     pending_files,
     preview,
     problems,
+    set_premium,
     world,  # noqa: F401
 )
 
@@ -80,7 +81,8 @@ def test_edit_assignee_and_reporter(world, capsys):  # noqa: F811
     assert fields["reporter"] == {"accountId": "acc-me"}
 
 
-def test_edit_parent_of_an_epic_refused_when_editmeta_lacks_it(world, capsys):  # noqa: F811
+def test_edit_parent_of_an_epic_refused_when_editmeta_lacks_it(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     world.set_card("TS-101", issuetype=EPIC)
     set_editmeta(world, "TS-101", parent=False)
     path = make_draft("t.md", "edit", key="TS-101", parent="TS-140")
@@ -98,7 +100,8 @@ def test_edit_parent_must_be_a_level_two_card(world, capsys):  # noqa: F811
     assert "TS-100 is not an initiative" in problems(path, capsys)
 
 
-def test_edit_parent_of_an_epic_sends_it_and_shows_it(world, capsys):  # noqa: F811
+def test_edit_parent_of_an_epic_sends_it_and_shows_it(world, capsys, ws_config):  # noqa: F811
+    set_premium(ws_config)
     world.set_card("TS-101", issuetype=EPIC, parent=None)
     world.set_issue("TS-140", _fields("[FRONT] Iniciativa", level=2))
     set_editmeta(world, "TS-101")

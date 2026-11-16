@@ -199,6 +199,13 @@ RULE_TWINS = [
         id="initiative-with-parent",
     ),
     pytest.param(
+        CREATE + 'type = "epic"\nsprint = "active"',
+        "# T\n\nx\n",
+        {**CREATE_JSON, "type": "epic", "sprint": "active"},
+        ["an epic or an initiative stays out of sprints; put its cards in the sprint"],
+        id="epic-in-a-sprint",
+    ),
+    pytest.param(
         CREATE + 'type = "task"\nepic = "TS-1"\nitem = "notes/tela.md"',
         "# T\n\nx\n",
         {**CREATE_JSON, "type": "task", "epic": "TS-1", "item": "notes/tela.md"},

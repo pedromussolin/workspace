@@ -73,6 +73,8 @@ project = "<PROJECT>"
 board_id = <board id>
 start_date_field = "customfield_<n>"
 sprint_field = "customfield_<n>"
+premium = false
+initiative_link = "relates"
 
 [tracker.jira.types]
 task = "<issue type id>"
@@ -121,6 +123,8 @@ stale_workdays = 3
   `[tracker.jira.links]` maps `blocks` and `relates` to the link type name. `[tracker.jira] issue_type` was
   replaced by `[tracker.jira.types]` and is refused: delete the `issue_type` line from `[tracker.jira]`, then
   run `ws tracker discover` and paste its output into `config.toml`.
+- `[tracker.jira] premium` (`true` or `false`, default `false`): with the premium plan an epic's `parent` sets its initiative as the parent field; without it, `parent` on an epic edit adds a link.
+- `[tracker.jira] initiative_link` (default `"relates"`) names the key of `[tracker.jira.links]` used for that link; a name missing from that table is a config error.
 - `[identity] email` is yours (absent means `[tracker.jira] email`). `[people."<dev id>"]` maps a dev id
   (`dev-` and the first 10 hex digits of the SHA-256 of the trimmed, lowercased e-mail) to the
   person's id in each tracker; `label` is only a reminder.
