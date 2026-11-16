@@ -16,14 +16,14 @@ from ws.carddraft import Draft, DraftError, parse_draft
 from ws.cardrules import Verdict
 from ws.config import claude_settings_path, data_dir, repo_root
 from ws.itemfile import ItemError
-from ws.jira import JiraClient, JiraError, SiteRefused
-from ws.tracker import UnknownTracker, require_kind
+from ws.jira import JiraClient, JiraError
+from ws.tracker.errors import TrackerSetup
+from ws.tracker.jira import writer
 
 REQUEST_TIMEOUT = 20
 APPROVAL_WINDOW = approval.APPROVAL_WINDOW
 
 _CODE = approval.CODE
-_PROJECT = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _SUBFOLDERS = ("drafts", "pending", "done", "uncertain")
 _OPERATIONS = {
     "create": "Criar card",
@@ -35,8 +35,7 @@ _OPERATIONS = {
 }
 
 
-class SetupNeeded(Exception):
-    pass
+SetupNeeded = TrackerSetup
 
 
 @dataclass
@@ -236,39 +235,7 @@ def _needed_keys(loaded: list[Loaded]) -> set[str]:
 
 
 def session(needed: set[str]) -> tuple[userconfig.JiraConfig, JiraClient]:
-    try:
-        config = userconfig.load_config()
-        require_kind(config.tracker_kind)
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, UnknownTracker) as error:
-        raise SetupNeeded(str(error)) from None
-    settings = config.jira
-    missing = [name for name in sorted(needed) if not getattr(settings, name)]
-    if missing:
-        tables = {"types": "[jira.types]", "links": "[jira.links]"}
-        hints = []
-        if any(name not in tables for name in missing):
-            hints.append('see the README section "Local config"')
-        if any(name in tables for name in missing):
-            hints.append("run ws tracker discover and paste its output into config.toml")
-        raise SetupNeeded(
-            f"config.toml [jira] is missing "
-            f"{', '.join(tables.get(name, name) for name in missing)}; {'; '.join(hints)}"
-        )
-    if not _PROJECT.fullmatch(settings.project):
-        raise SetupNeeded("config.toml [jira] project is not a valid project key")
-    try:
-        credential = userconfig.load_jira_token()
-    except userconfig.ConfigMissing:
-        raise SetupNeeded(
-            "no Jira API key; run `ws config token jira` in your own terminal"
-        ) from None
-    except userconfig.ConfigInvalid as error:
-        raise SetupNeeded(str(error)) from None
-    try:
-        client = JiraClient(settings.site, settings.email, credential, timeout=REQUEST_TIMEOUT)
-    except SiteRefused as error:
-        raise SetupNeeded(str(error)) from None
-    return settings, client
+    return writer.session(needed, timeout=REQUEST_TIMEOUT)
 
 
 def _run(command: str, action) -> int:

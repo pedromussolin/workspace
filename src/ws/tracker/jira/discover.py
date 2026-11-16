@@ -2,7 +2,7 @@
 
 import json
 
-from ws.cardrules import fold
+from ws.tracker.jira.rules import fold
 
 _TYPE_NAMES = {
     "task": ("tarefa", "task"),
