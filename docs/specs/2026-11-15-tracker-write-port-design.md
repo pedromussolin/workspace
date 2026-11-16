@@ -151,8 +151,10 @@ only with the old table. Tokens stay `ws config token <kind>`; `[people] ids` ar
 
 - Release and board use `card_url_template` and `task_from_listing` ("not a card key"). `move`
   takes the neutral `status`; drafts may also be `.json` `card-write` documents.
-- The daily uses `ws task list` only: on failure the standup has no cards and says "Tracker
-  indisponível". The MCP fallback is deleted; the report key `jira` becomes `tracker`.
+- The daily uses `ws task list` first; on failure it falls back to the MCP of the tracker selected
+  in the config (`[tracker] kind`), through `skills/daily/references/<kind>.md`, read only (user
+  decision, 16/11). With both failing the standup has no cards and says "Tracker indisponível".
+  The report key `jira` becomes `tracker`.
 - `skills/card/SKILL.md` says "the tracker", quotes `Gravar no <tracker>?` (name from `ws` output);
   Jira specifics (site shape, JQL, token) go to `skills/card/references/jira.md`.
 - `tests/test_tracker_boundary.py`: no module of `src/ws` or `hooks` outside `ws/tracker/` imports

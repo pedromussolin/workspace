@@ -56,7 +56,7 @@ This plan never creates or edits `ws.contracts`; it only adds schema files.
 2. An old `[jira]` config still loads, with exactly one deprecation line per process and no other output change; both tables at once is refused (Task 10).
 3. The approval code of the same drafts and the same fake Jira is byte-identical before and after Stage A (golden of Task 1; Tasks 2, 5, 7).
 4. ADF round-trips: `render_body` equals `to_adf`, preview lines from `adf_text` are unchanged, and an edit over foreign nodes is still refused (Tasks 4, 5, 7).
-5. The daily without the fallback: `ws task list` exit 1 or 2 gives a standup without cards, "Tracker indisponível", and no MCP call is named anywhere in the skill (Task 11).
+5. The daily with a neutral fallback: `ws task list` exit 1 or 2 falls back to the configured tracker's MCP through `references/<kind>.md`; with both failing, a standup without cards and "Tracker indisponível"; no vendor call is named in `SKILL.md` (Task 11, changed by the user on 16/11).
 
 ## Parallel waves
 
