@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from test_card import (
     SPRINT_FIELD,
     approve,
@@ -9,12 +10,14 @@ from test_card import (
     create_draft,
     make_draft,
     passing,
+    pending_files,
     preview,
     problems,
     world,  # noqa: F401
 )
 from test_jira import _client
 
+from ws.cli import main
 from ws.tracker import write
 
 SPRINTS = "/rest/agile/1.0/board/7/sprint"
@@ -70,6 +73,22 @@ def test_edit_moves_a_card_to_the_backlog(world, capsys):  # noqa: F811
     assert approve(path, code) == 0
     assert sent_fields(world) == {SPRINT_FIELD: None}
     assert world.requests_to("GET", SPRINTS) == []
+
+
+@pytest.mark.parametrize("key", ["TS-102", "TS-103"])
+def test_a_sprint_change_on_a_card_the_user_cannot_write_is_refused(world, capsys, key):  # noqa: F811
+    """Only cards where the user is the assignee or the reporter are written (user rule, 16/11)."""
+    open_board(world)
+    world.set_card(key, assignee="acc-other" if key == "TS-102" else None)
+    path = make_draft("s.md", "edit", key=key, sprint="backlog")
+
+    assert f"card {key} is not yours: you are neither its assignee nor its reporter" in problems(
+        path, capsys
+    )
+    assert main(["card", "preview", str(path)]) == 1
+    assert "Nada foi enviado" in capsys.readouterr().out
+    assert pending_files() == []
+    assert world.writes() == []
 
 
 def test_edit_moves_a_card_to_the_next_sprint(world, capsys):  # noqa: F811
