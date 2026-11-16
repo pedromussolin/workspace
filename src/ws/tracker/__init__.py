@@ -3,7 +3,8 @@
 Only the Jira adapter exists; its engine lives in `ws.card`, `ws.cardrules` and `ws.jira`.
 """
 
-KNOWN_KINDS = ("jira",)
+ADAPTERS = {"jira": "ws.tracker.jira_adapter"}
+KNOWN_KINDS = tuple(ADAPTERS)
 
 
 class UnknownTracker(Exception):
@@ -11,7 +12,5 @@ class UnknownTracker(Exception):
 
 
 def require_kind(kind: str) -> None:
-    if kind not in KNOWN_KINDS:
-        raise UnknownTracker(
-            f"tracker {kind!r} has no adapter yet; known: {', '.join(KNOWN_KINDS)}"
-        )
+    if kind not in ADAPTERS:
+        raise UnknownTracker(f"tracker {kind!r} has no adapter yet; known: {', '.join(ADAPTERS)}")

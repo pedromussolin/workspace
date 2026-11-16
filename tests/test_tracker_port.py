@@ -369,3 +369,66 @@ def test_jira_description_keeps_code_fences_mentions_and_cards(world):  # noqa: 
     assert _tracker().description("TS-104") == (
         "Fale com @Ana em https://example.test/x\n```\n# comment\nx = 1\n```"
     )
+
+
+def test_open_tracker_dispatches_on_the_configured_kind(world, ws_config, monkeypatch):  # noqa: F811
+    import sys
+    import types
+
+    from ws import tracker
+
+    seen = []
+    stub = types.ModuleType("ws_stub_adapter")
+    stub.open_tracker = lambda config: seen.append(config.tracker_kind) or "opened"
+    monkeypatch.setitem(sys.modules, "ws_stub_adapter", stub)
+    monkeypatch.setitem(tracker.ADAPTERS, "stub", "ws_stub_adapter")
+    monkeypatch.setattr(tracker, "KNOWN_KINDS", (*tracker.KNOWN_KINDS, "stub"))
+    path = ws_config / "config.toml"
+    path.write_text('[tracker]\nkind = "stub"\n' + path.read_text(encoding="utf-8"))
+
+    assert open_tracker() == "opened"
+    assert seen == ["stub"]
+
+
+def test_open_tracker_unknown_kind_is_a_setup_problem(world, ws_config):  # noqa: F811
+    path = ws_config / "config.toml"
+    path.write_text('[tracker]\nkind = "monday"\n' + path.read_text(encoding="utf-8"))
+
+    with pytest.raises(TrackerSetup, match="monday"):
+        open_tracker()
+
+
+def test_open_tracker_missing_config_is_a_setup_problem(ws_config):
+    with pytest.raises(TrackerSetup):
+        open_tracker()
+
+
+def test_tracker_error_keeps_status_and_uncertain():
+    from ws.tracker import errors, port
+
+    error = errors.TrackerError("boom", status=503, uncertain=True)
+
+    assert (str(error), error.status, error.uncertain) == ("boom", 503, True)
+    assert errors.TrackerError("plain").status is None
+    assert errors.TrackerError("plain").uncertain is False
+    assert port.TrackerError is errors.TrackerError
+    assert port.TrackerSetup is errors.TrackerSetup
+
+
+def test_writer_protocol_lists_the_port_members():
+    from ws.tracker.port import Writer
+
+    members = {
+        "name",
+        "target",
+        "plan",
+        "guard",
+        "send",
+        "apply",
+        "created_key",
+        "find_hint",
+        "render_body",
+        "card_url",
+    }
+    assert members <= set(Writer.__protocol_attrs__)
+    assert set(Tracker.__protocol_attrs__) <= set(Writer.__protocol_attrs__)
