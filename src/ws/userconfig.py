@@ -229,12 +229,41 @@ def _tracker_settings(data: dict, tracker: dict, kind: str | None, path: Path) -
     return importlib.import_module(ADAPTERS[kind]).parse_settings(table, path)
 
 
-def _old_jira_settings(data: dict, kind: str | None, path: Path) -> object:
-    """Compatibility with the `[jira]` table, removed in Task 18."""
+def _notice_old_table() -> None:
     global _deprecation_shown
     if not _deprecation_shown:
         _deprecation_shown = True
         print(OLD_TABLE_NOTICE, file=sys.stderr)
+
+
+def load_tracker_table() -> tuple[str | None, dict, Path]:
+    """The tracker kind and its raw table, with no other section validated.
+
+    The table is `[tracker.<kind>]`, or the old `[jira]` when the kind is absent or `jira`.
+    """
+    path = config_dir() / "config.toml"
+    data = _read_toml(path)
+    tracker = _table(data, "tracker", path)
+    kind = _optional_string(tracker, "kind", path, "tracker")
+    old, new = "jira" in data, "jira" in tracker
+    if old and new:
+        raise ConfigInvalid(
+            f"{path}: both [jira] and [tracker.jira] are set; keep only [tracker.jira]"
+        )
+    if old:
+        _notice_old_table()
+        if kind in (None, "jira"):
+            return "jira", _table(data, "jira", path), path
+        return kind, {}, path
+    table = tracker.get(kind, {}) if kind else {}
+    if not isinstance(table, dict):
+        raise ConfigInvalid(f"{path}: [tracker.{kind}] must be a table")
+    return kind, table, path
+
+
+def _old_jira_settings(data: dict, kind: str | None, path: Path) -> object:
+    """Compatibility with the `[jira]` table, removed in Task 18."""
+    _notice_old_table()
     if kind not in (None, "jira"):
         return None
     from ws.tracker.jira.settings import parse_settings

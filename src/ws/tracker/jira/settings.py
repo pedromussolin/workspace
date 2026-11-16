@@ -71,6 +71,11 @@ def _name_map(
     return dict(names)
 
 
+def card_url_template(table: dict, path: Path, section: str = SECTION) -> str:
+    """The card link from the raw table, checking only `site`."""
+    return f"{_site(table, path, section).rstrip('/')}/browse/{{key}}"
+
+
 def parse_settings(table: dict, path: Path, section: str = SECTION) -> JiraConfig:
     """`section` names the table in the messages: the old `[jira]` still loads through here."""
     if "issue_type" in table:

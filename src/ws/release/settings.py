@@ -73,7 +73,7 @@ def _repo(name: str, table: object) -> RepoEntry:
 def load_release_config() -> ReleaseConfig:
     try:
         release = userconfig.load_table("release")
-        template = tracker.card_url_template(userconfig.load_config())
+        template = tracker.card_url_template()
     except (userconfig.ConfigMissing, userconfig.ConfigInvalid, TrackerSetup) as error:
         raise _fail(str(error)) from error
     unknown = sorted(set(release) - RELEASE_KEYS)

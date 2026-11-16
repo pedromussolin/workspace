@@ -35,6 +35,12 @@ def card_url_template(settings):
     return writer.card_url_template(settings)
 
 
+def card_url_template_from_table(table, path):
+    from ws.tracker.jira import settings
+
+    return settings.card_url_template(table, path)
+
+
 def __getattr__(name):
     if name == "JIRA_CAPABILITIES":
         from ws.tracker.jira import adapter
