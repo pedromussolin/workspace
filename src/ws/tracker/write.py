@@ -45,6 +45,7 @@ OPTIONAL = {
     "link": {"blocks", "blocked_by", "relates"},
 }
 HEADER = {"$schema", "version", "op"}
+DATES = {"start", "due", "day"}
 
 
 def to_document(draft: Draft) -> dict:
@@ -63,7 +64,7 @@ def from_document(document: dict) -> Draft:
     for name, value in document.items():
         if name in HEADER or name == "body" or (name == "title" and document["op"] == "create"):
             continue
-        values[name] = date.fromisoformat(value) if name in _DATES else value
+        values[name] = date.fromisoformat(value) if name in DATES else value
     canonical = json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return Draft(
         document["op"],
@@ -72,9 +73,6 @@ def from_document(document: dict) -> Draft:
         document.get("body", ""),
         hashlib.sha256(canonical.encode()).hexdigest(),
     )
-
-
-_DATES = {"start", "due", "day"}
 
 
 def check_document(document: dict) -> list[str]:
@@ -96,9 +94,19 @@ def _op_problems(document: dict, op: str) -> list[str]:
     problems += [
         f"$: missing required key {key} for op {op}" for key in sorted(REQUIRED[op] - set(document))
     ]
+    for name in sorted(DATES & set(document)):
+        if not _is_date(document[name]):
+            problems.append(f"$.{name}: expected a date YYYY-MM-DD")
     if op == "link" and not any(document.get(kind) for kind in OPTIONAL["link"]):
         problems.append("$: a link needs blocks, blocked_by or relates")
     return problems
+
+
+def _is_date(value: object) -> bool:
+    try:
+        return date.fromisoformat(value).isoformat() == value  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
 
 
 def calls(plan: dict) -> list[dict]:
@@ -154,9 +162,13 @@ def apply_steps(writer, plan: dict, send: Callable[[dict], object]) -> Iterator[
         except Exception as error:
             yield _result(step, "uncertain", sent, f"{type(error).__name__}: {error}")
             return
-        created = writer.created_key(first) if step["op"] == "create" else None
-        key = created or step["card"]
-        url = writer.card_url(key) if key else None
+        try:
+            created = writer.created_key(first) if step["op"] == "create" else None
+            key = created or step["card"]
+            url = writer.card_url(key) if key else None
+        except Exception as error:
+            yield _result(step, "uncertain", sent, f"{type(error).__name__}: {error}")
+            return
         yield _result(step, "applied", sent, None, created=created, url=url)
 
 

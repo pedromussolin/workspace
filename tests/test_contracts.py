@@ -109,7 +109,7 @@ def test_every_schema_pins_version_and_is_closed():
         "card-write",
         "card-plan",
         "card-result",
-    } <= set(names)
+    } == set(names)
     for name in names:
         schema = load_schema(name)
         assert schema["properties"]["version"] == {"const": 1}, name

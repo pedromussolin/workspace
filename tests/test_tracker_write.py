@@ -246,3 +246,24 @@ def test_apply_steps_marks_other_errors_uncertain():
     [step] = run(send)
     assert step["status"] == "uncertain"
     assert step["error"] == "KeyError: 'x'"
+
+
+def test_apply_steps_marks_a_reply_without_key_uncertain():
+    [step] = run(lambda call: {})
+    assert step["status"] == "uncertain"
+    assert step["error"] == "KeyError: 'key'"
+    assert len(step["sent"]) == 2
+
+
+def test_apply_steps_marks_a_create_without_calls_uncertain():
+    plan = plan_fixture()
+    plan["steps"][0]["native"] = []
+    [step] = list(write.apply_steps(Writer(), plan, lambda call: {"key": "TS-9"}))
+    assert step["status"] == "uncertain"
+    assert step["sent"] == []
+
+
+@pytest.mark.parametrize("value", ["2026-13-40", "2026-W46-7", "amanhã", "2026-1-5", 20261115])
+def test_check_document_refuses_a_malformed_date(value):
+    document = {**write.to_document(DRAFTS["edit"]), "due": value}
+    assert write.check_document(document)
