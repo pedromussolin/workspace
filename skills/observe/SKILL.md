@@ -75,6 +75,15 @@ checks; `--check ID` reruns one). Exit 2 or 3: show stderr and stop.
 Run `ws observe status [--project SLUG]`. Show one PT-BR line per plan. Say "pode desligar de vez"
 only as advice: the user decides, and this skill switches nothing off.
 
+### Close
+
+When a plan is `done` ("pode desligar de vez") and the user says the job is gone for good, run
+`ws observe close TASK` (add `--project SLUG` when the task has plans in two projects). It writes
+the closing day into the plan: `status` and the daily stop showing it, and `run`, `request`,
+`record` and `fallback` refuse it. The plan and its results stay, so `ws observe report TASK` still
+prints the GMUD evidence. A plan that is not `done` is refused; pass `--force` only when the user
+asks to end the observation early, and say that it ended before N clean days.
+
 ### Report
 
 Run `ws observe report TASK` and show its PT-BR Markdown as is. It is the evidence for the GMUD

@@ -885,7 +885,13 @@ def test_report_with_and_without_the_tracker(env, capsys, monkeypatch):
 def test_two_plans_need_project(env, capsys):
     write_plan()
     write_plan(project="other")
-    for argv in (["run", "TS-5"], ["show", "TS-5"], ["check", "TS-5"], ["report", "TS-5"]):
+    for argv in (
+        ["run", "TS-5"],
+        ["show", "TS-5"],
+        ["check", "TS-5"],
+        ["report", "TS-5"],
+        ["close", "TS-5", "--force"],
+    ):
         code, _, err = ws(capsys, *argv)
         assert code == 1
         assert "TS-5 has plans in demo, other; pass --project" in err
@@ -1014,3 +1020,95 @@ def test_a_check_subset_reaches_the_request(env, capsys):
         code, _, err = ws(capsys, command, "TS-5", "--check", "nope")
         assert code == 1
         assert "unknown check nope" in err
+
+
+DAYS = ("2026-12-09", "2026-12-10", "2026-12-11", "2026-12-14", "2026-12-15")
+
+
+def done_plan(env: Env, capsys) -> Path:
+    path = write_plan(HEADER + MANUAL)
+    env.set_today(date(2026, 12, 16))
+    for day in DAYS:
+        argv = ["record", "TS-5", "--check", "file-vs-db", "--day", day, "--yes"]
+        assert ws(capsys, *argv)[0] == 0
+    return path
+
+
+def test_close_a_done_plan(env, capsys):
+    path = done_plan(env, capsys)
+    assert ws_json(capsys, "status", "--json")[1]["plans"][0]["state"] == "done"
+    code, out, err = ws_json(capsys, "close", "TS-5")
+    assert code == 0, err
+    assert out == {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": str(path),
+        "closed": "2026-12-16",
+        "problems": [],
+        "warnings": [],
+    }
+    assert mode(path) == 0o600
+    assert 'days = 5\nclosed = "2026-12-16"\n' in path.read_text(encoding="utf-8")
+
+    code, out, _ = ws_json(capsys, "status", "--json")
+    assert code == 0
+    assert out["plans"] == []
+    assert ws(capsys, "status")[1] == "nenhuma observação\n"
+
+    env.set_today(date(2026, 12, 18))
+    code, text, _ = ws(capsys, "report", "TS-5")
+    assert code == 0
+    assert "observação encerrada em 16/12/2026" in text
+    assert "**Resultado:** pode desligar de vez: 5 dias úteis seguidos ok" in text
+    assert "6 · 16/12" not in text
+    code, shown, _ = ws_json(capsys, "show", "TS-5", "--json")
+    assert code == 0
+    assert shown["closed"] == "2026-12-16"
+    assert "closed 2026-12-16" in ws(capsys, "show", "TS-5")[1]
+
+    code, out, _ = ws_json(capsys, "close", "TS-5")
+    assert code == 1
+    assert out["problems"] == ["TS-5 was closed on 2026-12-16"]
+
+
+def test_close_refuses_a_plan_that_is_not_done(env, capsys):
+    path = write_plan()
+    text = path.read_text(encoding="utf-8")
+    code, out, err = ws_json(capsys, "close", "TS-5")
+    assert code == 1
+    assert out["closed"] is None
+    assert out["problems"] == [
+        "TS-5 is not done (observing, day 1 of 5); pass --force to close it anyway"
+    ]
+    assert "--force" in err
+    assert path.read_text(encoding="utf-8") == text
+
+    code, out, _ = ws_json(capsys, "close", "TS-5", "--force")
+    assert code == 0
+    assert out["closed"] == "2026-12-10"
+    assert out["warnings"] == ["TS-5 was closed before it was done (observing)"]
+    assert mode(path) == 0o600
+
+
+def test_a_closed_plan_records_nothing(env, capsys):
+    path = write_plan()
+    assert ws(capsys, "close", "TS-5", "--force")[0] == 0
+    target = write_result(path, tool_result(path))
+    refused = "TS-5 was closed on 2026-12-10; it records nothing more"
+    for argv in (
+        ["run", "TS-5"],
+        ["record", "TS-5", "--check", "file-vs-db", "--yes"],
+        ["record", "TS-5", "--result", str(target)],
+    ):
+        code, out, _ = ws_json(capsys, *argv)
+        assert code == 1, argv
+        assert out["problems"] == [refused]
+    for command in ("request", "fallback"):
+        code, out, err = ws(capsys, command, "TS-5")
+        assert code == 1
+        assert out == ""
+        assert refused in err
+    assert rows(path) == []
+    assert env.fake.calls == []
+    assert ws(capsys, "check", "TS-5")[0] == 0

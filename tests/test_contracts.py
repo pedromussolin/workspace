@@ -41,6 +41,8 @@ def result(**changes):
 
 def test_validate_accepts_a_valid_plan():
     assert validate(plan(), "observe-plan") == []
+    assert validate(plan(closed="2026-12-16"), "observe-plan") == []
+    assert validate(plan(closed=None), "observe-plan") == ["$.closed: expected string, got null"]
 
 
 def test_validate_missing_and_unexpected_keys():
@@ -105,6 +107,7 @@ def test_every_schema_pins_version_and_is_closed():
         "observability-request",
         "observability-result",
         "observe-check",
+        "observe-close",
         "observe-fallback",
         "observe-plan",
         "observe-record",
@@ -220,6 +223,15 @@ VALID = {
         "problems": [],
         "warnings": [],
     },
+    "observe-close": {
+        "version": 1,
+        "task": "TS-5",
+        "project": "demo",
+        "path": "p",
+        "closed": "2026-12-16",
+        "problems": [],
+        "warnings": [],
+    },
 }
 
 
@@ -237,6 +249,7 @@ VALID = {
             },
         ),
         ("observe-record", {**VALID["observe-record"], "day": None}),
+        ("observe-close", {**VALID["observe-close"], "closed": None}),
     ],
 )
 def test_outputs_stopped_before_the_day_are_valid(name, document):

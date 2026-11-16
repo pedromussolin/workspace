@@ -60,6 +60,11 @@ def test_documents_match_their_schemas(env, capsys):
         (["record", "TS-5", "--check", "file-vs-db", "--day", "x", "--yes"], None),
         (["fallback", "TS-5"], "observe-fallback"),
         (["check", "TS-5"], "observe-check"),
+        (["close", "TS-5"], "observe-close"),
+        (["close", "TS-5", "--force"], "observe-close"),
+        (["show", "TS-5", "--json"], "observe-plan"),
+        (["run", "TS-5"], "observe-run"),
+        (["record", "TS-5", "--check", "file-vs-db", "--no"], "observe-record"),
     ]
     for argv, contract in printed:
         code, out, err = ws(capsys, *argv)
@@ -100,6 +105,7 @@ def test_documents_match_their_schemas(env, capsys):
         (["record", "TS-5", "--check", "file-vs-db", "--yes"], "observe-record"),
         (["fallback", "TS-5"], "observe-fallback"),
         (["check", "TS-5"], "observe-check"),
+        (["close", "TS-5", "--force"], "observe-close"),
     ],
 )
 def test_an_output_that_breaks_its_contract_is_a_problem(env, capsys, monkeypatch, argv, contract):

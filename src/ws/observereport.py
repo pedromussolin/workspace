@@ -84,12 +84,15 @@ def render(
     latest = {(item["day"], item["check"]): item for item in rows}
     due = date.fromisoformat(entry["due_day"])
     days = business_days(switched_off, due, extra)
+    closed = ""
+    if plan.get("closed"):
+        closed = f"; observação encerrada em {date.fromisoformat(plan['closed']):%d/%m/%Y}"
 
     lines = [
         f"# Observação {plan['task']}: {title or plan.get('job', '')}",
         "",
         f"Desligado em {switched_off:%d/%m/%Y}; {entry['days']} dias úteis de observação; "
-        f"fuso {timezone}.",
+        f"fuso {timezone}{closed}.",
         "",
         "| Dia | Janela | " + " | ".join(_escape(c.get("label") or c["id"]) for c in checks) + " |",
         "|---|---|" + "---|" * len(checks),

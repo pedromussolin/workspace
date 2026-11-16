@@ -66,6 +66,9 @@
         ],
         "additionalProperties": false
       }
+    },
+    "closed": {
+      "type": "string"
     }
   },
   "required": [

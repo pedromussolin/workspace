@@ -18,6 +18,7 @@ def test_skill_names_the_commands_and_the_rules():
         "ws observe record",
         "ws observe status",
         "ws observe report",
+        "ws observe close",
         "verbatim",
         "observability.tool",
         "result_path",
@@ -41,6 +42,14 @@ def test_skill_runs_the_printed_record_and_fallback_lines():
         assert phrase in run, phrase
     assert "--result <result_path>" not in run
     assert "same flags as" not in run
+
+
+def test_skill_closes_a_done_observation():
+    text = SKILL.read_text()
+    close = text.split("### Close", 1)[1].split("\n## ", 1)[0]
+    assert text.index("### Status") < text.index("### Close")
+    for phrase in ("ws observe close TASK", "`done`", "--force", "ws observe report"):
+        assert phrase in close, phrase
 
 
 def test_daily_has_the_observation_line():

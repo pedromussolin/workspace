@@ -135,6 +135,14 @@ def _plan(path: Path) -> tuple[dict, Plan]:
     return document, plan
 
 
+def _open_plan(path: Path) -> tuple[dict, Plan]:
+    """A plan that still records: a closed one only answers `show`, `check` and `report`."""
+    document, plan = _plan(path)
+    if plan.closed is not None:
+        raise Invalid(f"{plan.task} was closed on {plan.closed}; it records nothing more")
+    return document, plan
+
+
 def _rows(plan_path: Path) -> list[dict]:
     path = results_path(plan_path)
     found = load_rows(path)
@@ -304,7 +312,7 @@ def run_day(project: str, path: Path, day: date | None, only: list[str]) -> tupl
         "warnings": [],
     }
     try:
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         for check_id in only:
             _check(plan, check_id)
@@ -408,7 +416,7 @@ def record_result(project: str, path: Path, document: dict) -> tuple[dict, int]:
     report = _record_report(path.stem)
     try:
         _valid(document, "observability-result", "the result")
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         if document["task"] != plan.task:
             raise Invalid(f"the result is for {document['task']}, not {plan.task}")
@@ -480,7 +488,7 @@ def record_one(
     """One value typed by a person: a fallback count or a manual answer."""
     report = _record_report(path.stem)
     try:
-        _, plan = _plan(path)
+        _, plan = _open_plan(path)
         extra = _holidays()
         check = _check(plan, check_id)
         if check.kind == "database":
@@ -567,6 +575,8 @@ def status_report(project: str | None) -> tuple[dict, int]:
         except Invalid as error:
             problems.append(str(error))
             continue
+        if plan.closed is not None:
+            continue
         today = _today(plan.timezone)
         entries.append(plan_status(document, name, _hashes(plan), found, today, extra))
     report = status_document(entries, _today(), problems)
@@ -574,10 +584,44 @@ def status_report(project: str | None) -> tuple[dict, int]:
     return report, EXIT_PROBLEM if report["problems"] else EXIT_OK
 
 
+def close_plan(project: str, path: Path, force: bool) -> tuple[dict, int]:
+    """Writes today, in the plan's zone, as the plan's `closed` day; the plan and its rows stay as
+    the change record evidence. Only a `done` plan closes, unless `force`."""
+    report: dict = {
+        "version": 1,
+        "task": path.stem,
+        "project": project,
+        "path": str(path),
+        "closed": None,
+        "problems": [],
+        "warnings": [],
+    }
+    try:
+        document, plan = _plan(path)
+        if plan.closed is not None:
+            raise Invalid(f"{plan.task} was closed on {plan.closed}")
+        extra = _holidays()
+        today = _today(plan.timezone)
+        entry = plan_status(document, project, _hashes(plan), _rows(path), today, extra)
+        state = entry["state"]
+        if state != "done" and not force:
+            raise Invalid(
+                f"{plan.task} is not done ({state}, day {entry['day']} of {entry['days']}); "
+                "pass --force to close it anyway"
+            )
+        observedef.write_closed(path, today)
+    except (Failure, Invalid) as error:
+        return _stopped(report, error)
+    report["closed"] = today.isoformat()
+    if state != "done":
+        report["warnings"].append(f"{plan.task} was closed before it was done ({state})")
+    return report, EXIT_OK
+
+
 def _observability_document(
     path: Path, day: date | None, only: list[str]
 ) -> tuple[Observability, Plan, dict]:
-    _, plan = _plan(path)
+    _, plan = _open_plan(path)
     extra = _holidays()
     chosen = _closed_day(plan, day, _today(plan.timezone), extra)
     if not any(check.kind == "observability" for check in plan.checks):
@@ -674,9 +718,10 @@ def _cmd_show(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(document, ensure_ascii=False, indent=2))
         return EXIT_OK
+    closed = f"; closed {plan.closed}" if plan.closed is not None else ""
     print(
         f"{plan.task}: {plan.job}; switched off {plan.switched_off}; "
-        f"{plan.days} business days; {plan.timezone}"
+        f"{plan.days} business days; {plan.timezone}{closed}"
     )
     for check in plan.checks:
         print(f"- {check.id} ({check.kind})" + (f": {check.label}" if check.label else ""))
@@ -785,9 +830,19 @@ def _cmd_report(args: argparse.Namespace) -> int:
     except (Failure, Invalid) as error:
         return _fail(error)
     hashes = _hashes(plan)
-    entry = plan_status(document, project, hashes, found, _today(plan.timezone), extra)
+    # A closed plan reports as it stood on its closing day, so the evidence no longer grows.
+    today = plan.closed or _today(plan.timezone)
+    entry = plan_status(document, project, hashes, found, today, extra)
     sys.stdout.write(render(document, hashes, found, entry, _title(plan.task), extra))
     return EXIT_OK
+
+
+def _cmd_close(args: argparse.Namespace) -> int:
+    try:
+        project, path = observedef.find_plan(args.task, args.project)
+    except Invalid as error:
+        return _fail(error)
+    return _emit(*close_plan(project, path, args.force), "observe-close")
 
 
 def _task(parser: argparse.ArgumentParser) -> None:
@@ -929,3 +984,16 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     )
     _task(report)
     report.set_defaults(handler=_cmd_report)
+
+    close = commands.add_parser(
+        "close",
+        help="End an observation that is done.",
+        description="Writes today as the plan's closed day: status and the daily leave it out, "
+        "and run, request, record and fallback refuse it; show and report still read it. Only "
+        "a done plan closes, unless --force.",
+    )
+    _task(close)
+    close.add_argument(
+        "--force", action="store_true", help="close a plan that is not done (ended early)"
+    )
+    close.set_defaults(handler=_cmd_close)
