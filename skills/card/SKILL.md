@@ -29,6 +29,8 @@ tracker's API. Nothing is written through a tracker MCP, ever. What is specific 
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
    A draft may also be a `card-write` JSON file (`NAME.json`); `ws card check` accepts it, and a `card-plan` one too.
+   `ws card show <draft>` prints a draft as its `card-write` JSON document (read only, writes
+   nothing).
 3. **Preview:** `ws card preview <draft or folder>`. It writes nothing to the tracker. Show the preview
    exactly as printed, warnings included, and the code. Never run `apply` before this was shown.
 4. **Apply:** `ws card apply <same path> --approve <CODE>`. This is the only command that writes,
@@ -39,8 +41,7 @@ tracker's API. Nothing is written through a tracker MCP, ever. What is specific 
    in their own terminal: it prints the summary and asks `Gravar no <tracker>? [s/N]` (the name `ws` prints). Never ask the user
    to type the code or to say "ok" in chat instead, and never wrap or disguise the command to avoid
    the prompt, and never run the preview and the apply in one command line: `apply` refuses when it
-   shares the shell session with the preview. `ws card show <draft>` prints a draft as its
-   `card-write` JSON document (read only, writes nothing). If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
+   shares the shell session with the preview. If it exits 2 with a settings message, tell the user to run `ws setup`. Afterwards
    give the key and the card link. A draft that failed or is uncertain is in
    `~/.local/share/workspace/cards/uncertain/`; say where and ask the user to check the tracker.
    Exit 1 after a line `Card <ref> criado, mas o item <path> não foi atualizado (...); rode ws
@@ -185,7 +186,7 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 | `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
 | `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint) | optional new description |
 | `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
-| `move` | `key`, `to` (target status name) | none |
+| `move` | `key`; exactly one of `to` (target status name) or `status` (one of `todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) | none |
 | `comment` | `key` | the comment, Markdown |
 | `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`), optional `day` | optional comment |
 

@@ -10,8 +10,8 @@ under `src/ws/tracker/jira/`, picked by `[tracker] kind`; the approval flow is u
 the schemas and the neutral module `ws.tracker.write`, the errors and the port, the Jira modules
 moved under `ws/tracker/jira/` with the old paths kept as `sys.modules` aliases, `ws card` on the
 port, and the CLI through `ws.tracker`. Stage B (Tasks 10–18) changes behaviour on purpose:
-`[tracker.jira]` config, `card_url_template`, the daily without the MCP fallback, neutral skill
-words, move by neutral status, JSON drafts, an in-memory tracker on the contract tests, and the
+`[tracker.jira]` config, `card_url_template`, the daily with a neutral MCP fallback (the
+configured tracker's; user decision, 16/11), neutral skill words, move by neutral status, JSON drafts, an in-memory tracker on the contract tests, and the
 removal of the aliases with a boundary test.
 
 **Tech Stack:** Python 3.12+, standard library only at runtime; `uv`, `pytest`, `ruff`.
@@ -359,14 +359,19 @@ paths are aliases, so `ws.jira is ws.tracker.jira.client`.
 - [ ] **Step 4: Run** `uv run pytest -q`; ruff clean.
 - [ ] **Step 5: Commit** `feat: config [tracker.jira] com leitura do [jira] antigo`.
 
-### Task 11: The daily without the MCP fallback
+### Task 11: The daily with a neutral MCP fallback
+
+The user changed this task on 16/11: the fallback stays, through the configured tracker's MCP.
 
 **Files:**
+- Create: `skills/daily/references/jira.md` (the MCP calls of the jira kind, read only)
 - Modify: `skills/daily/SKILL.md`, `skills/daily/references/detailed.md`, `src/ws/standupreport.py`,
   `tests/test_standupreport.py` (also switched to `[tracker.jira]`)
 - Test: `tests/test_daily_skill.py`
 
-**Interfaces:** step 3 "Fallback: the Atlassian MCP" is deleted; when `ws task list` exits 1 or 2
+**Interfaces:** step 3 "Fallback: the Atlassian MCP" becomes "Fallback: the tracker's MCP": when
+`ws task list` exits 1 or 2, the skill reads `[tracker] kind` and follows
+`references/<kind>.md`, read only; `SKILL.md` names no vendor call. When the fallback fails too,
 the skill goes to the report without `--cards` and says "Tracker indisponível" (setup hint for
 exit 2 kept, with `ws config token <kind>`). The report key `jira` becomes `tracker` (bool); the
 skill and `references/detailed.md` read `tracker` and say "Tracker indisponível: sem status nem

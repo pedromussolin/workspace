@@ -21,8 +21,9 @@ release texts link `/browse/`, the daily has an ungated MCP path. This step puts
 - **Goals.** Stage A, no behaviour change: the `card-write`, `card-plan` and `card-result`
   contracts, the `Writer` port, every Jira payload, ADF, transition and REST call under
   `src/ws/tracker/jira/`, `open_tracker()` dispatching on `[tracker] kind`; existing tests pass
-  unchanged, approval codes stay byte-identical. Stage B: `[tracker.jira]`, `card_url`, no daily
-  MCP fallback, neutral skill words, a boundary test, an in-memory tracker on the contract tests.
+  unchanged, approval codes stay byte-identical. Stage B: `[tracker.jira]`, `card_url`, the daily's
+  MCP fallback through the configured tracker's `references/<kind>.md` (user decision, 16/11),
+  neutral skill words, a boundary test, an in-memory tracker on the contract tests.
 - **Non-goals.** A second real tracker; the other ports of the audit; neutral priority names.
 - **Anti-goals.** No change to the safety flow (preview with code and pending record, apply behind
   the gate in a separate step, 30-minute window, stop at the first failure, never retry, uncertain
