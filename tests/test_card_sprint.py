@@ -164,6 +164,7 @@ def test_the_document_check_refuses_backlog_on_create_and_a_blank_sprint():
         "version": 1,
         "op": "create",
         "type": "task",
+        "epic": "TS-100",
         "priority": "High",
         "title": "[FRONT] T",
     }

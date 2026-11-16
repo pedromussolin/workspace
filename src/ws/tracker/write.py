@@ -1,4 +1,5 @@
-"""The neutral side of a card write: documents, approval digest, pending record, apply loop.
+"""The neutral side of a card write: documents, their rules, approval digest, pending record,
+apply loop.
 
 Nothing here knows a tracker; an adapter supplies the plan and the `Writer` that sends it.
 """
@@ -6,11 +7,14 @@ Nothing here knows a tracker; an adapter supplies the plan and the `Writer` that
 import hashlib
 import json
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import date
 
 from ws import approval, contracts
-from ws.carddraft import Draft
+from ws.itemfile import ITEM_PATH
+from ws.taskmodel import Status
 from ws.tracker.port import TrackerError
+from ws.tracker.vocab import ALL_TYPES, CARD_TYPES, LINK_KINDS, UPPER_TYPES
 
 VERSION = 1
 SCHEMAS = ("card-write", "card-plan", "card-result")
@@ -48,6 +52,17 @@ HEADER = {"$schema", "version", "op"}
 DATES = {"start", "due", "day"}
 
 
+@dataclass(frozen=True)
+class Draft:
+    """One card write as `ws card` holds it, from a Markdown draft or a `card-write` document."""
+
+    op: str
+    values: dict
+    title: str | None
+    body: str
+    sha256: str
+
+
 def to_document(draft: Draft) -> dict:
     document: dict = {"$schema": "card-write", "version": VERSION, "op": draft.op}
     for name, value in draft.values.items():
@@ -60,19 +75,35 @@ def to_document(draft: Draft) -> dict:
 
 
 def from_document(document: dict) -> Draft:
+    """The draft of a `card-write` document, its values trimmed as a Markdown draft's are."""
     values = {}
-    for name, value in document.items():
-        if name in HEADER or name == "body" or (name == "title" and document["op"] == "create"):
+    for name, value in _trimmed(document).items():
+        if name == "title" and document["op"] == "create":
             continue
         values[name] = date.fromisoformat(value) if name in DATES else value
     canonical = json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    title = document.get("title") if document["op"] == "create" else None
     return Draft(
         document["op"],
         values,
-        document.get("title") if document["op"] == "create" else None,
+        title.strip() if isinstance(title, str) else title,
         document.get("body", ""),
         hashlib.sha256(canonical.encode()).hexdigest(),
     )
+
+
+def _trimmed(document: dict) -> dict:
+    """The values of a document but the header and the body, without surrounding blanks."""
+    values = {}
+    for name, value in document.items():
+        if name in HEADER or name == "body":
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+        elif isinstance(value, list):
+            value = [item.strip() if isinstance(item, str) else item for item in value]
+        values[name] = value
+    return values
 
 
 def check_document(document: dict) -> list[str]:
@@ -85,6 +116,9 @@ def check_document(document: dict) -> list[str]:
     op = document.get("op")
     if name == "card-write" and op in OPS and not problems:
         problems += _op_problems(document, op)
+    if name == "card-write" and op in OPS and not problems:
+        values = _trimmed(document)
+        problems += _value_problems(values) or draft_problems(op, values)
     return problems
 
 
@@ -99,10 +133,8 @@ def _op_problems(document: dict, op: str) -> list[str]:
             problems.append(f"$.{name}: expected a date YYYY-MM-DD")
     if "sprint" in document and "sprint" in OPTIONAL[op]:
         problems += _sprint_problems(document["sprint"], op)
-    if op == "move" and "to" in document and "status" in document:
-        problems.append("a move needs exactly one of to or status, not both")
-    if op == "move" and "to" not in document and "status" not in document:
-        problems.append("missing key 'to' for op move")
+    if op == "move":
+        problems += _move_rules(document)
     if op == "link" and not any(document.get(kind) for kind in OPTIONAL["link"]):
         problems.append("$: a link needs blocks, blocked_by or relates")
     return problems
@@ -122,6 +154,112 @@ def _is_date(value: object) -> bool:
         return date.fromisoformat(value).isoformat() == value  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return False
+
+
+def _value_problems(values: dict) -> list[str]:
+    """What the contract's types let through and a Markdown draft refuses, in the same words:
+    a blank string, and a list of card keys with a blank or a repeated key."""
+    problems = []
+    for name in sorted(set(values) - DATES):
+        value = values[name]
+        if name in LINK_KINDS:
+            if not all(value):
+                problems.append(f"{name} must be a list of card keys")
+            elif problem := repeated_problem(name, value):
+                problems.append(problem)
+        elif not value:
+            problems.append(f"{name} must be a non-empty string")
+    return problems
+
+
+def repeated_problem(name: str, cards: list[str]) -> str | None:
+    """The problem of a list of card keys that names a card twice; None when it does not."""
+    twice = next((card for card in cards if cards.count(card) > 1), None)
+    return None if twice is None else f"{name} lists {twice} twice"
+
+
+def draft_problems(op: str, values: dict) -> list[str]:
+    """The rules every card write follows, whether it came as a Markdown draft or as a
+    `card-write` document. `values` are the write's keys but the header, title and body."""
+    problems = []
+    kind = values.get("type")
+    if kind is not None and kind not in ALL_TYPES:
+        problems.append(f"type must be one of {', '.join(ALL_TYPES)}")
+    elif op == "create":
+        problems += _create_rules(kind, values)
+    elif op == "edit":
+        problems += _edit_rules(kind, values)
+    if op == "link":
+        problems += _link_rules(values)
+    if op == "move":
+        problems += _move_rules(values)
+    return problems
+
+
+def _move_rules(values: dict) -> list[str]:
+    if "to" in values and "status" in values:
+        return ["a move needs exactly one of to or status, not both"]
+    if "to" not in values and "status" not in values:
+        return ["missing key 'to' for op move"]
+    if "status" in values and values["status"] not in {status.value for status in Status}:
+        return [f"status must be one of {', '.join(status.value for status in Status)}"]
+    return []
+
+
+def _item_rules(kind: str, values: dict) -> list[str]:
+    if "item" not in values:
+        return []
+    if not ITEM_PATH.fullmatch(values["item"]):
+        return ["item must be a path like projects/<slug>/tasks/NN-name.md"]
+    if kind not in CARD_TYPES:
+        return ["item is only for a card; an epic or an initiative has no item"]
+    return []
+
+
+def _create_rules(kind: str, values: dict) -> list[str]:
+    problems = _item_rules(kind, values)
+    return problems + _type_rules(kind, values)
+
+
+def _type_rules(kind: str, values: dict) -> list[str]:
+    if kind in CARD_TYPES:
+        if "parent" in values:
+            return ["parent is only for an epic; a card uses epic"]
+        if "epic" not in values:
+            return [f"a {kind} needs an epic"]
+    elif "epic" in values:
+        return ["an epic has no epic; use parent for its initiative"]
+    elif kind in UPPER_TYPES and kind != "epic" and "parent" in values:
+        return ["an initiative has no parent"]
+    return []
+
+
+def _edit_rules(kind: str | None, values: dict) -> list[str]:
+    problems = []
+    if kind in UPPER_TYPES:
+        problems.append(
+            f"type {kind} is not a card type: changing a card's level is done by hand in the "
+            "tracker"
+        )
+    if "epic" in values and "parent" in values:
+        problems.append("use epic for a card or parent for an epic, not both")
+    return problems
+
+
+def _link_rules(values: dict) -> list[str]:
+    lists = {name: values[name] for name in LINK_KINDS if values.get(name)}
+    if not lists:
+        return ["a link needs blocks, blocked_by or relates"]
+    seen = []
+    problems = []
+    for cards in lists.values():
+        for card in cards:
+            if card == values["key"]:
+                problems.append("a card cannot link to itself")
+            elif card in seen:
+                problems.append(f"{card} appears in more than one list")
+            seen.append(card)
+    return list(dict.fromkeys(problems))
 
 
 def calls(plan: dict) -> list[dict]:

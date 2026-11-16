@@ -16,13 +16,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ws import approval, bootstrap, humans, itemrecord, userconfig
-from ws.carddraft import Draft, DraftError, parse_draft
+from ws.carddraft import DraftError, parse_draft
 from ws.config import claude_settings_path, data_dir, repo_root
 from ws.identity import dev_id
 from ws.itemfile import ItemError
 from ws.tracker import port, write
 from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.port import Writer
+from ws.tracker.write import Draft
 
 APPROVAL_WINDOW = approval.APPROVAL_WINDOW
 

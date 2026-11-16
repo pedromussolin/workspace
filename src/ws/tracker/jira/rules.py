@@ -5,13 +5,13 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
-from ws.carddraft import Draft
 from ws.identity import dev_id
 from ws.taskmodel import Status
 from ws.tracker import vocab
 from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
 from ws.tracker.jira.settings import JiraConfig
+from ws.tracker.write import Draft
 from ws.userconfig import Person
 
 MAX_SUMMARY = 255
