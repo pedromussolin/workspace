@@ -834,22 +834,9 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     current = ctx.writable_card(key, verdict)
     if current is None:
         return
-    target = fold(draft.values["to"])
     available = ctx.client.transitions(key)
-    matches = [
-        item for item in available if fold((item.get("to") or {}).get("name") or "") == target
-    ]
-    names = ", ".join(sorted({(item.get("to") or {}).get("name") or "?" for item in available}))
-    if not matches:
-        verdict.problems.append(
-            f"no available transition leads to {draft.values['to']!r}; available: {names or 'none'}"
-        )
-        return
-    if len(matches) > 1:
-        listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
-        verdict.problems.append(
-            f"more than one transition leads to {draft.values['to']!r}: {listing}"
-        )
+    matches = _transitions_to(ctx, draft, available, verdict)
+    if matches is None:
         return
     chosen = matches[0]
     if not chosen.get("id"):
@@ -883,6 +870,54 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     ]
     if _starts_work(ctx, chosen.get("to") or {}):
         _add_start_date(ctx, key, current, verdict)
+
+
+def _transitions_to(
+    ctx: Context, draft: Draft, available: list[dict], verdict: Verdict
+) -> list[dict] | None:
+    """The one transition the draft's `to` (a status name) or `status` (a neutral status) points
+    at; a problem naming the options when there is none or more than one."""
+    names = ", ".join(sorted({(item.get("to") or {}).get("name") or "?" for item in available}))
+    if "status" in draft.values:
+        wanted = draft.values["status"]
+        matches = [
+            item for item in available if _destination_status(ctx, item.get("to") or {}) == wanted
+        ]
+        label = f"the status {wanted!r}"
+    else:
+        target = fold(draft.values["to"])
+        matches = [
+            item for item in available if fold((item.get("to") or {}).get("name") or "") == target
+        ]
+        label = repr(draft.values["to"])
+    if not matches:
+        hint = "; use to with one of them" if "status" in draft.values else ""
+        verdict.problems.append(
+            f"no available transition leads to {label}; available: {names or 'none'}{hint}"
+        )
+        return None
+    if len(matches) > 1:
+        listing = ", ".join(f"{item.get('name')} (id {item.get('id')})" for item in matches)
+        hint = ""
+        if "status" in draft.values:
+            destinations = ", ".join(
+                sorted({(item.get("to") or {}).get("name") or "?" for item in matches})
+            )
+            listing += f"; destinations: {destinations}"
+            hint = "; use to to pick one by name"
+        verdict.problems.append(f"more than one transition leads to {label}: {listing}{hint}")
+        return None
+    return matches
+
+
+def _destination_status(ctx: Context, destination: dict) -> str | None:
+    name = destination.get("name") or ""
+    overrides = ctx.settings.status_overrides
+    if name in overrides:
+        return str(overrides[name])
+    category = (destination.get("statusCategory") or {}).get("key")
+    status = CATEGORY_STATUS.get(category)
+    return status.value if status else None
 
 
 def _starts_work(ctx: Context, destination: dict) -> bool:

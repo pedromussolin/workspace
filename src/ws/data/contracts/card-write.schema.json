@@ -76,6 +76,18 @@
     "to": {
       "type": "string"
     },
+    "status": {
+      "enum": [
+        "todo",
+        "in_progress",
+        "review",
+        "validation",
+        "ready_deploy",
+        "blocked",
+        "done",
+        "cancelled"
+      ]
+    },
     "time": {
       "type": "string"
     },
