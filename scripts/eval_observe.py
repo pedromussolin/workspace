@@ -58,8 +58,11 @@ class Problem(Exception):
         self.code = code
 
 
-def _plan_dir() -> Path:
-    return Path.home() / ".local/share/workspace/projects" / PROJECT / "observations"
+def _result_dir() -> Path:
+    """The real `run` puts the result file beside the plan, and in real use the approval box asks
+    for that Write. A run of the eval is in don't-ask mode, where Write is granted only under the
+    run's working directory, so the fixture prints a `result_path` there."""
+    return Path.cwd()
 
 
 def _emit(report: dict, contract: str) -> int:
@@ -166,7 +169,7 @@ def run(args: argparse.Namespace, checks: tuple[str, ...]) -> int:
     probes = [check for check in selected if check in OBSERVABILITY]
     if probes:
         subset = "".join(f" --check {check}" for check in probes) if args.checks else ""
-        result_path = str(_plan_dir() / f"{TASK}.{DAY}.result.json")
+        result_path = str(_result_dir() / f"{TASK}.{DAY}.result.json")
         report["observability"] = {
             "tool": TOOL,
             "checks": probes,

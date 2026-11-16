@@ -586,7 +586,9 @@ argocd repo, with the Atlassian and Datadog tools answered by `evals/mocks/`.
 only so those tools can be mocked: do not install or enable this repo as a plugin. In the observe
 cases (the scaffold writes `~/.eval-observe`), the `ws` of `scripts/eval-path` answers
 `ws observe` from `scripts/eval_observe.py`: fixed JSON checked against the real contracts, and
-the program and fallback calls of the real adapter; no database is reached.
+the program and fallback calls of the real adapter; no database is reached. Its `result_path` is in
+the run's working directory: a run is in don't-ask mode, where Write is granted only there (in real
+use the approval box asks for the Write beside the plan).
 
 The sandbox of the runs needs `bubblewrap` and `socat` (`ws setup` tells you when they are
 missing). Run the suite through the script, which also puts a `ws` of this checkout first on
