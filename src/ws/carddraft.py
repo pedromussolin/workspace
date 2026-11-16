@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from ws.itemfile import ITEM_PATH
+from ws.taskmodel import Status
 from ws.tracker.vocab import ALL_TYPES, CARD_TYPES, LINK_KINDS, UPPER_TYPES
 
 OPS = ("create", "edit", "move", "comment", "worklog", "link")
@@ -14,7 +15,7 @@ OPS = ("create", "edit", "move", "comment", "worklog", "link")
 REQUIRED = {
     "create": {"type", "priority"},
     "edit": {"key"},
-    "move": {"key", "to"},
+    "move": {"key"},
     "comment": {"key"},
     "worklog": {"key", "time"},
     "link": {"key"},
@@ -33,7 +34,7 @@ OPTIONAL = {
         "parent",
         "sprint",
     },
-    "move": set(),
+    "move": {"to", "status"},
     "comment": set(),
     "worklog": {"day"},
     "link": set(LINK_KINDS),
@@ -133,7 +134,19 @@ def _cross_rules(op: str, values: dict) -> list[str]:
         problems += _edit_rules(kind, values)
     if op == "link":
         problems += _link_rules(values)
+    if op == "move":
+        problems += _move_rules(values)
     return problems
+
+
+def _move_rules(values: dict) -> list[str]:
+    if "to" in values and "status" in values:
+        return ["a move needs exactly one of to or status, not both"]
+    if "to" not in values and "status" not in values:
+        return ["missing key 'to' for op move"]
+    if "status" in values and values["status"] not in {status.value for status in Status}:
+        return [f"status must be one of {', '.join(status.value for status in Status)}"]
+    return []
 
 
 def _item_rules(kind: str, values: dict) -> list[str]:
