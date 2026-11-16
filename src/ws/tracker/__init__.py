@@ -9,6 +9,7 @@ import importlib
 
 ADAPTERS = {"jira": "ws.tracker.jira"}
 KNOWN_KINDS = tuple(ADAPTERS)
+ROLES = ("mine", "following", "all")
 
 
 class UnknownTracker(Exception):

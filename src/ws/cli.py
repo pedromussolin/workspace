@@ -704,9 +704,6 @@ def _cmd_gate_classify(args: argparse.Namespace) -> int:
     return 0
 
 
-TASK_ROLES = ("mine", "following", "all")
-
-
 def _iso_date(text: str) -> date:
     try:
         return date.fromisoformat(text)
@@ -729,7 +726,7 @@ def _add_task(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     )
     listing.add_argument(
         "--role",
-        choices=TASK_ROLES,
+        choices=tracker.ROLES,
         default="mine",
         help="mine: assigned to me (default); following: I asked for it and someone else does "
         "it; all: both.",
@@ -1052,7 +1049,7 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
         result = standupreport.build_report(
             activity, tasks, args.today or date.today(), stale_workdays, args.top, board
         )
-    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, TrackerSetup) as error:
         print(f"ws standup report: {error}", file=sys.stderr)
         return 2
     except KeyError as error:

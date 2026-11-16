@@ -2,11 +2,12 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
 from test_card import claude_settings, create_draft, make_draft, pending_files, world  # noqa: F401
 from test_jira import CARD, REST_ISSUE
 
 import ws.cli
-from ws import contracts
+from ws import contracts, tracker
 from ws.cli import main
 
 
@@ -100,3 +101,48 @@ def test_cli_names_no_jira_module():
             names.add(node.attr)
 
     assert not [name for name in names if "jira" in name]
+
+
+@pytest.fixture
+def other_kind(world, ws_config):  # noqa: F811
+    path = ws_config / "config.toml"
+    path.write_text('[tracker]\nkind = "monday"\n' + path.read_text(encoding="utf-8"))
+
+
+def _inputs(tmp_path):
+    cards = tmp_path / "cards.json"
+    cards.write_text(json.dumps({"cards": [CARD]}), encoding="utf-8")
+    activity = tmp_path / "activity.json"
+    activity.write_text(json.dumps({"repos": [], "warnings": []}), encoding="utf-8")
+    return cards, activity
+
+
+def test_task_list_refuses_an_unknown_kind(other_kind, capsys):
+    assert main(["task", "list"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("ws task list: ") and "monday" in err and "Traceback" not in err
+
+
+def test_task_status_refuses_an_unknown_kind(other_kind, tmp_path, capsys):
+    cards, activity = _inputs(tmp_path)
+
+    assert main(["task", "status", "--cards", str(cards), "--activity", str(activity)]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("ws task status: ") and "monday" in err and "Traceback" not in err
+
+
+def test_standup_report_refuses_an_unknown_kind(other_kind, tmp_path, capsys):
+    cards, activity = _inputs(tmp_path)
+
+    assert main(["standup", "report", "--cards", str(cards), "--activity", str(activity)]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("ws standup report: ") and "monday" in err and "Traceback" not in err
+
+
+def test_task_roles_are_defined_once_in_the_neutral_layer():
+    from ws.tracker.jira import client
+
+    assert set(client._ROLE_JQL) == set(tracker.ROLES)
+    parser = ws.cli.build_parser()
+    args = parser.parse_args(["task", "list", "--role", "following"])
+    assert args.role in tracker.ROLES

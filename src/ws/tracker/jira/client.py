@@ -58,8 +58,6 @@ class JiraError(TrackerError):
     been applied anyway (no answer, or a 5xx), so the caller checks before retrying."""
 
 
-ROLES = ("mine", "following", "all")
-
 _ROLE_JQL = {
     "mine": "assignee = currentUser()",
     "following": "reporter = currentUser() AND assignee != currentUser()",

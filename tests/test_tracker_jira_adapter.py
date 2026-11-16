@@ -9,10 +9,11 @@ import ws.tracker.jira
 import ws.tracker.jira.adapter
 import ws.tracker.jira_adapter
 from ws.taskmodel import Status
-from ws.tracker.errors import TrackerError
+from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.jira import JIRA_CAPABILITIES, open_tracker, task_from_listing
-from ws.tracker.jira.adapter import JiraTracker
+from ws.tracker.jira.adapter import JiraTracker, _LazyClient
 from ws.tracker.jira.client import JiraError, tasks_jql
+from ws.tracker.port import open_tracker as open_port_tracker
 from ws.userconfig import JiraConfig, load_config
 
 
@@ -99,3 +100,33 @@ def test_task_from_listing_needs_no_session():
 
 def test_old_jira_adapter_path_is_the_adapter():
     assert ws.tracker.jira_adapter is ws.tracker.jira.adapter
+
+
+def test_connection_only_tracker_asks_for_the_card_keys_at_the_first_card(ws_config, fake_jira):
+    (ws_config / "config.toml").write_text(
+        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'
+    )
+    tracker = open_port_tracker(connection_only=True)
+
+    with pytest.raises(TrackerSetup, match="types"):
+        tracker.card("TS-104")
+    assert fake_jira.requests == []
+
+
+def test_connection_only_tracker_asks_for_the_project_at_the_first_card(ws_config, fake_jira):
+    (ws_config / "config.toml").write_text(
+        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\n'
+    )
+    tracker = open_port_tracker(connection_only=True)
+
+    with pytest.raises(TrackerSetup, match="project"):
+        tracker.card("TS-104")
+
+
+def test_connection_only_tracker_switches_to_the_session_client(world):  # noqa: F811
+    world.set_card("TS-104")
+    tracker = open_port_tracker(connection_only=True)
+    assert isinstance(tracker._client, _LazyClient)
+
+    assert tracker.card("TS-104").ref == "TS-104"
+    assert not isinstance(tracker._client, _LazyClient)
