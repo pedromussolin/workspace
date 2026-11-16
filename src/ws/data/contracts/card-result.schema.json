@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "card-result"
+    },
+    "version": {
+      "const": 1
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "draft",
+          "status",
+          "sent",
+          "created",
+          "url",
+          "error"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "failed",
+              "uncertain",
+              "not_sent"
+            ]
+          },
+          "sent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "method",
+                "path",
+                "body"
+              ],
+              "properties": {
+                "method": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "body": {}
+              }
+            }
+          },
+          "created": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

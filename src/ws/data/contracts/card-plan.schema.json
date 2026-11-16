@@ -1,0 +1,137 @@
+{
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "tracker",
+    "target",
+    "today",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "card-plan"
+    },
+    "version": {
+      "const": 1
+    },
+    "tracker": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "today": {
+      "type": "string"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "draft",
+          "op",
+          "card",
+          "title",
+          "preview",
+          "warnings",
+          "problems",
+          "before",
+          "native"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            }
+          },
+          "op": {
+            "enum": [
+              "create",
+              "edit",
+              "move",
+              "comment",
+              "worklog",
+              "link"
+            ]
+          },
+          "card": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preview": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "before": {
+            "type": "object"
+          },
+          "native": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "method",
+                "path",
+                "body"
+              ],
+              "properties": {
+                "method": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "body": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "code": {
+      "type": "string"
+    }
+  }
+}
