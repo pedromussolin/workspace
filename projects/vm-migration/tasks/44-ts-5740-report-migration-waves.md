@@ -10,8 +10,8 @@ docs = ["12-report-migration-waves.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+sprint = ""
+synced = 2026-11-16
 +++
 # 44 — Onda 3: migrar e desligar Estoque (VLTS I) e Base de operações e estoque (FBRX3)
 

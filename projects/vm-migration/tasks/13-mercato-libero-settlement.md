@@ -7,11 +7,11 @@ reporter = "dev-ae95329f82"
 relates = ["TS-5738"]
 
 [tracker]
-status = "todo"
+status = "done"
 priority = "Highest"
-due = 2026-11-13
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-17
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 

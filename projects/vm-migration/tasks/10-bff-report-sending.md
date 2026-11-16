@@ -10,8 +10,9 @@ blocked_by = ["TS-5717", "TS-5707", "TS-5708", "TS-5714"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-26
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 10 — BFF da tela Envio de Relatórios
 

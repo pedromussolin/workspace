@@ -8,8 +8,9 @@ reporter = "dev-ae95329f82"
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-24
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 05 — Tipo de baixa na tabela de pagamentos
 

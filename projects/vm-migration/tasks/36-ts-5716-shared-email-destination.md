@@ -11,8 +11,8 @@ docs = ["08-shared-email-destination.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+sprint = ""
+synced = 2026-11-16
 +++
 # 36 — Shared: destino e-mail no bloco, item da execução e teste de conexão
 

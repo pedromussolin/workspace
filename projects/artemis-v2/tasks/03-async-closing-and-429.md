@@ -10,7 +10,7 @@ docs = ["03-closing-analysis.md", "03-post-production-cases.md", "03-pre-product
 status = "done"
 priority = "Highest"
 sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+synced = 2026-11-16
 +++
 # 03 — Fechamento de lote: mais rápido, sem espera e sem 429
 

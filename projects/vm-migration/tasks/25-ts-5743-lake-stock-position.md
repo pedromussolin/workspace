@@ -11,8 +11,9 @@ docs = ["05-lake-stock-position.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-25
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 25 — Posição de ativos no data-lake-api: ramos Dayvale e FBRX3
 

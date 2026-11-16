@@ -11,8 +11,9 @@ docs = ["12-report-migration-waves.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-19
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 41 — Migrar listas de destinatários da mv_mail_list para contatos
 

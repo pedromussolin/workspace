@@ -11,8 +11,8 @@ docs = ["11-front-report-sending.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+sprint = ""
+synced = 2026-11-16
 +++
 # 39 — Front: Gerar Arquivo, destino e-mail e agenda por dia útil no editor
 

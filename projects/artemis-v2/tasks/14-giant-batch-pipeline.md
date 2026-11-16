@@ -10,8 +10,9 @@ docs = ["14-phase0-design.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-24
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 14 — Esteira de baixa que não aguenta lote gigante
 

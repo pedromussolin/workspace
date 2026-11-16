@@ -11,8 +11,9 @@ docs = ["04-cessao-report-queries.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-27
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 23 — Validar as rotas do platform-cessao contra o SQL dos scripts
 

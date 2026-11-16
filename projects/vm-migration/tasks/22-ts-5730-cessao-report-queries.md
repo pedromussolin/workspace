@@ -11,8 +11,9 @@ docs = ["04-cessao-report-queries.md"]
 [tracker]
 status = "todo"
 priority = "Medium"
-sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-13
+due = 2026-11-25
+sprint = "TETRIS - Sprint 16.6.41"
+synced = 2026-11-16
 +++
 # 22 — Rota de consulta de liquidação no platform-cessao
 
