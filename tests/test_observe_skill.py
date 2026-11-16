@@ -94,6 +94,24 @@ def test_daily_keeps_the_valid_plans_at_exit_1():
     assert "faltam dd/mm" in note
 
 
+def test_readme_names_project_on_every_task_command_and_close():
+    text = (ROOT / "README.md").read_text()
+    rows = [line for line in text.splitlines() if line.startswith("| `ws observe ")]
+    for command in ("run", "record", "report", "close"):
+        [row] = [each for each in rows if each.startswith(f"| `ws observe {command} TASK")]
+        assert "[--project SLUG]" in row.split("` |", 1)[0], command
+    [new] = [each for each in rows if each.startswith("| `ws observe new ")]
+    assert "`check TASK [--project SLUG]`" in new
+    assert "`show TASK [--project SLUG] [--json]`" in new
+
+
+def test_readme_names_what_the_box_cannot_see():
+    text = (ROOT / "README.md").read_text()
+    prose = text.split("## Observing a switched-off job", 1)[1].split("\n### ", 1)[0]
+    assert "`bash obs.sh`" in prose
+    assert "not seen by the box" in prose
+
+
 def test_change_request_survey_uses_the_report():
     text = (ROOT / "skills" / "change-request" / "SKILL.md").read_text()
     assert "ws observe report" in text
