@@ -5,7 +5,8 @@ The installed `ws` is not visible inside the eval sandbox, so this runs the code
 Two things are pinned so a run never touches real data: the workspace is the fixture one in the
 run's HOME (not this repo, whose projects hold real next steps), and "today" is the date the
 fixture wrote to ~/.eval-today, so the standup window, the commit shas and the stuck rules do not
-depend on the day the suite runs.
+depend on the day the suite runs. When the fixture wrote ~/.eval-observe, `ws observe` answers
+from evals/lib/observe_fake.py instead (fixed JSON inside the real contracts).
 """
 
 import datetime
@@ -27,6 +28,16 @@ if _today_file.is_file():
             return cls.fromisoformat(_fixed)
 
     datetime.date = _FixedDate
+
+# The observe cases: `ws observe` answers from evals/lib/observe_fake.py, never from a database.
+# Help still comes from the real command.
+_observe_file = Path.home() / ".eval-observe"
+_observe = sys.argv[1:2] == ["observe"] and _observe_file.is_file()
+if _observe and not {"-h", "--help"} & set(sys.argv[2:]):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "evals" / "lib"))
+    from observe_fake import main as observe_main  # noqa: E402
+
+    sys.exit(observe_main(sys.argv[2:], _observe_file.read_text(encoding="utf-8").strip()))
 
 from ws.cli import main  # noqa: E402
 
