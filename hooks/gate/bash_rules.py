@@ -7,7 +7,9 @@ judged; the strictest decision wins. Families, each with its own PT-BR box: `git
 redirects it), `gh`, `curl`/`wget`, `ws card apply`, `ws release publish|move`, `ws observe run`
 (it queries the production replica; the box lists the plan's database checks, never their SQL),
 the protection of the Claude Code settings and hooks, and commands the gate cannot read with
-certainty. Everything else passes.
+certainty. Everything else passes. Two waits are denied, with the reason for the model: a
+`while`/`until` loop that runs `sleep` in a text no `timeout` runs (`_wait_loops`), and
+`pgrep -f`/`pkill -f`, whose pattern also matches the Bash tool's own shell (`_matches_itself`).
 
 "Unquoted" for the obfuscation rule: an expansion that the shell does not keep as one literal
 argument, that is a `$`, a backtick or a brace expansion (`{a,b}`, `{1..3}`) outside every quote.
@@ -62,6 +64,7 @@ import shlex
 import subprocess
 import time
 import tomllib
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -80,6 +83,8 @@ TITLE_UNSURE_PROGRAM = "Não sei qual programa este comando roda"
 TITLE_REMOTE = "Muda o destino do git push"
 TITLE_CREDENTIAL = "Lê uma credencial"
 TITLE_REPLICA = "Consulta a réplica de produção"
+TITLE_WAIT_LOOP = "Espera em laço que pode não acabar"
+TITLE_SELF_MATCH = "Padrão que casa com o próprio shell"
 
 WATCHED = {"git", "gh", "curl", "wget", "ws"}
 NAMES = re.compile(r"\b(?:ws|gh|git|curl|wget)\b")
@@ -368,6 +373,29 @@ WGET_VALUE_FLAGS = {
 }
 WGET_DATA = re.compile(r"^--(?:post-|body-)")
 SAFE_METHODS = {"GET", "HEAD"}
+WAIT_LOOP_DENIAL = (
+    "Waiting in a loop is refused: a `while`/`until` loop with `sleep` can outlive the agent. "
+    "Run the long command with run_in_background and wait for its notification, or wrap the "
+    "wait in `timeout <seconds> bash -c '...'`."
+)
+SELF_MATCH_DENIAL = (
+    "`pgrep -f`/`pkill -f` also match the Bash tool's own shell, which holds the same text, so a "
+    "wait never ends and a kill can hit itself. Use a bracket pattern (`pgrep -f '[p]ytest'`) or "
+    "kill by PID."
+)
+WAIT_LOOPS = {"while", "until"}
+LIST_LOOPS = {"for", "select"}
+# Words that may lead a command before a loop opens or after one closes (`then while`, `do until`).
+LEADING_KEYWORDS = {"if", "then", "else", "elif", "do", "!", "{", "}", "fi", "esac", "time"}
+PROCESS_MATCHERS = {"pgrep", "pkill"}
+PROCESS_VALUE_FLAGS = set(
+    "-d --delimiter -g --pgroup -G --group -O --older -P --parent -s --session -t --terminal "
+    "-u --euid -U --uid -F --pidfile -q --queue -r --runstates --signal --cgroup --ns --nslist "
+    "--env".split()
+)
+# `--full` and the prefixes `getopt_long` takes for it (no other option starts with an `f`).
+FULL_FLAGS = {"-f", "--f", "--fu", "--ful", "--full"}
+BRACKET_CLASS = re.compile(r"\[[^\]]+\]")
 
 
 @dataclass(frozen=True)
@@ -2393,12 +2421,73 @@ def _script_findings(scan: Scan, cwd: str, depth: int) -> list[Finding]:
     return found
 
 
+def _waits_in_loop(commands: list[Command]) -> bool:
+    """A `while`/`until` loop runs `sleep`, in its condition or body (a nested loop's too).
+
+    The scan cuts a loop at its `;` and newlines, so the words that lead each command open
+    (`while`, `until`, `for`, `select`) and close (`done`) the loops around the next commands.
+    """
+    loops: list[bool] = []
+    for command in commands:
+        for word in command.words:
+            if word.text in WAIT_LOOPS | LIST_LOOPS:
+                loops.append(word.text in WAIT_LOOPS)
+            elif word.text == "done":
+                if loops:
+                    loops.pop()
+            elif word.text not in LEADING_KEYWORDS:
+                break
+        if any(loops) and any(name == "sleep" for name, _ in shell.invocations(command)):
+            return True
+    return False
+
+
+def _wait_loops(scan: Scan) -> list[Finding]:
+    """A loop that waits with `sleep` can run forever, unless a `timeout` runs its text."""
+    if any(not each.timed and _waits_in_loop(each.commands) for each in scan.lists):
+        return [Finding(TITLE_WAIT_LOOP, (), denial=WAIT_LOOP_DENIAL)]
+    return []
+
+
+def _pattern_matches(pattern: str, text: str, ignore_case: bool) -> bool:
+    """Whether a `pgrep` pattern, read as a Python regex (close to its POSIX one), matches the
+    text; a pattern Python cannot read counts as a match."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            return bool(re.search(pattern, text, re.IGNORECASE if ignore_case else 0))
+        except (re.error, RecursionError, OverflowError):
+            return True
+
+
+def _matches_itself(name: str, args: list[Word], command: str) -> list[Finding]:
+    """`pgrep -f`/`pkill -f` read the full command line of every process, the Bash tool's own
+    shell included, and its command line is this command. Only a pattern with a bracket class
+    (`[p]ytest`) that does not match the command can miss that shell; with `-v` the processes
+    the pattern misses are the ones picked, so nothing excuses it."""
+    if name not in PROCESS_MATCHERS:
+        return []
+    parsed = parse_flags(args, PROCESS_VALUE_FLAGS)
+    if not any(flag in FULL_FLAGS for flag, _ in parsed.flags):
+        return []
+    pattern = parsed.positionals[0].text if parsed.positionals else ""
+    ignore_case = parsed.has("-i", "--ignore-case")
+    inverse = parsed.has("-v", "--inverse")
+    if (
+        not inverse
+        and BRACKET_CLASS.search(pattern)
+        and not _pattern_matches(pattern, command, ignore_case)
+    ):
+        return []
+    return [Finding(TITLE_SELF_MATCH, (), denial=SELF_MATCH_DENIAL)]
+
+
 def _combine(findings: list[Finding]) -> Decision:
     unique = list(dict.fromkeys(findings))
     if not unique:
         return PASS
-    if denial := next((finding.denial for finding in unique if finding.denial), None):
-        return deny(denial)
+    if denials := list(dict.fromkeys(finding.denial for finding in unique if finding.denial)):
+        return deny(" ".join(denials))
     groups: dict[tuple[str, str, bool], list[Finding]] = {}
     for finding in unique:
         groups.setdefault(finding.key(), []).append(finding)
@@ -2426,7 +2515,7 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
         return [_found(TITLE_UNSURE, "Python que roda comandos que não consigo ler", command)]
     scan = shell.scan(command)
     scan.depth = depth
-    findings: list[Finding] = []
+    findings = _wait_loops(scan)
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
     for each in scan.commands:
         findings += _protection(each)
@@ -2435,6 +2524,7 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
         findings += _hidden_program(each)
         findings += _wrapper_script_by_expansion(each)
         for name, args in shell.invocations(each):
+            findings += _matches_itself(name, args, command)
             findings += _invocation(each, name, args, cwd, scan)
     findings += _after_entering_protection(scan)
     findings += _script_findings(scan, cwd, depth)

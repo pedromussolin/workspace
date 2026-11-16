@@ -442,6 +442,12 @@ agent it writes nothing there. The registration: the gate with the matcher `Bash
 with `Bash`. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
 reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_DIR`.
 
+The gate also denies two waits that may never end (no box, the reason goes to the model), in any
+part of the command, `bash -c` scripts and subshells included:
+
+- a `while`/`until` loop that runs `sleep`, unless `timeout` with a non-zero duration runs it (`timeout 600 bash -c '...'`);
+- `pgrep -f`/`pkill -f` (`--full`, `-af`), whose pattern also matches the Bash tool's own shell, unless it holds a bracket class that does not match the command (`'[p]ytest'`).
+
 Another clone whose settings still register the old card hook keeps working:
 `hooks/ask_card_apply.py` now runs the gate. After a pull, run `ws setup` there and apply what
 it prints. The hooks need the system `python3` at 3.11 or newer (`ws setup` checks it); the
