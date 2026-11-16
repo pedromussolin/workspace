@@ -223,6 +223,12 @@ class FakeTracker:
                 return f"{call['method']} {call['path']}"
         return None
 
+    def _known(self, key: str) -> dict:
+        """The record of a card that exists; a card that does not is a 404, as in a real tracker."""
+        if key not in self._cards and key not in self.records:
+            raise TrackerError(f"card {key} not found", status=404)
+        return self.records.setdefault(key, {})
+
     def send(self, call: dict) -> object:
         parts = call["path"].split("/")
         if call["method"] == "POST" and parts == ["cards"]:
@@ -230,7 +236,7 @@ class FakeTracker:
             self.records[key] = dict(call["body"])
             reply: dict = {"key": key}
         elif call["method"] == "SET" and len(parts) == 2:
-            self.records.setdefault(parts[1], {}).update(call["body"])
+            self._known(parts[1]).update(call["body"])
             reply = {}
         elif (
             call["method"] == "POST"
@@ -242,7 +248,7 @@ class FakeTracker:
                 "links",
             )
         ):
-            self.records.setdefault(parts[1], {}).setdefault(parts[2], []).append(call["body"])
+            self._known(parts[1]).setdefault(parts[2], []).append(call["body"])
             reply = {}
         else:
             raise TrackerError(f"the memory tracker refuses {call['method']} {call['path']}")
