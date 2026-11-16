@@ -163,15 +163,48 @@ def test_postgres_rules_refuse_through_the_guard(sql):
         "SELECT count(*) FROM t WHERE x IN (4, 80)",
         "SELECT sum(amount) FROM t WHERE status = 'open'",
         "SELECT coalesce(sum(v), 0)::numeric FROM t WHERE u >= :day_from AND u < :day_to",
-        "SELECT count(*) FROM \"pg_like_name\" WHERE note = 'pg_sleep(1); delete'",
+        "SELECT count(*) FROM \"like_name\" WHERE note = 'pg_sleep(1); delete'",
         "WITH open AS (SELECT id FROM batches WHERE closed_at IS NULL) SELECT count(*) FROM open",
         "SELECT count(*) FROM t WHERE replace(code, '.', '') = '123'",
         'SELECT count(*) FROM t WHERE "comment" IS NOT NULL',
-        'SELECT count(*) FROM t WHERE "pg_x" > 0',
+        'SELECT count(*) FROM t WHERE "analyze" > 0',
     ],
 )
 def test_postgres_rules_keep_plain_reads(sql):
     assert neutral_guard.guard(sql, REFUSED)[0] == sql
+
+
+@pytest.mark.parametrize(
+    ("sql", "prefix"),
+    [
+        ('select count(*) from "pg_stat_activity"', "pg_"),
+        ('select count(*) from "PG_STAT_ACTIVITY"', "pg_"),
+        ('select count(*) from "pg_""x"', "pg_"),
+        ('select count(*) from t where "brin_summarize_new_values" is null', "brin_"),
+        ('select count(*) from "lo_x"', "lo_"),
+    ],
+)
+def test_postgres_rules_refuse_a_quoted_catalog_name_without_a_hint(sql, prefix):
+    with pytest.raises(Refused) as caught:
+        neutral_guard.guard(sql, REFUSED)
+    assert str(caught.value) == f"words starting with {prefix} are not allowed"
+
+
+def test_postgres_rules_hint_only_an_engine_word_used_as_a_column():
+    with pytest.raises(Refused) as caught:
+        neutral_guard.guard("select count(*) from t where comment is null", REFUSED)
+    assert str(caught.value) == (
+        '"comment" is not allowed outside a literal; '
+        'quote it and drop the table qualifier: "comment"'
+    )
+    for sql, message in (
+        ("select count(*) from pg_stat_activity", "words starting with pg_ are not allowed"),
+        ("select count(*) from t where a = 1 and lock", '"lock" is not allowed outside a literal'),
+        ("select count(*) from t where dblink = 1", '"dblink" is not allowed outside a literal'),
+    ):
+        with pytest.raises(Refused) as caught:
+            neutral_guard.guard(sql, REFUSED)
+        assert str(caught.value) == message
 
 
 def test_postgres_command_mounts_pgpass_read_only(pgpass):

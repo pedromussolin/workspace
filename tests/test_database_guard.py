@@ -296,10 +296,65 @@ def test_guard_checks_a_quoted_name_after_a_dot(sql):
     )
 
 
+QUOTED_RULES = Rules(words=("vacuum", "comment"), prefixes=("pg_", "brin_"))
+
+
+@pytest.mark.parametrize(
+    ("sql", "prefix"),
+    [
+        ('select count(*) from "pg_stat_activity"', "pg_"),
+        ('select count(*) from "PG_STAT_ACTIVITY"', "pg_"),
+        ('select count(*) from "Pg_Stat_Activity"', "pg_"),
+        ('select count(*) from "pg_""x"', "pg_"),
+        ('select "pg_x" from t', "pg_"),
+        ('select count(*) from s."pg_x"', "pg_"),
+        ('select count(*) from t where "brin_summarize_new_values" is null', "brin_"),
+    ],
+)
+def test_guard_checks_the_prefixes_on_every_quoted_name(sql, prefix):
+    with pytest.raises(Refused) as caught:
+        guard(sql, QUOTED_RULES)
+    assert str(caught.value) == f"words starting with {prefix} are not allowed"
+
+
 @pytest.mark.parametrize(
     "sql",
     [
-        'select "pg_x" from t',
+        "select count(*) from t where \"comment\" = 'x'",
+        'select count(*) from t where "COMMENT" is not null',
+        'select "vacuum" from t',
+    ],
+)
+def test_guard_keeps_a_quoted_engine_word_used_as_a_column(sql):
+    assert guard(sql, QUOTED_RULES)[0] == sql
+
+
+@pytest.mark.parametrize(
+    ("sql", "message"),
+    [
+        ("select count(*) from t where a = 1 and lock", '"lock" is not allowed outside a literal'),
+        ("select count(*) from t where delete", '"delete" is not allowed outside a literal'),
+        ("select count(*) from pg_stat_activity", "words starting with pg_ are not allowed"),
+        ("select count(*) from t where brin_x > 0", "words starting with brin_ are not allowed"),
+        ("select count(*) from t where vacuum(1) > 0", '"vacuum" is not allowed outside a literal'),
+    ],
+)
+def test_guard_gives_the_column_hint_only_to_an_engine_word(sql, message):
+    with pytest.raises(Refused) as caught:
+        guard(sql, QUOTED_RULES)
+    assert str(caught.value) == message
+
+
+def test_guard_gives_no_column_hint_to_a_word_that_quoting_would_not_save():
+    rules = Rules(words=("dblink",), prefixes=("dblink",))
+    with pytest.raises(Refused) as caught:
+        guard("select count(*) from t where dblink = 1", rules)
+    assert str(caught.value) == '"dblink" is not allowed outside a literal'
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
         "select count(*) from t where a = 'pg_sleep(1); vacuum'",
         "select count(*) from my_pg_table",
         'select count(*) from s."t" where t."id" > 0',

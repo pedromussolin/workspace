@@ -264,7 +264,10 @@ def test_check_uses_the_rules_of_the_database(env, capsys):
     env.fake.rules = Rules(words=("batches",))
     code, out, _ = ws_json(capsys, "check", "TS-5")
     assert code == 1
-    assert out["problems"] == ['open-batches: "batches" is not allowed outside a literal']
+    assert out["problems"] == [
+        'open-batches: "batches" is not allowed outside a literal; '
+        'quote it and drop the table qualifier: "batches"'
+    ]
 
 
 def test_check_with_the_real_adapter_rules(env, capsys, monkeypatch):
