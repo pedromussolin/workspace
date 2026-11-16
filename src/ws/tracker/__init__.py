@@ -16,7 +16,9 @@ class UnknownTracker(Exception):
     pass
 
 
-def require_kind(kind: str) -> None:
+def require_kind(kind: str | None) -> None:
+    if not kind:
+        raise UnknownTracker('config.toml: [tracker] kind is not set; add [tracker] kind = "jira"')
     if kind not in ADAPTERS:
         raise UnknownTracker(f"tracker {kind!r} has no adapter yet; known: {', '.join(ADAPTERS)}")
 

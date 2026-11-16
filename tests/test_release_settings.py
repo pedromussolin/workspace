@@ -5,7 +5,7 @@ import pytest
 from ws.release import ReleaseSetup
 from ws.release.settings import load_release_config
 
-JIRA = '[jira]\nsite = "https://example.atlassian.net/"\n'
+JIRA = '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net/"\n'
 README = 'see "Release" in the README'
 
 

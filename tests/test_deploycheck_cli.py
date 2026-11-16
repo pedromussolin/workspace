@@ -73,7 +73,9 @@ def test_config_missing_exits_2(tmp_path, monkeypatch, capsys):
 
 
 def test_config_without_the_table_exits_2(tmp_path, monkeypatch, capsys):
-    (tmp_path / "config.toml").write_text("[jira]\nsite = 'x'\n")
+    (tmp_path / "config.toml").write_text(
+        "[tracker]\nkind = \"jira\"\n[tracker.jira]\nsite = 'x'\n"
+    )
     monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
     assert main(["deploy-check", "plan", "--env", "sandbox"]) == 2
     assert "deploy_check.order" in capsys.readouterr().err

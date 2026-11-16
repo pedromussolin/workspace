@@ -70,8 +70,8 @@ def world(tmp_path: Path, ws_config: Path, git: Git, monkeypatch: pytest.MonkeyP
 
     def write_config(board: bool = True, fetch: bool = False, overrides=OVERRIDES) -> None:
         text = (
-            '[jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'
-            "[jira.status_overrides]\n"
+            '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net"\nemail = "dev@example.com"\n'  # noqa: E501
+            "[tracker.jira.status_overrides]\n"
             + "".join(f'"{name}" = "{status}"\n' for name, status in overrides.items())
             + f'[standup]\nrepo_roots = ["{roots}"]\n'
         )
@@ -199,7 +199,7 @@ def test_status_ignored_repo_is_never_read(world, ws_config, capsys):
 
 
 BACKWARDS = (
-    "does not map back to {0} in [jira.status_overrides]; "
+    "does not map back to {0} in [tracker.jira.status_overrides]; "
     "a card in it would be read wrong and could move backwards"
 )
 
@@ -242,7 +242,7 @@ def test_status_card_whose_board_name_reads_otherwise_is_skipped(
     result = json.loads(out)
     assert result["moves"] == result["held"] == result["limited"] == result["to_confirm"] == []
     assert result["warnings"] == [
-        f'card TS-101: status "{name}" reads as {reads}; check [jira.status_overrides]'
+        f'card TS-101: status "{name}" reads as {reads}; check [tracker.jira.status_overrides]'
     ]
 
 
@@ -254,7 +254,7 @@ def test_status_misread_card_is_not_asked_to_confirm(world, capsys, monkeypatch)
     result = json.loads(out)
     assert result["to_confirm"] == []
     assert result["warnings"] == [
-        'card TS-103: status "Em andamento" reads as validation; check [jira.status_overrides]'
+        'card TS-103: status "Em andamento" reads as validation; check [tracker.jira.status_overrides]'  # noqa: E501
     ]
 
 

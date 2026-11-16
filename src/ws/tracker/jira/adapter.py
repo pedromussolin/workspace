@@ -11,8 +11,9 @@ from ws.tracker.errors import TrackerError, TrackerSetup
 from ws.tracker.jira import client as jira
 from ws.tracker.jira import discover, writer
 from ws.tracker.jira.client import JiraClient, JiraError, SiteRefused
+from ws.tracker.jira.settings import JiraConfig
 from ws.tracker.port import Card, CardQuery, Link
-from ws.userconfig import JiraConfig, UserConfig
+from ws.userconfig import UserConfig
 
 JIRA_CAPABILITIES = frozenset(
     {
@@ -235,7 +236,7 @@ class JiraTracker:
 
     def discover_toml(self) -> str:
         if not self._settings.project:
-            raise TrackerSetup("[jira] project is not set")
+            raise TrackerSetup("[tracker.jira] project is not set")
         try:
             return discover.discover_toml(
                 self._client.issue_types(self._settings.project), self._client.link_types()

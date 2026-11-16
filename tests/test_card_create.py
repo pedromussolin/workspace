@@ -70,7 +70,7 @@ def test_create_type_without_an_id_is_a_problem(world, ws_config, capsys):  # no
     config.write_text(config.read_text().replace('improvement = "6"\n', ""), encoding="utf-8")
 
     assert (
-        "type 'improvement' has no issue type id: add it to [jira.types] (ws tracker discover)"
+        "type 'improvement' has no issue type id: add it to [tracker.jira.types] (ws tracker discover)"  # noqa: E501
         in problems(create_draft(type="improvement"), capsys)
     )
 

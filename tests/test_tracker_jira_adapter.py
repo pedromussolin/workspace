@@ -104,7 +104,7 @@ def test_old_jira_adapter_path_is_the_adapter():
 
 def test_connection_only_tracker_asks_for_the_card_keys_at_the_first_card(ws_config, fake_jira):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'  # noqa: E501
     )
     tracker = open_port_tracker(connection_only=True)
 
@@ -115,7 +115,7 @@ def test_connection_only_tracker_asks_for_the_card_keys_at_the_first_card(ws_con
 
 def test_connection_only_tracker_asks_for_the_project_at_the_first_card(ws_config, fake_jira):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\n'  # noqa: E501
     )
     tracker = open_port_tracker(connection_only=True)
 

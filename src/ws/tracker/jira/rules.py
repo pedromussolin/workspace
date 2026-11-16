@@ -12,7 +12,8 @@ from ws.taskmodel import Status
 from ws.tracker import vocab
 from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
-from ws.userconfig import JiraConfig, Person
+from ws.tracker.jira.settings import JiraConfig
+from ws.userconfig import Person
 
 MAX_SUMMARY = 255
 WORKLOG_HOUR = 9
@@ -193,7 +194,8 @@ class Context:
         found = self.settings.types.get(type_)
         if not found:
             verdict.problems.append(
-                f"type {type_!r} has no issue type id: add it to [jira.types] (ws tracker discover)"
+                f"type {type_!r} has no issue type id: add it to [tracker.jira.types] "
+                "(ws tracker discover)"
             )
         return found
 
@@ -201,7 +203,8 @@ class Context:
         found = self.settings.links.get(kind)
         if not found:
             verdict.problems.append(
-                f"link kind {kind!r} has no link type: add it to [jira.links] (ws tracker discover)"
+                f"link kind {kind!r} has no link type: add it to [tracker.jira.links] "
+                "(ws tracker discover)"
             )
         return found
 
@@ -803,7 +806,7 @@ def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> 
     field_name = ctx.settings.start_date_field
     if not field_name:
         verdict.warnings.append(
-            "start_date_field is not in config.toml [jira]; the start date will not be set"
+            "start_date_field is not in config.toml [tracker.jira]; the start date will not be set"
         )
         return
     old_start = _parse_day(current.get(field_name))

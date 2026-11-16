@@ -872,7 +872,8 @@ def _add_tracker(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
     commands = parser.add_subparsers(dest="tracker_command", required=True)
     discover = commands.add_parser(
         "discover",
-        help="Print the [jira.types] and [jira.links] blocks for config.toml (read only).",
+        help="Print the [tracker.jira.types] and [tracker.jira.links] blocks for config.toml "
+        "(read only).",
     )
     discover.set_defaults(handler=_cmd_tracker_discover)
 

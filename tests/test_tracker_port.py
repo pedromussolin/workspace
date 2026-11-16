@@ -222,7 +222,7 @@ def test_jira_display_name_falls_back_to_the_account(world):  # noqa: F811
 
 def test_open_tracker_refuses_an_unknown_kind(world, ws_config):  # noqa: F811
     path = ws_config / "config.toml"
-    path.write_text('[tracker]\nkind = "monday"\n' + path.read_text(encoding="utf-8"))
+    path.write_text(path.read_text(encoding="utf-8").replace('kind = "jira"', 'kind = "monday"'))
 
     with pytest.raises(TrackerSetup, match="has no adapter yet"):
         open_tracker()
@@ -230,7 +230,7 @@ def test_open_tracker_refuses_an_unknown_kind(world, ws_config):  # noqa: F811
 
 def test_open_tracker_needs_the_types(ws_config, fake_jira):
     (ws_config / "config.toml").write_text(
-        f'[jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'
+        f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n'  # noqa: E501
     )
 
     with pytest.raises(TrackerSetup, match="types"):
@@ -380,11 +380,12 @@ def test_open_tracker_dispatches_on_the_configured_kind(world, ws_config, monkey
     seen = []
     stub = types.ModuleType("ws_stub_adapter")
     stub.open_tracker = lambda config: seen.append(config.tracker_kind) or "opened"
+    stub.parse_settings = lambda table, path: None
     monkeypatch.setitem(sys.modules, "ws_stub_adapter", stub)
     monkeypatch.setitem(tracker.ADAPTERS, "stub", "ws_stub_adapter")
     monkeypatch.setattr(tracker, "KNOWN_KINDS", (*tracker.KNOWN_KINDS, "stub"))
     path = ws_config / "config.toml"
-    path.write_text('[tracker]\nkind = "stub"\n' + path.read_text(encoding="utf-8"))
+    path.write_text(path.read_text(encoding="utf-8").replace('kind = "jira"', 'kind = "stub"'))
 
     assert open_tracker() == "opened"
     assert seen == ["stub"]
@@ -392,7 +393,7 @@ def test_open_tracker_dispatches_on_the_configured_kind(world, ws_config, monkey
 
 def test_open_tracker_unknown_kind_is_a_setup_problem(world, ws_config):  # noqa: F811
     path = ws_config / "config.toml"
-    path.write_text('[tracker]\nkind = "monday"\n' + path.read_text(encoding="utf-8"))
+    path.write_text(path.read_text(encoding="utf-8").replace('kind = "jira"', 'kind = "monday"'))
 
     with pytest.raises(TrackerSetup, match="monday"):
         open_tracker()

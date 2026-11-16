@@ -130,7 +130,9 @@ def env(tmp_path: Path, monkeypatch) -> Env:
     config.chmod(0o700)
     (config / "names.toml").write_text("[names]\n", encoding="utf-8")
     (config / "names.toml").chmod(0o600)
-    (config / "config.toml").write_text("[jira]\n", encoding="utf-8")
+    (config / "config.toml").write_text(
+        '[tracker]\nkind = "jira"\n[tracker.jira]\n', encoding="utf-8"
+    )
 
     monkeypatch.setenv("WS_CONFIG_DIR", str(config))
     userconfig.save_token("github", "fake-value")
@@ -1111,7 +1113,7 @@ def _gate_config(env: Env, text: str) -> list[str]:
 
 
 def test_the_gate_table_is_optional_and_accepts_its_keys(env):
-    assert _gate_config(env, "[jira]\n") == []
+    assert _gate_config(env, '[tracker]\nkind = "jira"\n[tracker.jira]\n') == []
     assert (
         _gate_config(
             env,

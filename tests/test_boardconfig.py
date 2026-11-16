@@ -284,7 +284,9 @@ def test_load_board_reads_the_table(tmp_path, monkeypatch):
 
 
 def test_load_board_without_table_raises_board_missing(tmp_path, monkeypatch):
-    (tmp_path / "config.toml").write_text('[jira]\nsite = "x"\n', encoding="utf-8")
+    (tmp_path / "config.toml").write_text(
+        '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "x"\n', encoding="utf-8"
+    )
     monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path))
 
     with pytest.raises(BoardMissing):
