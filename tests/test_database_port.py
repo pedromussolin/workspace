@@ -118,6 +118,23 @@ def test_scalar_refuses_anything_but_one_number(folders, answer):
     assert str(caught.value) == "the query must return one number"
 
 
+@pytest.mark.parametrize("answer", ["ABC123|0", "ABC123", "1\nABC123\n", ""])
+def test_scalar_drops_the_answer_before_refusing(folders, answer):
+    with pytest.raises(Refused) as caught:
+        scalar(FakeDatabase(answer=answer), "select count(*) from t", {})
+    assert "ABC123" not in str(caught.value)
+    assert caught.value.__context__ is None
+    kept = []
+    trace = caught.value.__traceback__
+    while trace is not None:
+        frame = trace.tb_frame
+        if frame.f_code.co_filename.endswith(str(Path("ws", "database", "__init__.py"))):
+            kept += [repr(value) for name, value in frame.f_locals.items() if name != "db"]
+        trace = trace.tb_next
+    assert kept
+    assert "ABC123" not in "\n".join(kept)
+
+
 @pytest.mark.parametrize(
     "sql",
     [
@@ -128,6 +145,9 @@ def test_scalar_refuses_anything_but_one_number(folders, answer):
         "select 1 -- x",
         "select count(*) from t where u < :other",
         "select vacuum_now()",
+        "select 1) union all select (2",
+        "select s from t where a = 1) as x, (0",
+        "select 1:::USER",
     ],
 )
 def test_scalar_refuses_before_running(folders, sql):

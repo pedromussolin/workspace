@@ -31,16 +31,19 @@ WORDS = (
     "rollback",
     "savepoint",
     "into",
-    "replace",
 )
 PLACEHOLDERS = ("day", "day_from", "day_to")
 PLACEHOLDER = re.compile(r"(?<!:):([A-Za-z_]\w*)")
 QUOTED_PLACEHOLDER = re.compile(r"(?<!:):\Z")
+COLONS = re.compile(r":{3,}")
+BRACED_PLACEHOLDER = re.compile(r":\{")
 QUOTED = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|['\"]")
 WORD = re.compile(r"[A-Za-z_]\w*")
 CALL = re.compile(r"\s*\(")
+ATTRIBUTE = re.compile(r"\.\s*(?:[Uu]&)?\Z")
 FIRST_WORDS = ("select", "with")
 PLACEHOLDER_HINT = "use :day, :day_from or :day_to"
+COLUMN_HINT = "quote a column named like a refused word"
 NO_RULES = Rules()
 
 
@@ -81,28 +84,45 @@ def guard(sql: str, rules: Rules = NO_RULES) -> tuple[str, tuple[str, ...]]:
     if first is None or first.group().lower() not in FIRST_WORDS:
         raise Refused("the query must start with select or with")
     pieces = split(text)
+    _check_parentheses(pieces)
     _check_words(pieces, rules)
     return text, _placeholders(pieces)
 
 
+def _check_parentheses(pieces: list[tuple[str, str]]) -> None:
+    """Balanced code keeps the query inside the one subquery an engine may wrap it in."""
+    depth = 0
+    for kind, text in pieces:
+        if kind != "code":
+            continue
+        for char in text:
+            depth += {"(": 1, ")": -1}.get(char, 0)
+            if depth < 0:
+                raise Refused("parentheses are not balanced")
+    if depth:
+        raise Refused("parentheses are not balanced")
+
+
 def _check_words(pieces: list[tuple[str, str]], rules: Rules) -> None:
-    """Words of the code, and a quoted identifier called as a function (`"name"(...)`)."""
+    """Words of the code, and a quoted identifier that may name a function: one called as
+    `"name"(...)`, or one after a dot, since `(value)."name"` calls `name(value)`."""
     words = set(WORDS) | {word.lower() for word in rules.words}
     prefixes = tuple(prefix.lower() for prefix in rules.prefixes)
     for index, (kind, text) in enumerate(pieces):
         if kind == "code":
-            names = [match.group() for match in WORD.finditer(text)]
-        elif kind == "identifier" and _called(pieces, index):
-            names = [text[1:-1].replace('""', '"')]
-        else:
-            continue
-        for name in names:
-            lowered = name.lower()
-            if lowered in words:
-                raise Refused(f'"{lowered}" is not allowed outside a literal')
-            for prefix in prefixes:
-                if lowered.startswith(prefix):
-                    raise Refused(f"words starting with {prefix} are not allowed")
+            for match in WORD.finditer(text):
+                _check_name(match.group().lower(), words, prefixes, f"; {COLUMN_HINT}: ")
+        elif kind == "identifier" and (_called(pieces, index) or _after_dot(pieces, index)):
+            _check_name(text[1:-1].replace('""', '"').lower(), words, prefixes, None)
+
+
+def _check_name(name: str, words: set[str], prefixes: tuple[str, ...], hint: str | None) -> None:
+    advice = "" if hint is None else f'{hint}"{name}"'
+    if name in words:
+        raise Refused(f'"{name}" is not allowed outside a literal{advice}')
+    for prefix in prefixes:
+        if name.startswith(prefix):
+            raise Refused(f"words starting with {prefix} are not allowed{advice}")
 
 
 def _called(pieces: list[tuple[str, str]], index: int) -> bool:
@@ -110,11 +130,20 @@ def _called(pieces: list[tuple[str, str]], index: int) -> bool:
     return following is not None and following[0] == "code" and bool(CALL.match(following[1]))
 
 
+def _after_dot(pieces: list[tuple[str, str]], index: int) -> bool:
+    before = pieces[index - 1] if index > 0 else None
+    return before is not None and before[0] == "code" and bool(ATTRIBUTE.search(before[1]))
+
+
 def _placeholders(pieces: list[tuple[str, str]]) -> tuple[str, ...]:
     used = set()
     for index, (kind, text) in enumerate(pieces):
         if kind != "code":
             continue
+        if COLONS.search(text):
+            raise Refused("three or more colons in a row are not allowed; use :: for a cast")
+        if BRACED_PLACEHOLDER.search(text):
+            raise Refused(f"placeholders with braces are not allowed; {PLACEHOLDER_HINT}")
         for match in PLACEHOLDER.finditer(text):
             name = match.group(1)
             if name not in PLACEHOLDERS:

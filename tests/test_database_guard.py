@@ -74,7 +74,7 @@ def test_guard_refuses_write_words(sql, word):
     with pytest.raises(Refused) as caught:
         guard(sql, rules)
     if word is not None:
-        assert str(caught.value) == f'"{word}" is not allowed outside a literal'
+        assert str(caught.value).startswith(f'"{word}" is not allowed outside a literal')
 
 
 @pytest.mark.parametrize(
@@ -86,6 +86,7 @@ def test_guard_refuses_write_words(sql, word):
         "select count(*) from updated_rows",
         "select count(*) from t where t.created_at > now() - interval '1 day'",
         'select count(*) from t where "into" = 1',
+        "select count(*) from t where replace(a, 'x', '') = 'y'",
     ],
 )
 def test_guard_keeps_words_in_literals_and_identifiers(sql):
@@ -94,6 +95,48 @@ def test_guard_keeps_words_in_literals_and_identifiers(sql):
 
 def test_guard_words_cover_writes_schema_and_session():
     assert {"insert", "update", "delete", "into", "set", "begin", "execute"} <= set(WORDS)
+    assert "replace" not in WORDS
+
+
+def test_guard_word_refusal_says_how_to_name_a_column():
+    rules = Rules(words=("comment",))
+    with pytest.raises(Refused) as caught:
+        guard("select count(*) from t where comment = 'x'", rules)
+    assert str(caught.value) == (
+        '"comment" is not allowed outside a literal; '
+        'quote a column named like a refused word: "comment"'
+    )
+    sql = "select count(*) from t where \"comment\" = 'x'"
+    assert guard(sql, rules)[0] == sql
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "select 1) union all select (2",
+        "select s from t where a = 1) as x, (0",
+        "select (1",
+        "select count(*) from t where (a = 1",
+        "select count(*) from t where a = 1)",
+        "select count(*) from t where a in (1, 2)) or (b = 3",
+    ],
+)
+def test_guard_refuses_unbalanced_parentheses(sql):
+    with pytest.raises(Refused) as caught:
+        guard(sql)
+    assert str(caught.value) == "parentheses are not balanced"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "select count(*) from t where a = ')'",
+        "select count(*) from t where a = '(' and b in (select c from u where d = ')(')",
+        'select count(*) from "a(b" where (x = 1)',
+    ],
+)
+def test_guard_counts_parentheses_outside_quotes_only(sql):
+    assert guard(sql)[0] == sql
 
 
 @pytest.mark.parametrize(
@@ -167,6 +210,25 @@ def test_guard_accepts_a_cast_to_a_quoted_type():
     assert guard(sql) == (sql, ())
 
 
+@pytest.mark.parametrize(
+    "sql",
+    ["select 1:::USER", "select 1:::'USER'", 'select 1:::"USER"', "select x::::numeric from t"],
+)
+def test_guard_refuses_three_colons(sql):
+    with pytest.raises(Refused) as caught:
+        guard(sql)
+    assert str(caught.value) == "three or more colons in a row are not allowed; use :: for a cast"
+
+
+@pytest.mark.parametrize("sql", ["select :{?day}", "select count(*) from t where :{?HOST}"])
+def test_guard_refuses_braced_placeholders(sql):
+    with pytest.raises(Refused) as caught:
+        guard(sql)
+    assert str(caught.value) == (
+        "placeholders with braces are not allowed; use :day, :day_from or :day_to"
+    )
+
+
 RULES = Rules(words=("vacuum",), prefixes=("pg_",), marks=("\\",))
 
 
@@ -188,7 +250,28 @@ RULES = Rules(words=("vacuum",), prefixes=("pg_",), marks=("\\",))
 def test_guard_applies_rules(sql, reason):
     with pytest.raises(Refused) as caught:
         guard(sql, RULES)
-    assert str(caught.value) == reason
+    assert str(caught.value).startswith(reason)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        'select (1.5)."pg_sleep"',
+        'select (1.5) . "pg_sleep"',
+        'select (1.5).U&"pg_sleep"',
+        'select count(*) from t where ("a")."pg_x" > 0',
+        'select "pg_catalog"."pg_sleep"',
+        'select (1)."vacuum"',
+        'select (1)."VACUUM"',
+    ],
+)
+def test_guard_checks_a_quoted_name_after_a_dot(sql):
+    with pytest.raises(Refused) as caught:
+        guard(sql, RULES)
+    assert str(caught.value) in (
+        "words starting with pg_ are not allowed",
+        '"vacuum" is not allowed outside a literal',
+    )
 
 
 @pytest.mark.parametrize(
@@ -197,6 +280,7 @@ def test_guard_applies_rules(sql, reason):
         'select "pg_x" from t',
         "select count(*) from t where a = 'pg_sleep(1); vacuum'",
         "select count(*) from my_pg_table",
+        'select count(*) from s."t" where t."id" > 0',
     ],
 )
 def test_guard_rules_skip_quotes(sql):

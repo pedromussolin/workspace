@@ -20,6 +20,8 @@ from ws.database.port import Refused, Rules, Setup, Unreachable
 
 # `dblink` is a prefix too: `dblink_exec` writes through another connection, outside the
 # read-only transaction. `uescape` would let `U&"..."` spell any name without a backslash.
+# `query_to_`, `cursor_to_`, `ts_stat` and `ts_rewrite` run SQL held in a literal, where the guard
+# does not look; `table_to_`, `schema_to_` and `database_to_` dump whole tables or schemas.
 REFUSED = Rules(
     words=(
         "copy",
@@ -37,8 +39,19 @@ REFUSED = Rules(
         "setval",
         "dblink",
         "uescape",
+        "ts_stat",
+        "ts_rewrite",
     ),
-    prefixes=("pg_", "lo_", "dblink"),
+    prefixes=(
+        "pg_",
+        "lo_",
+        "dblink",
+        "query_to_",
+        "cursor_to_",
+        "database_to_",
+        "schema_to_",
+        "table_to_",
+    ),
     marks=("\\", "$"),
 )
 NOT_REPLICA = "ws-not-a-replica"
@@ -84,6 +97,11 @@ REASONS: tuple[tuple[str, type[Exception], str], ...] = (
     ("Cannot connect to the Docker daemon", Setup, "Docker is not running"),
     ("Docker daemon socket", Setup, "Docker refused access to its socket; check the docker group"),
     (
+        "No such image",
+        Setup,
+        "the image {image} is not on this machine; pull it once: docker pull {image}",
+    ),
+    (
         "Error response from daemon",
         Setup,
         "Docker could not start the container; check the image and docker_args",
@@ -98,9 +116,12 @@ REASONS: tuple[tuple[str, type[Exception], str], ...] = (
     ("more than one row", Refused, ONE_NUMBER),
     ("must return only one column", Refused, ONE_NUMBER),
     ("invalid input syntax for type numeric", Refused, NOT_A_NUMBER),
+    ("invalid input syntax", Refused, "the query compares a value of the wrong type"),
     ("cannot cast", Refused, NOT_A_NUMBER),
     ("read-only transaction", Refused, WRITE),
     ("during recovery", Refused, WRITE),
+    ("data-modifying statement", Refused, WRITE),
+    ("INTO is not allowed here", Refused, WRITE),
     ("syntax error", Refused, "the database found a syntax error in the query"),
     ("does not exist", Refused, "the query names a table, column or function that does not exist"),
     ("permission denied", Unreachable, "the database refused the query: permission denied"),
@@ -157,6 +178,7 @@ class Postgres:
             "run",
             "--rm",
             "-i",
+            "--pull=never",
             *self.docker_args,
             "-v",
             f"{self.pgpass}:{PGPASS_IN_CONTAINER}:ro",
@@ -192,7 +214,7 @@ class Postgres:
         if isinstance(outcome, Exception):
             raise outcome
         if outcome.returncode != 0:
-            failure = _reason(outcome.stderr)
+            failure = _reason(outcome.stderr, self.image)
             # The traceback keeps this frame alive: drop the stderr before raising.
             del outcome
             raise failure
@@ -304,9 +326,10 @@ def _quoted(match: re.Match) -> str:
     return f":'{match.group(1)}'" if match.group(1) in PLACEHOLDERS else match.group()
 
 
-def _reason(stderr: str | None) -> Exception:
+def _reason(stderr: str | None, image: str) -> Exception:
+    """The fixed text for a failure; only the configured image name is filled in, never stderr."""
     lowered = (stderr or "").lower()
     for fragment, kind, text in REASONS:
         if fragment.lower() in lowered:
-            return kind(text)
+            return kind(text.format(image=image))
     return Unreachable(UNKNOWN_FAILURE)
