@@ -88,8 +88,8 @@ current card, unless the user says to include it.
 
 ## 7. Sprint and due date
 
-- No sprint unless the user asks: leave `sprint` out. The only value is `"active"` (the board's
-  active sprint) **[code]**.
+- No sprint unless the user asks: leave `sprint` out. Values: `"active"`, `"next"`, the exact name
+  of an open sprint, or (edit only) `"backlog"` **[code]**.
 - `due` is optional without a sprint and required with one **[code]**. There is no start date at
   creation: it is set when the card moves to in progress.
 

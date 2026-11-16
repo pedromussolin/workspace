@@ -315,6 +315,11 @@ class FakeTracker:
 INSTALLED: list[FakeTracker] = []
 
 
+def parse_settings(table, path):
+    """The memory tracker has no `[tracker.memory]` settings."""
+    return None
+
+
 def open_writer(config, entries):
     return INSTALLED[0]
 

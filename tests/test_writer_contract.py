@@ -179,7 +179,8 @@ def test_preview_and_apply_run_on_the_memory_tracker(
     monkeypatch.setattr(fake_tracker, "INSTALLED", [tracker])
     settings = ws_config / "config.toml"
     settings.write_text(
-        settings.read_text(encoding="utf-8") + '\n[tracker]\nkind = "memory"\n', encoding="utf-8"
+        settings.read_text(encoding="utf-8").replace('kind = "jira"', 'kind = "memory"'),
+        encoding="utf-8",
     )
     drafts = folder_with_three()
 
