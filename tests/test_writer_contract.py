@@ -106,6 +106,35 @@ def test_apply_stops_at_the_first_failure(opened):
     assert len(seen) == 2
 
 
+@pytest.mark.parametrize(
+    "error",
+    [TrackerError("unsure", uncertain=True), RuntimeError("boom")],
+    ids=["tracker", "plain"],
+)
+def test_apply_yields_uncertain_and_stops(opened, error):
+    writer, plan = _planned(opened, _three())
+    seen = []
+
+    def send(call):
+        seen.append(call)
+        raise error
+
+    steps = list(writer.apply(plan, send))
+
+    assert [step["status"] for step in steps] == ["uncertain"]
+    assert steps[0]["sent"] == [] and steps[0]["error"]
+    assert len(seen) == 1
+
+
+def test_guard_refuses_a_call_outside_the_plan(opened):
+    writer, plan = _planned(opened, _three())
+    own = write.calls(plan)
+    stray = {**own[0], "path": "/admin/elsewhere"}
+
+    assert writer.guard(own) is None
+    assert writer.guard([*own, stray]) is not None
+
+
 @pytest.mark.parametrize("markdown", ["texto simples\n", "## Contexto\n- um\n- dois\n", "a\x00b\n"])
 def test_render_body_refuses_with_a_line_or_passes(opened, markdown):
     writer = opened([])
