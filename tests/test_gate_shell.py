@@ -133,3 +133,24 @@ def test_the_first_parser_refuses_an_unterminated_ansi_c_quote():
 def test_an_escaped_backtick_nests_a_substitution_inside_another():
     assert shell.substitutions("echo `true \\`curl x\\``") == ["true `curl x`"]
     assert shell.substitutions("echo `a \\\\ \\$b`") == ["a \\ $b"]
+
+
+@pytest.mark.parametrize(
+    ("text", "name"),
+    [
+        ("c''url x", "curl x"),
+        ("cu\\rl x", "curl x"),
+        ('"c"url x', "curl x"),
+        ("$'\\x63url' x", "curl x"),
+        ("$'--no-veri\\x66y'", "--no-verify"),
+        ("git $'\\x70ush", "git push"),
+        ("\"$'\" ; $'\\x63url' x", "curl x"),
+        ("echo $'a\\'b' ; x", "echo ab ; x"),
+    ],
+)
+def test_plain_forms_show_the_name_a_quoted_word_stands_for(text, name):
+    assert any(name in form for form in shell.plain_forms(text))
+
+
+def test_plain_forms_of_text_that_hides_nothing_hold_no_new_name():
+    assert all("curl" not in form for form in shell.plain_forms('echo it\'s "a" \\n'))

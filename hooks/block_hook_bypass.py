@@ -253,6 +253,12 @@ def _check_heredoc(heredoc: "shell.Heredoc") -> str | None:
     return None
 
 
+def _mentions_bypass(text: str) -> bool:
+    """Whether a text that cannot be parsed names `--no-verify` or `hooksPath`, also hidden by
+    quotes, backslashes or `$'...'` escapes."""
+    return any(UNPARSEABLE_BYPASS.search(form) for form in (text, *shell.plain_forms(text)))
+
+
 def _check_here_strings(text: str) -> str | None:
     """A here-string (`<<<`) is data, unless a shell, `eval`, `source` or `.` runs it."""
     if "<<<" not in text:
@@ -260,7 +266,7 @@ def _check_here_strings(text: str) -> str | None:
     try:
         commands = shell.parse_commands(text)
     except ValueError:
-        if UNPARSEABLE_BYPASS.search(text):
+        if _mentions_bypass(text):
             return "text that mentions --no-verify or hooksPath and cannot be parsed"
         return None
     for command in commands:
@@ -279,7 +285,7 @@ def _scan(text: str) -> str | None:
     try:
         commands = shell.simple_commands(text)
     except ValueError:
-        if UNPARSEABLE_BYPASS.search(text):
+        if _mentions_bypass(text):
             return "text that mentions --no-verify or hooksPath and cannot be parsed"
         return None
     for reason in (_check_simple(words) for words in commands):

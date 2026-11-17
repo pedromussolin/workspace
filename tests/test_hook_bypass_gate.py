@@ -445,3 +445,20 @@ def test_removing_or_renaming_the_core_section_is_blocked(command):
 
 def test_a_bypass_in_nested_backticks_is_blocked():
     assert run_command("echo `true \\`git commit -n -m x\\``").returncode == 2
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit $'--no-veri\\x66y' -m x\necho '",
+        "git commit --no-veri''fy -m x\necho '",
+        "git commit --no-ver\\ify -m x\necho '",
+        "git -c core.hooks$'\\x50'ath=/dev/null commit -m x\necho '",
+    ],
+)
+def test_a_bypass_hidden_by_quoting_in_text_that_cannot_be_parsed_is_blocked(command):
+    assert run_command(command).returncode == 2
+
+
+def test_quotes_that_hide_nothing_in_text_that_cannot_be_parsed_still_pass():
+    assert run_command("echo $'it\\'s' \"a\"\necho '").returncode == 0

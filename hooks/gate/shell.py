@@ -77,6 +77,11 @@ def ansi_c_end(text: str, start: int) -> int:
 
 def ansi_c(body: str) -> str:
     """The text bash makes of the inside of `$'...'`: its escapes decoded, cut at a NUL."""
+    return decode_escapes(body).partition("\0")[0]
+
+
+def decode_escapes(body: str) -> str:
+    """`body` with the backslash escapes of `$'...'` decoded (a NUL stays)."""
     out: list[str] = []
     index = 0
     while index < len(body):
@@ -105,7 +110,26 @@ def ansi_c(body: str) -> str:
             index += 1
         else:
             out.append("\\" + following)
-    return "".join(out).partition("\0")[0]
+    return "".join(out)
+
+
+QUOTE_MARKS = re.compile(r"""['"\\]""")
+
+
+def plain_forms(text: str) -> list[str]:
+    """`text` as it reads once its quotes and backslashes are dropped, and once the escapes of
+    `$'...'` are decoded everywhere as well.
+
+    For a text that cannot be parsed, so where each quote is hard to place: the callers look for
+    the names they watch in these forms, and a name written as `c''url` or `cu\\rl` shows in the
+    first, one written as `$'\\x63url'` in the second (`\\r` is a carriage return inside `$'...'`
+    and `r` outside it, so neither form is enough). A text that merely quotes such a name is read
+    as naming it, which only asks.
+    """
+    return [
+        QUOTE_MARKS.sub("", text),
+        QUOTE_MARKS.sub("", decode_escapes(text.replace("$'", "'"))),
+    ]
 
 
 def _single_quoted_ansi(text: str) -> str:

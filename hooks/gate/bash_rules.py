@@ -34,6 +34,9 @@ scanned; code that comes from a pipe, a file or an expansion asks, also behind `
 or `code.interact()`; the program's own arguments that read a `ws` write are judged as `ws`; and a
 `subprocess`/`os.system`/`os.exec*` call with a literal command that names `ws` is judged as
 that command line.
+A text that cannot be parsed (bad quoting) asks only if it names `ws`, `gh`, `git`, `curl` or
+`wget`, looked for in the text as written and in `shell.plain_forms` (quotes and backslashes
+dropped, `$'...'` escapes decoded), so `c''url` and `$'\\x63url'` count as `curl`.
 Credential reads from code are found by the path written in it, or by the home plus a credential
 name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
 (`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
@@ -2762,7 +2765,9 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
         findings.append(
             _found(TITLE_UNSURE, "É grande ou aninhado demais para ler a tempo", command)
         )
-    elif scan.unparsed and NAMES.search(command):
+    elif scan.unparsed and any(
+        NAMES.search(form) for form in (command, *shell.plain_forms(command))
+    ):
         findings.append(
             _found(
                 TITLE_UNSURE,
