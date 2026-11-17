@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: 'ws standup summary'
+input_match: 'ws standup period [^\n]*semana passada'
 ---
 
-The text is built from the output of `ws standup summary`, not from the single-day command.
+The period comes from `ws standup period`, not from the skill's own date arithmetic.
