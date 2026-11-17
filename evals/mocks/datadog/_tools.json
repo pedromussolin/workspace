@@ -1,0 +1,159 @@
+{
+  "tools": [
+    {
+      "name": "execute_code",
+      "description": "Server code-exec: runs JavaScript on the Datadog MCP server, in a sandbox with read access to Datadog through the official SDK (`import { client, v2 } from \"@datadog/datadog-api-client\"`). Use `return` to send a value back; the returned value is the answer. Optional `timeout` is in seconds (1-180, default 60). Read-only: use execute_code_write for scripts that write.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string", "description": "JavaScript code to execute. Use 'return' to return a value."},
+          "timeout": {"type": "number", "description": "Execution timeout in seconds (1-180, default: 60)."},
+          "telemetry": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"intent": {"type": "string", "description": "Briefly describe the wider context task, and why this tool was chosen. Omit argument values, personal data and secrets. Use English."}},
+            "required": ["intent"]
+          }
+        },
+        "required": ["code", "telemetry"]
+      }
+    },
+    {
+      "name": "execute_code_write",
+      "description": "Executes JavaScript that reads, creates, updates, or deletes Datadog resources. Use execute_code for scripts that only read data. This tool can overwrite or delete data.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string", "description": "JavaScript code to execute. Use 'return' to return a value."},
+          "timeout": {"type": "integer", "description": "Execution timeout in seconds (1-180, default: 60)."},
+          "telemetry": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"intent": {"type": "string"}},
+            "required": ["intent"]
+          }
+        },
+        "required": ["code", "telemetry"]
+      }
+    },
+    {
+      "name": "search_datadog_sdk",
+      "description": "Discovers the exact SDK operations and types for execute_code. The code runs against a metadata-only catalog (`catalog.operations`, `catalog.types`) and returns a focused JSON value. No live Datadog data.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string", "description": "JavaScript code to run against the code-exec API catalog. Use 'return' to return a focused JSON value."},
+          "target": {"type": "string", "description": "Execution tool: execute_code (default) or execute_code_write."},
+          "telemetry": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"intent": {"type": "string"}},
+            "required": ["intent"]
+          }
+        },
+        "required": ["code", "telemetry"]
+      }
+    },
+    {
+      "name": "aggregate_spans",
+      "description": "Aggregates Datadog APM spans: counts, sums, averages, min, max, cardinality and percentiles, with optional grouping by fields or time intervals.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Search query to filter spans before aggregation, in Datadog query syntax."},
+          "computes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {"aggregation": {"type": "string"}, "field": {"type": "string"}, "output": {"type": "string"}},
+              "required": ["field", "aggregation", "output"]
+            }
+          },
+          "group_by": {"type": "object", "properties": {"fields": {"type": "array", "items": {"type": "string"}}, "interval": {"type": "integer"}, "limit": {"type": "integer"}}},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "telemetry": {"type": "object", "properties": {"intent": {"type": "string"}}, "required": ["intent"]}
+        },
+        "required": ["query", "computes", "telemetry"]
+      }
+    },
+    {
+      "name": "aggregate_rum_events",
+      "description": "Aggregates Datadog RUM events: counts, sums, averages, min, max, cardinality and percentiles, with optional grouping by fields or time intervals.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string"},
+          "computes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {"aggregation": {"type": "string"}, "field": {"type": "string"}, "output": {"type": "string"}},
+              "required": ["field", "aggregation", "output"]
+            }
+          },
+          "group_by": {"type": "object", "properties": {"fields": {"type": "array", "items": {"type": "string"}}, "interval": {"type": "integer"}, "limit": {"type": "integer"}}},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "telemetry": {"type": "object", "properties": {"intent": {"type": "string"}}, "required": ["intent"]}
+        },
+        "required": ["query", "computes", "telemetry"]
+      }
+    },
+    {
+      "name": "analyze_datadog_logs",
+      "description": "Analyzes Datadog logs with SQL over a virtual 'logs' table filtered by a search query, for counts and group-bys.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql_query": {"type": "string"},
+          "filter": {"type": "string"},
+          "extra_columns": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "type": {"type": "string"}}, "required": ["name", "type"]}},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "telemetry": {"type": "object", "properties": {"intent": {"type": "string"}}, "required": ["intent"]}
+        },
+        "required": ["sql_query", "telemetry"]
+      }
+    },
+    {
+      "name": "get_datadog_metric",
+      "description": "Queries Datadog metrics. response_format 'scalar' gives one aggregated value per group; set aggregator on each query object.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "queries": {"type": "array", "items": {"type": "object", "properties": {"query": {"type": "string"}, "aggregator": {"type": "string"}, "name": {"type": "string"}}}},
+          "formulas": {"type": "array", "items": {"type": "string"}},
+          "response_format": {"type": "string"},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "telemetry": {"type": "object", "properties": {"intent": {"type": "string"}}, "required": ["intent"]}
+        },
+        "required": ["queries", "telemetry"]
+      }
+    },
+    {
+      "name": "create_datadog_notebook",
+      "description": "Creates a Datadog notebook.",
+      "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "cells": {"type": "array", "items": {"type": "object"}}}, "required": ["name"]}
+    },
+    {
+      "name": "edit_datadog_notebook",
+      "description": "Edits a Datadog notebook.",
+      "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}, "cells": {"type": "array", "items": {"type": "object"}}}, "required": ["id"]}
+    },
+    {
+      "name": "delete_datadog_notebook",
+      "description": "Deletes a Datadog notebook.",
+      "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}
+    },
+    {
+      "name": "upsert_datadog_dashboard",
+      "description": "Creates or updates a Datadog dashboard.",
+      "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "widgets": {"type": "array", "items": {"type": "object"}}}, "required": ["title"]}
+    }
+  ]
+}

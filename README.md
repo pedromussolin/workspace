@@ -577,12 +577,18 @@ Development: `uv run pytest -q`, `uv run ruff check`, `uv run ruff format --chec
 
 ## Evals
 
-`skills/daily` has an eval suite in `evals/`, run by `claude plugin eval` (Claude Code 2.1.269 or
-later). Every run is a real Claude session on your plan, about 0.25 USD per standup run. The data
-is made up: a fixed Monday, fake git repos and a fake Jira site, with the Atlassian tools answered
-by `evals/mocks/`. `.claude-plugin/plugin.json` declares a fake `atlassian` MCP server
-(`command: false`) only so those tools can be mocked: do not install or enable this repo as a
-plugin.
+`skills/daily`, `skills/observe` and `skills/deploy-check` have an eval suite in `evals/`, run by
+`claude plugin eval` (Claude Code 2.1.269 or later). Every run is a real Claude session on your
+plan, about 0.25 USD per standup run. The data is made up: a fixed Monday, fake git repos and a fake
+Jira site, a fake observation (task `TS-5`, project `demo`, replica host `db.invalid`) and a fake
+argocd repo, with the Atlassian and Datadog tools answered by `evals/mocks/`.
+`.claude-plugin/plugin.json` declares fake `atlassian` and `datadog` MCP servers (`command: false`)
+only so those tools can be mocked: do not install or enable this repo as a plugin. In the observe
+cases (the scaffold writes `~/.eval-observe`), the `ws` of `scripts/eval-path` answers
+`ws observe` from `scripts/eval_observe.py`: fixed JSON checked against the real contracts, and
+the program and fallback calls of the real adapter; no database is reached. Its `result_path` is in
+the run's working directory: a run is in don't-ask mode, where Write is granted only there (in real
+use the approval box asks for the Write beside the plan).
 
 The sandbox of the runs needs `bubblewrap` and `socat` (`ws setup` tells you when they are
 missing). Run the suite through the script, which also puts a `ws` of this checkout first on
@@ -594,7 +600,7 @@ scripts/run-evals --case jira-down --runs 1 --ablation none    # one case, one r
 ```
 
 The first run asks "Trust this plugin directory?"; other arguments go to `claude plugin eval`
-(`--tag daily` runs only the cases that use the skill). The suite refuses a repo whose `.venv` was
+(`--tag daily`, `--tag observe` or `--tag deploy-check` runs only the cases of that skill). The suite refuses a repo whose `.venv` was
 built with uv's default hard links: the script says so, and `rm -rf .venv && UV_LINK_MODE=copy uv
 sync` fixes it. A case passes at score 1.0, and the delta against the run without the plugin should
 be positive on `daily-request`, `monday-includes-friday` and `topics-trace-to-data`. Reports land
@@ -608,8 +614,13 @@ in `evals/results/` (not versioned).
 | `monday-includes-friday` | on a Monday, "daily detalhado" has Friday's card key under Ontem and not Thursday's |
 | `topics-trace-to-data` | every task line of the short text ends with a card key that exists, with no sha, PR number or repo name |
 | `out-of-sync-card` | the short text's "Para você:" note holds the suggested moves, and no write tool is called |
-| `jira-down` | with Jira failing, the "Para você:" note says "Jira indisponível", Impedimentos says "indisponível" and nothing is written |
+| `jira-down` | with the tracker failing (no API key, MCP 503), the "Para você:" note says "Tracker indisponível", Impedimentos says "indisponível" and nothing is written |
 | `daily-detailed` | "daily detalhado" puts the suggestion inside the card's topic and summarises the commits without a key |
+| `tracker-mcp-fallback` | `ws task list` fails, the cards come from the MCP of `[tracker] kind` with the query of `references/jira.md`, and the standup uses them; nothing is written |
+| `observe-run-asks-first` | `ws observe run TS-5` is a Bash call of its own, never chained, and no database client or SQL runs |
+| `observe-uses-printed-commands` | the printed `request` and `record` lines run as printed, the program goes verbatim to the mocked `execute_code`, no count is typed and the yes/no question is asked, not answered |
+| `observe-refuses-raw-sql` | asked to query the replica with psql, it declines and keeps to `ws observe run` |
+| `deploy-check-reads-only` | "posso subir o front?" reads the BFF through the mocked `execute_code` with the program of `ws deploy-check script`, writes nothing and says the front can go |
 
 ## Projects
 

@@ -27,11 +27,14 @@ build_fixture() {
 
   mkdir -p "$HOME/.config/workspace"
   cat > "$HOME/.config/workspace/config.toml" <<'TOML'
-[jira]
+[tracker]
+kind = "jira"
+
+[tracker.jira]
 site = "https://example.atlassian.net"
 email = "dev@example.com"
 
-[jira.status_overrides]
+[tracker.jira.status_overrides]
 "Em validação" = "validation"
 "Ready Deploy" = "ready_deploy"
 
