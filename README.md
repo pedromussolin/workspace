@@ -284,6 +284,26 @@ repeat what still applies. `ignore = true` must stand alone, so an ignored repo 
   name must map back to its own status through `[tracker.jira.status_overrides]`.
 - A bad value exits 2 with the key path.
 
+### `[handoff]` and `[context_watch]`
+
+```toml
+[handoff]
+extra_globs = ["~/repos/<legacy folder>/HANDOFF-*.md"]
+max_age_days = 7
+max_listed = 3
+
+[context_watch]
+warn_at = 300000
+step = 100000
+```
+
+- Both tables are optional; a missing or invalid table means the defaults shown.
+- `[handoff] extra_globs` lists more places for handoff files (`~` expanded); the hook,
+  `ws handoff collect` and `ws handoff check` accept files there. `max_age_days` and `max_listed`
+  limit what the `SessionStart` hook points at. `ws handoff` also reads `[standup] repo_roots`.
+- `[context_watch] warn_at` and `step` are the context sizes, in tokens, of the first notice and
+  of each next one.
+
 ### `[env_check]`
 
 `ws env check` reads only names: no value of the Parameter Store is ever printed or kept.
@@ -444,13 +464,17 @@ Protection starts after `ws setup`: a fresh clone has no git hooks. From then on
 The approval gate (`hooks/approval_gate.py`, rules in `hooks/gate/`) is a `PreToolUse` hook for
 `Bash` and `mcp__*` tools: it asks you before a write that leaves the machine (a push, a GitHub,
 GitKraken or Atlassian write, a card apply) and shows what will be sent. Two more hooks block
-commits with a co-author trailer and hook bypasses. `ws setup` copies them to
+commits with a co-author trailer and hook bypasses. Two session hooks only inform:
+`hooks/context_watch.py` (`UserPromptSubmit`) tells Claude to propose a handoff when the context
+passes 300k tokens and every 100k after, and `hooks/handoff_pointer.py` (`SessionStart`,
+`startup|clear|compact`) points at the handoffs of the last 7 days; both always exit 0, with a
+10 s timeout. `ws setup` copies them all to
 `~/.claude/hooks/workspace/` (read-only files and a `manifest.json` of SHA-256 sums), reports a
 missing, stale, edited or extra file (`--check` only reports) and prints the settings JSON that
 registers `python3 -I -B "<copy>/<script>"` with a 30 s timeout. It updates the copy only when you
 run it yourself in a terminal: it shows the diff of each changed file and asks `[s/N]`; run by an
-agent it writes nothing there. The registration: the gate with the matcher `Bash|mcp__.*`, the other two
-with `Bash`. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
+agent it writes nothing there. The registration: the gate with the matcher `Bash|mcp__.*`, the
+two blockers with `Bash`, and the session hooks under their own events. Registrations that still point at the repo's `hooks/` or at `ask_card_apply.py` are
 reported with what replaces them. The folder can be moved with `WS_CLAUDE_HOOKS_DIR`.
 
 The gate also denies two waits that may never end (no box, the reason goes to the model), in any
@@ -556,6 +580,10 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws board status --cards FILE [--today YYYY-MM-DD]` | Finds, for the open cards of `FILE` (the `ws task list` output), the highest environment (`[board]`) that holds their commits and prints as JSON the `moves` (key, from, to, environment, stale), the cards `held` and `limited`, the `to_confirm` and the `warnings`; runs `git fetch` in every repo first; reads Jira only through the file; exit 2 without config, `[board]` or with bad input |
 | `ws board drafts --board FILE` | Writes one `move` draft per move of the `ws board status` output into a new folder under `cards/drafts/` and prints `{"folder", "count"}`; `ws card preview` and `ws card apply` do the rest |
 | `ws task status --cards FILE --activity FILE [--today YYYY-MM-DD]` | Compares the cards with the activity and prints `tasks` (the neutral tasks) and `stuck` (active cards with no activity for the configured workdays) |
+| `ws handoff collect [--all] [--no-prs]` | Prints as JSON, read-only and without a fetch, the state of every git repo under `repo_roots` plus this one (branch, upstream, ahead/behind, uncommitted paths, stashes, worktrees, local-only branches of the last 14 days), the open PRs of one `gh` search, the newest handoff files and `warnings` (also the session hooks' failures of the last 7 days); a repo with nothing to say is only counted (`clean_repos`) unless `--all`; `--no-prs` skips `gh` (exit 2 on a missing or invalid config) |
+| `ws handoff new SLUG --topic TOPIC [--date YYYY-MM-DD]` | Creates the private `HANDOFF-YYYYMMDD-<topic>.md` in `~/.local/share/workspace/projects/<slug>/` (folder 700, file 600, never in git) from `templates/handoff.md`, with the state block already filled; `SLUG` is a folder under `projects/` (or `standalone`); refuses an unknown slug, a bad topic and an existing file; prints the path, the repo and PR counts and the warnings |
+| `ws handoff refresh FILE [--diff]` | Re-renders only the block between the `ws:state` markers of a handoff file; `--diff` writes nothing and prints what changed in the repos, worktrees and PRs since the file was written |
+| `ws handoff check FILE` | JSON verdict on a handoff file (place, name, mode 600, title, a filled "Próximos passos" in every front, state block, resume order, placeholders; warnings for over 300 lines and `/tmp/` paths); exit 0 when ok, 1 otherwise; the skill `handoff` runs it |
 | `ws env check REPO --env ENV (--ref REF \| --deployed) [--strict] [--json]` | Compares the env var names the code reads at that commit (never the working tree) with the Parameter Store names under the environment's prefix and the argocd values (`[env_check]`); names only, never a value; exit 0 nothing to fix, 1 a required name missing or a name left in argocd (with `--strict`, also a name with a default), 2 setup, 3 the store cannot be listed or read |
 | `ws observe new TASK --project SLUG --job TEXT --switched-off DATE [--days N] [--timezone TZ]` | Writes the observation plan (private, with commented examples); refuses an existing one; `check TASK [--project SLUG]` validates the plan and each database query; `show TASK [--project SLUG] [--json]` prints the plan |
 | `ws observe run TASK [--project SLUG] [--day DATE] [--check ID]...` | Runs the database checks of the day and records each value with its real times; prints as JSON what the observability tool and the user still have to answer (`observability` with the exact `next`, `record` and `fallback` lines, `ask`), `problems` and `warnings`; Claude Code asks you first (the `ask` rule and the gate); exit 1 a problem, 2 setup, 3 database unreachable |
