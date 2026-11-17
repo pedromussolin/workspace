@@ -22,11 +22,21 @@ esteira de baixa nova (refact) ao lado da atual, ligada por produto na coluna
 com TTL e dead-letter, sem depender do `consumer_timeout`. D39 decidida; D40: nenhuma administradora
 reenvia sozinha; o padrão do nome do arquivo não muda (as administradoras validam).
 
-**Em execução (agentes, sem commit):** worktrees `ts5737-cessao` (agentes `chave-desvio` e
-`refact-baixa`) e `ts5737-blocos` (`blocos-1`: modelo, dayvale, fydd e genius). Falta um agente para
-CNAB 444, adm. V, bgt e adm. Q. Brief e entregas em `~/repos/.artemis_v2/agentes/ts5737/`.
+**TS-5737 implementada, sem commit, esperando a revisão do Pietro** (worktree `ts5737-cessao`;
+`ts5737-blocos` já foi juntada nela e pode ser apagada depois dos commits). Suíte inteira: 5850
+passed, 0 failed (`run-cessao-tests-master-1112.sh`, que instala a violeta 0.11.18 que a master de
+12/11 pede); integração da esteira refact com Postgres 16 e Redis 7 reais: 30 passed; fila de espera
+com TTL testada num RabbitMQ 3.13 local. Peças: chave e desvio; `refact_baixa.py` (teto, rodadas com
+log no lote, trava por advisory lock em conexão própria, guarda na reentrega, marca de envio, callback
+com `event_id` fixo e timeout); caminho em blocos (`is_valid_refact`, `gerar_saida_refact`,
+`gerar_file_name_refact`) em dayvale, fydd, genius, CNAB 444, bgt e adm. Q; adm. V fora (sem uso).
+Entregas e roteiro do `kill -9` em `~/repos/.artemis_v2/agentes/ts5737/`. B27 registrado.
 
-**TS-5585:** job do resumo às 20:00 em dias úteis, na branch, **sem commit** (126 testes ok).
+**TS-5584:** snapshot OpenAPI da shared no BFF commitado e enviado
+(`chore/TS-5584-snapshot-openapi-shared`, `x-source` no commit da branch da shared; regenerar sem
+`--ref` depois do merge da shared na master). Erros de contrato do OCR e dos lastros não são dela.
+
+**TS-5585:** job do resumo às 20:00 em dias úteis, commitado e enviado (`5c0eb77c4`).
 
 **RabbitMQ de produção:** versão e `consumer_timeout` não conferidos; a conta de desenvolvedor não
 lê o Amazon MQ e o endereço do broker só existe como segredo. O desenho deixou de depender disso.
@@ -270,13 +280,12 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **TS-5737:** revisar as entregas dos agentes (`chave-desvio`, `refact-baixa`, `blocos-1`),
-   disparar o agente dos geradores restantes (CNAB 444, adm. V, bgt, adm. Q), juntar `ts5737-blocos` em
-   `ts5737-cessao`, revisão do Pietro e commits; `EXPLAIN` da consulta de ids com a DBA; `kill -9`
-   na sandbox.
-2. **Release de 24/11:** commit do horário da TS-5585; TS-5624 no navegador; DBA na TS-5596;
-   snapshot OpenAPI da TS-5584; na montagem, as três cabeças do Alembic e a ordem do checklist em
-   `tasks/13-plan.md`; `/release`.
+1. **TS-5737:** revisão do Pietro e os 14 commits planejados (lista na resposta de 17/11 e nas
+   entregas); push; `EXPLAIN` das consultas de ids com a DBA (`blocos-1/explain-ids.sql` e as de
+   parcela do `blocos-2`); `kill -9` na sandbox (roteiro na entrega do `refact-baixa`); conferir
+   pooler entre worker e Postgres; deploy: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA`.
+2. **Release de 24/11:** TS-5624 no navegador; DBA na TS-5596; na montagem, as três cabeças do
+   Alembic e a ordem do checklist em `tasks/13-plan.md`; `/release`.
 3. **Pendências do Pietro:** confirmar com a operação a ordem do arquivo por `id` (D39, decisão 8);
    desenho do upload no shared (D37) e trava do duplo clique (D38) da TS-5620; plano depois de
    24/11 (`estimate.md` da vm-migration).
