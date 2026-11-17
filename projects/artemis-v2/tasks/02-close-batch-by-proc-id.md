@@ -11,7 +11,7 @@ status = "done"
 priority = "Highest"
 due = 2026-11-06
 sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-16
+synced = 2026-11-17
 +++
 # 02 — Dois modos de fechamento: por chave ou por proc_id
 
