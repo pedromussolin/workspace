@@ -57,3 +57,4 @@ Em "Quem", quem decidiu.
 | D35 | Regras do `AGENTS.md` seguem a prática de antes: falso positivo vai para o `.secrets-allow` e a resposta avisa; o Claude aplica o bloco do `ws setup` no `settings.json` só depois do sim | usuário | 17/11 | Revisão da branch de documentos de agentes |
 | D36 | O `CLAUDE.md` da raiz carrega sempre as regras de sigilo; as outras convenções são lidas sob demanda | usuário | 17/11 | Revisão da branch de documentos de agentes |
 | D37 | A skill `observe` não grava por heredoc quando o Write é negado: para e avisa | usuário | 17/11 | Revisão da branch de documentos de agentes |
+| D38 | Réplica de produção: a consulta direta, só leitura, com timeout e uma por vez, continua permitida; `ws observe run` é o caminho das observações, não o único | usuário | 17/11 | Corrige a regra que veio na branch de documentos de agentes e travou outro chat |
