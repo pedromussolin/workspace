@@ -10,7 +10,9 @@ Working files go in `~/.local/share/workspace/standup/`; run
 
 ## Steps
 
-1. **Period.** Run `ws standup period "<the user's words>"`. It prints `since`, `until`, `label`,
+1. **Period.** Run `ws standup period "<the user's words for the period>"`, always, even when the
+   user states today's date or the range looks obvious: the window, the label and the workdays
+   come only from it, never from your own date arithmetic. It prints `since`, `until`, `label`,
    `workdays` and `warnings`. Exit 2 lists the accepted forms: say so and ask which period. When the
    label shows a year or a clip you inferred (a month without a year, an end after today, a
    `warnings` entry), show the label to the user before going on.
