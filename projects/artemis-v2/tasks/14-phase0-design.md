@@ -6,6 +6,74 @@ Administradoras sem análogo aparecem como "adm. V", "adm. B", "adm. S" e "adm. 
 o texto diz outra branch (TS-5582 `e4c557399`, TS-5572 `db1582065`). Números de linha são da master. **[C]** = visto no
 código, na imagem do worker (Celery 5.2.2, kombu 5.5.4) ou na réplica de leitura em 12/11; **[H]** = hipótese, com como validar.
 
+## Revisão de 17/11/2026: esteira nova atrás de chave por produto
+
+Decisões de 17/11 (Pietro, `decisions.md`): a TS-5737 sobe na release de 24/11 junto com os 12 cards da tarefa 13; a
+decisão 1 vira uma esteira de baixa nova ao lado da atual, ligada por produto; 4 = (a); 8 = (a). As seções 1 a 8 continuam
+valendo para **o que** a esteira faz; esta revisão muda **onde** o código fica e **como** ele liga. Desenho para aprovação
+antes de implementar.
+
+1. **Chave.** Coluna nova `produto_config.liquidacao_baixa_refact` (boolean, `NOT NULL`, padrão `false`), em migration
+   nova. Liga e desliga pelo `PATCH /produto/<id>/` (campo em `schema_produto_config`, `cessao/api/produto/schema.py`), sem
+   reiniciar nada. Os 6 produtos do ML ligam um por dia, junto com a ligação da TS-5570. A chave e a esteira antiga saem na
+   TS-5612, depois de validada.
+2. **Desvio.** A task atual `esteira_baixar` ganha só o desvio: depois do preâmbulo (guarda de vazio da TS-5582,
+   `_fechar_vigentes_antes_do_envio` da TS-5572) e antes do `ManagerBaixa`, lê a chave do produto do lote. Ligada, enfileira a
+   task nova na mesma fila e retorna; desligada, segue o código de hoje. Precisa ser outra task porque `acks_late` e
+   `reject_on_worker_lost` são atributos da task, não da chamada.
+3. **Task nova** `esteira_baixar_refact(lote_id, rodada=0)` em `cessao/tasks/liquidacao_lote.py`, com as duas flags e
+   import local do pacote novo (padrão da TS-5572 contra o ciclo de imports).
+4. **Código novo** no pacote `cessao/api/liquidacao/refact_baixa/`, ao lado do `refact.py`: contador, teto e rodadas
+   (seção 3), trava (2.3), guarda por estado (2.1) num `ManagerBaixa` filho, estados filhos que gravam a marca antes do envio
+   (2.2) e pedem o arquivo em blocos, e `event_id` determinístico no callback. `ManagerBase`, `ManagerBaixa`, estados,
+   emissores e geradores atuais não mudam de comportamento.
+5. **Blocos.** `LiquidacaoLoteProcesso.iterar_pagamentos` e `primeiro_pagamento` no modelo (aditivos). Cada gerador ganha um
+   caminho em blocos usado só pela esteira nova; o caminho atual gera o mesmo arquivo de hoje. O teste golden compara os dois
+   na mesma ordem por `id`.
+6. **Rodadas sem `countdown`.** Versão e `consumer_timeout` do RabbitMQ de produção não puderam ser conferidos (17/11: a
+   conta de desenvolvedor não lê o Amazon MQ e o endereço do broker só existe como segredo). Para não depender deles, o atraso
+   das rodadas usa a opção (b) da 3.1: fila de espera sem consumidor, com TTL por rodada e `x-dead-letter-exchange` para a
+   fila de destino, declarada pelo kombu. Nenhuma mensagem fica sem confirmação esperando a hora.
+7. **Reenvio manual.** `reenviar_lote_liquidacao_task` apaga o contador (chamada ao pacote novo, inofensiva com a chave
+   desligada) e segue pela esteira atual, que desvia se a chave estiver ligada.
+8. **Lista de reenvio seguro** (D40): constante no pacote novo.
+
+**Como cada administradora trata envio repetido [17/11, westworld `ee5f950`, cessão `origin/master`].**
+
+| Administradora | Como recebe | Reenviar duplica? |
+|---|---|---|
+| capitalis | não envia nada: arquivo vazio, devolve 200 **[C]** | não |
+| adm. S | sem integração: devolve 200 e o envio é manual (`westworld <adm_s>.py:38-45`) **[C]** | não |
+| dayvale | API, nome com a hora em milissegundos a cada envio (`dayvale.py:61-87`) **[C]** | **sim**; tem consulta de status por nome |
+| fydd | nome com a hora a cada envio (`fydd.py:339-369`) **[C]** | **sim** |
+| genius | SFTP, nome `<cnpj>_<data>_R_NNN.REM` gerado na cessão; o mesmo nome sobrescreve **[C]** | **[H]** se o `NNN` muda a cada envio |
+| adm. Q | API: cria um lote do lado dela com o id do nosso lote e insere as liquidações uma a uma (`<adm_q>.py:284-345`) **[C]** | **[H]** se recusa id repetido |
+| adm. V | API, com hash do conteúdo (`<adm_v>.py:31-60`) **[C]** | **[H]** se deduplica pelo hash |
+| bgt | API: sobe o arquivo e cria uma operação (`bgt/bgt.py:64-130`) **[C]** | **[H]** provável |
+| adm. B | SFTP, com nome gerado na cessão **[C]** | **[H]** geração do nome não conferida |
+
+Tornar seguras dayvale, fydd e genius é trabalho nosso (nome fixo por lote e consulta antes de reenviar, ~2 a 4 h cada);
+adm. Q, adm. V, bgt e adm. B dependem da resposta de cada administradora. O caso só acontece se o worker morrer entre a
+administradora aceitar o arquivo e o commit da resposta; hoje o lote fica parado sem aviso.
+
+**Plano revisado** (substitui o "Plano de implementação" do fim). Branch `fix/TS-5737-reentrega-segura-baixa` da master,
+`--no-track`, worktree `ts5737-cessao`. Commits `fix(TS-5737)`.
+
+1. Chave: migration nova (o `down_revision` se acerta na montagem, como as da TS-5583 e da TS-5585), coluna no modelo,
+   campo no schema. Testes: migration; `PATCH` liga e desliga.
+2. Pacote `refact_baixa/`: contador, teto e rodadas por fila de espera. Testes da seção 7 (teto, rodadas) e declaração das
+   filas.
+3. Trava por lote (decisão 3: advisory lock, se não houver pooler em modo transação **[H]**; senão Redis com dono).
+4. Guarda por estado em reentrega (`ManagerBaixa` filho).
+5. Marca de envio e regra de reentrega (estados filhos, lista segura, `event_id` determinístico).
+6. Task nova com as flags, desvio na `esteira_baixar` e `reenviar` apagando o contador. Testes: chave desligada segue o
+   caminho atual sem mudança; ligada vai para a task nova; `test_worker_perdido.py`.
+7. `iterar_pagamentos` e `primeiro_pagamento` no modelo.
+8. Caminho em blocos, um commit por gerador, na ordem de volume (dayvale, fydd, genius, CNAB 444 e adm. V, bgt, adm. Q),
+   com golden contra o caminho atual.
+9. Validação: local (imagem do devcontainer); sandbox com a chave ligada num produto de teste (`kill -9` no filho e no pod);
+   `EXPLAIN` da consulta de ids revisado pela DBA.
+
 ## Resumo
 
 1. **Achado que muda o item 2.** Os 6 produtos do Mercato Libero (4, 15, 80, 81, 581, 1406) usam fundos com administradora
@@ -234,7 +302,8 @@ westworld novo (os comunicadores recebem `str`): **fora desta fase**. Nenhum for
 
 ## Para decisão do usuário
 
-Decidido em 12/11: o teto reagenda em rodadas com fila isolada (3.1), em vez de parar em `errado`.
+Decidido em 12/11: o teto reagenda em rodadas com fila isolada (3.1), em vez de parar em `errado`. Decididas em 17/11: 1
+(esteira nova com chave por produto, ver a revisão no topo), 4 = (a) e 8 = (a); a lista de reenvio seguro é a D40.
 
 1. **Onde mora o código** (regra: correção da liquidação vai no `refact.py`). (a) Task + `shared/baixa_liquidacao/` + método
    no modelo, sem `refact.py` **[recomendo: a esteira é compartilhada, a task já é a versão final e o ciclo de imports
@@ -257,6 +326,8 @@ Decidido em 12/11: o teto reagenda em rodadas com fila isolada (3.1), em vez de 
 8. **Ordem do arquivo** por `id` (hoje indefinida). Confirmar com a operação que nenhuma administradora depende da ordem **[H]**.
 
 ## Plano de implementação (depois da aprovação)
+
+Substituído pelo plano revisado de 17/11, no topo. Mantido como registro.
 
 Branch `fix/TS-<id>-reentrega-segura-baixa` da master, `--no-track`. Commits atômicos `fix(TS-<id>)`. Sem migration.
 
