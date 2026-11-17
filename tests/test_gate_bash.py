@@ -782,6 +782,197 @@ def test_a_longer_push_line_outside_the_no_box_shape_asks(command, listed_repo, 
     assert box(command, env, cwd=str(tmp_path))
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd ~/repo && git push -f",
+        "cd ~/repo && git push --force-with-lease",
+        "cd ~/repo && git push --force-if-includes",
+        "cd ~/repo && git push --mirror",
+        "cd ~/repo && git push --all",
+        "cd ~/repo && git push --delete origin x",
+        "cd ~/repo && git push -d origin x",
+        "cd ~/repo && git push origin :x",
+        "cd ~/repo && git push origin +main",
+        "cd ~/repo && git push origin HEAD:refs/heads/x",
+        "cd ~/repo && git push origin main:other",
+        "cd ~/repo && git push origin feature/x",
+        "cd ~/repo && git push -u origin feature/x",
+        "cd ~/repo && git push upstream",
+        "cd ~/repo && git push upstream main",
+        "cd ~/repo && git push https://example.com/me/repo.git",
+        "cd ~/repo && git push git@example.com:me/repo.git main",
+        "cd ~/repo && git push /elsewhere/repo.git",
+        "cd ~/repo && git push --repo=https://evil.example/x.git",
+        "cd ~/repo && git push -o ci.skip",
+        "cd ~/repo && git push --receive-pack=sh",
+        "git add a.txt && git commit -q -m x && git push -f",
+        "git add a.txt && git push origin feature",
+        "git -C ~/repo push",
+        "git -C ~/repo add a.txt && git -C ~/repo push",
+        "git --git-dir=~/repo/.git push",
+        "cd ~/repo && echo $(git push)",
+        "cd ~/repo && echo `git push`",
+        'cd ~/repo && echo "$(git push)"',
+        "cd ~/repo && cat <(git push)",
+        "cd ~/repo && echo x > >(git push)",
+        "cd ~/repo && f() { git push; }; f",
+        "f() { git push; }; cd ~/repo && f",
+        "cd ~/repo && function f { git push; } && f",
+        "cd ~/repo && while true; do git push; break; done",
+        "cd ~/repo && until git push; do break; done",
+        "cd ~/repo && for r in origin; do git push; done",
+        "cd ~/repo && case x in x) git push;; esac",
+        "cd ~/repo && (git push)",
+        "cd ~/repo && git push && (git push)",
+        "cd ~/repo && git add a.txt && { git commit -q -m x; git push; }",
+        "cd ~/repo && eval 'git push'",
+        "cd ~/repo && bash -c 'git push'",
+        "cd ~/repo && sh -c 'git push -f'",
+        "cd ~/repo && xargs git push < /dev/null",
+        "cd ~/repo && echo git push | sh",
+        "cd ~/repo && git push && (cd /elsewhere && git push)",
+        "cd ~/repo && git push && cd /elsewhere && git push",
+        "cd ~/repo && git push && cd /elsewhere; git push",
+        "cd $(echo ~/repo) && git push",
+        "cd `echo ~/repo` && git push",
+        'cd "$(pwd)" && git push',
+        'cd "$PWD/../repo" && git push',
+        "cd $HOME/repo && git push",
+        "cd ${HOME}/repo && git push",
+        'cd "$HOME/repo" && git push',
+        "cd ~/repo$X && git push",
+        "cd ~/$X && git push",
+        "cd {~/repo,/elsewhere} && git push",
+        "cd ~/repo/{.,..} && git push",
+        "D=$(echo ~/repo); cd $D && git push",
+        "D=`echo ~/repo`; cd $D && git push",
+        "read D; cd $D && git push",
+        "read D <<< ~/repo; cd $D && git push",
+        "false && D=~/repo; cd $D && git push",
+        "D=~/repo; D=/elsewhere; cd $D && git push",
+        "D=~/repo; cd $D$E && git push",
+        "D=~/repo cd $D && git push",
+        "export D=~/repo; cd $D && git push",
+        "cd ${D:-~/repo} && git push",
+        "cd ~/repo && git push $'--force'",
+        "cd ~/repo && git push $'-f'",
+        "cd ~/repo && git push $'origin' $'feature'",
+        "cd ~/repo && git push $'--mirror'",
+        "cd ~/repo && git push $'\\x2d\\x66'",
+        "cd ~/repo && git $'push' -f",
+        "cd ~/repo && git $'-C' . push",
+        "cd ~/repo && git $'-c' core.sshCommand=x push",
+        "cd ~/repo && $'git' push --force",
+        "cd $'~/repo' && git push",
+        "cd ~/repo && echo $'\\'' ; git push --force #'",
+        "echo $'\\'' ; git push --force origin main #'",
+        "cd ~/repo && echo $'a\\'b' && git push -f # '",
+        "cd ~/repo && git commit -q -m $'x' && git push $'\\x2dforce'",
+        "cd ~/repo && git commit -q -F - <<$'X\\x41'\nmsg\nXA\ngit push -f\n$X\\x41\n",
+        "cd ~/repo && cat <<$'E\\x4fF'\nEOF\ngit push --force\nEOF\n",
+    ],
+)
+def test_a_push_beyond_the_plain_one_or_in_a_nested_place_still_asks(
+    command, listed_repo, env, tmp_path
+):
+    assert box(command, env, cwd=str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push -f",
+        "git push origin main -f",
+        "git push --force-with-lease origin main",
+        "git push --mirror",
+        "git push origin --delete main",
+        "git push upstream main",
+        "git push https://example.com/me/repo.git main",
+        "git push origin HEAD:refs/heads/x",
+        "git push -C ~/repo",
+        "git $'push' --force",
+        "git push $'--force'",
+        "echo $'\\'' ; git push --force #'",
+    ],
+)
+def test_a_push_alone_beyond_the_plain_one_still_asks(command, listed_repo, env):
+    assert box(command, env, cwd=str(listed_repo))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git push $'-q'",
+        "git $'push'",
+        "git add $'a.txt' && git commit -q -m $'feat: x\\n\\nbody' && git push",
+        "cd $'{repo}' && git push",
+        "git commit -q -F - <<$'E\\x4fF'\nfeat: x\nEOF\ngit push -q",
+        "echo $'a\\'b' && git push",
+        "$'cd' {repo} && $'git' $'push'",
+    ],
+)
+def test_ansi_c_words_are_decoded_as_bash_does_in_the_no_box_line(
+    command, listed_repo, env, tmp_path
+):
+    assert box(command.format(repo=listed_repo), env, cwd=str(listed_repo)) is None
+
+
+@pytest.mark.parametrize(
+    "command", ["git push", "git add a.txt && git push -q", "cd ~/repo && git push"]
+)
+def test_a_bare_push_from_a_branch_other_than_main_asks_in_the_listed_folder(
+    command, listed_repo, env, tmp_path
+):
+    _git(["checkout", "-q", "-b", "feature/y"], listed_repo, tmp_path)
+
+    assert box(command, env, cwd=str(listed_repo))
+
+
+def test_a_detached_head_in_the_listed_folder_asks_for_a_bare_push(listed_repo, env, tmp_path):
+    _commit(listed_repo, "a.txt", tmp_path)
+    _git(["checkout", "-q", "--detach"], listed_repo, tmp_path)
+
+    assert box("git push", env, cwd=str(listed_repo))
+    assert box("cd ~/repo && git add a.txt && git push -q", env, cwd=str(tmp_path))
+
+
+def test_a_push_of_main_by_name_does_not_need_main_checked_out(listed_repo, env, tmp_path):
+    _git(["checkout", "-q", "-b", "feature/y"], listed_repo, tmp_path)
+
+    assert box("git push origin main", env, cwd=str(listed_repo)) is None
+
+
+def test_a_push_in_a_repo_outside_the_list_asks_whatever_the_line(make_repo, listed_repo, env):
+    company = make_repo("company")
+    commands = [
+        f"cd {company} && git push",
+        f"cd {company} && git add -A && git commit -q -m x && git push -q 2>&1 | tail -3",
+        f"git -C {company} push",
+    ]
+    for command in commands:
+        assert box(command, env, cwd=str(listed_repo)), command
+    text = box(commands[1], env, cwd=str(listed_repo))
+    assert ", pasta /" in text
+
+
+def test_a_company_repo_on_an_environment_branch_is_denied_in_a_composite_line(
+    make_repo, listed_repo, env
+):
+    company = make_repo("company")
+    write_config(
+        env,
+        f'[gate]\npush_without_asking = ["~/repo"]\npush_remotes = ["{PUSH_URL}"]\n'
+        'environment_branches = ["master", "main"]\n',
+    )
+    command = f"cd {company} && git add -A && git commit -q -m x && git push -q"
+
+    assert denial(command, env, cwd=str(listed_repo)) == (
+        "Blocked: main is an environment branch of company; "
+        "push a task branch and open a PR for the user to merge."
+    )
+
+
 def test_a_push_after_cd_needs_a_cwd_only_for_a_relative_folder(listed_repo, env):
     assert box(f"cd {listed_repo} && git push", env, cwd="") is None
     assert box(f"cd {listed_repo.parent} && cd ./repo && git push", env, cwd="") is None

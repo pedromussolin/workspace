@@ -61,14 +61,16 @@ box on a lone `git add`. The push's folder is the cwd followed through the `cd`s
 uses it: it is listed in `push_without_asking` of `[gate]` in `~/.config/workspace/config.toml`;
 every push URL of `origin` (`git remote get-url --push --all origin`) is listed in
 `push_remotes`; a bare `git push` is not sent to another remote by `branch.*.pushRemote`,
-`remote.pushDefault` or `branch.*.remote`; and the repository's local or worktree config
-(included files too) sets none of the keys that run a program or redirect the push
+`remote.pushDefault` or `branch.*.remote`, and sends `main`, the branch checked out in that folder
+(`_on_main`: another branch or a detached HEAD asks); and the repository's local or worktree
+config (included files too) sets none of the keys that run a program or redirect the push
 (`LOCAL_RISKY_KEYS`; `core.hooksPath` only when it resolves to the repository's own `.githooks`).
 `.git/config` can change outside the gate (the Edit tool is not in its matcher), so these are read
 from git at each push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatch
 or a failed query asks, and the box shows the real push URL and the names (never the values) of
 the keys; a line of the second shape that fails a check gets the box of that folder, with its
-branch and the environment-branch policy.
+branch and the environment-branch policy (so a push there to an environment branch is denied
+exactly as a lone push in that folder would be).
 """
 
 import ast
@@ -230,6 +232,7 @@ LINE_SEPARATORS = {"&&", ";", "\n", "", "|", "|&"}
 LIST_ENDS = {";", "\n", ""}
 INJECTING_START = "$`{-"
 BRANCH_QUERY_TIMEOUT = 3.0
+NO_BOX_BRANCH = "main"
 MAX_WORD = 4096
 PUSH_VALUE_FLAGS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 FORCE_FLAGS = ("-f", "--force", "--force-with-lease", "--force-if-includes")
@@ -742,6 +745,14 @@ def _push_destination(folder: str, bare: bool) -> tuple[list[str], str | None] |
     return (urls, elsewhere) if urls else None
 
 
+def _on_main(folder: str) -> bool:
+    """Whether `main` is checked out in the folder's repository: a bare `git push` sends the
+    branch that is. A detached HEAD, another branch or a failed query is no."""
+    deadline = time.monotonic() + BRANCH_QUERY_TIMEOUT
+    done = _local_git(folder, ["symbolic-ref", "--short", "-q", "HEAD"], deadline)
+    return done is not None and done.returncode == 0 and done.stdout.strip() == NO_BOX_BRANCH
+
+
 def _local_risky_keys(folder: str) -> list[str] | None:
     """Keys of the repository's own config that run a program or redirect a push; None if git
     cannot tell. Only the names leave this function: a value may hold a secret.
@@ -1225,6 +1236,7 @@ def _git_verb(
                 and not destination[1]
                 and set(destination[0]) <= allowed
                 and not warnings
+                and (not bare or _on_main(folder))
             ):
                 return []
         if folder is not None and not alone:
