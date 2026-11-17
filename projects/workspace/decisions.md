@@ -12,17 +12,6 @@ Em "Quem", quem decide. A coluna "Motivo" traz a recomendação do Claude.
 
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
-| P1 | Onde aprovar na fase 2 | usuário | 29/10 | Recomendado: painel `ws approvals` numa aba do terminal agora; notificação do Windows depois. O painel é o único canal que continua confiável dentro da caixa da fase 3 |
-| P2 | Servidor MCP `ws` | usuário | 29/10 | Recomendado: feito por nós, só biblioteca padrão, sem SDK (sem dependência externa) |
-| P3 | Processo separado que guarda as chaves (*broker*) | usuário | 29/10 | Recomendado: só na fase 3, junto com a caixa; na 2a o `ws` e o MCP dividem um registro de pedidos em arquivo |
-| P4 | Aprovação dentro do Claude Code | usuário | 29/10 | Recomendado: a pergunta do próprio servidor MCP (*elicitation*, que o modelo não responde) ou o painel |
-| P5 | Escopo da 2a | usuário | 29/10 | Recomendado: registro genérico de pedidos, painel, servidor MCP, card migrado |
-| P6 | Escopo da 2b, em paralelo com a 2a | usuário | 29/10 | Recomendado: push de branch de tarefa e PR (criar, comentar) pelo `ws`, com o token do `credentials` |
-| P7 | GMUD (2c) | usuário | 29/10 | Recomendado: depois da 2a e da 2b |
-| P10 | Itens planos por projeto, com épico, tipo e status como campos (não pastas por épico) | usuário | 30/10 | Recomendado: sim; nada se move, nenhum link quebra. Entra na estrutura da base (P15) |
-| P12 | Migração por script (`ws work migrate` com mapa aprovado): workspace primeiro; artemis e whitelabel com os chats parados | usuário | 30/10 | Recomendado: sim; vale para a migração para a base |
-| P14 | Base em três camadas: fonte (arquivos em git), índice por espaço (grafo vindo dos campos + trechos com busca por palavra e por significado, ligados entre si) e recuperação (pacote da sessão, busca híbrida, perguntas em vários passos) | usuário | 08/11 | Recomendado: sim. Resposta à dúvida do usuário sobre RAG e KAG: o grafo sai dos campos (card, épico, PR, sistema), sem extração por IA; SQLite FTS5 + sqlite-vec no local, pgvector na nuvem |
-| P15 | Estrutura do repo de cada espaço (`space.toml`, `memory/`, `systems/`, `inbox/items/`, `projects/<projeto>/` com `items/`, `decisions/` um arquivo cada, `docs/` tipados) e o repo de perfil | usuário | 08/11 | Recomendado: sim; apresentada como seção 1 do desenho, sem resposta ainda |
 | P16 | Frentes do 1º lançamento, segundo agente (Cursor ou OpenCode perguntam antes da ferramenta) e segundo tracker (Linear ou GitHub Issues) | usuário | 08/11 | Propostas no documento de descoberta de produto |
 
 ## Tomadas
@@ -54,3 +43,17 @@ Em "Quem", quem decidiu.
 | D21 | Memória por nível (você, espaço, projeto, tarefa), fonte única; a memória do Claude Code deixa de ser a fonte e é importada separada por nível | usuário | 08/11 | Todo agente lê a mesma memória |
 | D22 | Arquivos como fonte; índice local reconstruível; nuvem = remoto git de cada espaço, serviço pago do time depois | usuário | 08/11 | Diff e revisão pelo git; perder o índice não perde nada |
 | D23 | Segredos por adaptador (1Password, GitHub, chaveiro) com o modelo local de hoje como reserva; mapeada para depois na tarefa 05 | usuário | 08/11 | Pedido do usuário |
+| D24 | Onde aprovar na fase 2: painel `ws approvals` numa aba do terminal agora; notificação do Windows depois. O painel é o único canal que continua confiável dentro da caixa da fase 3 | usuário | 17/11 | Recomendação aceita (era P1) |
+| D25 | Servidor MCP `ws`: feito por nós, só biblioteca padrão, sem SDK (sem dependência externa) | usuário | 17/11 | Recomendação aceita (era P2) |
+| D26 | Processo separado que guarda as chaves (*broker*): só na fase 3, junto com a caixa; na 2a o `ws` e o MCP dividem um registro de pedidos em arquivo | usuário | 17/11 | Recomendação aceita (era P3) |
+| D27 | Aprovação dentro do Claude Code: a pergunta do próprio servidor MCP (*elicitation*, que o modelo não responde) ou o painel | usuário | 17/11 | Recomendação aceita (era P4) |
+| D28 | Escopo da 2a: registro genérico de pedidos, painel, servidor MCP, card migrado | usuário | 17/11 | Recomendação aceita (era P5) |
+| D29 | Escopo da 2b, em paralelo com a 2a: push de branch de tarefa e PR (criar, comentar) pelo `ws`, com o token do `credentials` | usuário | 17/11 | Recomendação aceita (era P6) |
+| D30 | GMUD (2c): depois da 2a e da 2b | usuário | 17/11 | Recomendação aceita (era P7) |
+| D31 | Itens planos por projeto, com épico, tipo e status como campos (não pastas por épico); nada se move, nenhum link quebra; entra na estrutura da base (D34) | usuário | 17/11 | Recomendação aceita (era P10) |
+| D32 | Migração por script (`ws work migrate` com mapa aprovado): workspace primeiro; artemis e whitelabel com os chats parados; vale para a migração para a base | usuário | 17/11 | Recomendação aceita (era P12) |
+| D33 | Base em três camadas: fonte (arquivos em git), índice por espaço (grafo vindo dos campos + trechos com busca por palavra e por significado, ligados entre si) e recuperação (pacote da sessão, busca híbrida, perguntas em vários passos). Resposta à dúvida do usuário sobre RAG e KAG: o grafo sai dos campos (card, épico, PR, sistema), sem extração por IA; SQLite FTS5 + sqlite-vec no local, pgvector na nuvem | usuário | 17/11 | Recomendação aceita (era P14) |
+| D34 | Estrutura do repo de cada espaço (`space.toml`, `memory/`, `systems/`, `inbox/items/`, `projects/<projeto>/` com `items/`, `decisions/` um arquivo cada, `docs/` tipados) e o repo de perfil; é a seção 1 do desenho da base | usuário | 17/11 | Recomendação aceita (era P15) |
+| D35 | Regras do `AGENTS.md` seguem a prática de antes: falso positivo vai para o `.secrets-allow` e a resposta avisa; o Claude aplica o bloco do `ws setup` no `settings.json` só depois do sim | usuário | 17/11 | Revisão da branch de documentos de agentes |
+| D36 | O `CLAUDE.md` da raiz carrega sempre as regras de sigilo; as outras convenções são lidas sob demanda | usuário | 17/11 | Revisão da branch de documentos de agentes |
+| D37 | A skill `observe` não grava por heredoc quando o Write é negado: para e avisa | usuário | 17/11 | Revisão da branch de documentos de agentes |
