@@ -19,15 +19,16 @@ Working files go in `~/.local/share/workspace/standup/`; run
    If it fails, say so and stop.
 3. **Cards**, as in the daily: remove any old `cards.json` and `cards.json.tmp`, run
    `ws task list --since <since> > ~/.local/share/workspace/standup/cards.json.tmp`, and only on
-   exit 0 `mv` it to `cards.json`. On exit 1 or 2 use the Atlassian MCP fallback of step 3 of
-   `SKILL.md` (the cards carry `status_changed` and `resolved` too). With no cards, go on without
-   `--cards`.
+   exit 0 `mv` it to `cards.json`. On exit 1 or 2 use the tracker MCP fallback of step 3 of
+   `SKILL.md`, following `references/<kind>.md` (the cards carry `status_changed` and `resolved`
+   too). With no cards, go on without `--cards`. The board, the observations and the homologation
+   question belong to the single-day daily and do not run here.
 4. **Summary.** Run
    `ws standup summary --activity ~/.local/share/workspace/standup/activity-period.json --cards ~/.local/share/workspace/standup/cards.json --top 3`
    (without the `--cards` part when there are no cards; without `--top 3` in the detailed text).
    If the run with `--cards` fails, run it again without `--cards`, write from that summary and add
    the first run's stderr to the final warnings line. If the run without `--cards` fails, say so
-   with its stderr and stop. It prints one JSON: `window`, `jira`, `status_as_of`, `themes` (each
+   with its stderr and stop. It prints one JSON: `window`, `tracker`, `status_as_of`, `themes` (each
    with `key`, `title`, `tasks`, `more`), `blockers`, `keyless`, `totals` and `warnings`.
 5. **Write** from the summary only, in the output asked for (below).
 
@@ -54,7 +55,7 @@ gestor", "para a 1:1"); "os dois" writes both. Hours per card are not an output.
 Algum desses é impedimento?
 
 ---
-Para você: status de hoje, não do fim do período; Jira indisponível; N avisos, peça "detalhado"
+Para você: status de hoje, não do fim do período; Tracker indisponível; N avisos, peça "detalhado"
 ```
 
 - One block per theme, in the order of `themes`; one line per task in `tasks`. "E mais N tarefas."
@@ -63,13 +64,13 @@ Para você: status de hoje, não do fim do período; Jira indisponível; N aviso
   `homologation` "em homologação", `review` "em revisão", `done_without_pr` "concluída",
   `in_progress` "em andamento"; `null` says only what moved, from `subjects`. Never state more than
   the `evidence` supports.
-- A theme titled "Sem épico" goes last; with no Jira (`jira` false) every task is there and is named
+- A theme titled "Sem épico" goes last; with no tracker (`tracker` false) every task is there and is named
   by its key and PR wording.
 - **Impedimentos:** as in the daily: `kind: "blocked"` is confirmed ("bloqueado"), `kind: "stuck"`
   reads "sem avanço desde <dd/mm>" from its `updated` and gets the question "Algum desses é
   impedimento?" once; with none, "Nenhum." and no question. At most 3 lines, then "E mais N.".
 - The note after `---` says that statuses are today's (`status_as_of`), not the period's; add
-  "Jira indisponível" when `jira` is false and "N avisos, peça \"detalhado\"" when `warnings` is not
+  "Tracker indisponível" when `tracker` is false and "N avisos, peça \"detalhado\"" when `warnings` is not
   empty. The note is always present in a period summary because of the first item.
 
 ### Detailed (on request: "detalhado")
@@ -92,11 +93,15 @@ before it is called a blocker in the text; a `blocked` card is already confirmed
 sentence on the whole period (`totals`: tasks, PRs merged), only with numbers the summary has. "Sem
 épico" tasks go in a final paragraph. About 150 to 250 words for 5 themes; shorter with fewer.
 
+The text is written to be pasted as it is: nothing about the person or this conversation, no
+"Para você" inside it. The note for the user (statuses are today's, warnings) goes after a `---`
+line, outside the text, as in the short summary.
+
 ## Rules
 
 - Write only from the summary. Do not guess a status, a date, an outcome or a link between a commit
   and a card.
 - Describe the task, never the person: no first person ("fiz", "entreguei") and no second person.
 - No sha, PR number, repo, branch or jargon in the short text and in the manager text.
-- Never call a write tool of Jira, GitHub or git. The skill only reads and writes nothing.
+- Never call a write tool of the tracker, GitHub or git. The skill only reads and writes nothing.
 - The status of a card is today's. Never say a task "was in validation during the week".
