@@ -79,6 +79,8 @@ def build_report(
     top: int | None = None,
     board: dict | None = None,
 ) -> dict:
+    if activity["window"].get("kind") == "period":
+        raise ValueError("this activity is a period: use ws standup summary")
     cards = {task.key: task for task in tasks or []}
     yesterday = _yesterday(activity, cards)
     moving = frozenset(move["key"] for move in board["moves"]) if board is not None else frozenset()

@@ -25,6 +25,7 @@ from ws import (
     names,
     newwords,
     observe_cli,
+    period,
     project,
     release_cli,
     review,
@@ -33,6 +34,7 @@ from ws import (
     slot,
     standup,
     standupreport,
+    standupsummary,
     taskmodel,
     taskstatus,
     tracker,
@@ -971,7 +973,66 @@ def _add_standup(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser
         metavar="YYYY-MM-DD",
         help="day to run the standup for (default: today)",
     )
+    collected.add_argument(
+        "--since",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="first day of a period (exclusive with --today); the window gets kind 'period'",
+    )
+    collected.add_argument(
+        "--until",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="last day of the period (default: today); needs --since",
+    )
     collected.set_defaults(handler=_cmd_standup_collect)
+    period_cmd = commands.add_parser(
+        "period",
+        help="Turn a Portuguese period ('semana passada', 'outubro') into dates (JSON).",
+        description=(
+            "Accepted forms: hoje; ontem; esta semana; semana passada; últimos N dias; "
+            "últimos N dias úteis; este mês; mês passado; outubro, out, outubro de 2026, "
+            "10/2026; 20/10 a 31/10; 2026-10-20..2026-10-31; 20/10; desde 20/10."
+        ),
+    )
+    period_cmd.add_argument("text", help="the period, in Portuguese")
+    period_cmd.add_argument(
+        "--today",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="reference day (default: today)",
+    )
+    period_cmd.set_defaults(handler=_cmd_standup_period)
+    summary = commands.add_parser(
+        "summary",
+        help="Group the activity of a period by theme (epic), with each task's outcome.",
+        description=(
+            "Turns the output of `ws standup collect --since` into compact JSON: themes ordered "
+            "by activity, the tasks of each with their outcome, blockers, commits without a key "
+            "and totals. With --cards (the output of `ws task list`) it adds titles, epics and "
+            "statuses, and needs config.toml. The status is today's, not the period's."
+        ),
+    )
+    summary.add_argument("--activity", type=Path, required=True, help="output of standup collect")
+    summary.add_argument("--cards", type=Path, default=None, help="cards file; absent: no tracker")
+    summary.add_argument(
+        "--today",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="reference day for the status and the stuck rule (default: today)",
+    )
+    summary.add_argument(
+        "--top",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="keep only the first N tasks of each theme (default: all)",
+    )
+    summary.set_defaults(handler=_cmd_standup_summary)
     report = commands.add_parser(
         "report",
         help="Group the activity by task: yesterday, today, blockers.",
@@ -1016,7 +1077,33 @@ def _positive_int(value: str) -> int:
     return number
 
 
+def _cmd_standup_period(args: argparse.Namespace) -> int:
+    try:
+        found = period.parse_period(args.text, args.today or date.today())
+    except period.PeriodError as error:
+        print(f"ws standup period: {error}", file=sys.stderr)
+        return 2
+    payload = {
+        "since": found.since.isoformat(),
+        "until": found.until.isoformat(),
+        "label": found.label,
+        "workdays": found.workdays,
+        "warnings": list(found.warnings),
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
 def _cmd_standup_collect(args: argparse.Namespace) -> int:
+    if args.since is not None and args.today is not None:
+        print("ws standup collect: --since and --today are exclusive", file=sys.stderr)
+        return 2
+    if args.until is not None and args.since is None:
+        print("ws standup collect: --until needs --since", file=sys.stderr)
+        return 2
+    if args.until is not None and args.since is not None and args.until < args.since:
+        print("ws standup collect: --since is after --until", file=sys.stderr)
+        return 2
     missing = None
     try:
         cfg = userconfig.load_config().standup
@@ -1029,7 +1116,9 @@ def _cmd_standup_collect(args: argparse.Namespace) -> int:
         print(f"ws standup collect: {error}", file=sys.stderr)
         return 2
     try:
-        result = standup.collect(cfg, args.today or date.today(), repo_root())
+        result = standup.collect(
+            cfg, args.today or date.today(), repo_root(), since=args.since, until=args.until
+        )
     except (RuntimeError, OSError) as error:
         print(f"ws standup collect: {error}", file=sys.stderr)
         return 1
@@ -1065,6 +1154,33 @@ def _cmd_standup_report(args: argparse.Namespace) -> int:
         return 2
     except (OSError, AttributeError, TypeError, ValueError) as error:
         print(f"ws standup report: invalid input: {error}", file=sys.stderr)
+        return 2
+    print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+    return 0
+
+
+def _cmd_standup_summary(args: argparse.Namespace) -> int:
+    stale_workdays = userconfig.DEFAULT_STALE_WORKDAYS
+    try:
+        tasks = None
+        if args.cards is not None:
+            config = userconfig.load_config()
+            stale_workdays = config.standup.stale_workdays
+        activity = json.loads(args.activity.read_text(encoding="utf-8"))
+        if args.cards is not None:
+            cards = json.loads(args.cards.read_text(encoding="utf-8"))["cards"]
+            tasks = [tracker.task_from_listing(card, config) for card in cards]
+        result = standupsummary.build_summary(
+            activity, tasks, args.today or date.today(), stale_workdays, args.top
+        )
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid, TrackerSetup) as error:
+        print(f"ws standup summary: {error}", file=sys.stderr)
+        return 2
+    except KeyError as error:
+        print(f"ws standup summary: invalid input: missing key {error}", file=sys.stderr)
+        return 2
+    except (OSError, AttributeError, TypeError, ValueError) as error:
+        print(f"ws standup summary: invalid input: {error}", file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
     return 0

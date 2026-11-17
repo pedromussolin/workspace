@@ -511,3 +511,17 @@ def test_cli_board_flag_reads_the_file_and_rejects_bad_ones(ws_config, tmp_path,
     board_file.write_text("not json")
     assert main([*args, "--board", str(board_file)]) == 2
     assert "invalid input" in capsys.readouterr().err
+
+
+def test_report_refuses_a_period_activity():
+    window = {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}
+    with pytest.raises(ValueError, match="ws standup summary"):
+        build_report(make_activity(window=window), None, TODAY, 3)
+
+
+def test_cli_report_refuses_period(ws_config, tmp_path, capsys):
+    window = {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}
+    assert main(write_files(tmp_path, make_activity(window=window))) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "ws standup summary" in captured.err

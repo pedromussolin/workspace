@@ -44,6 +44,7 @@ class Task:
     requested_by_other: bool
     updated: datetime
     is_epic: bool = False
+    status_changed: datetime | None = None
 
 
 def task_to_json(task: Task) -> dict:

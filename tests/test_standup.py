@@ -136,7 +136,7 @@ def test_keys_in_keeps_order_and_drops_repeats():
 
 def test_window_on_monday_starts_friday(roots, workspace, fake_gh, home):
     result = _collect(roots, workspace)
-    assert result["window"] == {"since": "2026-10-23", "until": "2026-10-26"}
+    assert result["window"] == {"since": "2026-10-23", "until": "2026-10-26", "kind": "daily"}
     assert "updated:>=2026-10-21" in "\n".join(fake_gh.args())
 
 
@@ -514,3 +514,213 @@ def test_pr_search_covers_the_stale_window(roots, workspace, fake_gh, home):
 def test_section_ends_at_a_level_one_heading():
     text = "## Próximo passo\n\nFazer X.\n\n# Outro título\n\nnão é do passo\n"
     assert _section(text, "## Próximo passo") == "Fazer X."
+
+
+PERIOD = (date(2026, 10, 19), date(2026, 10, 25))
+
+
+def _period(roots: Path, workspace: Path, since=PERIOD[0], until=PERIOD[1]) -> dict:
+    return collect(
+        StandupConfig(repo_roots=(roots,), stale_workdays=3),
+        MONDAY,
+        workspace,
+        since=since,
+        until=until,
+    )
+
+
+def _pr_node(number: int, **fields) -> dict:
+    node = {
+        "number": number,
+        "title": f"feat(TS-{number}): pr {number}",
+        "state": "MERGED",
+        "mergedAt": "2026-10-21T12:00:00Z",
+        "createdAt": "2026-10-20T12:00:00Z",
+        "closedAt": "2026-10-21T12:00:00Z",
+        "updatedAt": "2026-10-21T12:00:00Z",
+        "baseRefName": "master",
+        "headRefName": f"feature/TS-{number}",
+        "url": f"https://github.com/example/app/pull/{number}",
+        "repository": {"name": "app"},
+    }
+    node.update(fields)
+    return node
+
+
+def _page(nodes: list[dict], total: int | None = None, cursor: str | None = None) -> dict:
+    return {
+        "data": {
+            "search": {
+                "issueCount": len(nodes) if total is None else total,
+                "pageInfo": {"hasNextPage": cursor is not None, "endCursor": cursor},
+                "nodes": nodes,
+            }
+        }
+    }
+
+
+PAGED_GH = """\
+#!{python}
+import pathlib, sys
+
+base = pathlib.Path({folder!r})
+calls = base / "calls.txt"
+text = calls.read_text() if calls.exists() else ""
+number = text.count("\\n")
+calls.write_text(text + " ".join(sys.argv[1:]) + "\\n")
+sys.stdout.write((base / "pages" / f"{{number}}.json").read_text())
+"""
+
+
+@pytest.fixture
+def paged_gh(tmp_path_factory, monkeypatch):
+    """A gh that answers call N with pages/N.json and logs the arguments of every call."""
+    folder = tmp_path_factory.mktemp("paged-gh")
+    (folder / "pages").mkdir()
+    script = folder / "gh"
+    script.write_text(PAGED_GH.format(python=sys.executable, folder=str(folder)), encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
+
+    class Pages:
+        def set(self, *pages: dict) -> None:
+            for number, page in enumerate(pages):
+                (folder / "pages" / f"{number}.json").write_text(json.dumps(page))
+
+        def calls(self) -> list[str]:
+            return (folder / "calls.txt").read_text().splitlines()
+
+    return Pages()
+
+
+def test_period_commits_on_the_window_edges(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-1): before", "2026-10-18")
+    commit(repo, "feat(TS-2): first day", "2026-10-19")
+    commit(repo, "feat(TS-3): middle", "2026-10-22")
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-10-25T23:30:00")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-10-25T23:30:00")
+    git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "feat(TS-4): last night",
+        "--author=Dev <dev@example.com>",
+    )
+    commit(repo, "feat(TS-5): after", "2026-10-26")
+    result = _period(roots, workspace)
+    assert result["window"] == {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}
+    assert sorted(c["subject"][5:9] for c in result["commits"]) == ["TS-2", "TS-3", "TS-4"]
+    assert result["last_activity"] == {
+        "TS-2": "2026-10-19",
+        "TS-3": "2026-10-22",
+        "TS-4": "2026-10-25",
+    }
+
+
+def test_period_branches_in_window(
+    roots, workspace, fake_gh, home, make_repo, commit, git, monkeypatch
+):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-0): base", "2026-10-10")
+    _branch_at(git, monkeypatch, repo, "feature/TS-1-before", "2026-10-10")
+    _branch_at(git, monkeypatch, repo, "feature/TS-2-created-inside", "2026-10-21")
+    _branch_at(git, monkeypatch, repo, "feature/TS-3-created-after", "2026-10-28")
+    names = [b["name"] for b in _period(roots, workspace)["branches"]]
+    assert names == ["feature/TS-2-created-inside"]
+
+
+def test_period_prs_kept_by_created_merged_closed_or_open(roots, workspace, paged_gh, home):
+    old = {"createdAt": "2026-09-01T12:00:00Z", "mergedAt": None, "closedAt": None}
+    paged_gh.set(
+        _page(
+            [
+                _pr_node(1, mergedAt=None, closedAt=None, state="OPEN"),
+                _pr_node(2, **{**old, "mergedAt": "2026-10-22T12:00:00Z"}),
+                _pr_node(3, **{**old, "state": "CLOSED", "closedAt": "2026-10-23T12:00:00Z"}),
+                _pr_node(4, **{**old, "state": "OPEN"}),
+                _pr_node(5, **{**old, "mergedAt": "2026-10-01T12:00:00Z"}),
+                _pr_node(
+                    6,
+                    createdAt="2026-10-27T12:00:00Z",
+                    mergedAt="2026-10-27T13:00:00Z",
+                    closedAt="2026-10-27T13:00:00Z",
+                ),
+            ]
+        )
+    )
+    result = _period(roots, workspace)
+    assert [pr["number"] for pr in result["prs"]] == [1, 2, 3, 4]
+    assert "updated:>=2026-10-19" in paged_gh.calls()[0]
+
+
+def test_period_prs_paginate_and_warn_over_300(roots, workspace, paged_gh, home):
+    paged_gh.set(
+        _page([_pr_node(1)], total=350, cursor="c1"),
+        _page([_pr_node(2)], total=350, cursor="c2"),
+        _page([_pr_node(3)], total=350, cursor="c3"),
+    )
+    result = _period(roots, workspace)
+    assert [pr["number"] for pr in result["prs"]] == [1, 2, 3]
+    calls = paged_gh.calls()
+    assert len(calls) == 3
+    assert "after=c1" in calls[1] and "after=c2" in calls[2]
+    assert any("300" in warning for warning in result["warnings"])
+
+
+def test_period_prs_stop_at_the_last_page(roots, workspace, paged_gh, home):
+    paged_gh.set(_page([_pr_node(1)], total=1))
+    result = _period(roots, workspace)
+    assert len(paged_gh.calls()) == 1
+    assert result["warnings"] == []
+
+
+def test_period_prs_carry_base_created_closed(roots, workspace, paged_gh, home):
+    paged_gh.set(_page([_pr_node(7, baseRefName="release")]))
+    pr = _period(roots, workspace)["prs"][0]
+    assert pr["base"] == "release"
+    assert pr["created_at"] == "2026-10-20T12:00:00Z"
+    assert pr["closed_at"] == "2026-10-21T12:00:00Z"
+    assert pr["merged_at"] == "2026-10-21T12:00:00Z"
+    assert pr["keys"] == ["TS-7"]
+
+
+def test_period_failed_page_keeps_the_pages_read(roots, workspace, paged_gh, home):
+    paged_gh.set(_page([_pr_node(1)], total=150, cursor="c1"), {"errors": ["boom"]})
+    result = _period(roots, workspace)
+    assert [pr["number"] for pr in result["prs"]] == [1]
+    assert sum(w.startswith("gh: PRs left out") for w in result["warnings"]) == 1
+
+
+def test_daily_window_kind_unchanged(roots, workspace, fake_gh, home, make_repo, commit):
+    repo = make_repo("app")
+    commit(repo, "feat(TS-1): friday", "2026-10-23")
+    result = _collect(roots, workspace)
+    assert result["window"]["kind"] == "daily"
+    assert "createdAt" not in "\n".join(fake_gh.args())
+    assert "base" not in result["prs"][0]
+    assert [c["subject"] for c in result["commits"]] == ["feat(TS-1): friday"]
+
+
+def test_cli_collect_since_and_today_are_exclusive(workspace, home, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "no-config"))
+    monkeypatch.setenv("WS_REPO_ROOT", str(workspace))
+    for args in (
+        ["--since", "2026-10-19", "--today", "2026-10-26"],
+        ["--until", "2026-10-25"],
+        ["--since", "2026-10-26", "--until", "2026-10-19"],
+    ):
+        assert main(["standup", "collect", *args]) == 2
+        assert capsys.readouterr().out == ""
+
+
+def test_cli_collect_a_period(workspace, fake_gh, home, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("WS_CONFIG_DIR", str(tmp_path / "no-config"))
+    monkeypatch.setenv("WS_REPO_ROOT", str(workspace))
+    assert main(["standup", "collect", "--since", "2026-10-19", "--until", "2026-10-25"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["window"] == {"since": "2026-10-19", "until": "2026-10-25", "kind": "period"}

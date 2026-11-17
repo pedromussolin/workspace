@@ -1,6 +1,6 @@
 ---
 name: daily
-description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and the tracker, without writing anywhere. The text is short by default; the detailed one comes on request ("daily detalhado"). Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"); not on a greeting such as "bom dia", alone or with another request.
+description: Builds the user's daily standup grouped by task (yesterday, today, blockers) with suggested card moves, from git, GitHub and the tracker, without writing anywhere. The text is short by default; the detailed one comes on request ("daily detalhado"). It also summarises a period by theme (a week, a month, a date range) and writes a text for a manager or 1:1. Use when the user asks for the daily, the standup or what they have today ("daily", "standup", "o que tenho hoje?"), for a period ("daily da semana passada", "resumo de outubro", "o que fiz de 20/10 a 31/10") or for a manager text ("texto para o gestor", "para a 1:1"); not on a greeting such as "bom dia", alone or with another request.
 ---
 
 # Daily standup
@@ -66,6 +66,16 @@ one: card titles must not land in whatever folder the session is in. Never read
    to the final warnings line. If the run without `--cards` fails, say so with its stderr and
    stop: the text comes only from the report.
 5. **Write the text** in the mode chosen, from the report only.
+
+## Period
+
+When the user asks for a period instead of a day ("daily da semana passada", "resumo de outubro",
+"o que fiz de 20/10 a 31/10") or for a text for a manager or a 1:1 ("texto para o gestor", "para a
+1:1"), the single-day steps above do not run: follow `references/period.md`. It runs
+`ws standup period`, `ws standup collect --since --until`, the cards as above (step 2, then the
+MCP fallback of step 3) and `ws standup summary`, and writes the per-task summary (short by
+default, "detalhado" on request) and, when asked, the manager text. The same rules apply: describe
+the task, never the person; write only from the summary; nothing is written anywhere.
 
 ## Modes
 

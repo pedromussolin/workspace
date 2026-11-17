@@ -8,7 +8,8 @@ Used by step 3 of the daily when `[tracker] kind` is `jira`. Read only: never ca
   end of this file.
 - Call `atlassianUserInfo` for the account id (used only to set `reporter_is_me`).
 - Call `searchJiraIssuesUsingJql` with `cloudId`, `maxResults: 100`,
-  `fields: ["summary", "status", "parent", "reporter", "updated", "issuetype"]` and this `jql`:
+  `fields: ["summary", "status", "parent", "reporter", "updated", "issuetype", "statuscategorychangedate", "resolutiondate"]`
+  and this `jql`:
 
   ```text
   assignee = currentUser() AND (statusCategory != Done OR updated >= "<since>") ORDER BY updated DESC
@@ -22,7 +23,8 @@ Used by step 3 of the daily when `[tracker] kind` is `jira`. Read only: never ca
   `epic_title` (`fields.parent.key` and `fields.parent.fields.summary`, `null` without a
   parent); `reporter_is_me` (`fields.reporter.accountId` equals the account id);
   `updated` (`fields.updated`, as it came); `is_epic` (`fields.issuetype.hierarchyLevel >= 1`,
-  true or false, whatever the type's name).
+  true or false, whatever the type's name); `status_changed` (`fields.statuscategorychangedate`)
+  and `resolved` (`fields.resolutiondate`), as they came, `null` when absent.
 - Create `~/.local/share/workspace/standup/cards.json` with the Write tool (not an inline shell
   string, so titles need no quoting), containing `{"platform": "jira", "cards": [...]}`. When
   the Write tool is denied, write the same JSON with a quoted heredoc
