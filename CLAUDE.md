@@ -1,8 +1,11 @@
 @AGENTS.md
+@docs/conventions/confidentiality.md
 
 # Claude Code
 
-What follows holds only for Claude Code; everything else is in `AGENTS.md` and `docs/`.
+What follows holds only for Claude Code; everything else is in `AGENTS.md` and `docs/`. The
+confidentiality rules are imported above because forgetting them costs the most; the other
+conventions are read on demand.
 
 ## Company-repo rules do not apply here
 
