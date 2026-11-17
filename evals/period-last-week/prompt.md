@@ -6,4 +6,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
 tags: [daily]
 ---
 
-resumo da semana passada
+(hoje é segunda-feira, 26/10/2026) resumo da semana passada
