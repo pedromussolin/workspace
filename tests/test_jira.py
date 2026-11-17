@@ -31,6 +31,8 @@ REST_ISSUE = {
         "parent": {"key": "TS-100", "fields": {"summary": "[FRONT] Épico de exemplo"}},
         "reporter": {"accountId": "acc-me"},
         "updated": "2026-10-26T12:15:36.854-0300",
+        "statuscategorychangedate": "2026-10-25T10:00:00.000-0300",
+        "resolutiondate": "2026-10-26T11:00:00.000-0300",
     },
 }
 
@@ -51,6 +53,8 @@ CARD = {
     "updated": "2026-10-26T12:15:36.854000-03:00",
     "is_epic": False,
     "assignee_name": None,
+    "status_changed": "2026-10-25T10:00:00-03:00",
+    "resolved": "2026-10-26T11:00:00-03:00",
 }
 
 
@@ -139,6 +143,40 @@ def test_card_without_parent_has_null_epic():
 
     assert card["epic_key"] is None
     assert card["epic_title"] is None
+
+
+def test_card_has_status_changed_and_resolved():
+    card = card_from_issue(REST_ISSUE, "acc-me")
+
+    assert card["status_changed"] == "2026-10-25T10:00:00-03:00"
+    assert card["resolved"] == "2026-10-26T11:00:00-03:00"
+    assert "statuscategorychangedate" in FIELDS
+    assert "resolutiondate" in FIELDS
+
+
+def test_card_fields_null_when_absent():
+    issue = deepcopy(REST_ISSUE)
+    issue["fields"]["statuscategorychangedate"] = None
+    del issue["fields"]["resolutiondate"]
+
+    card = card_from_issue(issue, "acc-me")
+
+    assert card["status_changed"] is None
+    assert card["resolved"] is None
+
+
+def test_task_from_card_reads_status_changed():
+    task = task_from_card(CARD, "https://example.atlassian.net", {})
+    assert task.status_changed.isoformat() == CARD["status_changed"]
+
+    older = {key: value for key, value in CARD.items() if key != "status_changed"}
+    assert task_from_card(older, "https://example.atlassian.net", {}).status_changed is None
+    assert (
+        task_from_card(
+            {**CARD, "status_changed": None}, "https://x.atlassian.net", {}
+        ).status_changed
+        is None
+    )
 
 
 def test_card_from_issue_names_the_missing_field():
