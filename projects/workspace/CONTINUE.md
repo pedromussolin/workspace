@@ -42,14 +42,12 @@ Documento de descoberta (07/11): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G
 
 ## Próximo passo
 
-1. Usuário: `ws setup` no terminal dele mais uma vez, para levar à cópia protegida o catálogo
-   com os MCP de reuniões e de dados do claude.ai (portão e hooks de sessão já instalados e
-   registrados no `settings.json` em 17/11).
-2. Numa sessão nova: conferir o aviso de contexto e o ponteiro dos handoffs; se o aviso não
-   aparecer, `USER_NOTICE = False` em `hooks/context_watch.py`.
-3. Rodar, com o ok do usuário (custo), os evals `period-last-week`, `manager-text` e
+1. Numa sessão nova: conferir o ponteiro dos handoffs e, quando uma sessão passar de 300 mil
+   tokens, o aviso de contexto; se ele não aparecer, `USER_NOTICE = False` em
+   `hooks/context_watch.py`. (`ws setup` completo em 17/11: portão, hooks e catálogo.)
+2. Rodar, com o ok do usuário (custo), os evals `period-last-week`, `manager-text` e
    `observe-uses-printed-commands`.
-4. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
+3. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
    arquivo e campos, memória por nível, índice e busca, nuvem e sigilo, migração, portas do
    núcleo); spec em `docs/specs/`, depois o plano.
-5. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
+4. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
