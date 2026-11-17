@@ -22,8 +22,8 @@ esteira de baixa nova (refact) ao lado da atual, ligada por produto na coluna
 com TTL e dead-letter, sem depender do `consumer_timeout`. D39 decidida; D40: nenhuma administradora
 reenvia sozinha; o padrão do nome do arquivo não muda (as administradoras validam).
 
-**TS-5737 implementada, sem commit, esperando a revisão do Pietro** (worktree `ts5737-cessao`;
-`ts5737-blocos` já foi juntada nela e pode ser apagada depois dos commits). Suíte inteira: 5850
+**TS-5737 commitada e enviada** (`fix/TS-5737-reentrega-segura-baixa`, 14 commits, worktree
+`ts5737-cessao`; o Pietro revisa na montagem da release). Suíte inteira: 5850
 passed, 0 failed (`run-cessao-tests-master-1112.sh`, que instala a violeta 0.11.18 que a master de
 12/11 pede); integração da esteira refact com Postgres 16 e Redis 7 reais: 30 passed; fila de espera
 com TTL testada num RabbitMQ 3.13 local. Peças: chave e desvio; `refact_baixa.py` (teto, rodadas com
@@ -280,10 +280,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **TS-5737:** revisão do Pietro e os 14 commits planejados (lista na resposta de 17/11 e nas
-   entregas); push; `EXPLAIN` das consultas de ids com a DBA (`blocos-1/explain-ids.sql` e as de
-   parcela do `blocos-2`); `kill -9` na sandbox (roteiro na entrega do `refact-baixa`); conferir
-   pooler entre worker e Postgres; deploy: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA`.
+1. **TS-5737:** revisão do Pietro na montagem; `EXPLAIN` com a DBA quando o Pietro mandar
+   (`blocos-1/explain-ids.sql` e as de parcela do `blocos-2`); na sandbox, o `kill -9` (roteiro na
+   entrega do `refact-baixa`) e a prova do pooler (`SELECT pg_backend_pid()` em duas transações na
+   mesma conexão, dentro do pod); deploy: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA`.
+   Pooler em 17/11: nenhum proxy de banco gerenciado na conta AWS, nenhum pooler no argocd, e o
+   nome do banco de produção aponta direto para o cluster Aurora **[H]**: o host real da aplicação
+   está no Parameter Store.
 2. **Release de 24/11:** TS-5624 no navegador; DBA na TS-5596; na montagem, as três cabeças do
    Alembic e a ordem do checklist em `tasks/13-plan.md`; `/release`.
 3. **Pendências do Pietro:** confirmar com a operação a ordem do arquivo por `id` (D39, decisão 8);
