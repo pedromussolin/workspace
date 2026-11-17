@@ -37,21 +37,36 @@ that command line.
 Credential reads from code are found by the path written in it, or by the home plus a credential
 name (`Path.home() / ... "credentials"`); a path built from pieces that name neither
 (`"~/.c" + "laude/.cred" + "entials.json"`) is an accepted limit.
+A git `-c` or `--config-env` whose key runs a program or redirects git (`RISKY_GIT_KEYS`) asks,
+except a pager or editor set to a harmless value (`BENIGN_PROGRAM_VALUES`) and the gh credential
+helper pair, `-c credential.helper=` and `-c credential.helper='!gh auth git-credential'` (exact
+values, no expansion), that agents use to fetch over HTTPS with the gh login; a push keeps its box.
 The push box runs three local, read-only `git` queries to name the branch (see `_branch_state`).
 With `environment_branches` set, a push to one of them is denied, or asks with a warning in a
 `direct_push_repos` repository (`branches`); the repository name comes from one more local query.
 
-A plain `git push` (or `git push origin main`) shows no box only when all of these hold, in
-`[gate]` of `~/.config/workspace/config.toml`: it is the whole command line (no other command,
-assignment or redirection); the cwd is listed in `push_without_asking`; every
-push URL of `origin` (`git remote get-url --push --all origin`) is listed in `push_remotes`; a
-bare `git push` is not sent to another remote by `branch.*.pushRemote`, `remote.pushDefault` or
-`branch.*.remote`; and the repository's local or worktree config (included files too) sets none
-of the keys that run a program or redirect the push (`LOCAL_RISKY_KEYS`; `core.hooksPath` only
-when it resolves to the repository's own `.githooks`). `.git/config` can
-change outside the gate (the Edit tool is not in its matcher), so these are read from git at each
-push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatch or a failed
-query asks, and the box shows the real push URL and the names (never the values) of the keys.
+A plain `git push` shows no box only when its line has one of two shapes and all the checks below
+hold. Alone: `git push` or `git push origin main` (at most one `-q`) is the whole command line,
+with no other command, assignment or redirection. In a line (`_push_folders`): `git push` with at
+most one `-q`, among only `cd` to a fixed path (`~/` unquoted, absolute, or `./`, `../`),
+`git add`, `git commit`, `git pull` with `LINE_PULL_FLAGS`, read-only commands (`LINE_READERS`,
+`LINE_GIT_READS` without `--output`) and assignments to inert names, joined by `&&`, `;`,
+newlines and pipes into a read-only command; no git global option but `--no-pager`, no
+redirection to a file, substitution, subshell, function, loop or heredoc run by a shell. These
+cannot change the branch, the remote or the config before the push; the hooks and the programs of
+the repository config that `git add` and `git commit` run could, but those already run with no
+box on a lone `git add`. The push's folder is the cwd followed through the `cd`s, and every check
+uses it: it is listed in `push_without_asking` of `[gate]` in `~/.config/workspace/config.toml`;
+every push URL of `origin` (`git remote get-url --push --all origin`) is listed in
+`push_remotes`; a bare `git push` is not sent to another remote by `branch.*.pushRemote`,
+`remote.pushDefault` or `branch.*.remote`; and the repository's local or worktree config
+(included files too) sets none of the keys that run a program or redirect the push
+(`LOCAL_RISKY_KEYS`; `core.hooksPath` only when it resolves to the repository's own `.githooks`).
+`.git/config` can change outside the gate (the Edit tool is not in its matcher), so these are read
+from git at each push, with the repository's `fsmonitor` and hooks off. A missing list, a mismatch
+or a failed query asks, and the box shows the real push URL and the names (never the values) of
+the keys; a line of the second shape that fails a check gets the box of that folder, with its
+branch and the environment-branch policy.
 """
 
 import ast
@@ -192,6 +207,7 @@ BENIGN_PROGRAM_KEYS = re.compile(
     r"^(?:core\.(?:pager|editor)|sequence\.editor|pager\..+|diff\.external)$"
 )
 BENIGN_PROGRAM_VALUES = {"", "cat", "less", "true", ":"}
+GH_CREDENTIAL_HELPERS = {"", "!gh auth git-credential"}
 STORE_VARIABLE = re.compile(r"(?:WS_[A-Za-z0-9_]*|HOME)(?:=|$)")
 STORE_PROGRAMS = {"env", "sudo"}
 PUSH_URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[^/:]+@[^/:]+:|[^/:]{2,}:|/|\.\.?/|~)", re.I)
@@ -202,6 +218,13 @@ LOCAL_RISKY_KEYS = (
 )
 GIT_CONFIG_VARIABLE = re.compile(r"GIT_CONFIG[A-Z0-9_]*=")
 QUIET_FLAGS = ("-q", "--quiet")
+# The line around a no-box push: programs that only read (`rg --pre` and `less` can run others),
+# git verbs that only read (`git grep -O` runs a pager), and how its commands may be joined.
+LINE_READERS = (READ_ONLY | CATCH_ALL_HARMLESS | {"true", "false", "pwd"}) - {"rg", "less"}
+LINE_GIT_READS = {"status", "log", "diff", "show", "blame", "ls-files", "rev-parse"}
+LINE_PULL_FLAGS = {"-q", "--quiet", "--ff-only", "--rebase", "--no-rebase"}
+LINE_SEPARATORS = {"&&", ";", "\n", "", "|", "|&"}
+LIST_ENDS = {";", "\n", ""}
 INJECTING_START = "$`{-"
 BRANCH_QUERY_TIMEOUT = 3.0
 MAX_WORD = 4096
@@ -519,7 +542,7 @@ def _short_url(url: str) -> str:
 
 OWN_REPO_ENVIRONMENT = (
     "ATENÇÃO: branch de ambiente num repo de push_without_asking; "
-    "o push não está sozinho no comando"
+    "o push saiu da forma que passa sem caixa"
 )
 
 
@@ -583,7 +606,8 @@ def _split_git(args: list[Word]) -> tuple[list[Word], int | None]:
 
 
 def _git_overrides(args: list[Word]) -> list[str]:
-    """The `-c` and `--config-env` settings among git's global options, as typed."""
+    """The `-c` and `--config-env` settings among git's global options, as typed, but for the
+    gh credential helper pair (`_gh_credential_helper`)."""
     found: list[str] = []
     index = 0
     while index < len(args) and args[index].text.startswith("-"):
@@ -592,10 +616,23 @@ def _git_overrides(args: list[Word]) -> list[str]:
         if option.startswith("--config-env="):
             found.append(option)
         elif option in GIT_VALUE_OPTIONS and index < len(args):
-            if option in ("-c", "--config-env"):
+            gh_helper = option == "-c" and _gh_credential_helper(args[index])
+            if option in ("-c", "--config-env") and not gh_helper:
                 found.append(f"{option} {args[index].text}")
             index += 1
     return found
+
+
+def _gh_credential_helper(setting: Word) -> bool:
+    """A `-c credential.helper=` that clears the helpers or names gh's own, as agents do to fetch
+    a repository over HTTPS with the gh login (decided with the user on 2026-11-03).
+
+    The key is compared as git reads it (case-insensitive) and the value must be exactly one of
+    `GH_CREDENTIAL_HELPERS`; another value, another key or an expansion stays risky.
+    """
+    key, equals, value = setting.text.partition("=")
+    exact = bool(equals) and value in GH_CREDENTIAL_HELPERS
+    return exact and not setting.expands and key.lower() == "credential.helper"
 
 
 def _override_key(override: str) -> str:
@@ -848,7 +885,9 @@ def _push(
     destination: tuple[list[str], str | None] | None = None,
     warnings: list[str] | None = None,
     elsewhere: list[str] | None = None,
+    entered: bool = False,
 ) -> Finding:
+    """The push box. `entered`: the line's `cd`s took the push from the cwd to `cwd`."""
     parsed = parse_flags(rest, PUSH_VALUE_FLAGS)
     specs = list(parsed.positionals)
     given = parsed.value("--repo")
@@ -874,8 +913,8 @@ def _push(
             rules, parsed, specs, remote_word, folder if readable else None, state, deadline
         )
     if denied and readable and _listed_for_push(folder):
-        # The user's own repo (push_without_asking) pushes to its main without asking when the
-        # push is alone on the line; in a longer line it asks instead of being denied.
+        # The user's own repo (push_without_asking) pushes to its main without asking in the
+        # no-box shape; out of it, it asks instead of being denied.
         environment, denied = [OWN_REPO_ENVIRONMENT], ""
     if denied:
         return Finding(TITLE_PUSH, (), denial=denied)
@@ -895,7 +934,7 @@ def _push(
     extra = [name for name, _ in parsed.flags if name in ("--tags", "--all", "--mirror", "--prune")]
     if extra:
         summary += f" ({' '.join(extra)})"
-    if directories or moved:
+    if directories or moved or entered:
         summary += f", pasta {_pretty(folder)}" + (" (o comando muda de pasta)" if moved else "")
     lines = [summary, *environment]
     if destination is not None and destination[1]:
@@ -983,6 +1022,118 @@ def _only_command(scan: Scan, command: Command) -> bool:
     )
 
 
+def _inert_name(name: str) -> bool:
+    """A variable whose assignment changes nothing the push reads: not in the environment, not
+    one the shell treats specially, not a `GIT_*` one."""
+    special = name in variables.SPECIAL or variables.SPECIAL_PREFIX.match(name)
+    return not (name in os.environ or special or name.startswith("GIT_"))
+
+
+def _line_role(command: Command) -> str | None:
+    """What a command may be in the line around a no-box push, or None when it may not be there.
+
+    `push`: `git push` with at most `-q`; `cd`: one argument; `git`: `git add`, `git commit`, or
+    `git pull` with the flags of `LINE_PULL_FLAGS`; `read`: a program of `LINE_READERS` or a git
+    verb of `LINE_GIT_READS` (never `--output`); `assign`: only assignments to inert names. No
+    path, wrapper or prefix assignment before the program, and git takes no global option but
+    `--no-pager`.
+    """
+    texts = [word.text for word in command.words]
+    if not texts:
+        return None
+    if all(shell.ASSIGNMENT.match(text) for text in texts):
+        inert = all(_inert_name(text.partition("=")[0]) for text in texts)
+        return "assign" if inert and not any(word.expands for word in command.words) else None
+    program, args = texts[0], texts[1:]
+    if program == "cd":
+        return "cd" if len(args) == 1 else None
+    if program in LINE_READERS:
+        setting = program == "printf" and any(arg.startswith("-v") for arg in args)
+        return None if setting else "read"
+    if program != "git":
+        return None
+    while args[:1] in (["--no-pager"], ["-P"]):
+        args = args[1:]
+    verb, rest = (args[0], args[1:]) if args else ("", [])
+    if verb == "push":
+        plain = texts[:2] == ["git", "push"] and rest in ([], ["-q"], ["--quiet"])
+        return "push" if plain else None
+    if verb in ("add", "commit") or (verb == "pull" and set(rest) <= LINE_PULL_FLAGS):
+        return "git"
+    if verb in LINE_GIT_READS and not any(arg.startswith("--ou") for arg in rest):
+        return "read"
+    return None
+
+
+def _entered(word: Word) -> str | None:
+    """Where a `cd` argument leads, absolute or relative; None unless it is a fixed path.
+
+    `~` only when unquoted and followed by `/` or nothing; a relative path only with `./` or
+    `../`, since another one may follow `CDPATH`.
+    """
+    text = word.text
+    if word.expands or not text or text.startswith("-") or set(text) & set("*?["):
+        return None
+    if text == "~" or text.startswith("~/"):
+        home = os.environ.get("HOME", "")
+        return home + text[1:] if word.tilde and home.startswith("/") else None
+    if text.startswith("/") or text in (".", "..") or text.startswith(("./", "../")):
+        return text
+    return None
+
+
+def _push_folders(text: str, scan: Scan, cwd: str) -> dict[int, str]:
+    """The folder each `git push` of a no-box line runs in, keyed by `id` of its command.
+
+    The line may hold only the commands `_line_role` accepts, joined by `&&`, `;`, newlines and
+    pipes into a `read` command; no redirection but `2>&1`-like ones, no substitution, subshell,
+    function, loop or heredoc that a shell runs. A `cd` that fails ends its `&&` list, so a push
+    after it in the same list runs only where every `cd` before it led, while a later list may
+    start in any folder the earlier ones could leave; a push with more than one possible folder,
+    or in a folder relative to an unknown cwd, is out. Empty for any other line.
+    """
+    if scan.unparsed or scan.scripts or scan.overrun:
+        return {}
+    kept, heredocs = shell.split_heredocs(text)
+    try:
+        top = shell.parse_commands(kept)
+    except ValueError:
+        return {}
+    if len(top) != len(scan.commands):
+        return {}
+    for heredoc in heredocs:
+        owner = heredoc.owner
+        if owner is None or owner in shell.RUNS_ITS_INPUT or shell.PYTHON.fullmatch(owner):
+            return {}
+    found: dict[int, str] = {}
+    current = {os.path.normpath(cwd) if cwd else ""}
+    possible = set(current)
+    for command in scan.commands:
+        role = _line_role(command)
+        if role is None or command.separator not in LINE_SEPARATORS:
+            return {}
+        if command.writes or command.reads or command.inner or command.here_string is not None:
+            return {}
+        if any(word.bare for word in command.words) or (command.piped and role != "read"):
+            return {}
+        if role == "cd":
+            target = _entered(command.words[1])
+            if target is None or command.piped or command.separator in ("|", "|&"):
+                return {}
+            current = {
+                os.path.normpath(os.path.join(folder, target)) if folder or target[0] == "/" else ""
+                for folder in current
+            }
+            possible |= current
+        elif role == "push":
+            if len(current) != 1 or "" in current:
+                return {}
+            found[id(command)] = next(iter(current))
+        if command.separator in LIST_ENDS:
+            current = set(possible)
+    return found
+
+
 def _could_become_remote_key(word: Word) -> bool:
     """A config key with an expansion whose literal start leaves a push-destination key possible."""
     if not word.expands:
@@ -1002,7 +1153,9 @@ def _git_config_in_environment(scan: Scan) -> list[str]:
     ]
 
 
-def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Finding]:
+def _git(
+    command: Command, args: list[Word], cwd: str, scan: Scan, pushes: dict[int, str]
+) -> list[Finding]:
     overrides = _risky_overrides(_git_overrides(args)) + _git_config_in_environment(scan)
     found = []
     _, verb_index = _split_git(args)
@@ -1016,11 +1169,16 @@ def _git(command: Command, args: list[Word], cwd: str, scan: Scan) -> list[Findi
                 alert=True,
             )
         )
-    return found + _git_verb(command, args, cwd, scan, overrides)
+    return found + _git_verb(command, args, cwd, scan, overrides, pushes)
 
 
 def _git_verb(
-    command: Command, args: list[Word], cwd: str, scan: Scan, overrides: list[str]
+    command: Command,
+    args: list[Word],
+    cwd: str,
+    scan: Scan,
+    overrides: list[str],
+    pushes: dict[int, str],
 ) -> list[Finding]:
     texts = [word.text for word in command.words]
     directories, verb_index = _split_git(args)
@@ -1032,15 +1190,16 @@ def _git_verb(
     if verb.startswith("credential"):
         return [_git_credential(texts, verb)]
     if verb == "push":
-        plain = _is_plain_push(texts) and not overrides and not _changes_directory(scan)
-        plain = plain and _only_command(scan, command)
+        alone = _is_plain_push(texts) and not _changes_directory(scan)
+        alone = alone and _only_command(scan, command)
+        folder = cwd if alone else pushes.get(id(command))
         destination = None
         warnings: list[str] = []
-        if plain and _listed_for_push(cwd):
+        if folder is not None and not overrides and _listed_for_push(folder):
             bare = not any(word.text == "origin" for word in rest)
-            destination = _push_destination(cwd, bare)
+            destination = _push_destination(folder, bare)
             allowed = _allowed_push_remotes()
-            keys = _local_risky_keys(cwd)
+            keys = _local_risky_keys(folder)
             if keys is None:
                 warnings = ["ATENÇÃO: não consegui ler a configuração local do repositório"]
             else:
@@ -1055,6 +1214,10 @@ def _git_verb(
                 and not warnings
             ):
                 return []
+        if folder is not None and not alone:
+            entered = folder != os.path.normpath(cwd)
+            found = _push(rest, [], folder, False, overrides, destination, warnings, [], entered)
+            return [found]
         elsewhere = _other_repository(command, args, scan)
         moved = _runs_cd(scan)
         found = _push(rest, directories, cwd, moved, overrides, destination, warnings, elsewhere)
@@ -1757,11 +1920,12 @@ def _python_program_findings(
     module = word.text if program.kind == "module" and word is not None else ""
     found = []
     if module in WS_MODULES:
-        found += _invocation(command, "ws", list(program.args), cwd, scan)
+        found += _invocation(command, "ws", list(program.args), cwd, scan, {})
     elif module.startswith("ws."):
         if module.count(".") > 1:
             return [_unsure(texts, "Módulo do ws chamado direto; não sei o que será feito")]
-        found += _invocation(command, "ws", [Word(module.split(".")[1]), *program.args], cwd, scan)
+        ws_args = [Word(module.split(".")[1]), *program.args]
+        found += _invocation(command, "ws", ws_args, cwd, scan, {})
     elif _mentions_ws(program, scan):
         found += _ws(command, list(program.args), scan)
     return found + _program_arguments(command, program, cwd, scan)
@@ -1795,7 +1959,7 @@ def _reads_unseen_commands(command: Command, name: str, args: list[Word]) -> str
 
 
 def _invocation(
-    command: Command, name: str, args: list[Word], cwd: str, scan: Scan
+    command: Command, name: str, args: list[Word], cwd: str, scan: Scan, pushes: dict[int, str]
 ) -> list[Finding]:
     texts = [word.text for word in command.words]
     if reason := _reads_unseen_commands(command, name, args):
@@ -1807,7 +1971,7 @@ def _invocation(
     if name in ("curl", "wget", "ws") and any(word.bare for word in args):
         return [_unsure(texts, "Tem $, crase ou chaves fora de aspas")]
     if name == "git":
-        return _git(command, args, cwd, scan)
+        return _git(command, args, cwd, scan, pushes)
     if name == "gh":
         return _gh(command, args, cwd)
     if name == "ws":
@@ -2557,6 +2721,7 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
     scan.depth = depth
     findings = _wait_loops(scan)
     folders = ([cwd] if cwd else []) + _entered_folders(scan)
+    pushes = _push_folders(command, scan, cwd)
     for each in scan.commands:
         findings += _protection(each)
         findings += _credentials(each, folders)
@@ -2565,7 +2730,7 @@ def _text_findings(command: str, cwd: str, depth: int = 0) -> list[Finding]:
         findings += _wrapper_script_by_expansion(each)
         for name, args in shell.invocations(each):
             findings += _matches_itself(name, args, command)
-            findings += _invocation(each, name, args, cwd, scan)
+            findings += _invocation(each, name, args, cwd, scan, pushes)
     findings += _after_entering_protection(scan)
     findings += _script_findings(scan, cwd, depth)
     if scan.overrun:

@@ -14,8 +14,9 @@ newlines) and each one is checked as a token sequence, so `grep -- --no-verify` 
 `echo "git commit --no-verify"` pass. Command substitutions, `bash -c` and `eval` are scanned
 too, and so are a heredoc body or a here-string that a shell, `eval`, `source` or `.` runs. Any
 other body is data (a commit message in `git commit -F- <<'EOF'`), unless it is unquoted: then
-its `$(...)` is scanned. A command that cannot be parsed is blocked only if its text mentions
-`--no-verify` or `hooksPath`.
+its `$(...)` is scanned. A `$'...'` word is decoded as bash decodes it before the split (see
+`shell.simple_commands`), so `git $'\\x63ommit' -n` and `$'--no-veri\\x66y'` are seen. A command
+that cannot be parsed is blocked only if its text mentions `--no-verify` or `hooksPath`.
 
 Exit 2 blocks the tool call and sends stderr back to Claude. Any internal error also exits 2,
 because Claude Code treats other non-zero codes as non-blocking and the gate would fail open; so

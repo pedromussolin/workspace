@@ -287,7 +287,9 @@ class _Layout:
         if match is None:
             raise _GiveUp
         raw = match.group(2)
-        tag = shell.TAG_QUOTING.sub(lambda m: m.group(1) or m.group(2) or m.group(3) or "", raw)
+        tag = shell.heredoc_tag(raw)
+        if tag is None:
+            raise _GiveUp
         self.pending.append((tag, tag != raw, bool(match.group(1))))
         return match.end()
 
@@ -377,7 +379,7 @@ class _Layout:
             return self.program(index + 2, level + 1) + 1
         if following == "{":
             try:
-                end = shell._skip_group(text, index + 1, "{", "}")
+                end = shell._skip_group(text, index + 1, "{", "}", quoted=quoted)
             except ValueError:
                 raise _GiveUp from None
             inner = text[index + 2 : end - 1]

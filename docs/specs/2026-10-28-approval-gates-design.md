@@ -122,7 +122,7 @@ are scanned. The body of a quoted heredoc (`<<'EOF'`) is data unless its command
 
 | Family | Rule | Box |
 |---|---|---|
-| `git push` | asks, except a plain `git push` / `git push origin main` whose `cwd` is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml`, every push URL of `origin` is in `[gate] push_remotes`, and the repo's local config sets no key that runs a program or redirects the push | repo folder, remote, refspec, `--force` called out |
+| `git push` | asks, except a plain `git push` / `git push origin main` alone on the line, or a bare `git push` (at most `-q`) in a line that only does `cd` to a fixed path, `git add`, `git commit`, `git pull` (`-q`, `--ff-only`, `--rebase`, `--no-rebase`) and read-only commands, joined by `&&`, `;`, newlines and pipes into read-only programs (decided with the user on 2026-11-03); in both, the push's folder (the `cwd` followed through the `cd`s) is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml`, every push URL of `origin` is in `[gate] push_remotes`, and the repo's local config sets no key that runs a program or redirects the push | repo folder, remote, refspec, `--force` called out |
 | `gh` | a read list passes (`pr view/list/diff/checks/status`, `issue view/list/status`, `repo view/list/clone`, `run view/list/watch`, `release view/list/download`, `search`, `auth status`, `api` with GET and no fields); everything else asks | subcommand, repo, the key flags (base, head, title, body summary) |
 | `curl`, `wget` | asks when the method is not GET/HEAD or the command sends data (`-d`, `--data*`, `-F`, `--form`, `-T`, `--upload-file`, `--json`, `--post-*`) | method, host and path, "com dados" |
 | `ws card apply` | always asks, in every form the old hook caught (wrappers, `uv run`, `python -m ws`, absolute path) | the summary lines of the pending record |
@@ -226,7 +226,8 @@ in phase 3, when the keys leave the model's reach:
 
 - a script file the command runs, `xargs`, `find -exec`, `ssh`, a double fork reparented to init
   (it escapes the card's agent-ancestor walk), and code that builds a name at run time (Python string
-  concatenation of a credential path, `$'...'` ANSI-C quoting, a git config key held in a variable);
+  concatenation of a credential path, a git config key held in a variable); `$'...'` ANSI-C quoting
+  is decoded as bash does since 2026-11-03;
 - in the hook-bypass gate: commands piped into a shell (`cat <<EOF | bash`) and `GIT_CONFIG_GLOBAL`
   pointing at another file;
 - a quoted word over 4 KB with spaces in it is parsed normally (the 4 KB guard splits on spaces);

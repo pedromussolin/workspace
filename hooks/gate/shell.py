@@ -8,6 +8,14 @@ expansion, where each redirect points, and what feeds a command. It is heredoc-a
 a quoted heredoc (`<<'EOF'`, `<<"EOF"`, `<<\\EOF`) is data, unless the command that owns it is a
 shell, `eval`, `source` or `.`, and then the body is scanned as commands; the body of an
 unquoted heredoc is expanded by the shell, so its `$(...)` and backticks are scanned.
+
+Both read `$'...'` (ANSI-C quoting) as bash does: outside double quotes it is a quoted span where
+a backslash escapes any character (`$'\\''` is one quote), and its escapes are decoded
+(`$'\\x63url'` is `curl`); `shlex` does not know it, so `simple_commands` first rewrites each one
+as the equivalent single-quoted word. Inside double quotes it is plain text, and inside a
+double-quoted `${...}` bash reads it in a way of its own, so there it is unreadable. `$"..."`
+(locale translation) is read as a double-quoted string that expands, since a message catalog
+could change its text, and a heredoc delimiter written with it is not looked for.
 """
 
 import posixpath
@@ -33,6 +41,99 @@ TIMEOUT_DURATION = re.compile(r"(\d+(?:\.\d*)?|\.\d+)[smhd]?")
 DETACHING = {"nohup", "setsid"}
 HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PYTHON = re.compile(r"python[0-9.]*")
+ANSI_ESCAPES = {
+    "a": "\a",
+    "b": "\b",
+    "e": "\x1b",
+    "E": "\x1b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "\\": "\\",
+    "'": "'",
+    '"': '"',
+    "?": "?",
+}
+ANSI_HEX_DIGITS = {"x": 2, "u": 4, "U": 8}
+OCTAL = re.compile(r"[0-7]{1,3}")
+HEX = re.compile(r"[0-9A-Fa-f]+")
+BACKTICK_ESCAPE = re.compile(r"\\([$`\\])")
+
+
+def ansi_c_end(text: str, start: int) -> int:
+    """Index just past the `$'...'` whose `$` is at `start`; a backslash escapes any character."""
+    index = start + 2
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+        elif text[index] == "'":
+            return index + 1
+        else:
+            index += 1
+    raise ValueError("unterminated quote")
+
+
+def ansi_c(body: str) -> str:
+    """The text bash makes of the inside of `$'...'`: its escapes decoded, cut at a NUL."""
+    out: list[str] = []
+    index = 0
+    while index < len(body):
+        char = body[index]
+        following = body[index + 1 : index + 2]
+        if char != "\\" or not following:
+            out.append(char)
+            index += 1
+            continue
+        index += 2
+        if following in ANSI_ESCAPES:
+            out.append(ANSI_ESCAPES[following])
+        elif following in "01234567":
+            digits = OCTAL.match(body, index - 1).group()
+            out.append(chr(int(digits, 8) & 0xFF))
+            index += len(digits) - 1
+        elif following in ANSI_HEX_DIGITS:
+            found = HEX.match(body[index : index + ANSI_HEX_DIGITS[following]])
+            if found is None:
+                out.append("\\" + following)
+            else:
+                out.append(chr(min(int(found.group(), 16), 0x10FFFF)))
+                index += found.end()
+        elif following == "c" and index < len(body):
+            out.append(chr(ord(body[index]) & 0x1F))
+            index += 1
+        else:
+            out.append("\\" + following)
+    return "".join(out).partition("\0")[0]
+
+
+def _single_quoted_ansi(text: str) -> str:
+    """`text` with each `$'...'` the shell decodes written as the same word in single quotes."""
+    out: list[str] = []
+    single = double = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if single:
+            single = char != "'"
+        elif char == "\\":
+            out.append(text[index : index + 2])
+            index += 2
+            continue
+        elif char == '"':
+            double = not double
+        elif char == "'" and not double:
+            single = True
+        elif not double and text.startswith("$'", index):
+            end = ansi_c_end(text, index)
+            decoded = ansi_c(text[index + 2 : end - 1])
+            out.append("'" + decoded.replace("'", "'\"'\"'") + "'")
+            index = end
+            continue
+        out.append(char)
+        index += 1
+    return "".join(out)
 
 
 @dataclass(frozen=True)
@@ -105,6 +206,9 @@ def strip_heredocs(text: str) -> str:
 
 
 def simple_commands(text: str) -> list[list[str]]:
+    """The words of each simple command; raises ValueError on bad quoting."""
+    if "$'" in text:
+        text = _single_quoted_ansi(text)
     lexer = shlex.shlex(text.replace("\\\n", " "), posix=True, punctuation_chars=OPERATOR_CHARS)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -130,7 +234,9 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
     caller's recursion exponential in the nesting depth. Single-quoted text is literal, so a
     commit message in single quotes that cites a command in backticks is not a substitution. With
     `quoting` off, quotes mean nothing (the body of an unquoted heredoc is expanded whatever quotes
-    it holds) outside the substitution; inside it, the shell parses quotes as usual.
+    it holds) outside the substitution; inside it, the shell parses quotes as usual. A backtick
+    ends at the first one not escaped, and inside it a backslash before `$`, a backtick or a
+    backslash is dropped, as bash does, so a nested `` \\`...\\` `` is scanned in its turn.
     """
     found = []
     single = double = False
@@ -141,6 +247,12 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
             single = char != "'"
         elif char == "\\":
             index += 1
+        elif quoting and not double and text.startswith("$'", index):
+            try:
+                index = ansi_c_end(text, index)
+            except ValueError:
+                index = len(text)
+            continue
         elif char == '"' and quoting:
             double = not double
         elif char == "'" and not double and quoting:
@@ -155,10 +267,14 @@ def substitutions(text: str, quoting: bool = True) -> list[str]:
             index = end
             continue
         elif char == "`":
-            end = text.find("`", index + 1)
-            found.append(text[index + 1 : end if end != -1 else len(text)])
-            if end != -1:
-                index = end
+            try:
+                end = _skip_backtick(text, index)
+                inner = text[index + 1 : end - 1]
+            except ValueError:
+                end, inner = len(text), text[index + 1 :]
+            found.append(BACKTICK_ESCAPE.sub(r"\1", inner))
+            index = end
+            continue
         index += 1
     return found
 
@@ -304,12 +420,14 @@ class Word:
     """One argument with its quotes removed.
 
     `bare`: it holds a `$`, a backtick or a brace expansion outside every quote. `expands`: the
-    same, but a `$` or backtick inside double quotes counts too (single quotes never do).
+    same, but a `$` or backtick inside double quotes counts too (single quotes never do). `tilde`:
+    it starts with an unquoted `~`, which the shell expands (`"~/x"` is a folder named `~`).
     """
 
     text: str
     bare: bool = False
     expands: bool = False
+    tilde: bool = False
 
 
 def script_word(args: list[Word]) -> Word | None:
@@ -624,7 +742,9 @@ def inspect_variable(commands: list["Command"]) -> bool:
 
 @dataclass
 class Command:
-    """`background`: an `&` sends it (or the pipeline or group it ends) to the background."""
+    """One simple command. `piped`: a pipe feeds it. `separator`: the operator that ends it
+    (`&&`, `;`, `|`...), `"\\n"` for a newline and `""` at the end of the text. `background`: an
+    `&` sends it (or the pipeline or group it ends) to the background."""
 
     words: list[Word] = field(default_factory=list)
     writes: list[str] = field(default_factory=list)
@@ -634,6 +754,7 @@ class Command:
     here_string_expands: bool = False
     inner: list[str] = field(default_factory=list)
     background: bool = False
+    separator: str = ""
 
     @property
     def reads_file(self) -> bool:
@@ -676,8 +797,10 @@ class Scan:
     depth: int = 0
 
 
-HEREDOC_TAG = re.compile(r"""(-?)[ \t]*((?:'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)""")
-TAG_QUOTING = re.compile(r"""'([^']*)'|"([^"]*)"|\\(.)""")
+HEREDOC_TAG = re.compile(
+    r"""(-?)[ \t]*((?:\$'(?:[^'\\\n]|\\.)*'|'[^'\n]*'|"[^"\n]*"|\\.|[^\s;&|<>()'"\\])+)"""
+)
+TAG_QUOTING = re.compile(r"""\$'((?:[^'\\]|\\.)*)'|'([^']*)'|"([^"]*)"|\\(.)""")
 BRACE_EXPANSION = re.compile(r"\{[^{}]*?(?:,|\.\.)[^{}]*?\}")
 OPERATORS = sorted(
     ["&>>", "<<<", "<<-", "&&", "||", ";;", "|&", "&>", "<<", ">>", ">|", ">&", "<&", "<>"]
@@ -695,9 +818,32 @@ def program_name(word: str) -> str:
 
 
 def _owner(prefix: str) -> str | None:
-    words = prefix.split()
+    """The program of the command a heredoc feeds, its words read with quote removal
+    (`\\bash`, `b"ash"` and `$'bash'` are `bash`); a prefix that cannot be read counts as a
+    shell, so the body is read as commands."""
+    try:
+        commands = parse_commands(prefix)
+    except ValueError:
+        return "sh"
+    words = [word.text for word in commands[-1].words] if commands else []
     index = locate_program(words)
-    return None if index is None else program_name(words[index].strip("'\""))
+    return None if index is None else program_name(words[index])
+
+
+def heredoc_tag(raw: str) -> str | None:
+    """The delimiter a heredoc word stands for, after quote removal as bash does it.
+
+    None for a word with `$"..."`, which a message catalog could translate.
+    """
+    if '$"' in raw:
+        return None
+
+    def unquote(match: re.Match[str]) -> str:
+        if match.group(1) is not None:
+            return ansi_c(match.group(1))
+        return match.group(2) or match.group(3) or match.group(4) or ""
+
+    return TAG_QUOTING.sub(unquote, raw)
 
 
 def _heredoc_body(text: str, start: int, tag: str) -> tuple[str, int] | None:
@@ -719,7 +865,8 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
 
     A quote state machine keeps `<<` inside quotes literal, yet live inside a `$(...)` that sits
     in double quotes (the usual `git commit -m "$(cat <<'EOF' ...)"`). A heredoc with no
-    delimiter line is left in place, so its lines are read as commands.
+    delimiter line, or whose delimiter cannot be known, is left in place, so its lines are read
+    as commands.
     """
     kept: list[str] = []
     found: list[Heredoc] = []
@@ -730,6 +877,13 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
     while index < size:
         char, context = text[index], stack[-1]
         if context == "sq":
+            if char == "'":
+                stack.pop()
+        elif context == "ansi":
+            if char == "\\":
+                kept.append(text[index : index + 2])
+                index += 2
+                continue
             if char == "'":
                 stack.pop()
         elif char == "\\":
@@ -747,6 +901,11 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
                 continue
             elif char == "`":
                 stack.append("bt")
+        elif text.startswith("$'", index):
+            stack.append("ansi")
+            kept.append("$'")
+            index += 2
+            continue
         elif char == "'":
             stack.append("sq")
         elif char == '"':
@@ -792,10 +951,11 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
             match = HEREDOC_TAG.match(text, index + 2) if text[index - 1 : index] != "<" else None
             if match:
                 raw = match.group(2)
-                tag = TAG_QUOTING.sub(lambda m: m.group(1) or m.group(2) or m.group(3) or "", raw)
-                prefix = text[segment:index]
-                timed = runs_under_timeout([word.strip("'\"") for word in prefix.split()])
-                pending.append((tag, tag != raw, _owner(prefix), timed))
+                tag = heredoc_tag(raw)
+                if tag is not None:
+                    prefix = text[segment:index]
+                    timed = runs_under_timeout([word.strip("'\"") for word in prefix.split()])
+                    pending.append((tag, tag != raw, _owner(prefix), timed))
                 kept.append(text[index : match.end()])
                 index = match.end()
                 continue
@@ -804,14 +964,22 @@ def split_heredocs(text: str) -> tuple[str, list[Heredoc]]:
     return "".join(kept), found
 
 
-def _skip_group(text: str, start: int, opener: str, closer: str) -> int:
-    """Index just past the group whose opener is at `start`; quotes inside do not count."""
+def _skip_group(text: str, start: int, opener: str, closer: str, quoted: bool = False) -> int:
+    """Index just past the group whose opener is at `start`; quotes inside do not count.
+
+    `quoted`: a `${...}` inside double quotes, where bash reads `$'...'` in a way of its own.
+    """
     depth = 0
     index = start
     while index < len(text):
         char = text[index]
         if char == "\\":
             index += 2
+            continue
+        if text.startswith("$'", index):
+            if quoted:
+                raise ValueError("ANSI-C quote inside a double-quoted expansion")
+            index = ansi_c_end(text, index)
             continue
         if char == "'":
             end = text.find("'", index + 1)
@@ -858,7 +1026,7 @@ def _skip_double(text: str, start: int) -> int:
         elif text.startswith("$(", index):
             index = _skip_group(text, index + 1, "(", ")")
         elif text.startswith("${", index):
-            index = _skip_group(text, index + 1, "{", "}")
+            index = _skip_group(text, index + 1, "{", "}", quoted=True)
         elif char == "`":
             index = _skip_backtick(text, index)
         else:
@@ -885,7 +1053,8 @@ def _read_double(text: str, start: int) -> tuple[str, bool, int]:
             index += 2
         elif text.startswith("$(", index) or text.startswith("${", index):
             opener = text[index + 1]
-            stop = _skip_group(text, index + 1, opener, ")" if opener == "(" else "}")
+            closer = ")" if opener == "(" else "}"
+            stop = _skip_group(text, index + 1, opener, closer, quoted=opener == "{")
             value.append(text[index:stop])
             expands = True
             index = stop
@@ -931,6 +1100,11 @@ def _read_word(text: str, start: int) -> tuple[Word, int]:
             bare.append("$")
             bare_expansion = expands = True
             index = end
+        elif text.startswith("$'", index):
+            end = ansi_c_end(text, index)
+            value.append(ansi_c(text[index + 2 : end - 1]))
+            bare.append("\0")
+            index = end
         elif char == "$":
             bare_expansion = expands = True
             end = index + 1
@@ -945,7 +1119,8 @@ def _read_word(text: str, start: int) -> tuple[Word, int]:
             bare.append(char)
             index += 1
     brace = bool(BRACE_EXPANSION.search("".join(bare)))
-    return Word("".join(value), bare_expansion or brace, expands or brace), index
+    tilde = bare[:1] == ["~"]
+    return Word("".join(value), bare_expansion or brace, expands or brace, tilde), index
 
 
 def _to_background(commands: list[Command], current: Command) -> None:
@@ -965,9 +1140,10 @@ def parse_commands(text: str) -> list[Command]:
     redirect: str | None = None
     index, size = 0, len(text)
 
-    def finish(next_piped: bool = False) -> None:
+    def finish(next_piped: bool = False, separator: str = "") -> None:
         nonlocal current, redirect
         if current.words or current.writes or current.here_string is not None:
+            current.separator = separator
             commands.append(current)
         current = Command(piped=next_piped)
         redirect = None
@@ -979,7 +1155,7 @@ def parse_commands(text: str) -> list[Command]:
         elif text.startswith("\\\n", index):
             index += 2
         elif char == "\n":
-            finish()
+            finish(separator="\n")
             index += 1
         elif char == "#":
             end = text.find("\n", index)
@@ -995,7 +1171,7 @@ def parse_commands(text: str) -> list[Command]:
             if operator == "&":
                 _to_background(commands, current)
             if operator in SEPARATORS:
-                finish(operator in ("|", "|&"))
+                finish(operator in ("|", "|&"), operator)
             else:
                 redirect = operator
         else:
