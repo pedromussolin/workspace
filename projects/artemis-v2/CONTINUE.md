@@ -22,8 +22,9 @@ esteira de baixa nova (refact) ao lado da atual, ligada por produto na coluna
 com TTL e dead-letter, sem depender do `consumer_timeout`. D39 decidida; D40: nenhuma administradora
 reenvia sozinha; o padrão do nome do arquivo não muda (as administradoras validam).
 
-**TS-5737 commitada e enviada** (`fix/TS-5737-reentrega-segura-baixa`, 14 commits, worktree
-`ts5737-cessao`; o Pietro revisa na montagem da release). Suíte inteira: 5850
+**TS-5737 commitada e enviada** (`fix/TS-5737-reentrega-segura-baixa`, 17 commits, worktree
+`ts5737-cessao`; o Pietro revisa na montagem da release). Inclui a marca de envio na baixa de
+registro e de cobrança (5891 passed; integração 44 passed) e testes que valem com a release junta. Suíte inteira: 5850
 passed, 0 failed (`run-cessao-tests-master-1112.sh`, que instala a violeta 0.11.18 que a master de
 12/11 pede); integração da esteira refact com Postgres 16 e Redis 7 reais: 30 passed; fila de espera
 com TTL testada num RabbitMQ 3.13 local. Peças: chave e desvio; `refact_baixa.py` (teto, rodadas com
@@ -40,6 +41,16 @@ Entregas e roteiro do `kill -9` em `~/repos/.artemis_v2/agentes/ts5737/`. B27 re
 
 **RabbitMQ de produção:** versão e `consumer_timeout` não conferidos; a conta de desenvolvedor não
 lê o Amazon MQ e o endereço do broker só existe como segredo. O desenho deixou de depender disso.
+
+**Ensaio da montagem (fim do dia):** feito nos quatro repos, em HEAD destacada, sem branch nem
+push; resoluções gravadas pelo `git rerere`; instruções no checklist de `tasks/13-plan.md`. As duas
+quebras que só apareciam com tudo junto foram corrigidas nos cards (TS-5737 `d59b94d86`, TS-5596
+`600f379cc`, ambas enviadas). Worktrees `ensaio-release-*` ficaram para consulta.
+
+**Jira:** 12 cards movidos para Em andamento, com a data de início real (plano ou primeiro commit);
+TS-5537 segue em validação (não foi para produção). TS-5612 ganhou a promoção do refact da baixa e
+os achados (B27, consulta à dayvale, confirmação das administradoras) e saiu da sprint para o
+backlog; o prazo (23/12) o Pietro apaga à mão, porque o `ws` não apaga prazo.
 
 ### 16/11/2026
 
