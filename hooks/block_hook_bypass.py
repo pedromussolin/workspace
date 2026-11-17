@@ -14,8 +14,10 @@ newlines) and each one is checked as a token sequence, so `grep -- --no-verify` 
 `echo "git commit --no-verify"` pass. Command substitutions, `bash -c` and `eval` are scanned
 too, and so are a heredoc body or a here-string that a shell, `eval`, `source` or `.` runs. Any
 other body is data (a commit message in `git commit -F- <<'EOF'`), unless it is unquoted: then
-its `$(...)` is scanned. A command that cannot be parsed is blocked only if its text mentions
-`--no-verify` or `hooksPath`.
+its `$(...)` is scanned. A `$'...'` word is decoded as bash decodes it before the split (see
+`shell.simple_commands`), so `git $'\\x63ommit' -n` and `$'--no-veri\\x66y'` are seen. A command
+that cannot be parsed is blocked only if its text mentions `--no-verify` or `hooksPath`, as
+written or with its quotes dropped and its `$'...'` escapes decoded (`shell.plain_forms`).
 
 Exit 2 blocks the tool call and sends stderr back to Claude. Any internal error also exits 2,
 because Claude Code treats other non-zero codes as non-blocking and the gate would fail open; so
@@ -252,6 +254,12 @@ def _check_heredoc(heredoc: "shell.Heredoc") -> str | None:
     return None
 
 
+def _mentions_bypass(text: str) -> bool:
+    """Whether a text that cannot be parsed names `--no-verify` or `hooksPath`, also hidden by
+    quotes, backslashes or `$'...'` escapes."""
+    return any(UNPARSEABLE_BYPASS.search(form) for form in (text, *shell.plain_forms(text)))
+
+
 def _check_here_strings(text: str) -> str | None:
     """A here-string (`<<<`) is data, unless a shell, `eval`, `source` or `.` runs it."""
     if "<<<" not in text:
@@ -259,7 +267,7 @@ def _check_here_strings(text: str) -> str | None:
     try:
         commands = shell.parse_commands(text)
     except ValueError:
-        if UNPARSEABLE_BYPASS.search(text):
+        if _mentions_bypass(text):
             return "text that mentions --no-verify or hooksPath and cannot be parsed"
         return None
     for command in commands:
@@ -278,7 +286,7 @@ def _scan(text: str) -> str | None:
     try:
         commands = shell.simple_commands(text)
     except ValueError:
-        if UNPARSEABLE_BYPASS.search(text):
+        if _mentions_bypass(text):
             return "text that mentions --no-verify or hooksPath and cannot be parsed"
         return None
     for reason in (_check_simple(words) for words in commands):
