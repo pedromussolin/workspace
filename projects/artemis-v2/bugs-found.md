@@ -493,6 +493,21 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Por que importa:** o resumo da fila manual e o Excel listariam milhares de lotes vazios; o
   fechamento agendado pode criar mais. Limpar os pendentes antes de ligar o resumo.
 
+## B27 — Esteira de baixa gira sem pausa enquanto o registro não termina
+
+- **Onde [C, código, master `997817017`]:** `EstadoBaixandoRegistro` (`cessao/framework/liquidacao/estados_baixa.py`)
+  devolve a si mesmo enquanto a baixa de registro não termina, e `is_estado_async` é `False`. O laço do
+  `ManagerBaixa` segue girando, com um `COUNT` por volta (`cessao/emissores/registro.py`,
+  `ja_feito_esteira_baixa`), até o registro terminar.
+- **Efeito:** um worker fica ocupado e o banco recebe consultas repetidas durante toda a baixa de registro. Na
+  esteira refact da TS-5737, com `acks_late`, a mensagem fica sem confirmação esse tempo todo; se passar do
+  `consumer_timeout` do RabbitMQ, ela volta e a trava por lote segura a segunda execução.
+- **Alcance:** só produtos com baixa de registro; nos 6 produtos do Mercato Libero o registro é `nao_aplica`.
+- **Como confirmar:** um lote de produto com registro na sandbox, com a chave refact ligada; contar no log do
+  Postgres os `COUNT` de `ja_feito_esteira_baixa` durante a baixa.
+- **Correção proposta:** o estado pausa (`is_estado_async`) e o retorno do registro reenfileira a esteira, como o
+  `liquidando` faz com a administradora. Achado pelo agente da TS-5737 em 17/11; vai para card da próxima sprint.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
