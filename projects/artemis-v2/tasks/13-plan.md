@@ -67,6 +67,24 @@ sprint **e a TS-5737** (decisão de 17/11: tudo sobe de uma vez); o registro for
       da 5582 e com o preâmbulo da 5572; o `schema_produto_config` com a 5624.
 - [ ] Deploy da TS-5737: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA` no Parameter
       Store antes da imagem; a chave nasce desligada e liga produto a produto.
+
+**Ensaio da montagem (17/11, HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
+rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio-release/`):**
+- Cessão (11 merges na ordem acima, a partir da master `997817017`): conflitos nos merges da 5583,
+  5570, 5624 e 5572, todos de imports ou de testes acrescentados no mesmo lugar; nenhum pede
+  decisão. A `esteira_baixar` junta na ordem preâmbulo da 5567 → guarda de vazio da 5582 → desvio
+  da 5737 → `ManagerBaixa`. Alembic: `down_revision` da `5d2e8f1a9c47` (TS-5583) passa de
+  `410aaaf27d06` para `5e1b7c9a3d48` (TS-5737), com a revisão citada no docstring e o teste
+  `test_migration_encadeia_no_head_atual` da 5583; fica uma cabeça só. Suíte inteira verde depois
+  de duas correções já feitas nos cards (teste da 5737, `d59b94d86`; fixture da 5596, `600f379cc`);
+  integrações com Postgres e Redis reais verdes.
+- Shared: sem conflito; `down_revision` da `c4d8a1f65b27` (TS-5585) passa de `b7e1d24c9f30` para a
+  cabeça da master (`c3f81d5a92e7` em 17/11). 803 testes verdes.
+- BFF: um conflito em `src/delivery/api/__init__.py` (`_register_domain_routes`): manter o
+  `mp_reports_router` e o `product_settings_router` da 5624. Testes verdes, salvo os 38 erros de
+  contrato do OCR e dos lastros que já existem na master; ruff e black limpos.
+- Front: sem conflito; build de produção, lint e testes verdes, salvo os 2 testes de layout que já
+  falham na master (precisa da imagem `whitelabel-front-dev`, não há node no host).
 - [ ] `/release`, sandbox, GMUD, deploy na ordem shared → cessão → BFF → front, `deploy-check`.
 
 1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). Só as guardas, com BFF e front
