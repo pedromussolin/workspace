@@ -54,13 +54,19 @@ TS-5585 → TS-5567 (Fase 2, coluna `proc_id`) → TS-5572 (tabela `liquidacao_r
 com migration sai da anterior (empilhada por merge) e a PR entra nessa ordem. TS-5567 Fase 1, TS-5571,
 TS-5596, TS-5568 e TS-5624 não têm migration.
 
-**Release 1 (data provável 24/11), sem card próprio:** a montagem fecha os cards que já estão na
-sprint; o registro formal do deploy é a GMUD.
-- [ ] Antes: TS-5624 no navegador; revisão da DBA na TS-5596; snapshot OpenAPI da TS-5584; horário
-      do job da TS-5585.
-- [ ] Na montagem: `down_revision` da `5d2e8f1a9c47` (cessão, TS-5583) e da `c4d8a1f65b27`
-      (shared, TS-5585) apontando para a cabeça da master no dia; conferir com o Alembic (ver
-      `CONTINUE.md`, 16/11).
+**Release 1 (entrega em 24/11), sem card próprio:** a montagem fecha os cards que já estão na
+sprint **e a TS-5737** (decisão de 17/11: tudo sobe de uma vez); o registro formal do deploy é a GMUD.
+- [ ] Antes: TS-5624 no navegador; revisão da DBA na TS-5596 e no `EXPLAIN` da consulta de ids da
+      TS-5737; snapshot OpenAPI da TS-5584; `kill -9` da TS-5737 na sandbox.
+- [x] Horário do job da TS-5585: 20:00 em dias úteis (17/11; ajustado na branch, sem commit).
+- [ ] Na montagem: `down_revision` da `5d2e8f1a9c47` (cessão, TS-5583), da migration da chave
+      `liquidacao_baixa_refact` (cessão, TS-5737) e da `c4d8a1f65b27` (shared, TS-5585) apontando
+      para a cabeça do dia; conferir com o Alembic (ver `CONTINUE.md`, 16/11).
+- [ ] Ordem de merge na cessão: 5582 → 5737 → 5583 → 5569 → 5570 → 5585 → 5567 → 5624 → 5571 →
+      5572 → 5596. Conflitos previstos da 5737: o desvio na `esteira_baixar` com a guarda de vazio
+      da 5582 e com o preâmbulo da 5572; o `schema_produto_config` com a 5624.
+- [ ] Deploy da TS-5737: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA` no Parameter
+      Store antes da imagem; a chave nasce desligada e liga produto a produto.
 - [ ] `/release`, sandbox, GMUD, deploy na ordem shared → cessão → BFF → front, `deploy-check`.
 
 1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). Só as guardas, com BFF e front

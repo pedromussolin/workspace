@@ -104,13 +104,13 @@ A release é única, então estes também a seguram.
 
 | Card | O quê | Horas | Quem | Depende de | Base |
 |---|---|---|---|---|---|
-| TS-5737 reentrega segura | passos 1 a 5 do plano em `14-phase0-design.md` (guarda por estado, teto e rodadas, trava, marca de envio, flags) e `kill -9` no sandbox | 24 | Pietro | TS-5582 em produção; decisões 1, 4 e 8 (D39); versão e `consumer_timeout` do RabbitMQ | 8 passos com testes descritos; comparado às tarefas 03 e 08 da Artemis |
+| TS-5737 reentrega segura | passos 1 a 5 do plano em `14-phase0-design.md` (guarda por estado, teto e rodadas, trava, marca de envio, flags) na esteira nova com chave por produto (+8 h, 17/11) e `kill -9` no sandbox | 32 | Pietro | TS-5582 em produção; decisões 1, 4 e 8 (D39); versão e `consumer_timeout` do RabbitMQ | 8 passos com testes descritos; comparado às tarefas 03 e 08 da Artemis |
 | TS-5737 arquivo em blocos | passos 6 e 7 (iterador e 7 geradores, um commit por gerador); `EXPLAIN` com a DBA | 20 | Pietro | reentrega | o ML usa arquivo vazio (capitalis); o trecho vale para as outras administradoras |
 | TS-5748 cancelados | a cessão fecha as parcelas restantes do contrato cancelado: desenho (3), código e testes (8), réplica e sandbox (5) | 16 | Pietro | — | card de 13/11 com uma linha de escopo; equivale ao job de cancelamentos incompletos. Confiança baixa |
 | TS-5749 parcelas zeradas | baixa de R$ 0 das parcelas de valor zero, exceto NPL: desenho (4), código (9), validação (5) | 18 | Pietro | TS-5569 em produção | hoje o job lê o Lake; a cessão precisa achar as parcelas no próprio banco [H] e agendar pelo agendador da TS-5569. Confiança baixa |
 | TS-5151 reprocessar pagamentos | rota que reprocessa pagamentos presos em `apto` (hoje apagar e reenviar pelo datawall): análise (3), rota e testes (7), sandbox (4) | 14 | outro dev | — | card em análise, sem escopo escrito. Confiança baixa |
-| — Release 2 | 2a: a TS-5737 sozinha, como o desenho prevê (4); 2b: TS-5748, TS-5749 e TS-5151 (6). Montagem, sandbox, GMUD, deploy e acompanhamento | 10 | Pietro | cards acima | releases menores que a 1 |
-| | **Subtotal** | **102** | | | |
+| — Release 2 | 2b: TS-5748, TS-5749 e TS-5151 (6). A 2a saiu em 17/11: a TS-5737 sobe na release de 24/11 (+4 h da 2a viram a esteira nova com chave por produto, abaixo). Montagem, sandbox, GMUD, deploy e acompanhamento | 6 | Pietro | cards acima | releases menores que a 1 |
+| | **Subtotal** | **106** | | | |
 
 Fora desta conta: TS-5612 (limpeza depois da VM, bloqueada pela TS-5738) e TS-5620 (saída do Atlas,
 não da VM).
@@ -176,7 +176,7 @@ Caminho crítico é a sequência de dependências que define a data mínima de e
 ### Liquidação (TS-5705)
 
 Ordem usada para o Pietro: TS-5565 → pré-produção da release 1 (40,5 h) → deploy → TS-5750 →
-TS-5737 → release 2a → TS-5748 → TS-5749 → release 2b → TS-5751. Depois do deploy, a ligação dos
+TS-5737 → release 1 (com a TS-5737, decisão de 17/11) → TS-5748 → TS-5749 → release 2b → TS-5751. Depois do deploy, a ligação dos
 produtos e as conferências da release 1 ocupam ~2 h/dia por 9 dias úteis (19,5 h). Os desligamentos
 entram quando o bloqueio chega à produção.
 
@@ -187,7 +187,7 @@ entram quando o bloqueio chega à produção.
 | TS-5750 | 26/11 | TS-5624 em produção |
 | 6 produtos do ML ligados | 03/12 | um por dia útil a partir de 26/11 (581, 15, 4, 81, 1406, 80); o 15 depende da TS-5537 |
 | Auditoria do último produto | 08/12 | 3 dias úteis |
-| TS-5737 em produção (release 2a) | 07/12 | TS-5750 (4 h), TS-5737 (44 h) e release 2a (4 h) com 6,8 h/dia livres durante a ligação (8,8 − 2) |
+| TS-5737 em produção | 25/11 | junto da release 1 (decisão de 17/11); a release 2a deixou de existir |
 | TS-5753 | 15/12 | job fora em 08/12 + 5 dias úteis de observação |
 | TS-5738 | 16/12 | job fora em 09/12 (depois da auditoria) + 5 dias úteis de observação |
 | Release 2b (TS-5748, TS-5749, TS-5151) | 14/12 | 40 h depois da 2a |
@@ -245,3 +245,8 @@ GMUD. Os números abaixo são a conta em horas do documento, sem essa calibraç�
 - 13/11/2026: capacidade corrigida (usuário 44 h/semana; outro dev 6 h/dia, estagiário).
 - 13/11/2026: alvo de 24/11 só para a parte do Pietro (TS-5151 passou para ele), definição de
   "pronto" com a VM pausada como plano B e calibração do ritmo; nenhuma estimativa de card mudou.
+- 17/11/2026: a TS-5737 entra na release de 24/11 com os 12 cards (release única; a 2a sai). A
+  esteira de baixa nova fica ao lado da atual, ligada por produto (`decisions.md` da Artemis), com
+  ~8 h a mais na TS-5737. O fim (TS-5738, 16/12) não muda: depende da ligação, da auditoria e da
+  observação. A release 2b pode subir por volta de 04/12. Os totais de "Cabe até 24/11?" não foram
+  recalculados: o Pietro ganha +4 h líquidas (TS-5737 +8 h, release 2 −4 h).

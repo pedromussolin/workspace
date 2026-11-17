@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 16/11/2026
+Data: 17/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,27 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 17/11/2026
+
+**Tudo sobe de uma vez em 24/11.** A TS-5737 entra na release dos 12 cards; a release 2a deixou de
+existir (`decisions.md`; `estimate.md` e o checklist de `tasks/13-plan.md` atualizados).
+
+**TS-5737 redesenhada e aprovada** (revisão de 17/11 no topo de `tasks/14-phase0-design.md`):
+esteira de baixa nova (refact) ao lado da atual, ligada por produto na coluna
+`produto_config.liquidacao_baixa_refact` (desligada por padrão, `PATCH /produto/<id>/`); código em
+`cessao/framework/liquidacao/refact_baixa.py`, no padrão do `refact.py`; rodadas por fila de espera
+com TTL e dead-letter, sem depender do `consumer_timeout`. D39 decidida; D40: nenhuma administradora
+reenvia sozinha; o padrão do nome do arquivo não muda (as administradoras validam).
+
+**Em execução (agentes, sem commit):** worktrees `ts5737-cessao` (agentes `chave-desvio` e
+`refact-baixa`) e `ts5737-blocos` (`blocos-1`: modelo, dayvale, fydd e genius). Falta um agente para
+CNAB 444, adm. V, bgt e adm. Q. Brief e entregas em `~/repos/.artemis_v2/agentes/ts5737/`.
+
+**TS-5585:** job do resumo às 20:00 em dias úteis, na branch, **sem commit** (126 testes ok).
+
+**RabbitMQ de produção:** versão e `consumer_timeout` não conferidos; a conta de desenvolvedor não
+lê o Amazon MQ e o endereço do broker só existe como segredo. O desenho deixou de depender disso.
 
 ### 16/11/2026
 
@@ -249,14 +270,18 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Release 1 (data provável 24/11):** na montagem, acertar as duas cabeças do Alembic (ver 16/11)
-   e montar com `/release`.
-2. **Decisões do Pietro:** desenho do upload no shared ((a) fluxos do `report_transfer` ou (b)
-   módulo simples); trava do duplo clique (TS-5620); decisões 1, 4 e 8 da Fase 0 da tarefa 14.
-3. **TS-5620:** revisão e commits do liquidar (`ts5620-cessao`, `ts5620-bff`, `ts5620-front`);
-   depois da aprovação, upload no shared, BFF e front; data do lote.
-4. **Antes da release:** TS-5624 no navegador, revisão da DBA na TS-5596, snapshot OpenAPI da
-   TS-5584, horário do job da TS-5585.
-5. **Tarefa 14:** conferir versão e `consumer_timeout` do RabbitMQ de produção.
+1. **TS-5737:** revisar as entregas dos agentes (`chave-desvio`, `refact-baixa`, `blocos-1`),
+   disparar o agente dos geradores restantes (CNAB 444, adm. V, bgt, adm. Q), juntar `ts5737-blocos` em
+   `ts5737-cessao`, revisão do Pietro e commits; `EXPLAIN` da consulta de ids com a DBA; `kill -9`
+   na sandbox.
+2. **Release de 24/11:** commit do horário da TS-5585; TS-5624 no navegador; DBA na TS-5596;
+   snapshot OpenAPI da TS-5584; na montagem, as três cabeças do Alembic e a ordem do checklist em
+   `tasks/13-plan.md`; `/release`.
+3. **Pendências do Pietro:** confirmar com a operação a ordem do arquivo por `id` (D39, decisão 8);
+   desenho do upload no shared (D37) e trava do duplo clique (D38) da TS-5620; plano depois de
+   24/11 (`estimate.md` da vm-migration).
+4. **TS-5620:** revisão e commits do liquidar (`ts5620-cessao`, `ts5620-bff`, `ts5620-front`).
+5. **Próxima sprint (card a criar):** consulta antes de reenviar na dayvale e confirmação com fydd,
+   genius, adm. Q, adm. V, bgt e adm. B de como tratam arquivo repetido.
 6. **Antigas, sem data:** `viva-production`, S1 a S14 de `tasks/02-03-sandbox-tests.md`, tradução
    do `refact.py`, TS-5537 (B18).
