@@ -149,7 +149,7 @@ def test_collect_worktrees_with_their_state(world, git, tmp_path):
     found = world.only("alpha")
 
     [entry] = found["worktrees"]
-    assert entry["path"] == str(tree)
+    assert entry["path"] == handoff._tilde(tree)
     assert entry["branch"] == "feature/TS-2-y"
     assert entry["head"] == git(tree, "rev-parse", "--short", "HEAD").stdout.strip()
     assert entry["uncommitted"] == 1

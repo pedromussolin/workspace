@@ -206,7 +206,7 @@ def test_pointer_and_find_handoffs_agree(env):
         now=datetime.fromtimestamp(now, UTC),
     )
 
-    assert [str(path) for path, _, _ in pointed] == [item["path"] for item in found]
+    assert [handoff._tilde(path) for path, _, _ in pointed] == [item["path"] for item in found]
     assert [title for _, _, title in pointed] == [item["title"] for item in found]
     assert len(pointed) == 3
 
