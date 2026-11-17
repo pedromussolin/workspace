@@ -66,6 +66,11 @@ def test_last_n_days_and_last_n_workdays():
     assert (sunday.since.isoformat(), sunday.workdays) == ("2026-10-29", 2)
 
 
+def test_last_one_day_is_accepted_in_the_singular():
+    assert span("último 1 dia") == ("2026-11-03", "2026-11-03")
+    assert span("ultimos 1 dia util") == ("2026-11-03", "2026-11-03")
+
+
 def test_range_without_year_infers_before_end():
     assert span("20/10 a 31/10") == ("2026-10-20", "2026-10-31")
     assert span("de 20/10 até 31/10") == ("2026-10-20", "2026-10-31")
@@ -114,6 +119,11 @@ def test_over_120_days_is_refused():
         parse_period("01/01/2026 a 03/11/2026", TUESDAY)
     with pytest.raises(PeriodError, match="120"):
         parse_period("últimos 200 dias", TUESDAY)
+
+
+def test_reversed_range_without_year_explains_the_inference():
+    with pytest.raises(PeriodError, match="write the years"):
+        parse_period("31/10 a 20/10", TUESDAY)
 
 
 def test_since_after_until_is_refused():

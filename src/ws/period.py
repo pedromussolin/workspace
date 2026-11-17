@@ -52,7 +52,7 @@ SINCE_DAY = re.compile(rf"desde\s+({DAY})")
 ONE_DAY = re.compile(rf"({DAY})")
 MONTH_YEAR = re.compile(r"(\d{1,2})/(\d{4})")
 MONTH_NAME = re.compile(r"([a-z]+)(?:\s+(?:de\s+)?(\d{4}))?")
-LAST_DAYS = re.compile(r"ultimos?\s+(\d+)\s+dias(\s+uteis)?")
+LAST_DAYS = re.compile(r"ultimos?\s+(\d+)\s+dias?(\s+(?:uteis|util))?")
 
 
 class PeriodError(ValueError):
@@ -216,5 +216,9 @@ def parse_period(text: str, today: date) -> Period:
     if since > until:
         raise _fail(text, "the start of the period is after its end")
     if (until - since).days + 1 > MAX_DAYS:
-        raise _fail(text, f"the window is over {MAX_DAYS} days")
+        raise _fail(
+            text,
+            f"the window is over {MAX_DAYS} days (a day written without a year is the latest one "
+            "before the end: write the years if you meant another range)",
+        )
     return Period(since, until, label, _count_workdays(since, until), tuple(warnings))
