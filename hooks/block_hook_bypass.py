@@ -16,7 +16,8 @@ too, and so are a heredoc body or a here-string that a shell, `eval`, `source` o
 other body is data (a commit message in `git commit -F- <<'EOF'`), unless it is unquoted: then
 its `$(...)` is scanned. A `$'...'` word is decoded as bash decodes it before the split (see
 `shell.simple_commands`), so `git $'\\x63ommit' -n` and `$'--no-veri\\x66y'` are seen. A command
-that cannot be parsed is blocked only if its text mentions `--no-verify` or `hooksPath`.
+that cannot be parsed is blocked only if its text mentions `--no-verify` or `hooksPath`, as
+written or with its quotes dropped and its `$'...'` escapes decoded (`shell.plain_forms`).
 
 Exit 2 blocks the tool call and sends stderr back to Claude. Any internal error also exits 2,
 because Claude Code treats other non-zero codes as non-blocking and the gate would fail open; so

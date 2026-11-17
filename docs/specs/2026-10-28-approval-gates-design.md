@@ -122,12 +122,13 @@ are scanned. The body of a quoted heredoc (`<<'EOF'`) is data unless its command
 
 | Family | Rule | Box |
 |---|---|---|
-| `git push` | asks, except a plain `git push` / `git push origin main` alone on the line, or a bare `git push` (at most `-q`) in a line that only does `cd` to a fixed path, `git add`, `git commit`, `git pull` (`-q`, `--ff-only`, `--rebase`, `--no-rebase`) and read-only commands, joined by `&&`, `;`, newlines and pipes into read-only programs (decided with the user on 2026-11-03); in both, the push's folder (the `cwd` followed through the `cd`s) is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml`, every push URL of `origin` is in `[gate] push_remotes`, and the repo's local config sets no key that runs a program or redirects the push | repo folder, remote, refspec, `--force` called out |
+| `git push` | asks, except a plain `git push` / `git push origin main` alone on the line, or a bare `git push` (at most `-q`) in a line that only does `cd` to a fixed path, `git add`, `git commit`, `git pull` (`-q`, `--ff-only`, `--rebase`, `--no-rebase`) and read-only commands, joined by `&&`, `;`, newlines and pipes into read-only programs (decided with the user on 2026-11-03); in both, the push's folder (the `cwd` followed through the `cd`s) is a path listed in `[gate] push_without_asking` of `~/.config/workspace/config.toml`, every push URL of `origin` is in `[gate] push_remotes`, a bare push finds `main` checked out there (another branch or a detached HEAD asks), and the repo's local config sets no key that runs a program or redirects the push. Anything else in the line (another command, a refspec, `--force`, another remote or URL, `-C`, a subshell, `$(...)`, a function, a loop, a `cd` to a path built from an expansion) keeps the box; a line of the second shape judged in another folder gets that folder's box, or the environment-branch denial | repo folder, remote, refspec, `--force` called out |
+| `git -c`, `--config-env` | asks when the key runs a program or redirects git (`alias.*`, `credential.*`, `remote.*`, `url.*`, `core.sshCommand`, `core.hooksPath`, `filter.*`, `*.command`, `*.textconv`...), except a pager or editor set to a harmless value and, since 2026-11-03, exactly the pair `-c credential.helper=` then `-c credential.helper='!gh auth git-credential'` (no other `credential.helper` setting, no expansion): agents use it to fetch over HTTPS with the gh login, so `fetch`, `pull`, `ls-remote` and `clone` pass; one half alone, another order or value, or a third setting asks, and a push keeps its box (decided with the user) | the key and value as typed |
 | `gh` | a read list passes (`pr view/list/diff/checks/status`, `issue view/list/status`, `repo view/list/clone`, `run view/list/watch`, `release view/list/download`, `search`, `auth status`, `api` with GET and no fields); everything else asks | subcommand, repo, the key flags (base, head, title, body summary) |
 | `curl`, `wget` | asks when the method is not GET/HEAD or the command sends data (`-d`, `--data*`, `-F`, `--form`, `-T`, `--upload-file`, `--json`, `--post-*`) | method, host and path, "com dados" |
 | `ws card apply` | always asks, in every form the old hook caught (wrappers, `uv run`, `python -m ws`, absolute path) | the summary lines of the pending record |
 | protection | asks when a command names `~/.claude/settings*.json`, `~/.claude/hooks/` or `.githooks/` and its program is not a read-only one (`cat`, `head`, `tail`, `less`, `ls`, `stat`, `sha256sum`, `diff`, `grep`, `rg`, `jq`) | "Mexe na proteção do Claude Code: PATH" |
-| obfuscation | asks when a simple command whose program is `ws`, `gh`, `git`, `curl` or `wget` has an unquoted `$`, backtick or brace expansion in its arguments, or when a command that names them cannot be parsed | "Não consegui ler o comando com certeza" |
+| obfuscation | asks when a simple command whose program is `ws`, `gh`, `git`, `curl` or `wget` has an unquoted `$`, backtick or brace expansion in its arguments, or when a command that names them cannot be parsed; the name is looked for in the text as written, with quotes and backslashes dropped and with `$'...'` escapes decoded, so `c''url` and `$'\x63url'` count (a text that cannot be parsed runs its earlier lines in bash, so this cannot be skipped) | "Não consegui ler o comando com certeza" |
 
 Everything else passes to the normal flow. Known limit: text rules cannot see a script file the
 command runs; phase 3 is the answer.
@@ -227,7 +228,11 @@ in phase 3, when the keys leave the model's reach:
 - a script file the command runs, `xargs`, `find -exec`, `ssh`, a double fork reparented to init
   (it escapes the card's agent-ancestor walk), and code that builds a name at run time (Python string
   concatenation of a credential path, a git config key held in a variable); `$'...'` ANSI-C quoting
-  is decoded as bash does since 2026-11-03;
+  is decoded as bash does since 2026-11-03, in the word, the heredoc owner and its terminator, and a
+  nested backtick (`` `a \`b\` ` ``) is scanned in its turn;
+- a text that cannot be parsed (bad quoting) is not read command by command, though bash runs its
+  earlier lines before the bad one: a program name hidden by quotes or `$'...'` is caught, one built by
+  an expansion (`$(echo c)url`) is not; reading the longest prefix that parses would close it;
 - in the hook-bypass gate: commands piped into a shell (`cat <<EOF | bash`) and `GIT_CONFIG_GLOBAL`
   pointing at another file;
 - a quoted word over 4 KB with spaces in it is parsed normally (the 4 KB guard splits on spaces);
