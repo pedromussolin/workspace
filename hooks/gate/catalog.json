@@ -287,6 +287,33 @@
         "list_pdfs"
       ],
       "ask": []
+    },
+    "claude_ai_Meetings": {
+      "pass": [
+        "follow_meeting_transcript",
+        "get_meeting",
+        "get_meeting_action_items",
+        "get_meeting_transcript",
+        "list_meetings"
+      ],
+      "ask": []
+    },
+    "claude_ai_Claude_Data": {
+      "pass": [
+        "get_certified_query_source",
+        "get_live_results",
+        "list_certified_queries",
+        "shared_results"
+      ],
+      "ask": [
+        "certify_query",
+        "set_certified_query_source",
+        "share_connector",
+        "share_live_queries",
+        "uncertify_query",
+        "unshare_connector",
+        "unshare_live_queries"
+      ]
     }
   },
   "notes": {
