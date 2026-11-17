@@ -58,7 +58,9 @@ What lives outside the repo (config, local data, cache): [commands](docs/convent
   applies the block `ws setup` prints only after the user says yes.
 - Never skip a hook. A word goes to `.known-words` only after the user's answer. A true false
   positive goes to `.secrets-allow`, and the reply says it was added.
-- Never write through an MCP. Never query the replica outside `ws observe run`.
+- Never write through an MCP. The production replica is read-only: `ws observe run` for an
+  observation, or a direct read-only query with a timeout, one at a time
+  ([safety](docs/conventions/safety.md)).
 - Never answer an approval box for the user.
 
 ## Conventions

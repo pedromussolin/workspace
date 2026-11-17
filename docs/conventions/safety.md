@@ -18,10 +18,15 @@ External writes, the production replica and the approval gate. Decisions:
   [test: tests/test_tracker_write.py; tests/test_card.py]
 - The tracker writes only cards where the user is the assignee or the reporter.
   [test: tests/test_card.py; tests/test_card_create.py]
-- The production replica is read-only, and it is reached only through `ws observe run`, behind the
-  box. [gate]
-- Replica results are numbers only, never rows or customer data.
+- The production replica is read-only. An observation's checks run through `ws observe run`,
+  behind the box. [gate]
+- A task may also query the replica directly, as the user authorized: read-only session, a
+  statement timeout, one query at a time, `pg_is_in_recovery()` checked first; the host and the
+  access live in the project's private file. [review]
+- `ws observe` keeps numbers only, never rows or customer data.
   [test: tests/test_database_port.py; tests/test_observe_cli.py]
+- From a direct query, only numbers and aggregates enter the repo; rows and customer data never
+  do. [review]
 - Database stderr is never printed or stored. [test: tests/test_database_postgres.py]
 - The gate reads command text. It covers mistakes and plausible workarounds, not deliberate
   obfuscation. [review]
