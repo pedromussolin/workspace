@@ -19,7 +19,7 @@ Frozen since 2026-10-26: these items move only when a real case shows up.
 | Item | Why it waits | Fix when picked up |
 |---|---|---|
 | `pre-push` does not scan the lines a merge commit itself introduces (a conflict resolution) | `pre-commit` and `pre-merge-commit` catch them at commit time; this only matters when a hook did not run | scan merges with `git show --remerge-diff` in `--range` |
-| An AI-added `.secrets-allow` entry needs no human click | the root `CLAUDE.md` asks the agent to say so in the reply | an `ask` permission rule on Edit and Write of `.secrets-allow` |
+| An AI-added `.secrets-allow` entry needs no human click | `docs/conventions/confidentiality.md` asks the agent to say so in the reply | an `ask` permission rule on Edit and Write of `.secrets-allow` |
 | File names are not scanned (a file named after a partner passes) | no such file today | check staged paths with the same name rules |
 | Assignment shapes still missed: `DB_PASS=…`, camelCase `dbPassword=…`, a `\n` escape right before the keyword | rare in planning notes | widen `secret-assignment`, with prose and placeholder tests |
 | Secret formats outside the spec's set: PEM headers, AWS `AKIA` keys, `Bearer`/JWT, Azure `AccountKey=` | the spec fixed the rule set | add one rule per format |
@@ -67,7 +67,7 @@ Status on 2026-10-27 (afternoon): **3 done** (`ws checkpoint` and the skill, on 
 (`ws card` and the `/card` skill; the `ask` rules and the hook are installed; the first real write
 waits for the user's Jira API key); **2 designed, every decision taken**
 (`docs/specs/2026-10-27-release-design.md`; plan: `docs/plans/2026-11-13-release.md`); 4–7 not started. Each one
-follows "script first" (root `CLAUDE.md`): the `ws` command does the deterministic part, the skill
+follows "script first" (`docs/conventions/skills.md`): the `ws` command does the deterministic part, the skill
 decides, asks and writes the prose.
 
 | # | Skill | What it does | The script part |

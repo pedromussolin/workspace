@@ -4,7 +4,7 @@ Tags: ws, skills, hooks, segurança
 
 # workspace: regras do projeto
 
-As regras comuns (sigilo, commits, idioma e sincronização) estão no `CLAUDE.md` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, commits, idioma e sincronização) estão no `AGENTS.md` e em `docs/conventions/` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
 
 ## Valores reais fora do repo
 
