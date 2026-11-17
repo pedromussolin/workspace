@@ -28,6 +28,12 @@ Leia antes: o `AGENTS.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 - Decisões: P1 a P7 (fase 2 dos portões) e P10, P12, P14 e P15 (base) aceitas como recomendadas
   (D24 a D34); escolhas da revisão dos documentos em D35 a D37; D38 corrige a regra da réplica (a
   consulta direta só leitura continua valendo). Só a P16 segue pendente.
+- `ws setup` completo e hooks de sessão conferidos ao vivo: o ponteiro dos handoffs chega ao chat e
+  o usuário viu a linha do aviso de contexto.
+- Evals novos passando (1,0): os de período falhavam porque o modelo vê a data real e o cenário
+  fixa 26/10. A data foi para o pedido, e o passo 1 de `skills/daily/references/period.md` manda
+  rodar o `ws standup period` sempre. O custo das rodadas é o equivalente em API; com login do
+  claude.ai, conta no limite do plano.
 - Relatórios dos agentes e o brief comum: `~/.local/share/workspace/projects/workspace/worktrees/`.
 
 Frente do produto (09/11): passagem completa em `attachments/handoff-20261109-product-base.md`.
@@ -42,14 +48,8 @@ Documento de descoberta (07/11): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G
 
 ## Próximo passo
 
-1. Ponteiro dos handoffs conferido em 17/11 (chegou ao chat depois da compactação). Falta o
-   usuário ver a linha do aviso de contexto (teste com `[context_watch] warn_at = 20000`); se ela
-   não aparecer, `USER_NOTICE = False` em `hooks/context_watch.py`.
-2. Evals de 17/11: os três novos passaram (1,0). Os de período falhavam porque o modelo vê a
-   data real e o cenário fixa 26/10: a data foi para o pedido, e o passo 1 de
-   `skills/daily/references/period.md` manda rodar o `ws standup period` sempre. O custo das
-   rodadas é o equivalente em API; com login do claude.ai, conta no limite do plano.
-3. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
+1. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
    arquivo e campos, memória por nível, índice e busca, nuvem e sigilo, migração, portas do
    núcleo); spec em `docs/specs/`, depois o plano.
-4. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
+2. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
+3. Em aberto, sem pressa: P16 (1º lançamento) e a caixa do board sync ("aprovar = testado"?).
