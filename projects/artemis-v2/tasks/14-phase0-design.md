@@ -52,9 +52,11 @@ antes de implementar.
 | bgt | API: sobe o arquivo e cria uma operação (`bgt/bgt.py:64-130`) **[C]** | **[H]** provável |
 | adm. B | SFTP, com nome gerado na cessão **[C]** | **[H]** geração do nome não conferida |
 
-Tornar seguras dayvale, fydd e genius é trabalho nosso (nome fixo por lote e consulta antes de reenviar, ~2 a 4 h cada);
-adm. Q, adm. V, bgt e adm. B dependem da resposta de cada administradora. O caso só acontece se o worker morrer entre a
-administradora aceitar o arquivo e o commit da resposta; hoje o lote fica parado sem aviso.
+**O padrão do nome do arquivo não muda** (Pietro, 17/11: as administradoras validam o nome). Por isso nenhuma fica segura
+por nome fixo. Os caminhos são consultar antes de reenviar, onde houver consulta (hoje só a dayvale, pelo nome guardado na
+marca de envio), ou a confirmação da administradora de que recusa arquivo repetido (fydd, genius, adm. Q, adm. V, bgt e
+adm. B). O caso só acontece se o worker morrer entre a administradora aceitar o arquivo e o commit da resposta; hoje o lote
+fica parado sem aviso.
 
 **Plano revisado** (substitui o "Plano de implementação" do fim). Branch `fix/TS-5737-reentrega-segura-baixa` da master,
 `--no-track`, worktree `ts5737-cessao`. Commits `fix(TS-5737)`.
