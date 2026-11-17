@@ -23,7 +23,10 @@ antes de implementar.
    `reject_on_worker_lost` são atributos da task, não da chamada.
 3. **Task nova** `esteira_baixar_refact(lote_id, rodada=0)` em `cessao/tasks/liquidacao_lote.py`, com as duas flags e
    import local do pacote novo (padrão da TS-5572 contra o ciclo de imports).
-4. **Código novo** no pacote `cessao/api/liquidacao/refact_baixa/`, ao lado do `refact.py`: contador, teto e rodadas
+4. **Código novo** em `cessao/framework/liquidacao/refact_baixa.py`, ao lado do legado que ele substitui (`baixar.py`,
+   `estados_baixa.py`), no mesmo padrão do `refact.py` da liquidação: um arquivo de refact ao lado dos oficiais, classes com
+   prefixo `Refact` e tudo o que é novo com "refact" no nome (coluna, task, método dos geradores), para que promover o refact
+   e apagar o legado na TS-5612 seja mover o conteúdo para os arquivos oficiais (Pietro, 17/11). Contém: contador, teto e rodadas
    (seção 3), trava (2.3), guarda por estado (2.1) num `ManagerBaixa` filho, estados filhos que gravam a marca antes do envio
    (2.2) e pedem o arquivo em blocos, e `event_id` determinístico no callback. `ManagerBase`, `ManagerBaixa`, estados,
    emissores e geradores atuais não mudam de comportamento.
