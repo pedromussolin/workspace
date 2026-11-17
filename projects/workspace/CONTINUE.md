@@ -42,11 +42,15 @@ Documento de descoberta (07/11): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G
 
 ## Próximo passo
 
-1. Numa sessão nova: conferir o ponteiro dos handoffs e, quando uma sessão passar de 300 mil
-   tokens, o aviso de contexto; se ele não aparecer, `USER_NOTICE = False` em
-   `hooks/context_watch.py`. (`ws setup` completo em 17/11: portão, hooks e catálogo.)
-2. Rodar, com o ok do usuário (custo), os evals `period-last-week`, `manager-text` e
-   `observe-uses-printed-commands`.
+1. Ponteiro dos handoffs conferido em 17/11 (chegou ao chat depois da compactação). Falta o
+   usuário ver a linha do aviso de contexto (teste com `[context_watch] warn_at = 20000`); se ela
+   não aparecer, `USER_NOTICE = False` em `hooks/context_watch.py`.
+2. Evals de 17/11 (1 rodada cada, ~US$ 2,65 no total): `observe-uses-printed-commands` passou.
+   `period-last-week` (0,79) e `manager-text` (0,86) falhavam porque o modelo vê a data real e o
+   cenário fixa 26/10; a data foi para o pedido. Falha que sobrou: com a data no pedido, o modelo
+   calcula o período sozinho em vez de rodar `ws standup period`. Proposta: o passo 1 de
+   `skills/daily/references/period.md` manda rodar sempre, mesmo com a data dita; depois rodar os
+   dois de novo (~US$ 0,80), com o ok do usuário.
 3. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
    arquivo e campos, memória por nível, índice e busca, nuvem e sigilo, migração, portas do
    núcleo); spec em `docs/specs/`, depois o plano.
