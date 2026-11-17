@@ -1,8 +1,9 @@
 # workspace
 
 Personal, private repo. It is the single home for planning projects (`projects/`) and personal
-automations. It is AI first: Claude does the judgment work through skills and MCP servers, and the
-`ws` CLI is the deterministic fallback for when an MCP server fails. Rules for people and agents
+automations. It is AI first: Claude does the judgment work through skills, and the `ws` CLI does
+every step that can be deterministic. Reads go through `ws` first, with the provider's MCP server
+as the fallback; writes go only through `ws`, behind the approval box. Rules for people and agents
 start at [AGENTS.md](AGENTS.md) and live in [docs/conventions/](docs/conventions/); people also
 read [CONTRIBUTING.md](CONTRIBUTING.md). The design is in
 [docs/specs/](docs/specs/2026-10-22-workspace-foundation-design.md).
