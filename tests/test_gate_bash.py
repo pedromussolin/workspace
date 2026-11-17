@@ -2042,9 +2042,13 @@ REPO_URL = "https://github.com/owner/repo.git"
         f"{GH_HELPERS} fetch -q {REPO_URL} main:refs/remotes/origin/main 2>&1 | tail -2",
         f"{GH_HELPERS} pull -q --ff-only {REPO_URL} main",
         f"{GH_HELPERS} ls-remote {REPO_URL} refs/heads/main",
-        f'git -c "credential.helper=!gh auth git-credential" fetch {REPO_URL}',
+        'git -c credential.helper= -c "credential.helper=!gh auth git-credential" fetch '
+        + REPO_URL,
         "git -c Credential.Helper= -c CREDENTIAL.HELPER='!gh auth git-credential' fetch x",
-        f'H=; git -c credential.helper="$H" fetch {REPO_URL}',
+        f"git -c credential.helper= -c advice.detachedHead=false -c "
+        f"'credential.helper=!gh auth git-credential' fetch {REPO_URL}",
+        f"H=; git -c credential.helper=\"$H\" -c credential.helper='!gh auth git-credential'"
+        f" fetch {REPO_URL}",
     ],
 )
 def test_the_gh_credential_helper_pair_passes_on_a_read(command, env):
@@ -2071,9 +2075,36 @@ def test_the_gh_credential_helper_pair_passes_on_a_read(command, env):
         f'H=x; git -c credential.helper="$H" fetch {REPO_URL}',
         # variables.py never resolves a value with `!` inside double quotes.
         f"H='!gh auth git-credential'; git -c credential.helper=\"$H\" fetch {REPO_URL}",
+        f'git -c "credential.helper=!gh auth git-credential" fetch {REPO_URL}',
+        f'H=; git -c credential.helper="$H" fetch {REPO_URL}',
     ],
 )
 def test_any_other_credential_override_still_asks(command, env):
+    assert box(command, env)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"git -c credential.helper= fetch {REPO_URL}",
+        f"git -c credential.helper='!gh auth git-credential' fetch {REPO_URL}",
+        f"git -c credential.helper='!gh auth git-credential' -c credential.helper= "
+        f"fetch {REPO_URL}",
+        f"git -c credential.helper= -c credential.helper= fetch {REPO_URL}",
+        f"git -c credential.helper=! -c credential.helper='!gh auth git-credential' "
+        f"fetch {REPO_URL}",
+        f"git -c credential.helper='!gh auth git-credential' "
+        f"-c credential.helper='!gh auth git-credential' fetch {REPO_URL}",
+        f"{GH_HELPERS} -c credential.helper=store fetch {REPO_URL}",
+        f"{GH_HELPERS} -c credential.helper= fetch {REPO_URL}",
+        f"{GH_HELPERS} -c core.sshCommand=ssh fetch {REPO_URL}",
+        f"{GH_HELPERS} -c url.https://evil.example/.insteadOf=https://github.com/ fetch {REPO_URL}",
+        f"{GH_HELPERS} --config-env=credential.helper=H fetch {REPO_URL}",
+        f"{GH_HELPERS} -c core.pager='sh -c id' log",
+        f"git -c credential.helper= {GH_HELPERS[4:]} fetch {REPO_URL}",
+    ],
+)
+def test_only_the_exact_gh_credential_pair_passes(command, env):
     assert box(command, env)
 
 
