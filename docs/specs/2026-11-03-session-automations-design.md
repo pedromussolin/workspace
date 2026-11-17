@@ -1,7 +1,7 @@
 # Session automations: design
 
 Four automations chosen by the user on 2026-11-03: **A** handoff and the session hooks, **B** daily
-by period, **C** `ws env check`, **D** the `deploy-check` skill. Status: approved by the user on
+by period, **C** `ws env check`, **D** the `deploy-check` skill. Status: implemented on 2026-11-17 (A and B joined `main` then; C and D before), approved by the user on
 2026-11-03 (see "Decisions"); plan in `docs/plans/2026-11-03-session-automations.md`. Each part is independent and can be built by its own agent in a separate worktree
 (see "Parallel build"); only Step 0 comes first.
 
