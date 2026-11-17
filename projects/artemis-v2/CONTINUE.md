@@ -12,6 +12,11 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 17/11/2026
 
+**Passagem de chat (fim de 17/11):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261117-release-24-11-guardas-front.md`
+(release de 24/11, guardas de tela do front, TS-5624 refeita e aprovada no navegador, ambiente
+local no ar).
+
 **Tudo sobe de uma vez em 24/11.** A TS-5737 entra na release dos 12 cards; a release 2a deixou de
 existir (`decisions.md`; `estimate.md` e o checklist de `tasks/13-plan.md` atualizados).
 
@@ -291,20 +296,12 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **TS-5737:** revisão do Pietro na montagem; `EXPLAIN` com a DBA quando o Pietro mandar
-   (`blocos-1/explain-ids.sql` e as de parcela do `blocos-2`); na sandbox, o `kill -9` (roteiro na
-   entrega do `refact-baixa`) e a prova do pooler (`SELECT pg_backend_pid()` em duas transações na
-   mesma conexão, dentro do pod); deploy: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA`.
-   Pooler em 17/11: nenhum proxy de banco gerenciado na conta AWS, nenhum pooler no argocd, e o
-   nome do banco de produção aponta direto para o cluster Aurora **[H]**: o host real da aplicação
-   está no Parameter Store.
-2. **Release de 24/11:** TS-5624 no navegador; DBA na TS-5596; na montagem, as três cabeças do
-   Alembic e a ordem do checklist em `tasks/13-plan.md`; `/release`.
-3. **Pendências do Pietro:** confirmar com a operação a ordem do arquivo por `id` (D39, decisão 8);
-   desenho do upload no shared (D37) e trava do duplo clique (D38) da TS-5620; plano depois de
-   24/11 (`estimate.md` da vm-migration).
-4. **TS-5620:** revisão e commits do liquidar (`ts5620-cessao`, `ts5620-bff`, `ts5620-front`).
-5. **Próxima sprint (card a criar):** consulta antes de reenviar na dayvale e confirmação com fydd,
-   genius, adm. Q, adm. V, bgt e adm. B de como tratam arquivo repetido.
-6. **Antigas, sem data:** `viva-production`, S1 a S14 de `tasks/02-03-sandbox-tests.md`, tradução
-   do `refact.py`, TS-5537 (B18).
+1. **TS-5624:** revisão visual por um agente novo (`review-screen`, brief em
+   `templates/briefs/front-screen-review.md`), na worktree `ts5624-front`.
+2. **Release de 24/11, só quando o Pietro liberar:** refazer o ensaio do front com a TS-5624 atual,
+   montar com `/release` pelo checklist de `tasks/13-plan.md` (ordem de merge, os dois
+   `down_revision`).
+3. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
+   `CONCORRENCIA_POR_FILA`.
+4. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
+5. **Sem data:** TS-5620 (revisão do liquidar, D37, D38); `viva-production`; S1 a S14; TS-5537.
