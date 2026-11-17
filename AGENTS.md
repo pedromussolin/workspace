@@ -54,8 +54,10 @@ What lives outside the repo (config, local data, cache): [commands](docs/convent
 ## Boundaries
 
 - Never put in the repo: secrets, real names, internal hosts or URLs, customer data, company code.
-- Never read `~/.config/workspace/credentials`. Never edit `~/.claude/settings.json`.
-- Never skip a hook. Never add to `.secrets-allow` or `.known-words` without the user.
+- Never read `~/.config/workspace/credentials`. `ws` never edits `~/.claude/settings.json`; Claude
+  applies the block `ws setup` prints only after the user says yes.
+- Never skip a hook. A word goes to `.known-words` only after the user's answer. A true false
+  positive goes to `.secrets-allow`, and the reply says it was added.
 - Never write through an MCP. Never query the replica outside `ws observe run`.
 - Never answer an approval box for the user.
 
