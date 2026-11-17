@@ -12,6 +12,7 @@ listed instead.
 """
 
 import contextlib
+import dataclasses
 import difflib
 import hashlib
 import json
@@ -56,12 +57,34 @@ GATE_LIST_KEYS = (
 GATE_MATCHER = "Bash|mcp__.*"
 HOOK_TIMEOUT = 30
 MIN_HOOK_TIMEOUT = 10
+SESSION_HOOK_TIMEOUT = 10
 COPY_DIR_MODE = 0o555
 GATE_PROBE_TOOLS = ("Bash", "mcp__plugin_github_github__push_files")
+
+
+@dataclass(frozen=True)
+class HookRegistration:
+    """One hook script of the protected copy and how Claude Code must register it."""
+
+    script: str
+    event: str  # PreToolUse | UserPromptSubmit | SessionStart
+    matcher: str | None  # None: no `matcher` key in the printed entry
+    probes: tuple[str, ...]  # what the matcher must match: tool names, or SessionStart sources
+    timeout: int
+
+
 HOOK_REGISTRATIONS = (
-    (GATE_SCRIPT, GATE_MATCHER, GATE_PROBE_TOOLS),
-    ("block_co_authored_by.py", "Bash", ("Bash",)),
-    ("block_hook_bypass.py", "Bash", ("Bash",)),
+    HookRegistration(GATE_SCRIPT, "PreToolUse", GATE_MATCHER, GATE_PROBE_TOOLS, HOOK_TIMEOUT),
+    HookRegistration("block_co_authored_by.py", "PreToolUse", "Bash", ("Bash",), HOOK_TIMEOUT),
+    HookRegistration("block_hook_bypass.py", "PreToolUse", "Bash", ("Bash",), HOOK_TIMEOUT),
+    HookRegistration("context_watch.py", "UserPromptSubmit", None, (), SESSION_HOOK_TIMEOUT),
+    HookRegistration(
+        "handoff_pointer.py",
+        "SessionStart",
+        "startup|clear|compact",
+        ("startup", "clear", "compact"),
+        SESSION_HOOK_TIMEOUT,
+    ),
 )
 DENY_RULE = "Read(~/.config/workspace/credentials)"
 ATLASSIAN_SERVERS = ("claude_ai_Atlassian_MCP", "plugin_productivity_atlassian")
@@ -650,18 +673,23 @@ def _hook_command(hooks_dir: Path, script: str) -> str:
     return f'python3 -I -B "{hooks_dir.absolute() / script}"'
 
 
-def _hook_entry(hooks_dir: Path, script: str, matcher: str) -> dict:
-    hook = {"type": "command", "command": _hook_command(hooks_dir, script), "timeout": HOOK_TIMEOUT}
-    return {"matcher": matcher, "hooks": [hook]}
+def _hook_entry(hooks_dir: Path, registration: HookRegistration) -> dict:
+    hook = {
+        "type": "command",
+        "command": _hook_command(hooks_dir, registration.script),
+        "timeout": registration.timeout,
+    }
+    if registration.matcher is None:
+        return {"hooks": [hook]}
+    return {"matcher": registration.matcher, "hooks": [hook]}
 
 
 def _hook_gate(hooks_dir: Path, scripts: tuple[str, ...] | None = None) -> dict:
-    entries = [
-        _hook_entry(hooks_dir, script, matcher)
-        for script, matcher, _ in HOOK_REGISTRATIONS
-        if scripts is None or script in scripts
-    ]
-    return {"hooks": {"PreToolUse": entries}}
+    events: dict[str, list[dict]] = {}
+    for registration in HOOK_REGISTRATIONS:
+        if scripts is None or registration.script in scripts:
+            events.setdefault(registration.event, []).append(_hook_entry(hooks_dir, registration))
+    return {"hooks": events}
 
 
 def _permission_gate(deny: bool = True, ask: tuple[str, ...] = ASK_RULES) -> dict:
@@ -704,10 +732,10 @@ def _check_claude_gates(setup: _Setup, hooks_dir: Path, settings_path: Path, rep
             "that file: set it to false or remove it"
         )
     missing_scripts = []
-    for script, _, tools in HOOK_REGISTRATIONS:
-        registered, notes = _registration_state(settings, hooks_dir, script, tools)
+    for registration in HOOK_REGISTRATIONS:
+        registered, notes = _registration_state(settings, hooks_dir, registration)
         if not registered:
-            missing_scripts.append(script)
+            missing_scripts.append(registration.script)
         for note in notes:
             setup.need(f"stale hook registration in {settings_path}: {note}")
     block: dict = _hook_gate(hooks_dir, tuple(missing_scripts)) if missing_scripts else {}
@@ -855,9 +883,9 @@ def _as_list(value: object) -> list:
     return value if isinstance(value, list) else []
 
 
-def _hook_commands(settings: dict):
-    """Every `PreToolUse` command hook as (matcher, hook)."""
-    for entry in _as_list(_as_dict(settings.get("hooks")).get("PreToolUse")):
+def _hook_commands(settings: dict, event: str):
+    """Every command hook of one event as (matcher, hook)."""
+    for entry in _as_list(_as_dict(settings.get("hooks")).get(event)):
         entry = _as_dict(entry)
         for hook in _as_list(entry.get("hooks")):
             hook = _as_dict(hook)
@@ -866,18 +894,19 @@ def _hook_commands(settings: dict):
 
 
 def _registration_state(
-    settings: dict, hooks_dir: Path, script: str, tools: tuple[str, ...]
+    settings: dict, hooks_dir: Path, registration: HookRegistration
 ) -> tuple[bool, list[str]]:
-    """Whether `script` runs from the copy for every tool in `tools`, and what is stale.
+    """Whether the hook runs from the copy under its event for every probe, and what is stale.
 
     A substring match would accept `echo <script>`; a registration that still points at the
     repo's `hooks/` would run a file the agent can edit.
     """
+    script, tools = registration.script, registration.probes
     wanted = str(hooks_dir.absolute() / script)
     replacement = _hook_command(hooks_dir, script)
     registered = False
     notes = []
-    for matcher, hook in _hook_commands(settings):
+    for matcher, hook in _hook_commands(settings, registration.event):
         command = hook.get("command")
         path = _python_script(command)
         if path is None:
@@ -899,7 +928,7 @@ def _registration_state(
         elif not _timeout_ok(hook.get("timeout")):
             notes.append(
                 f"{path} has timeout {hook.get('timeout')!r}, under {MIN_HOOK_TIMEOUT} seconds, "
-                f"so the hook can be cut short and then does not run; use {HOOK_TIMEOUT}"
+                f"so the hook can be cut short and then does not run; use {registration.timeout}"
             )
         else:
             registered = True
@@ -1022,14 +1051,16 @@ def gate_problems(settings_path: Path, ask_rules: tuple[str, ...]) -> list[str]:
     asking = _as_list(_as_dict(settings.get("permissions")).get("ask"))
     problems += [f"permissions.ask lacks {rule}" for rule in ask_rules if rule not in asking]
     hooks_dir = claude_hooks_dir()
-    registered, notes = _registration_state(settings, hooks_dir, GATE_SCRIPT, ("Bash",))
+    gate = dataclasses.replace(HOOK_REGISTRATIONS[0], probes=("Bash",))
+    registered, notes = _registration_state(settings, hooks_dir, gate)
     if not registered:
         problems.append(
             f"the PreToolUse hook {GATE_SCRIPT} is not registered from {hooks_dir} "
             "with a matcher that covers Bash, as exactly python3 -I and a timeout of at least "
             f"{MIN_HOOK_TIMEOUT} seconds"
         )
-    for script, _, tools in HOOK_REGISTRATIONS[1:]:
-        _, notes = _registration_state(settings, hooks_dir, script, tools)
-        problems += [note for note in notes if "timeout" in note]
+    for registration in HOOK_REGISTRATIONS[1:]:
+        if registration.event == "PreToolUse":
+            _, notes = _registration_state(settings, hooks_dir, registration)
+            problems += [note for note in notes if "timeout" in note]
     return problems

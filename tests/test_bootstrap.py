@@ -17,6 +17,9 @@ from ws.cli import main
 
 HOOK_SCRIPT = "block_co_authored_by.py"
 BYPASS_SCRIPT = "block_hook_bypass.py"
+WATCH_SCRIPT = "context_watch.py"
+POINTER_SCRIPT = "handoff_pointer.py"
+POINTER_MATCHER = "startup|clear|compact"
 GATE_SCRIPT = "approval_gate.py"
 GATE_MATCHER = "Bash|mcp__.*"
 LEGACY_CARD_SCRIPT = "hooks/ask_card_apply.py"
@@ -85,8 +88,11 @@ def _copy_command(script: str) -> str:
     return f'python3 -I -B "{config.claude_hooks_dir() / script}"'
 
 
-def _hook_entry(script: str, matcher: str = "Bash") -> dict:
-    return {"matcher": matcher, "hooks": [{"type": "command", "command": _copy_command(script)}]}
+def _hook_entry(script: str, matcher: str | None = "Bash") -> dict:
+    entry: dict = {"hooks": [{"type": "command", "command": _copy_command(script)}]}
+    if matcher is not None:
+        entry["matcher"] = matcher
+    return entry
 
 
 def _registered_gates() -> dict:
@@ -96,7 +102,9 @@ def _registered_gates() -> dict:
                 _hook_entry(GATE_SCRIPT, GATE_MATCHER),
                 _hook_entry(HOOK_SCRIPT),
                 _hook_entry(BYPASS_SCRIPT),
-            ]
+            ],
+            "UserPromptSubmit": [_hook_entry(WATCH_SCRIPT, None)],
+            "SessionStart": [_hook_entry(POINTER_SCRIPT, POINTER_MATCHER)],
         },
         "permissions": {"deny": [DENY_RULE], "ask": list(ASK_RULES)},
     }
@@ -2057,3 +2065,137 @@ def test_setup_prints_the_observe_ask_rule(env):
 
     assert "Bash(ws observe run:*)" in block["permissions"]["ask"]
     assert "Bash(ws observe run:*)" in ASK_RULES
+
+
+def test_session_hooks_printed_under_their_events(env):
+    _write_settings(env.settings, {"theme": "dark"})
+
+    _, block = _needs_block(_setup(env))
+
+    hooks = block["hooks"]
+    assert list(hooks) == ["PreToolUse", "UserPromptSubmit", "SessionStart"]
+    assert [hook["hooks"][0]["timeout"] for hook in hooks["PreToolUse"]] == [30, 30, 30]
+    [watch] = hooks["UserPromptSubmit"]
+    assert "matcher" not in watch
+    assert watch["hooks"] == [
+        {"type": "command", "command": _copy_command(WATCH_SCRIPT), "timeout": 10}
+    ]
+    [pointer] = hooks["SessionStart"]
+    assert pointer["matcher"] == POINTER_MATCHER
+    assert pointer["hooks"] == [
+        {"type": "command", "command": _copy_command(POINTER_SCRIPT), "timeout": 10}
+    ]
+
+
+def test_the_block_holds_only_the_missing_session_hook(env):
+    gates = _registered_gates()
+    del gates["hooks"]["SessionStart"]
+    _write_settings(env.settings, gates)
+
+    _, block = _needs_block(_setup(env))
+
+    assert list(block) == ["hooks"]
+    assert list(block["hooks"]) == ["SessionStart"]
+
+
+def test_session_hooks_registered_are_recognized(env):
+    _write_settings(env.settings, _registered_gates())
+
+    assert _setup(env).needs == []
+
+
+def test_a_session_hook_under_the_wrong_event_is_not_registered(env):
+    gates = _registered_gates()
+    gates["hooks"]["PreToolUse"].append(_hook_entry(WATCH_SCRIPT, None))
+    del gates["hooks"]["UserPromptSubmit"]
+    _write_settings(env.settings, gates)
+
+    _, block = _needs_block(_setup(env))
+
+    assert list(block["hooks"]) == ["UserPromptSubmit"]
+
+
+@pytest.mark.parametrize("matcher", ["startup", "startup|clear", "clear|compact", "resume"])
+def test_session_start_matcher_must_cover_probes(env, matcher):
+    gates = _registered_gates()
+    gates["hooks"]["SessionStart"] = [_hook_entry(POINTER_SCRIPT, matcher)]
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    assert any("does not cover" in need for need in result.needs)
+    _, block = _needs_block(result)
+    assert list(block["hooks"]) == ["SessionStart"]
+
+
+@pytest.mark.parametrize("matcher", [None, "", "*", "startup|clear|compact|resume", ".*"])
+def test_session_start_matcher_that_covers_the_probes_is_accepted(env, matcher):
+    gates = _registered_gates()
+    gates["hooks"]["SessionStart"] = [_hook_entry(POINTER_SCRIPT, matcher)]
+    _write_settings(env.settings, gates)
+
+    assert _setup(env).needs == []
+
+
+@pytest.mark.parametrize("matcher", [None, "", "whatever"])
+def test_user_prompt_submit_needs_no_matcher(env, matcher):
+    gates = _registered_gates()
+    gates["hooks"]["UserPromptSubmit"] = [_hook_entry(WATCH_SCRIPT, matcher)]
+    _write_settings(env.settings, gates)
+
+    assert _setup(env).needs == []
+
+
+SESSION_HOOKS = [(WATCH_SCRIPT, "UserPromptSubmit"), (POINTER_SCRIPT, "SessionStart")]
+
+
+@pytest.mark.parametrize("script,event", SESSION_HOOKS)
+def test_session_hook_pointing_at_repo_is_stale(env, script, event):
+    gates = _registered_gates()
+    repo_path = env.repo / "hooks" / script
+    gates["hooks"][event][0]["hooks"][0]["command"] = f'python3 -I -B "{repo_path}"'
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    assert any("is replaced by" in need and script in need for need in result.needs)
+    _, block = _needs_block(result)
+    assert list(block["hooks"]) == [event]
+    assert block["hooks"][event][0]["hooks"][0]["command"] == _copy_command(script)
+
+
+@pytest.mark.parametrize("script,event", SESSION_HOOKS)
+def test_a_short_timeout_on_a_session_hook_is_a_problem(env, script, event):
+    gates = _registered_gates()
+    gates["hooks"][event][0]["hooks"][0]["timeout"] = 5
+    _write_settings(env.settings, gates)
+
+    result = _setup(env)
+
+    assert any("timeout" in need and script in need for need in result.needs)
+    _, block = _needs_block(result)
+    assert block["hooks"][event][0]["hooks"][0]["timeout"] == 10
+
+
+def test_card_apply_does_not_depend_on_the_session_hooks(tmp_path):
+    from ws.bootstrap import card_gate_problems
+
+    gates = _registered_gates()
+    del gates["hooks"]["UserPromptSubmit"], gates["hooks"]["SessionStart"]
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps(gates), encoding="utf-8")
+
+    assert card_gate_problems(settings) == []
+
+
+def test_copy_includes_the_session_hooks(env, _hooks_dir):
+    _fake_hooks(env.repo)
+    for script in (WATCH_SCRIPT, POINTER_SCRIPT):
+        (env.repo / "hooks" / script).write_bytes(f"print('{script}')\n".encode())
+
+    _setup(env)
+
+    assert WATCH_SCRIPT in _copy_files(_hooks_dir) and POINTER_SCRIPT in _copy_files(_hooks_dir)
+    manifest = json.loads((_hooks_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest[WATCH_SCRIPT] == _sha(f"print('{WATCH_SCRIPT}')\n".encode())
+    assert _mode(_hooks_dir / POINTER_SCRIPT) == 0o444
