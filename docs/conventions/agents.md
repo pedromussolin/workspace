@@ -10,6 +10,12 @@ How a controller briefs subagents, and how agents work in this repo. Decision:
   - the reply contract.
 
   One task per agent, sized to about 200k tokens of context. [review]
+- A brief for a screen in the front (`apl-credit-whitelabel`) starts from
+  `templates/briefs/front-screen.md`. It names the repo skill to load first (`new-page`,
+  `new-component`, `fix-bug` or `validate-change`), says to read `.ai/README.md` in its order,
+  names the reference screens to open, and requires the smoke prints before the agent reports.
+  The controller then has `review-screen` run by a fresh agent and opens the prints before
+  showing the screen to the user. [review]
 - Never wait in a loop, and never use `pgrep -f`/`pkill -f`. Run long commands in the background
   and wait for the notification. [gate]
 - Write files with the Write or Edit tools, never a Bash heredoc. [review]
