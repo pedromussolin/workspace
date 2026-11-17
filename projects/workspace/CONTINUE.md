@@ -42,8 +42,9 @@ Documento de descoberta (07/11): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G
 
 ## Próximo passo
 
-1. Usuário: `ws setup` no terminal dele (diff do portão e dos dois hooks de sessão, `s/N`),
-   depois aplicar no `settings.json` o bloco que ele imprimir.
+1. Usuário: `ws setup` no terminal dele mais uma vez, para levar à cópia protegida o catálogo
+   com os MCP de reuniões e de dados do claude.ai (portão e hooks de sessão já instalados e
+   registrados no `settings.json` em 17/11).
 2. Numa sessão nova: conferir o aviso de contexto e o ponteiro dos handoffs; se o aviso não
    aparecer, `USER_NOTICE = False` em `hooks/context_watch.py`.
 3. Rodar, com o ok do usuário (custo), os evals `period-last-week`, `manager-text` e
