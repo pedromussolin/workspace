@@ -43,3 +43,7 @@ Em "Quem", quem decidiu.
 | D22 | No downgrade da estrutura do pulo, o índice de decisores continua ignorando `SKIPPED` | usuário | 18/11/2026 | O downgrade roda mesmo com vagas puladas, sem reescrever o histórico |
 | D23 | O downgrade da configuração do trade antecipado para com erro claro se já houve antecipação; a volta é corrigir para a frente | revisão técnica | 18/11/2026 | O histórico aponta para a transição usada e o código anterior não lê `SKIPPED` |
 | D24 | O usuário testa o front local, com o mock, antes dos commits | usuário | 18/11/2026 | Correção do teste entra no próprio commit |
+| D25 | A release 20261118 sobe na sandbox e em produção no mesmo dia, com a GMUD como mudança não programada | usuário | 18/11/2026 | Entregar no prazo dos cards; a sandbox valida antes |
+| D26 | A volta da Checagem final para o Trade sai por SQL manual, sem migration nova (exceção à regra do projeto) | usuário | 18/11/2026 | Pedido do usuário; o script só apaga se a transição nunca foi usada, e um banco criado do zero volta a ter a transição |
+| D27 | Horas úteis pelo calendário da B3 (BVMF) da biblioteca `holidays`; 24/12, 31/12 e feriados locais ficam para um card futuro | usuário | 18/11/2026 | O calendário cobre os feriados nacionais e os da bolsa; a melhoria fica como rascunho |
+| D28 | Os três cards entram na sprint atual como intrusos, com prazo no dia da subida (18/11) | usuário | 18/11/2026 | Subida em produção no mesmo dia |
