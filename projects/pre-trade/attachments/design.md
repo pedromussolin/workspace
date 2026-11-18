@@ -199,7 +199,8 @@ sai de etapa de aprovação. Fora disso, `WorkflowConfigurationError`.
 **Quem age na etapa:** `stage_permission_names` (`business/workflows.py:597`) conta como "age na
 etapa" toda permissão autorizada numa saída manual. Sem ajuste, Operações passaria a receber o aviso
 de ação e o de SLA de toda solicitação que entra na 1ª ou na 2ª aprovação. Por isso, saídas com
-`skips_approvals` não contam ali: são exceção, não a ação normal da etapa. O "aguardando você" já
+`skips_approvals` não contam ali nem em `_participant_permission_ids` (quem anexa na etapa): são
+exceção, não a ação normal da etapa. O "aguardando você" já
 não é afetado, porque em etapa de aprovação ele só considera quem decide.
 
 **Concorrência:** a decisão e a transição travam o processo (`_lock_open_process`). Se o aprovador e

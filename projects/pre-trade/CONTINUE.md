@@ -19,4 +19,5 @@ Nenhuma ainda.
 
 ## Próximo passo
 
-Fechar P5 com o usuário, ajustar o desenho e pedir a aprovação dele. Só depois: plano de implementação, cards no TS e branches.
+Desenho aprovado em 18/11. Plano em `attachments/plan.md` (14 tarefas, 4 cards no épico TS-5046).
+Criar os cards, escolher o modo de execução e começar pelo card 1 (motor). Só depois: plano de implementação, cards no TS e branches.
