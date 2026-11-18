@@ -32,6 +32,6 @@ Em "Quem", quem decidiu.
 | D9 | 2ª aprovação genérica: permissão `portfolio-manager-pre-trade:approve`, exibida como "Gestão (Aprovação trade)", para quem tem a CGA | usuário | 18/11/2026 | Não é só o CEO; o diretor também aprova |
 | D10 | O usuário cria a app role nova no Azure e a atribui antes do deploy; a `ceo-pre-trade:approve` sai só depois | usuário | 18/11/2026 | Quem aprova não fica sem role no meio da troca |
 | D11 | Exceção à regra de prefixo dos scopes do BFF: `ceo-pre-trade` sai e `portfolio-manager-pre-trade` entra na lista `SCOPES_OUTSIDE_THE_PREFIX_RULE`, sem crescer | usuário | 18/11/2026 | O padrão `{grupo}-pre-trade` da shared não segue o prefixo da página |
-| D12 | Fast track fica fora deste projeto | usuário | 18/11/2026 | Será implementado no futuro |
+| D12 | Fast track fica fora da primeira entrega | usuário | 18/11/2026 | Será implementado no futuro |
 | D13 | Horário comercial das horas úteis do SLA: 9h às 18h, America/Sao_Paulo | usuário | 18/11/2026 | Horário de trabalho das áreas |
 | D14 | E-mail do SLA estourado sai uma vez só, no momento em que estoura (diferente do aviso de prazo, que é diário) | usuário | 18/11/2026 | O SLA conta em horas; repetir todo dia não ajuda |

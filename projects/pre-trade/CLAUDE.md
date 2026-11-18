@@ -2,10 +2,11 @@ Status: rascunho
 Data: 18/11/2026
 Tags: pre-trade, workflows, sla, aprovacoes, portal
 
-# pre-trade-sla-early-trade: regras do projeto
+# pre-trade: regras do projeto
 
-SLA por etapa, trade antecipado e 2ª aprovação genérica no fluxo do Pré-Trade. Aqui ficam as
-decisões, as tarefas e o desenho; o código vive nos repositórios da empresa.
+Evolução do fluxo do Pré-Trade; a primeira entrega é o SLA por etapa, o trade antecipado e a 2ª
+aprovação genérica. Aqui ficam as decisões, as tarefas e o desenho; o código vive nos repositórios
+da empresa.
 
 As regras comuns (sigilo, commits, idioma e sincronização) estão no `AGENTS.md` e em
 `docs/conventions/` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
@@ -24,13 +25,13 @@ As regras comuns (sigilo, commits, idioma e sincronização) estão no `AGENTS.m
 ## Valores reais fora do repo
 
 Hosts, URLs, credenciais e nomes reais ficam no arquivo local
-`~/.config/workspace/private/pre-trade-sla-early-trade.md`, fora do controle de versão. Aqui entra só
+`~/.config/workspace/private/pre-trade.md`, fora do controle de versão. Aqui entra só
 a referência genérica, como "banco da shared na sandbox".
 
 ## Dados locais fora do repo
 
 Worktrees, logs, travas, arquivos de deploy e evidências com dados reais ficam em
-`~/.local/share/workspace/projects/pre-trade-sla-early-trade/`, criada pelo `ws project new`. Nada
+`~/.local/share/workspace/projects/pre-trade/`, criada pelo `ws project new`. Nada
 dali entra no repo; aqui entra só o caminho.
 
 ## Repositórios envolvidos

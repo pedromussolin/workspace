@@ -2,12 +2,12 @@ Status: rascunho
 Data: 18/11/2026
 Tags: pre-trade, workflows, sla, aprovacoes, portal
 
-# pre-trade-sla-early-trade
+# pre-trade
 
 ## Visão geral
 
-Três mudanças no fluxo do Pré-Trade (tela `features/pre-trade` do portal, motor de workflows do
-`apl-shared-service`):
+Evolução do fluxo do Pré-Trade (tela `features/pre-trade` do portal, motor de workflows do
+`apl-shared-service`). A primeira entrega são três mudanças:
 
 1. **SLA por etapa, opcional.** SLA é o tempo máximo combinado para uma etapa ser concluída. Cada
    etapa do fluxo pode ter o seu ou nenhum. Conta em horas úteis. Quando estoura, a tela mostra e
@@ -20,7 +20,7 @@ Três mudanças no fluxo do Pré-Trade (tela `features/pre-trade` do portal, mot
    certificação de gestor (CGA, Certificação de Gestores ANBIMA), hoje o diretor e o CEO. O nome
    exibido passa a ser "Gestão (Aprovação trade)".
 
-Fora do escopo: o *fast track*, que entra num projeto futuro.
+Fora da primeira entrega: o *fast track*, que fica para uma entrega futura deste projeto.
 
 ## Como o fluxo está hoje (sandbox, 18/11/2026)
 
