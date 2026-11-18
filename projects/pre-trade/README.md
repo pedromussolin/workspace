@@ -73,9 +73,9 @@ tarefas entram depois de a abordagem técnica ser aprovada.
 <!-- ws:items -->
 | # | Tarefa | Card | Tipo | Responsável | Status |
 |---|---|---|---|---|---|
-| 01 | [[PRE-TRADE] SLA por etapa do fluxo](tasks/01-sla-per-stage.md) | TS-5846 | Nova função | dev-ae95329f82 | a fazer |
-| 02 | [[PRE-TRADE] Trade antecipado com as aprovações puladas](tasks/02-early-trade.md) | TS-5847 | Nova função | dev-ae95329f82 | a fazer |
-| 03 | [[PRE-TRADE] 2ª aprovação pela Gestão (Aprovação trade)](tasks/03-second-approval-portfolio-manager.md) | TS-5848 | Melhoria | dev-ae95329f82 | a fazer |
+| 01 | [[PRE-TRADE] SLA por etapa do fluxo](tasks/01-sla-per-stage.md) | TS-5846 | Nova função | dev-ae95329f82 | em andamento |
+| 02 | [[PRE-TRADE] Trade antecipado com as aprovações puladas](tasks/02-early-trade.md) | TS-5847 | Nova função | dev-ae95329f82 | em andamento |
+| 03 | [[PRE-TRADE] 2ª aprovação pela Gestão (Aprovação trade)](tasks/03-second-approval-portfolio-manager.md) | TS-5848 | Melhoria | dev-ae95329f82 | em andamento |
 <!-- /ws:items -->
 
 ## Situação

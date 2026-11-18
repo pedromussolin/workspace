@@ -6,7 +6,7 @@ assignee = "dev-ae95329f82"
 reporter = "dev-ae95329f82"
 
 [tracker]
-status = "todo"
+status = "in_progress"
 priority = "Medium"
 due = 2026-11-19
 sprint = ""
