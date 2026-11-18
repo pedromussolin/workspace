@@ -15,9 +15,16 @@ REV_B, REV_C = "bbb000000002", "ccc000000003"
 SLUGS = {"repo-a": "acme/repo-a", "repo-b": "acme/repo-b"}
 
 
-def assess(world: World, repo: str, includes: tuple[str, ...]) -> rules.RepoState:
+def assess(
+    world: World, repo: str, includes: tuple[str, ...], envs: tuple[str, ...] = ()
+) -> rules.RepoState:
+    """`envs` are the environment names in scope; none by default (the code side only)."""
     config = load_release_config()
-    return rules.assess(config, config.entry(repo), includes, DAY_DATE, world.release_dir())
+    scope = tuple(config.environment(name) for name in envs)
+    return rules.assess(config, config.entry(repo), includes, DAY_DATE, world.release_dir(), scope)
+
+
+SANDBOX = ("sandbox",)
 
 
 def build_release(world: World, subject: str = "chore({key}): junta a {branch}") -> None:
@@ -124,7 +131,7 @@ def test_r3_release_current_with_master_has_no_problem(world: World):
 def test_r4_sdbx_with_a_commit_of_its_own_is_refused(world: World):
     conflicting_sdbx(world)
     world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "feat: own", push=False)
-    state = assess(world, "repo-a", (ONE, TWO))
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
     assert any("has commits of its own" in p for p in state.problems)
 
 
@@ -133,7 +140,10 @@ def test_r4_sdbx_file_that_sandbox_does_not_change_is_refused(world: World):
     build_sdbx(world)
     world.commit("repo-a", f"{CODE}-sdbx", "x.txt", "x\n", "feat: x", push=False)
     config = load_release_config()
-    problems, differs = rules.mirror(config.entry("repo-a"), CODE, f"{CODE}-sdbx", config)
+    sandbox = config.environment("sandbox")
+    problems, differs = rules.mirror(
+        config.entry("repo-a"), CODE, f"{CODE}-sdbx", sandbox, "master"
+    )
     assert f"repo-a: {CODE}-sdbx differs from {CODE} in x.txt, which sandbox does not change" in (
         problems
     )
@@ -142,43 +152,77 @@ def test_r4_sdbx_file_that_sandbox_does_not_change_is_refused(world: World):
 
 def test_r4_clean_mirror_lists_the_sandbox_only_file(world: World):
     conflicting_sdbx(world)
-    state = assess(world, "repo-a", (ONE, TWO))
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
     assert state.problems == []
-    assert state.sdbx == f"{CODE}-sdbx"
-    assert state.sdbx_differs == ("sandbox-only.txt",)
+    side = state.environments["sandbox"]
+    assert side.copy == f"{CODE}-sdbx" and side.exists
+    assert side.differs == ("sandbox-only.txt",)
 
 
-def test_r4_r5_skip_an_sdbx_that_is_not_the_sandbox_head(world: World):
+def test_r4_a_clean_sandbox_merge_also_has_its_copy(world: World):
     build_release(world)
     build_sdbx(world)
-    world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "own work", push=False)
-    world.git("repo-a", "branch", "--set-upstream-to=origin/sandbox", f"{CODE}-sdbx")
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert state.sandbox_head == CODE and state.sdbx_differs == ()
-    assert state.problems == [] and state.ready
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert state.problems == [] and state.warnings == [] and state.ready
+    assert state.environments["sandbox"].differs == ("sandbox-only.txt",)
 
 
-def test_sandbox_conflict_without_sdbx_is_a_problem(world: World):
+def test_r2_a_copy_that_tracks_the_environment_branch_is_refused(world: World):
     build_release(world)
-    world.commit("repo-a", "sandbox", "one.txt", "other\n", "chore: sandbox touches one")
-    world.git("repo-a", "fetch", "-q", "origin")
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert (
-        f"repo-a: {CODE} conflicts with origin/sandbox in one.txt; run ws release new"
-        in state.problems
-    )
+    build_sdbx(world)
+    world.git("repo-a", "branch", "--set-upstream-to=origin/sandbox", f"{CODE}-sdbx")
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert any(f"{CODE}-sdbx tracks origin/sandbox" in p for p in state.problems)
+
+
+def test_an_environment_without_its_copy_is_a_problem(world: World):
+    build_release(world)
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert f"repo-a: {CODE}-sdbx missing; run ws release new --env sandbox" in state.problems
+    assert not state.environments["sandbox"].exists
     assert not state.ready
 
 
-def test_sdbx_already_merged_into_sandbox_draws_no_warning(world: World):
+def test_an_environment_out_of_scope_needs_no_copy(world: World):
+    build_release(world)
+    state = assess(world, "repo-a", (ONE, TWO))
+    assert state.environments == {} and state.ready
+
+
+def test_two_environments_each_check_their_own_copy(world: World):
+    world.add_staging()
+    build_release(world)
+    build_sdbx(world)
+    state = assess(world, "repo-a", (ONE, TWO), ("sandbox", "staging"))
+    assert f"repo-a: {CODE}-stg missing; run ws release new --env staging" in state.problems
+    world.git("repo-a", "checkout", "-q", CODE)
+    world.branch("repo-a", f"{CODE}-stg", CODE, push=False)
+    world.git(
+        "repo-a", "merge", "--no-ff", "-m", "chore(TS-101): junta a staging", "origin/staging"
+    )
+    state = assess(world, "repo-a", (ONE, TWO), ("sandbox", "staging"))
+    assert state.problems == []
+    assert list(state.environments) == ["sandbox", "staging"]
+    assert state.environments["staging"].differs == ("staging-only.txt",)
+    assert state.as_json()["environments"]["staging"]["copy"] == f"{CODE}-stg"
+
+
+def test_a_copy_that_lacks_the_environment_branch_is_refused(world: World):
+    build_release(world)
+    world.branch("repo-a", f"{CODE}-sdbx", CODE, push=False)
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert any(f"{CODE}-sdbx does not contain origin/sandbox" in p for p in state.problems)
+
+
+def test_a_copy_already_merged_into_the_environment_stays_ready(world: World):
     conflicting_sdbx(world)
     world.git("repo-a", "checkout", "-q", "sandbox")
     world.git("repo-a", "merge", "-q", "--no-ff", "-m", "Merge pull request #11", f"{CODE}-sdbx")
     world.git("repo-a", "push", "-q", "origin", "sandbox")
     world.git("repo-a", "fetch", "-q", "origin")
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert state.sandbox_head == CODE
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
     assert state.warnings == [] and state.ready
+    assert state.environments["sandbox"].merged
 
 
 def test_release_branch_behind_its_origin_copy_is_refused(world: World):
@@ -254,8 +298,9 @@ def good_body(state: rules.RepoState, tasks: list[str], extra: str = "") -> str:
 
 
 def r6(state, kind, draft, body=None):
+    env = None if kind == "code" else load_release_config().environment(kind)
     return rules.pr_text_problems(
-        state, kind, draft, draft.body if body is None else body, DAY_DATE, LINK_TEMPLATE,
+        state, env, draft, draft.body if body is None else body, DAY_DATE, LINK_TEMPLATE,
         {"repo-a", "repo-b"}, SLUGS,
     )  # fmt: skip
 
@@ -310,6 +355,17 @@ def test_r6_sandbox_title_needs_the_sdbx_suffix(world: World):
     assert any("must end with ' (sdbx)'" in p for p in r6(state, "sandbox", draft))
 
 
+def test_r6_staging_title_needs_the_stg_suffix(world: World):
+    world.add_staging()
+    state = assess(world, "repo-a", (ONE, TWO))
+    tasks = ["TS-101", "TS-102"]
+    body = good_body(state, tasks)
+    ok = draft_for(world, "repo-a-staging", f"release {DAY}: tema (stg)", tasks, body)
+    assert r6(state, "staging", ok) == []
+    bad = draft_for(world, "repo-a-staging", f"release {DAY}: tema (sdbx)", tasks, body)
+    assert any("staging title must end with ' (stg)'" in p for p in r6(state, "staging", bad))
+
+
 def test_r6_tasks_must_list_every_include_key(world: World):
     state = multi_state(world)
     draft = draft_for(
@@ -334,7 +390,7 @@ def test_release_rules_check_the_template_link(world: World):
     draft = draft_for(world, "repo-a", f"release {DAY}: x", tasks, body)
     assert r6(state, "code", draft) != []
     found = rules.pr_text_problems(
-        state, "code", draft, body, DAY_DATE, other, {"repo-a", "repo-b"}, SLUGS
+        state, None, draft, body, DAY_DATE, other, {"repo-a", "repo-b"}, SLUGS
     )
     assert found == []
 
@@ -448,32 +504,41 @@ def test_r10_two_heads_at_the_code_tip_are_refused(world: World):
 def test_r10_stacked_chain_has_one_head_on_each_side(world: World):
     stack_migrations(world)
     build_release(world)
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert state.heads == {"code": [REV_C], "sandbox": [REV_C]}
+    build_sdbx(world)
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert state.heads == {"code": [REV_C]}
+    assert state.environments["sandbox"].heads == [REV_C]
     assert state.problems == []
 
 
-def test_assess_sandbox_head_is_the_code_branch_without_a_conflict(world: World):
+def test_r10_two_heads_at_a_copy_are_refused(world: World):
+    world.migration("repo-a", "sandbox", REV_B, REV_BASE)
+    world.migration("repo-a", ONE, REV_C, REV_BASE)
     build_release(world)
     build_sdbx(world)
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert state.sandbox_head == CODE
-    assert f"{CODE}-sdbx is not needed: sandbox merges cleanly" in state.warnings
-
-
-def test_assess_sandbox_head_is_the_sdbx_while_sandbox_conflicts(world: World):
-    conflicting_sdbx(world)
-    state = assess(world, "repo-a", (ONE, TWO))
-    assert state.sandbox_head == f"{CODE}-sdbx"
-    assert state.warnings == []
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
+    assert state.heads == {"code": [REV_C]}
+    assert any(
+        "2 alembic heads at the sandbox copy" in p and p.endswith("ws release new --env sandbox")
+        for p in state.problems
+    )
 
 
 def test_as_json_is_plain_data(world: World):
-    state = assess(world, "repo-a", (ONE,))
+    state = assess(world, "repo-a", (ONE,), SANDBOX)
     data = state.as_json()
     assert data["repo"] == "repo-a"
     assert data["includes"] == [ONE]
-    assert isinstance(data["sdbx_differs"], list)
+    assert data["environments"] == {
+        "sandbox": {
+            "branch": "sandbox",
+            "copy": f"{ONE}-sdbx",
+            "exists": False,
+            "merged": False,
+            "differs": [],
+            "heads": [],
+        }
+    }
 
 
 def drop_origin_sandbox(world: World) -> None:
@@ -483,18 +548,17 @@ def drop_origin_sandbox(world: World) -> None:
 def test_missing_sandbox_on_origin_is_a_problem_without_sdbx(world: World):
     build_release(world)
     drop_origin_sandbox(world)
-    state = assess(world, "repo-a", (ONE, TWO))
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
     assert any("repo-a: origin/sandbox does not exist" in p for p in state.problems)
     assert not state.ready
 
 
-def test_missing_sandbox_on_origin_with_sdbx_does_not_crash_or_warn(world: World):
+def test_missing_sandbox_on_origin_with_its_copy_does_not_crash(world: World):
     build_release(world)
     build_sdbx(world)
     drop_origin_sandbox(world)
-    state = assess(world, "repo-a", (ONE, TWO))
+    state = assess(world, "repo-a", (ONE, TWO), SANDBOX)
     assert any("repo-a: origin/sandbox does not exist" in p for p in state.problems)
-    assert not any("is not needed" in w for w in state.warnings)
     assert not state.ready
 
 

@@ -171,6 +171,24 @@ class World:
         self.git(name, "checkout", "-q", "master")
         self.git(name, "fetch", "-q", "origin")
 
+    def add_staging(self) -> None:
+        """A `staging` branch (with `staging-only.txt`) in both repos, and the config switched to
+        `[release.environments]`: `sandbox` (default) and `staging`."""
+        for name in ("repo-a", "repo-b"):
+            self.branch(name, "staging", "master")
+            self.commit(name, "staging", "staging-only.txt", "staging\n", "chore: staging")
+            self.git(name, "checkout", "-q", "master")
+            self.git(name, "fetch", "-q", "origin")
+        path = self.config_dir / "config.toml"
+        text = path.read_text(encoding="utf-8").replace(
+            'sandbox_branch = "sandbox"\nbase_branch = "master"\n',
+            'base_branch = "master"\n'
+            '[release.environments.sandbox]\nbranch = "sandbox"\nsuffix = "-sdbx"\n'
+            "default = true\n"
+            '[release.environments.staging]\nbranch = "staging"\nsuffix = "-stg"\n',
+        )
+        path.write_text(text, encoding="utf-8")
+
     def _write_config(self) -> None:
         self.config_dir.mkdir(parents=True)
         text = f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{SITE}"\nemail = "dev@example.com"\n\n'  # noqa: E501

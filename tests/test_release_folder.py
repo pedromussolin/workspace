@@ -165,10 +165,17 @@ def test_read_pr_refuses_unknown_keys_and_missing_title(tmp_path):
 def test_pr_drafts_names(tmp_path):
     for name in ("repo-a.md", "repo-a-sandbox.md", "repo-a-sandbox-2.md", "repo-b.md"):
         write(tmp_path / "pr" / name, PR)
-    drafts = folder.pr_drafts(tmp_path, "repo-a")
+    drafts = folder.pr_drafts(tmp_path, "repo-a", ["sandbox", "staging"])
     assert set(drafts) == {"code", "sandbox", "sandbox-2"}
     assert drafts["sandbox-2"].path.name == "repo-a-sandbox-2.md"
-    assert folder.pr_drafts(tmp_path, "repo-z") == {}
+    assert folder.pr_drafts(tmp_path, "repo-z", ["sandbox"]) == {}
+
+
+def test_pr_drafts_name_each_configured_environment(tmp_path):
+    for name in ("repo-a-staging.md", "repo-a-staging-3.md", "repo-a-qa.md", "repo-a-staging-1.md"):
+        write(tmp_path / "pr" / name, PR)
+    drafts = folder.pr_drafts(tmp_path, "repo-a", ["sandbox", "staging"])
+    assert set(drafts) == {"staging", "staging-3"}
 
 
 def test_render_tasks_and_date():

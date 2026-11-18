@@ -2,8 +2,9 @@
 
 Nothing here pushes or calls `gh`. A merge conflict stops the command at once and leaves the
 merge in progress in its worktree; the user resolves it, commits, and runs the command again.
-Two Alembic heads at a clean sandbox merge count as a conflict: the `-sdbx` is made and the user
-adds the merge migration there.
+Each selected environment gets its copy of the code branch (`<code><suffix>`), always: the code
+branch merged, then the environment branch. Two Alembic heads at a clean environment merge count
+as a conflict: the user adds the merge migration in the copy.
 """
 
 import argparse
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from ws.release import ReleaseRefused, ReleaseSetup, folder, gitops, rules, text
 from ws.release import run as run_release
-from ws.release.settings import ReleaseConfig, RepoEntry, load_release_config
+from ws.release.settings import Environment, ReleaseConfig, RepoEntry, load_release_config
 
 PUBLISHED = "published.json"
 
@@ -25,6 +26,7 @@ class Conflict(Exception):
     worktree: Path
     files: list[str]
     heads: list[str] = field(default_factory=list)
+    env: str = ""
 
 
 def _local(branch: str) -> str:
@@ -65,30 +67,14 @@ def _code_branch(includes: tuple[str, ...], day: date) -> str:
     return includes[0] if len(includes) == 1 else f"release/{text.compact(day)}"
 
 
-def _needs_copy(entry: RepoEntry, tip: str, sandbox: str) -> bool:
-    """A git conflict with `sandbox`, or two Alembic heads at the clean merge."""
-    tree, files = gitops.merge_tree(entry.path, tip, sandbox)
-    return bool(files) or bool(rules.sandbox_heads(entry, tip, tree))
-
-
-def _sandbox_conflicts(config: ReleaseConfig, entry: RepoEntry, code: str) -> bool:
-    """Whether the code branch as it is now needs the `-sdbx` copy (False if either is absent)."""
-    ref, sandbox = _ref(entry.path, code), _origin(config.sandbox_branch)
-    tip = gitops.rev(entry.path, ref) if ref else None
-    if tip is None or gitops.rev(entry.path, sandbox) is None:
-        return False
-    return _needs_copy(entry, tip, sandbox)
-
-
 def _check_setup(
     config: ReleaseConfig,
     entry: RepoEntry,
     includes: tuple[str, ...],
     day: date,
     published: dict,
-    copy_used: bool,
+    envs: tuple[Environment, ...],
 ) -> None:
-    """`copy_used`: the sandbox conflicts, so the `-sdbx` copy will be the sandbox head."""
     repo, name = entry.path, entry.name
     code = _code_branch(includes, day)
     release_branch = f"release/{text.compact(day)}"
@@ -103,7 +89,7 @@ def _check_setup(
             f"{name}: {release_branch} exists but the repo has one include now: "
             "decide how to move on"
         )
-    for branch in [code, f"{code}-sdbx"] if copy_used else [code]:
+    for branch in [code, *(f"{code}{env.suffix}" for env in envs)]:
         local = gitops.rev(repo, _local(branch))
         if local is None and gitops.rev(repo, _origin(branch)):
             raise ReleaseSetup(
@@ -175,38 +161,46 @@ def _build_code(
     _merge_base(entry, wt, base, _keys(includes))
 
 
-def _build_sdbx(
-    config: ReleaseConfig, entry: RepoEntry, includes: tuple[str, ...], code: str, release: Path
-) -> None:
+def _build_copy(
+    entry: RepoEntry,
+    includes: tuple[str, ...],
+    code: str,
+    release: Path,
+    env: Environment,
+) -> str | None:
+    """The copy of `code` for `env`: the code branch, then `origin/<env.branch>`. A warning when
+    origin lacks the environment branch (the copy is skipped)."""
     repo = entry.path
-    sandbox = _origin(config.sandbox_branch)
-    tip = gitops.rev(repo, _local(code))
-    if tip is None or gitops.rev(repo, sandbox) is None:
-        return
-    if not _needs_copy(entry, tip, sandbox):
-        return
-    sdbx = f"{code}-sdbx"
+    env_ref = _origin(env.branch)
+    code_ref = _ref(repo, code)
+    if code_ref is None:
+        return None
+    if gitops.rev(repo, env_ref) is None:
+        return f"{entry.name}: origin/{env.branch} does not exist; the {env.name} copy is skipped"
+    tip = gitops.rev(repo, code_ref)
+    copy = f"{code}{env.suffix}"
     keys = _keys(includes)
-    exists = gitops.rev(repo, _local(sdbx)) is not None
-    if not exists and gitops.rev(repo, _origin(sdbx)):
+    exists = gitops.rev(repo, _local(copy)) is not None
+    if not exists and gitops.rev(repo, _origin(copy)):
         raise ReleaseSetup(
-            f"{entry.name}: {sdbx} is on origin but not here; pull it (git switch {sdbx}) first"
+            f"{entry.name}: {copy} is on origin but not here; pull it (git switch {copy}) first"
         )
-    wt = _worktree(release, entry, sdbx, "-sdbx", None if exists else tip)
-    if exists and not gitops.is_ancestor(wt, _local(code), "HEAD"):
+    wt = _worktree(release, entry, copy, env.suffix, None if exists else tip)
+    if exists and not gitops.is_ancestor(wt, code_ref, "HEAD"):
         subject, body = text.release_merge_message(keys, text.copy_text(code))
-        _merge(entry, wt, _local(code), subject, body)
-    if not gitops.is_ancestor(wt, sandbox, "HEAD"):
-        subject, body = text.release_merge_message(keys, text.sandbox_text(code))
-        _merge(entry, wt, sandbox, subject, body)
-    heads = rules.heads_at(entry, _local(sdbx))
-    if len(heads) > 1 and len(rules.heads_at(entry, _local(code))) <= 1:
-        raise Conflict(entry.name, wt, [], heads)
+        _merge(entry, wt, code_ref, subject, body)
+    if not gitops.is_ancestor(wt, env_ref, "HEAD"):
+        subject, body = text.release_merge_message(keys, text.environment_text(code, env.branch))
+        _merge(entry, wt, env_ref, subject, body)
+    heads = rules.heads_at(entry, _local(copy))
+    if len(heads) > 1 and len(rules.heads_at(entry, code_ref)) <= 1:
+        raise Conflict(entry.name, wt, [], heads, env.name)
+    return None
 
 
-def _stale(entry: RepoEntry, code: str, multi: bool, copy_used: bool) -> list[str]:
-    """A local release branch or `-sdbx` behind its origin copy ("Update branch" on GitHub)."""
-    branches = ([code] if multi else []) + ([f"{code}-sdbx"] if copy_used else [])
+def _stale(entry: RepoEntry, code: str, multi: bool, envs: tuple[Environment, ...]) -> list[str]:
+    """A local release branch or copy behind its origin copy ("Update branch" on GitHub)."""
+    branches = ([code] if multi else []) + [f"{code}{env.suffix}" for env in envs]
     return [p for b in branches for p in rules.against_origin(entry.path, entry.name, b)[0]]
 
 
@@ -218,6 +212,7 @@ def run_new(args: argparse.Namespace) -> int:
             raise ReleaseRefused(f"{text.compact(day)} is in the past")
         slug = folder.resolve_slug(args.project, Path.cwd())
         release = folder.release_dir(slug, day)
+        envs = config.select(args.envs)
         names = tuple(entry.name for entry in config.repos)
         wanted = folder.read_release(release, names)
         selected = folder.select_repos(config, wanted, args.repos)
@@ -227,11 +222,9 @@ def run_new(args: argparse.Namespace) -> int:
             if error:
                 warnings.append(f"{name}: fetch failed: {error}")
         published = read_published(release)
-        copy_used: dict[str, bool] = {}
         for name in selected:
             entry, includes = config.entry(name), wanted.include[name]
-            copy_used[name] = _sandbox_conflicts(config, entry, _code_branch(includes, day))
-            _check_setup(config, entry, includes, day, published, copy_used[name])
+            _check_setup(config, entry, includes, day, published, envs)
 
         states: list[dict] = []
         built: list[str] = []
@@ -242,7 +235,7 @@ def run_new(args: argparse.Namespace) -> int:
             entry, includes = config.entry(name), wanted.include[name]
             code = _code_branch(includes, day)
             problems, _, order = rules.order_check(entry, includes, _origin(config.base_branch))
-            problems += _stale(entry, code, len(includes) > 1, copy_used[name])
+            problems += _stale(entry, code, len(includes) > 1, envs)
             if problems:
                 blocked.append(name)
                 if order != list(includes):
@@ -250,7 +243,10 @@ def run_new(args: argparse.Namespace) -> int:
             else:
                 try:
                     _build_code(config, entry, includes, day, release)
-                    _build_sdbx(config, entry, includes, code, release)
+                    for env in envs:
+                        skipped = _build_copy(entry, includes, code, release, env)
+                        if skipped:
+                            warnings.append(skipped)
                 except Conflict as stop:
                     payload["conflict"] = {
                         "repo": stop.repo,
@@ -260,11 +256,12 @@ def run_new(args: argparse.Namespace) -> int:
                     }
                     if stop.heads:
                         payload["conflict"]["alembic_heads"] = stop.heads
+                        listed = ", ".join(stop.heads)
                         payload["conflict"]["message"] = (
-                            f"{stop.repo}: {len(stop.heads)} alembic heads at the sandbox merge: "
-                            f"{', '.join(stop.heads)}; add a merge migration whose down_revision "
-                            f"is ({', '.join(stop.heads)}) in {stop.worktree}, commit it and run "
-                            "ws release new again"
+                            f"{stop.repo}: {len(stop.heads)} alembic heads at the {stop.env} "
+                            f"copy: {listed}; add a merge migration whose down_revision is "
+                            f"({listed}) in {stop.worktree}, commit it and run "
+                            f"ws release new --env {stop.env} again"
                         )
                     payload["built"] = built
                     payload["not_started"] = selected[selected.index(name) + 1 :]
@@ -276,7 +273,7 @@ def run_new(args: argparse.Namespace) -> int:
                         f"not started: {', '.join(left) or 'none'}"
                     ) from None
                 built.append(name)
-            states.append(rules.assess(config, entry, includes, day, release).as_json())
+            states.append(rules.assess(config, entry, includes, day, release, envs).as_json())
         if suggested:
             payload["suggested_order"] = suggested
         if blocked:

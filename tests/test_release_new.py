@@ -18,8 +18,10 @@ BASE = "origin/master"
 DAY_DATE = date(2026, 11, 20)
 
 
-def _new(capsys, day: str = DAY, repos: list[str] | None = None) -> tuple[int, dict, str]:
-    args = argparse.Namespace(project="demo", day=day, repos=repos or [])
+def _new(
+    capsys, day: str = DAY, repos: list[str] | None = None, envs: list[str] | None = None
+) -> tuple[int, dict, str]:
+    args = argparse.Namespace(project="demo", day=day, repos=repos or [], envs=envs or [])
     code = build.run_new(args)
     captured = capsys.readouterr()
     out = captured.out
@@ -86,13 +88,76 @@ def test_new_single_include_builds_nothing(world, fixed_today, capsys):
     assert not (world.release_dir() / "repo-b").exists()
 
 
-def test_new_clean_sandbox_makes_no_sdbx(world, fixed_today, capsys):
+def test_new_makes_the_sdbx_even_when_sandbox_merges_cleanly(world, fixed_today, capsys):
     _setup(world)
-    code, out, _ = _new(capsys)
-    assert code == 0
-    for name in ("repo-a", "repo-b"):
-        assert world.git(name, "branch", "-a", "--list", "*-sdbx") == ""
-        assert _repo(out, name)["sdbx"] is None
+    code, out, err = _new(capsys)
+    assert code == 0, err
+    assert world.git("repo-a", "rev-parse", "--verify", f"{CODE}-sdbx")
+    assert world.git("repo-b", "rev-parse", "--verify", f"{ONLY}-sdbx")
+    for name, branch in (("repo-a", CODE), ("repo-b", ONLY)):
+        side = _repo(out, name)["environments"]["sandbox"]
+        assert side["copy"] == f"{branch}-sdbx" and side["exists"] is True
+        assert side["differs"] == ["sandbox-only.txt"]
+    assert (
+        world.git("repo-a", "merge-base", "--is-ancestor", "origin/sandbox", f"{CODE}-sdbx") == ""
+    )
+    assert _first_parent(world, "repo-a", f"{CODE}-sdbx")[-1] == (
+        f"chore(TS-101, TS-102): junta a {CODE} na sandbox"
+    )
+
+
+def test_new_env_production_builds_no_copy(world, fixed_today, capsys):
+    _setup(world)
+    code, out, err = _new(capsys, envs=["production"])
+    assert code == 0, err
+    assert world.git("repo-a", "branch", "--list", "*-sdbx") == ""
+    assert _repo(out, "repo-a")["environments"] == {}
+
+
+def test_new_env_staging_builds_only_the_staging_copy(world, fixed_today, capsys):
+    world.add_staging()
+    _setup(world)
+    code, out, err = _new(capsys, envs=["staging"])
+    assert code == 0, err
+    assert world.git("repo-a", "branch", "--list", "*-sdbx") == ""
+    side = _repo(out, "repo-a")["environments"]["staging"]
+    assert side["copy"] == f"{CODE}-stg" and side["differs"] == ["staging-only.txt"]
+    assert _first_parent(world, "repo-a", f"{CODE}-stg")[-1].endswith(f"junta a {CODE} na staging")
+
+
+def test_new_two_environments_build_two_copies(world, fixed_today, capsys):
+    world.add_staging()
+    _setup(world)
+    code, out, err = _new(capsys, envs=["sandbox", "staging"])
+    assert code == 0, err
+    assert list(_repo(out, "repo-a")["environments"]) == ["sandbox", "staging"]
+    assert world.git("repo-b", "rev-parse", "--verify", f"{ONLY}-stg")
+
+
+def test_new_without_env_builds_the_default_environments_only(world, fixed_today, capsys):
+    world.add_staging()
+    _setup(world)
+    code, out, err = _new(capsys)
+    assert code == 0, err
+    assert list(_repo(out, "repo-a")["environments"]) == ["sandbox"]
+    assert world.git("repo-a", "branch", "--list", "*-stg") == ""
+
+
+def test_new_unknown_environment_cannot_be_evaluated(world, fixed_today, capsys):
+    _setup(world)
+    code, _, err = _new(capsys, envs=["qa"])
+    assert code == 2 and "unknown environment 'qa'" in err
+
+
+def test_new_skips_a_copy_whose_environment_branch_is_missing(world, fixed_today, capsys):
+    world.add_staging()
+    world.git("repo-a", "push", "-q", "origin", "--delete", "staging")
+    world.git("repo-a", "update-ref", "-d", "refs/remotes/origin/staging")
+    _setup(world)
+    code, out, _ = _new(capsys, envs=["staging"], repos=["repo-a"])
+    assert "repo-a: origin/staging does not exist; the staging copy is skipped" in out["warnings"]
+    assert world.git("repo-a", "branch", "--list", "*-stg") == ""
+    assert code == 1
 
 
 def test_new_conflicting_sandbox_makes_the_sdbx_and_stops(world, fixed_today, capsys):
@@ -119,7 +184,8 @@ def test_new_after_the_resolution_is_ready(world, fixed_today, capsys):
     code, out, _ = _new(capsys)
     assert code == 0
     repo = _repo(out, "repo-a")
-    assert repo["ready"] is True and "shared.txt" in repo["sdbx_differs"]
+    assert repo["ready"] is True
+    assert "shared.txt" in repo["environments"]["sandbox"]["differs"]
 
 
 def test_new_rerun_changes_nothing(world, fixed_today, capsys):
@@ -285,8 +351,9 @@ def test_new_with_the_merge_migration_in_the_sdbx_is_ready(world, fixed_today, c
     code, out, _ = _new(capsys)
     repo = _repo(out, "repo-a")
     assert code == 0, repo["problems"]
-    assert repo["ready"] is True and repo["sandbox_head"] == f"{CODE}-sdbx"
-    assert repo["heads"] == {"code": ["bbb000000002"], "sandbox": ["eee000000005"]}
+    assert repo["ready"] is True
+    assert repo["heads"] == {"code": ["bbb000000002"]}
+    assert repo["environments"]["sandbox"]["heads"] == ["eee000000005"]
 
 
 def test_new_merge_migration_with_other_heads_is_a_problem(world, fixed_today, capsys):
@@ -449,19 +516,21 @@ def _task_copy(world: World, *, local: bool = True) -> None:
     world.write_release({"repo-b": [ONLY]})
 
 
-def test_new_single_ignores_the_tasks_own_sdbx_copy(world, fixed_today, capsys):
+def test_new_single_updates_the_tasks_own_sdbx_copy(world, fixed_today, capsys):
     _task_copy(world)
     code, out, _ = _new(capsys)
     repo = _repo(out, "repo-b")
     assert code == 0, repo["problems"]
-    assert repo["ready"] is True and repo["sandbox_head"] == ONLY
+    assert repo["ready"] is True
+    assert repo["environments"]["sandbox"]["copy"] == f"{ONLY}-sdbx"
+    world.git("repo-b", "merge-base", "--is-ancestor", ONLY, f"{ONLY}-sdbx")
 
 
-def test_new_single_ignores_a_copy_that_is_only_on_origin(world, fixed_today, capsys):
+def test_new_single_copy_that_is_only_on_origin_must_be_pulled(world, fixed_today, capsys):
     _task_copy(world, local=False)
-    code, out, err = _new(capsys)
-    assert code == 0, err
-    assert _repo(out, "repo-b")["ready"] is True
+    code, _, err = _new(capsys)
+    assert code == 2
+    assert f"{ONLY}-sdbx is on origin but not here" in err
 
 
 def test_new_single_already_in_master_is_refused_before_merging(world, fixed_today, capsys):

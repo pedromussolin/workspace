@@ -13,6 +13,19 @@ def _repos(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _envs(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--env",
+        dest="envs",
+        action="extend",
+        nargs="+",
+        default=[],
+        metavar="NAME",
+        help="environments (production, or those of [release.environments]); default: the "
+        "default ones",
+    )
+
+
 def _branches(args: argparse.Namespace) -> int:
     from ws.release import branches
 
@@ -82,6 +95,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     _project(new)
     new.add_argument("day", metavar="DAY")
     _repos(new)
+    _envs(new)
     new.set_defaults(handler=_new)
 
     preview = commands.add_parser("preview", help="Plan a write and print its approval code.")
@@ -90,6 +104,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     _project(preview_publish)
     preview_publish.add_argument("day", metavar="DAY")
     _repos(preview_publish)
+    _envs(preview_publish)
     preview_publish.set_defaults(handler=_preview_publish)
     preview_move = steps.add_parser("move", help="Plan the move of a release to another day.")
     _move_arguments(preview_move)
@@ -101,6 +116,7 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     _project(publish)
     publish.add_argument("day", metavar="DAY")
     _repos(publish)
+    _envs(publish)
     publish.add_argument("--approve", required=True, metavar="CODE")
     publish.set_defaults(handler=_publish)
 

@@ -10,11 +10,11 @@ from ws.release.text import (
     compact,
     copy_text,
     display,
+    environment_text,
     future_day,
     keys_of,
     parse_day,
     release_merge_message,
-    sandbox_text,
     task_merge_subject,
 )
 
@@ -53,7 +53,7 @@ def test_keys_of():
 
 def test_release_texts():
     assert MASTER_TEXT == "atualiza com a master"
-    assert sandbox_text("release/20261120") == "junta a release/20261120 na sandbox"
+    assert environment_text("release/20261120", "sandbox") == "junta a release/20261120 na sandbox"
     assert copy_text("release/20261120") == "atualiza a cópia com a release/20261120"
 
 
@@ -109,7 +109,11 @@ def test_day_argument_maps_a_malformed_day_to_a_setup_problem():
 @pytest.mark.parametrize("count", [5, 6, 7, 9, 12])
 @pytest.mark.parametrize(
     "words",
-    [MASTER_TEXT, sandbox_text("release/20261120"), copy_text("feature/TS-5416-tela-com-filtro")],
+    [
+        MASTER_TEXT,
+        environment_text("release/20261120", "sandbox"),
+        copy_text("feature/TS-5416-tela-com-filtro"),
+    ],
 )
 def test_release_merge_message_never_ends_in_a_function_word(count, words):
     keys = [f"TS-{5400 + n}" for n in range(count)]
@@ -124,4 +128,6 @@ def test_release_merge_message_drops_the_dangling_words():
     keys = [f"TS-{5400 + n}" for n in range(5)]
 
     assert release_merge_message(keys, MASTER_TEXT)[0].endswith("): atualiza")
-    assert release_merge_message(keys, sandbox_text("release/20261120"))[0].endswith("): junta")
+    assert release_merge_message(keys, environment_text("release/20261120", "sandbox"))[0].endswith(
+        "): junta"
+    )

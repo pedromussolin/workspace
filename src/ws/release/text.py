@@ -14,8 +14,8 @@ _SEPARATORS = "-/"
 _FUNCTION_WORDS = {"a", "o", "com", "na", "no", "da", "do", "de", "e"}
 
 
-def sandbox_text(code: str) -> str:
-    return f"junta a {code} na sandbox"
+def environment_text(code: str, branch: str) -> str:
+    return f"junta a {code} na {branch}"
 
 
 def copy_text(code: str) -> str:
