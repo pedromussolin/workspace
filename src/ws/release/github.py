@@ -1,8 +1,9 @@
 """The `gh` adapter: reads PRs and writes through the GitHub CLI, nothing else.
 
 What the module enforces: only the verbs in `ALLOWED_WRITES` run; `write(..., body)` puts the body
-in a mode-600 temporary file passed as `--body-file`, removed afterwards, and refuses `args` that
-already hold `--body` or `--body-file`; reads check that `gh` printed the JSON expected.
+in a mode-600 temporary file passed as `--body-file` (a body-only `pr edit` sends it as the JSON
+`--input` of `gh api --method PATCH`), removed afterwards, and refuses `args` that already hold
+`--body` or `--body-file`; reads check that `gh` printed the JSON expected.
 
 Convention the callers follow and the module does not check: a title goes only as the value of
 `--title` (a separate argv item, never `--title=...`) and a comment text only as the value of
@@ -132,14 +133,25 @@ class Gh:
             raise unexpected(args) from None
 
     def write(self, args: tuple[str, ...], body: str | None) -> str:
-        """Run a `gh` write and return its stdout. A body goes by a mode-600 file, removed after."""
+        """Run a `gh` write and return its stdout. A body goes by a mode-600 file, removed after.
+
+        A body-only `pr edit N -R SLUG` goes through the REST API (`gh api --method PATCH`):
+        older `gh pr edit` versions (seen on 2.46) also read the PR's classic project cards, a
+        GraphQL field GitHub now refuses, so the edit fails before it is sent."""
         if tuple(args[:2]) not in ALLOWED_WRITES:
             raise GhFailed(f"refused: gh {' '.join(args[:2])} is not allowed")
         if body is not None and any(a == "--body" or a.startswith("--body") for a in args):
             raise GhFailed("refused: the body goes through the body argument, not the args")
+        body_edit = len(args) == 5 and args[:2] == ("pr", "edit") and args[3] == "-R"
+        rest = body is not None and body_edit
         argv = list(args)
         path = None
-        if body is not None:
+        if rest:
+            handle, path = tempfile.mkstemp(prefix="ws-release-", suffix=".json")
+            with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                json.dump({"body": body}, stream, ensure_ascii=False)
+            argv = ["api", "--method", "PATCH", f"repos/{args[4]}/pulls/{args[2]}", "--input", path]
+        elif body is not None:
             handle, path = tempfile.mkstemp(prefix="ws-release-", suffix=".md")
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 stream.write(body)
@@ -161,6 +173,11 @@ class Gh:
             if UNCERTAIN_STDERR.search(message):
                 raise GhUncertain(message)
             raise GhFailed(message)
+        if rest:
+            try:
+                return str(json.loads(done.stdout).get("html_url") or "")
+            except (ValueError, AttributeError):
+                return ""
         return done.stdout.strip()
 
     def _json(self, args: list[str], kind: type):

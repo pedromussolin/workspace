@@ -60,6 +60,25 @@ def test_write_create_returns_the_url_and_sends_the_body_by_file(fake_gh):  # no
     assert Gh().write(argv, "outro").endswith("/pull/2")
 
 
+def test_write_body_edit_goes_through_the_rest_api(fake_gh):  # noqa: F811
+    fake_gh.add_pr(SLUG, 4, "h", "sandbox")
+    url = Gh().write(("pr", "edit", "4", "-R", SLUG), "corpo com acentuação\n")
+    assert url == f"https://github.com/{SLUG}/pull/4"
+    assert fake_gh.bodies[4] == "corpo com acentuação\n"
+    sent = fake_gh.calls[-1]
+    assert sent[:4] == ["api", "--method", "PATCH", f"repos/{SLUG}/pulls/4"]
+    assert not os.path.exists(sent[sent.index("--input") + 1])
+    assert fake_gh.writes == [["pr", "edit", "4", "-R", SLUG]]
+
+
+def test_write_body_edit_failure_keeps_the_edit_failures(fake_gh):  # noqa: F811
+    fake_gh.add_pr(SLUG, 4, "h", "sandbox")
+    fake_gh.fail("pr edit", "HTTP 422", repo=SLUG)
+    with pytest.raises(GhFailed, match="HTTP 422"):
+        Gh().write(("pr", "edit", "4", "-R", SLUG), "corpo")
+    assert fake_gh.bodies == {}
+
+
 def test_write_edit_without_body_has_no_file(fake_gh):  # noqa: F811
     fake_gh.add_pr(SLUG, 3, "h", "master")
     Gh().write(("pr", "comment", "3", "-R", SLUG, "--body", "oi"), None)

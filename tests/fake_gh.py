@@ -7,14 +7,17 @@ or edit. Arrange with `add_pr`, `set_checks`, `fail`, `hang`, `logged_out`; insp
 `writes`, `prs`, `bodies`.
 
 Supported: `auth status`, `pr list`, `pr view`, `pr create`, `pr edit N` (`--body-file`,
-`--title`, `--base`, `--add-label`), `pr close N --comment`, `pr comment N --body`. Strict: unknown
-flags, unknown `--json` fields, a bad `--state` and a
-`pr create` without `--title` or a body exit 1.
+`--title`, `--base`, `--add-label`), `pr close N --comment`, `pr comment N --body`, and the REST
+body edit `api --method PATCH repos/SLUG/pulls/N --input FILE` (a JSON with only `body`), which
+answers to the `pr edit` failures and hangs and shows in `writes` as the `pr edit N -R SLUG` it
+stands for (`calls` keeps the raw argv). Strict: unknown flags, unknown `--json` fields, a bad
+`--state` and a `pr create` without `--title` or a body exit 1.
 Any other verb exits 1 with `unsupported`.
 """
 
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -24,13 +27,22 @@ import pytest
 READ_VERBS = (["auth", "status"], ["pr", "list"], ["pr", "view"])
 
 SCRIPT = r"""#!{python}
-import json, sys, time
+import json, re, sys, time
 
 STATE = {state!r}
 argv = sys.argv[1:]
 state = json.load(open(STATE))
 verb = " ".join(argv[:2])
 state["calls"].append(argv)
+rest = None
+if argv[:1] == ["api"]:
+    match = re.fullmatch(r"repos/([^/]+/[^/]+)/pulls/(\d+)", argv[3] if len(argv) > 3 else "")
+    if len(argv) != 6 or argv[1:3] != ["--method", "PATCH"] or argv[4] != "--input" or not match:
+        json.dump(state, open(STATE, "w"))
+        print("unsupported: gh " + " ".join(argv), file=sys.stderr)
+        sys.exit(1)
+    rest = match.groups()
+    verb = "pr edit"
 
 
 def save():
@@ -61,7 +73,8 @@ def find(slug, number):
 if verb in state["hang"]:
     save()
     time.sleep(30)
-for key in (verb, verb + " " + str(option("-R"))):
+slug = rest[0] if rest else option("-R")
+for key in (verb, verb + " " + str(slug)):
     if key in state["failures"]:
         stderr, code = state["failures"][key]
         fail(stderr, code)
@@ -71,7 +84,6 @@ if verb == "auth status":
     save()
     sys.exit(0)
 
-slug = option("-R")
 
 
 JSON_FIELDS = {{
@@ -88,7 +100,7 @@ ALLOWED_FLAGS = {{
     "pr close": {{"-R", "--comment"}},
     "pr comment": {{"-R", "--body"}},
 }}
-if verb in ALLOWED_FLAGS:
+if verb in ALLOWED_FLAGS and not rest:
     position = 2
     while position < len(argv):
         arg = argv[position]
@@ -153,6 +165,15 @@ elif verb == "pr create":
         state["bodies"][str(number)] = body
     save()
     print(url)
+elif rest:
+    item = find(slug, int(rest[1]))
+    data = json.load(open(argv[5]))
+    if set(data) != {{"body"}}:
+        fail("unsupported fields: " + ",".join(sorted(data)))
+    item["body"] = data["body"]
+    state["bodies"][rest[1]] = item["body"]
+    save()
+    print(json.dumps({{"number": item["number"], "html_url": item["url"]}}))
 elif verb == "pr edit":
     item = find(slug, int(argv[2]))
     if option("--title"):
@@ -277,8 +298,9 @@ class FakeGh:
 
     @property
     def writes(self) -> list[list[str]]:
-        """Every call that is not `auth status`, `pr list` or `pr view`."""
-        return [call for call in self.calls if call[:2] not in READ_VERBS]
+        """Every call that is not `auth status`, `pr list` or `pr view`; a REST body edit shows as
+        the `pr edit N -R SLUG` it stands for."""
+        return [_as_cli(call) for call in self.calls if call[:2] not in READ_VERBS]
 
     def prs(self, slug: str) -> list[dict]:
         return self._read()["prs"].get(slug, [])
@@ -287,6 +309,13 @@ class FakeGh:
     def bodies(self) -> dict[int, str]:
         """The body file's text at each `pr create` or `pr edit`, by PR number."""
         return {int(number): text for number, text in self._read()["bodies"].items()}
+
+
+def _as_cli(call: list[str]) -> list[str]:
+    match = re.fullmatch(r"repos/([^/]+/[^/]+)/pulls/(\d+)", call[3]) if len(call) > 3 else None
+    if call[:3] == ["api", "--method", "PATCH"] and match:
+        return ["pr", "edit", match.group(2), "-R", match.group(1)]
+    return call
 
 
 @pytest.fixture
