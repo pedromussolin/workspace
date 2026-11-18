@@ -68,7 +68,7 @@ sprint **e a TS-5737** (decisão de 17/11: tudo sobe de uma vez); o registro for
 - [ ] Deploy da TS-5737: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA` no Parameter
       Store antes da imagem; a chave nasce desligada e liga produto a produto.
 
-**Ensaio da montagem (17/11, HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
+**Ensaio da montagem (17/11, front refeito em 18/11; HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
 rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio-release/`):**
 - Cessão (11 merges na ordem acima, a partir da master `997817017`): conflitos nos merges da 5583,
   5570, 5624 e 5572, todos de imports ou de testes acrescentados no mesmo lugar; nenhum pede
@@ -85,6 +85,15 @@ rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio
   contrato do OCR e dos lastros que já existem na master; ruff e black limpos.
 - Front: sem conflito; build de produção, lint e testes verdes, salvo os 2 testes de layout que já
   falham na master (precisa da imagem `whitelabel-front-dev`, não há node no host).
+- **Front refeito em 18/11** (master `0c4dc76e`, TS-5624 em `2c08d916`): um conflito novo, só de
+  documentação, em `.ai/context/domain.md` (tabela de módulos): a master reformatou a tabela e
+  acrescentou uma linha; resolvido com a tabela da master mais a linha do Orquestrador e a de
+  "Configuração do produto" da 5624, alinhado pelo prettier e gravado pelo `rerere`. Build, lint e
+  `check-patterns` limpos; 6866 testes verdes e os mesmos 2 de layout da master. Logs em
+  `~/repos/.artemis_v2/agentes/ensaio-release/front-1811/`.
+- Masters em 18/11: shared parada; cessão ganhou a release de 17/11 (TS-5609, 2 arquivos do
+  conciliador de IPCA, sem migration) e o BFF a PR #277 (OCR); nenhum desses arquivos é tocado
+  pela release, então os ensaios da cessão e do BFF seguem valendo.
 - [ ] `/release`, sandbox, GMUD, deploy na ordem shared → cessão → BFF → front, `deploy-check`.
 
 1. **TS-5582** (lotes vazios): independente; primeiro (prazo 10/11). Só as guardas, com BFF e front
