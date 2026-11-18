@@ -17,16 +17,17 @@ missed on its date is the usual reason, so `OLD` may be in the past; `NEW` may n
    one, edit the PR on GitHub after the move or ask the user to. A `warnings` line "PR #N has no
    Release: line" is a single-branch PR whose date was not changed: say so.
 4. **What the plan does**, per repo, for the user:
-   - multi-branch: copies `release/OLD[-sdbx]` to `release/NEW[-sdbx]` (same commits), opens the
+   - multi-branch: copies `release/OLD` and the copy of each environment (`-sdbx`, `-stg`, ...)
+     to `release/NEW` and its copies (same commits), opens the
      new PRs with the new date, closes the old open PRs with a comment that points to the new one
      (a merged old PR gets a comment only), and fixes the cross-references between the new PRs;
    - single-branch: no branch and no new PR; only the `Release: DD/MM/YYYY` line of the code and
-     sandbox PR descriptions changes;
-   - with `--delete-old-branches`: deletes `release/OLD[-sdbx]` on `origin`, only when every PR
+     PR descriptions of the environments changes;
+   - with `--delete-old-branches`: deletes `release/OLD` and its copies on `origin`, only when every PR
      from that head is closed or merged (or closed by this plan) and no open PR has it as its base.
      Otherwise the plan has a problem `release/OLD stays: ...` naming the PR; without the flag
      the old branches stay. Offer the flag only when the user wants the old branches gone;
-   - local, after the pushes: the branches `release/OLD[-sdbx]` become `release/NEW[-sdbx]` (with
+   - local, after the pushes: the branches `release/OLD` and its copies become `release/NEW` and its copies (with
      their upstream), the worktrees and the folder `release-OLD/` become `release-NEW/` (with
      `release.toml`, `pr/` and `published.json`), and the drafts get the new date. All of it is a
      line of the `summary`. `left_in_old` lists what is in `release-OLD/` and will not move (a note
@@ -43,4 +44,4 @@ missed on its date is the usual reason, so `OLD` may be in the past; `NEW` may n
      blindly: rerun the preview and show it.
 7. **After:** tell the user that the GMUD window and the PR numbers changed, and offer
    `ws release status NEW --links` for the new block. A later `ws release publish NEW` (a second
-   sandbox PR, for example) works from the moved folder.
+   environment PR, for example) works from the moved folder.

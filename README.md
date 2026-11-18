@@ -336,7 +336,7 @@ strict = true                      # overrides the global value for this repo
 
 `ws release` builds, publishes, moves and reports the release of the company repos: the release
 branch `release/YYYYMMDD` of each repo (merging its task branches in order), the PRs to `master` and
-to `sandbox`, a new date for a release already published, and the PR links for the GMUD. The skill
+to each environment branch (`sandbox`, `staging`, ...; the environments are configurable), a new date for a release already published, and the PR links for the GMUD. The skill
 `/release` drives it; the commands do the checks and the git and `gh` work. Every command prints
 JSON on stdout and messages on stderr; exit 0 ok, 1 a rule failed, 2 a precondition is missing,
 3 a merge conflict that needs you. `--project SLUG` is needed when the current folder is not under
@@ -345,16 +345,16 @@ the project. Dates go in as `YYYYMMDD` or `YYYY-MM-DD`.
 | Command | What it does |
 |---|---|
 | `ws release branches --task TS-N… [--from-items SLUG…] [--repo NAME…]` | Read-only. Per repo, the task branches of those keys with `ahead`, `merged`, the `-sdbx` copy, `contains` (the other branches each one already holds) and `migrations` (Alembic revisions it adds), and `suggested_order`, the order that keeps stacked branches and chained migrations valid; `--from-items` adds the tasks of a planning project and uses their `blocks`/`blocked_by` as hints |
-| `ws release new DATE [--repo NAME…]` | Local only: reads `release-DATE/release.toml`, builds `release/DATE` per multi-branch repo (one merge commit per task branch, in the `[include]` order, then `origin/master`), checks the single-branch ones, tests the merge with `origin/sandbox` and makes a `-sdbx` branch only on a conflict; prints per repo the shape, tip, `sdbx_differs`, `problems` and `ready`; exit 3 leaves the merge in progress in its worktree; never pushes |
-| `ws release preview publish DATE [--repo NAME…]` | Checks every rule and the PR drafts, prints `code`, `summary` (PT-BR), `calls`, `next` and `warnings`, and stores a pending record; writes nothing to a repo or GitHub |
-| `ws release publish DATE [--repo NAME…] --approve CODE` | The write: pushes the branches (never forced) and opens the PRs, in deploy order; prints `done`, `failed`, `not_sent`, `uncertain`, `prs` and the `gmud` links; Claude Code asks you first (the `ask` rule and the gate) |
+| `ws release new DATE [--repo NAME…] [--env NAME…]` | Local only: reads `release-DATE/release.toml`, builds `release/DATE` per multi-branch repo (one merge commit per task branch, in the `[include]` order, then `origin/master`), checks the single-branch ones, and for each selected environment always makes the copy `<code branch><suffix>` (`-sdbx`, `-stg`) that merges `origin/<environment branch>`; `--env` picks environments by name (`production` means no copy), without it the `default = true` ones; prints per repo the shape, tip, `environments` (`copy`, `exists`, `differs`, `heads`), `problems` and `ready`; exit 3 leaves the merge in progress in its worktree; never pushes |
+| `ws release preview publish DATE [--repo NAME…] [--env NAME…]` | Checks every rule and the PR drafts, prints `code`, `summary` (PT-BR), `calls`, `next` and `warnings`, and stores a pending record; writes nothing to a repo or GitHub |
+| `ws release publish DATE [--repo NAME…] [--env NAME…] --approve CODE` | The write: pushes the branches (never forced) and opens the PRs, in deploy order; without `--env` it is production plus the default environments, `--env sandbox` alone publishes only the copy and its PR, without the code branch or a code PR, and the same `--env` must be given to the preview and the write; prints `done`, `failed`, `not_sent`, `uncertain`, `prs` and the `gmud` links; Claude Code asks you first (the `ask` rule and the gate) |
 | `ws release preview move OLD NEW --reason TEXT [--delete-old-branches]` | Plans moving a release to another date: copies the branches, opens new PRs and closes the old ones (multi-branch), changes the `Release:` line (single-branch), renames the local branches, worktrees and folder; prints `code`, `summary`, `calls`, `next`, `warnings`, `residual_dates` (old-date text left in the new bodies) and `left_in_old` (what stays in the old folder) |
-| `ws release move OLD NEW --reason TEXT [--delete-old-branches] --approve CODE` | The write of the move; with the flag it also deletes `release/OLD[-sdbx]` on `origin`, only when every PR from it is closed or merged and none has it as base; prints `left_in_old` on success, `not_moved_yet` (what is still in the old folder) after a failed run |
-| `ws release status [DATE] [--links]` | Read-only. Without a date, the releases found (folders, and `release/*` branches with open PRs); with one, per repo the shape, worktree, branches, `ahead`/`behind`, the `-sdbx` check and the PRs with their checks; `--links` adds `links`, one line per repo for the GMUD (`apl-shared-service, PR #76: <url>`), code PRs first, sandbox PRs after; exit 1 when a rule fails |
+| `ws release move OLD NEW --reason TEXT [--delete-old-branches] --approve CODE` | The write of the move; with the flag it also deletes `release/OLD` and its environment copies on `origin`, only when every PR from it is closed or merged and none has it as base; prints `left_in_old` on success, `not_moved_yet` (what is still in the old folder) after a failed run |
+| `ws release status [DATE] [--links]` | Read-only. Without a date, the releases found (folders, and `release/*` branches with open PRs); with one, per repo the shape, worktree, branches, `ahead`/`behind`, the environments (the defaults and those whose copy exists) and the PRs with their checks (`kind` is `code` or the environment name); `--links` adds `links`, one line per repo for the GMUD (`apl-shared-service, PR #76: <url>`), code PRs first, then each environment in config order; exit 1 when a rule fails |
 
 The working files are under `~/.local/share/workspace/projects/<slug>/release-YYYYMMDD/`:
 `release.toml` (`repos` in deploy order, and `[include]` with the task branches of each repo in merge
-order), `pr/<repo>.md`, `pr/<repo>-sandbox.md` and `pr/<repo>-sandbox-N.md` (the PR drafts: TOML
+order), `pr/<repo>.md`, `pr/<repo>-<env>.md` and `pr/<repo>-<env>-N.md` (the PR drafts: TOML
 front matter between `+++` lines, then the body) and the worktrees. The drafts are checked by
 `preview publish`; the skill `release` explains their shape.
 
@@ -384,8 +384,17 @@ to `<site>/browse/TS-N`). Values are placeholders; a missing or unknown key exit
 
 ```toml
 [release]
-sandbox_branch = "sandbox"
-base_branch = "master"
+base_branch = "master"            # production: the code branch, no suffix
+
+# the other environments, in the order they are listed; each has its own copy of the code branch
+[release.environments.sandbox]
+branch = "sandbox"
+suffix = "-sdbx"                  # the copy is <code branch>-sdbx
+default = true                    # built and published when no --env is given
+
+[release.environments.staging]
+branch = "staging"
+suffix = "-stg"
 
 # the order here is the deploy order: PRs are created, and cross-referenced, in it
 [release.repos.shared]
@@ -401,8 +410,13 @@ alembic = "<folder of the Alembic versions, relative to the repo>"
 - `slug` is the GitHub `owner/name`; `path` is the local clone.
 - `alembic` is optional: the folder of the migrations. A repo that sets it gets the migration rules:
   every migration an include adds names a `down_revision` that `origin/master` or an earlier include
-  has, and the code branch and the sandbox side each have one Alembic head.
-- `base_branch` and `sandbox_branch` default to `master` and `sandbox`.
+  has, and the code branch and each environment copy have one Alembic head.
+- `base_branch` defaults to `master`. `[release.environments]` is optional: without it there is one
+  environment, `sandbox` (branch from `sandbox_branch`, default `sandbox`; suffix `-sdbx`,
+  `default = true`), so older configs keep working. Setting `sandbox_branch` together with
+  `environments` is an error. A name matches `[a-z][a-z0-9-]*` and is not `production` or `code`;
+  the suffix is a dash and letters or digits; suffixes and branches are unique and none is the base
+  branch.
 
 ## Observing a switched-off job
 
