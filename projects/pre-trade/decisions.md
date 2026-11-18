@@ -12,7 +12,7 @@ Em "Quem", quem decide.
 
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
-| P3 | Abordagem técnica do SLA e do pulo de aprovações no motor | usuário | 18/11/2026 | Mudança de arquitetura no motor genérico |
+| P5 | Trade antecipado: Operações registra algo na etapa Trade (edição do formulário, anexo)? Define se o antecipado vai para o Trade ou direto para a Conferência | usuário | 18/11/2026 | Pergunta do revisor do desenho: direto para a Conferência, Operações não edita nem anexa |
 | P4 | Valores de SLA de cada etapa e quem os mantém | usuário | 18/11/2026 | O SLA é opcional por etapa |
 
 ## Tomadas
@@ -35,3 +35,5 @@ Em "Quem", quem decidiu.
 | D12 | Fast track fica fora da primeira entrega | usuário | 18/11/2026 | Será implementado no futuro |
 | D13 | Horário comercial das horas úteis do SLA: 9h às 18h, America/Sao_Paulo | usuário | 18/11/2026 | Horário de trabalho das áreas |
 | D14 | E-mail do SLA estourado sai uma vez só, no momento em que estoura (diferente do aviso de prazo, que é diário) | usuário | 18/11/2026 | O SLA conta em horas; repetir todo dia não ajuda |
+| D15 | Trade antecipado no motor: transição com `skips_approvals`, vagas abertas viram `SKIPPED`, evento com as etapas puladas | usuário | 18/11/2026 | Histórico coerente e reaproveitável por outro fluxo |
+| D16 | SLA com vencimento gravado na entrada da etapa | usuário | 18/11/2026 | Lista e job em SQL simples; mudar o SLA vale para as próximas entradas |

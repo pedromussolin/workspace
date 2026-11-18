@@ -179,6 +179,12 @@ sai de etapa de aprovação. Fora disso, `WorkflowConfigurationError`.
 - `AvailableTransitionResponse` e `_transition_rows` (`modules/pre_trade/business.py:1025`) ganham
   `skips_approvals: bool`. O front decide rótulo e diálogo por essa marca, não pelo nome da etapa.
 
+**Quem age na etapa:** `stage_permission_names` (`business/workflows.py:597`) conta como "age na
+etapa" toda permissão autorizada numa saída manual. Sem ajuste, Operações passaria a receber o aviso
+de ação e o de SLA de toda solicitação que entra na 1ª ou na 2ª aprovação. Por isso, saídas com
+`skips_approvals` não contam ali: são exceção, não a ação normal da etapa. O "aguardando você" já
+não é afetado, porque em etapa de aprovação ele só considera quem decide.
+
 **Concorrência:** a decisão e a transição travam o processo (`_lock_open_process`). Se o aprovador e
 Operações agirem juntos, o primeiro vence; `uq_approval_decided_slot` garante uma decisão por vaga.
 
@@ -220,7 +226,12 @@ Para cada tipo:
   do `_notify_rule_approvals`:
   - da 1ª aprovação: Compliance, Risco e Gestão (Aprovação trade);
   - da 2ª: só Gestão.
+- Só permissões com config **ativa** recebem. Na sandbox, o Jurídico está inativo na 1ª aprovação,
+  então não recebe esse aviso; recebe só o de ação da Conferência.
 - Chave: `pre-trade:{key}:{origem}:{stage_entered_at}:skipped:{permission}`.
+- Quem tem duas permissões pode receber dois e-mails de tipos diferentes (por exemplo, a mudança de
+  etapa como quem abriu e o aviso de pulo como aprovador). Não há deduplicação entre tipos, como
+  hoje (minha decisão).
 - Variáveis: as de sempre mais `actor_name`, `reason` e `skipped_stage_labels`.
 
 ### 5.5 Configuração do fluxo (migration de dados do Pré-Trade)
@@ -232,6 +243,9 @@ Para cada tipo:
 - `notification_config` e templates da seção 5.4. Job do SLA (5.4).
 - SLA das etapas fica nulo nesta migration. Os valores (P4) entram numa migration própria quando
   o usuário definir, para não travar a entrega.
+- Sem preenchimento retroativo: o SLA vale para as entradas em etapa depois da migration dos
+  valores. Solicitações que já estão na etapa seguem sem SLA até a próxima mudança de etapa, e
+  ligar o job não dispara uma leva de e-mails atrasados (minha decisão).
 - O downgrade remove as linhas inseridas. Os valores de enum ficam.
 
 ### 5.6 2ª aprovação genérica
@@ -339,6 +353,10 @@ alguns minutos sem conseguir decidir. Mitigação: subir shared e BFF em sequên
 - Faixa de alerta no topo: "Trade antecipado por {nome} em {data}. Aprovações puladas: 1ª e 2ª.
   Motivo: {texto}."
 - Chip do SLA ao lado do selo da etapa. O tooltip explica "4h úteis, seg. a sex., 9h às 18h".
+- Aprovação parcial: se uma área já tinha aprovado (inclusive pela regra) e outra foi pulada, a
+  etapa aparece como pulada na trilha, mas a lista de áreas do detalhe e o tooltip mostram cada uma
+  com o seu estado ("Compliance: aprovado", "Risco: pulado"). Nada aprovado vira pulado, nada
+  pulado vira aprovado (minha decisão).
 - Etapas de aprovação com o estado "Pulada" (o mapa de tons dos selos de etapa, em `details/pre-trade-details.page.ts:55`, ganha a chave).
 - `components/request-preview` (expansão da linha da lista) recebe o mesmo estado.
 
@@ -393,7 +411,9 @@ antecipar, chip do SLA nos tons, faixa do detalhe, título do histórico.
   Branches `feature/TS-<id>-...` a partir da master.
 - Validação local primeiro, depois a sandbox.
 - **Ordem:**
-  1. Role nova no Azure, criada e atribuída.
+  1. Role nova no Azure, criada e atribuída. Conferir na tela de controle de acesso que o diretor
+     e o CEO aparecem com ela antes do deploy. Sem ninguém na role, a sincronização de usuários
+     esvazia a permissão e a 2ª aprovação fica sem aprovador.
   2. Shared (migrations).
   3. BFF, logo em seguida.
   4. Front.
