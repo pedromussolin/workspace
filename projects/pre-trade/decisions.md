@@ -37,3 +37,4 @@ Em "Quem", quem decidiu.
 | D14 | E-mail do SLA estourado sai uma vez só, no momento em que estoura (diferente do aviso de prazo, que é diário) | usuário | 18/11/2026 | O SLA conta em horas; repetir todo dia não ajuda |
 | D15 | Trade antecipado no motor: transição com `skips_approvals`, vagas abertas viram `SKIPPED`, evento com as etapas puladas | usuário | 18/11/2026 | Histórico coerente e reaproveitável por outro fluxo |
 | D16 | SLA com vencimento gravado na entrada da etapa | usuário | 18/11/2026 | Lista e job em SQL simples; mudar o SLA vale para as próximas entradas |
+| D17 | As tarefas do Pré-Trade no TS ficam no épico TS-5046 | usuário | 18/11/2026 | Épico do Pré-Trade |
