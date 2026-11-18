@@ -1,6 +1,7 @@
 """`ws release move`: puts a published release on another day, on GitHub.
 
-Multi-branch repos get `release/NEW[-sdbx]` copied from `origin` at the same commit, and each old
+Multi-branch repos get `release/NEW` and one copy per environment suffix (`-sdbx`, ...) copied
+from `origin` at the same commit, and each old
 PR is recreated with the new date and replaced; single-branch repos only have their open PRs
 edited: the `Release:` line, and the numbers of replaced PRs they cite, after those PRs exist.
 The shape is the one `publish` recorded in `published.json`, which the move brings up to date.
@@ -119,10 +120,16 @@ class Item:
 Branches = dict[str, tuple[str, str | None]]
 
 
-def _origin_branches(entry: RepoEntry, old: str, new: str) -> Branches:
-    """`release/OLD[-sdbx]` on origin: old branch -> (new branch, sha already at the new one)."""
+def _suffixes(config: ReleaseConfig) -> tuple[str, ...]:
+    """The code branch (no suffix) and the copy of each configured environment."""
+    return ("", *(env.suffix for env in config.environments))
+
+
+def _origin_branches(entry: RepoEntry, old: str, new: str, suffixes: tuple[str, ...]) -> Branches:
+    """`release/OLD` and its copies on origin: old branch -> (new branch, sha already at the new
+    one)."""
     found = {}
-    for suffix in ("", "-sdbx"):
+    for suffix in suffixes:
         source, target = f"release/{old}{suffix}", f"release/{new}{suffix}"
         if gitops.rev(entry.path, _origin(source)):
             found[source] = (target, gitops.rev(entry.path, _origin(target)))
@@ -136,12 +143,13 @@ def _taken(
     new: str,
     old_prs: list[PullRequest],
     branches: Branches,
+    suffixes: tuple[str, ...],
 ) -> list[str]:
     problems = []
     for source, (target, there) in branches.items():
         if there and there != gitops.rev(entry.path, _origin(source)):
             problems.append(f"{entry.name}: {target} exists on origin at another commit")
-    for suffix in ("", "-sdbx"):
+    for suffix in suffixes:
         target = f"release/{new}{suffix}"
         if gitops.rev(entry.path, f"refs/heads/{target}") and not _renamed_by_us(
             entry, old, new, suffix
@@ -170,12 +178,13 @@ def _renamed_by_us(entry: RepoEntry, old: str, new: str, suffix: str) -> bool:
 def _old_prs(
     config: ReleaseConfig, entry: RepoEntry, gh: Gh, heads: list[str]
 ) -> list[PullRequest]:
-    """The PRs of the release: from `release/OLD[-sdbx]` into the base or the sandbox branch. A PR
-    into any other base is not the release's; with `--delete-old-branches` it keeps the branch."""
+    """The PRs of the release: from `release/OLD` or one of its copies into the base or an
+    environment branch. A PR into any other base is not the release's; with
+    `--delete-old-branches` it keeps the branch."""
     found: dict[int, PullRequest] = {}
     for head in heads:
         for pr in gh.prs(entry.slug, head=head):
-            if pr.base in (config.base_branch, config.sandbox_branch):
+            if pr.base in config.protected:
                 found[pr.number] = pr
     return [found[number] for number in sorted(found)]
 
@@ -188,11 +197,11 @@ def _is_merged(pr: PullRequest) -> bool:
     return pr.merged_at is not None or pr.state.upper() == "MERGED"
 
 
-def _grew(config: ReleaseConfig, entry: RepoEntry, head: str) -> bool:
-    sandbox, tip = _origin(config.sandbox_branch), _origin(head)
-    if not gitops.rev(entry.path, sandbox) or not gitops.rev(entry.path, tip):
+def _grew(entry: RepoEntry, base: str, head: str) -> bool:
+    target, tip = _origin(base), _origin(head)
+    if not gitops.rev(entry.path, target) or not gitops.rev(entry.path, tip):
         return False
-    return gitops.count(entry.path, f"{sandbox}..{tip}") > 0
+    return gitops.count(entry.path, f"{target}..{tip}") > 0
 
 
 def _replaced_by(comments: list[str], made: list[PullRequest]) -> PullRequest | None:
@@ -204,17 +213,18 @@ def _replaced_by(comments: list[str], made: list[PullRequest]) -> PullRequest | 
 
 
 def _recreated(config: ReleaseConfig, entry: RepoEntry, prs: list[PullRequest]) -> set[int]:
-    """The merged PRs that get a new sandbox PR: the last PR of its head and base, whatever the
-    state of the earlier ones, and only when its branch has commits the sandbox lacks."""
+    """The merged PRs that get a new environment PR: the last PR of its head and base, whatever
+    the state of the earlier ones, and only when its branch has commits the environment lacks."""
     last: dict[tuple[str, str], PullRequest] = {}
     for pr in prs:
         last[(pr.head, pr.base)] = max(
             (pr, last.get((pr.head, pr.base), pr)), key=lambda item: item.number
         )
+    env_branches = {env.branch for env in config.environments}
     return {
         pr.number
         for pr in last.values()
-        if _is_merged(pr) and pr.base == config.sandbox_branch and _grew(config, entry, pr.head)
+        if _is_merged(pr) and pr.base in env_branches and _grew(entry, pr.base, pr.head)
     }
 
 
@@ -278,9 +288,9 @@ def _single_edits(
     replaced PRs they cite), the PRs that have no `Release:` line, and the old dates left."""
     calls, missing, residual = [], [], []
     found: dict[int, PullRequest] = {}
-    for head in (code, f"{code}-sdbx"):
+    for head in (f"{code}{suffix}" for suffix in _suffixes(config)):
         for pr in gh.prs(entry.slug, head=head, state="open"):
-            if pr.base in (config.base_branch, config.sandbox_branch):
+            if pr.base in config.protected:
                 found[pr.number] = pr
     for number in sorted(found):
         body = gh.pr(entry.slug, number).body
@@ -441,17 +451,18 @@ def build_plan(
         raise ReleaseRefused(f"{new} is in the past")
     release = read_moving(config, slug, old_day, new_day)
     old_dir, new_dir = release.old_dir, release.new_dir
-    if not _new_folder_free(old_dir, new_dir, list(config.repos)):
+    suffixes = _suffixes(config)
+    if not _new_folder_free(old_dir, new_dir, list(config.repos), suffixes):
         raise ReleaseRefused(f"{new_dir} already exists")
 
     entries = [entry for entry in config.repos if entry.name in release.wanted.repos]
     multi = [entry for entry in entries if release.shapes[entry.name] == "multi"]
-    heads = [f"release/{old}", f"release/{old}-sdbx"]
+    heads = [f"release/{old}{suffix}" for suffix in suffixes]
     problems: list[str] = []
-    branches = {entry.name: _origin_branches(entry, old, new) for entry in multi}
+    branches = {entry.name: _origin_branches(entry, old, new, suffixes) for entry in multi}
     old_prs = {entry.name: _old_prs(config, entry, gh, heads) for entry in multi}
     for entry in multi:
-        problems += _taken(entry, gh, old, new, old_prs[entry.name], branches[entry.name])
+        problems += _taken(entry, gh, old, new, old_prs[entry.name], branches[entry.name], suffixes)
 
     items: list[Item] = []
     pushes: dict[str, list[Call]] = {}
@@ -507,8 +518,8 @@ def build_plan(
     local, moves = [], []
     for entry in entries:
         if entry in multi:
-            local += _branch_calls(entry, old, new, branches[entry.name])
-        found, trouble = _worktree_calls(entry, old, new, old_dir, new_dir)
+            local += _branch_calls(entry, old, new, branches[entry.name], suffixes)
+        found, trouble = _worktree_calls(entry, old, new, old_dir, new_dir, suffixes)
         local += found
         moves += found
         problems += trouble
@@ -536,8 +547,8 @@ def build_plan(
 def _delete_calls(
     entry: RepoEntry, gh: Gh, old: str, branches: Branches, closing: set[tuple[str, int]]
 ) -> tuple[list[Call], list[str]]:
-    """`release/OLD[-sdbx]` leaves `origin` only when no PR from it stays open and no open PR has
-    it as base; the PRs this plan closes count as closed."""
+    """`release/OLD` and its copies leave `origin` only when no PR from it stays open and no open
+    PR has it as base; the PRs this plan closes count as closed."""
     calls, problems = [], []
     for source in branches:
         open_from = [
@@ -583,11 +594,13 @@ def _registered(entry: RepoEntry) -> set[Path]:
     }
 
 
-def _branch_calls(entry: RepoEntry, old: str, new: str, branches: Branches) -> list[Call]:
+def _branch_calls(
+    entry: RepoEntry, old: str, new: str, branches: Branches, suffixes: tuple[str, ...]
+) -> list[Call]:
     """The branch renames and upstreams still to do for `entry`, from the live state, so a
     rerun finishes."""
     calls = []
-    for suffix in ("", "-sdbx"):
+    for suffix in suffixes:
         source, target = f"release/{old}{suffix}", f"release/{new}{suffix}"
         on_origin = source in branches or gitops.rev(entry.path, _origin(target))
         has_source = gitops.rev(entry.path, f"refs/heads/{source}")
@@ -618,12 +631,12 @@ def _branch_calls(entry: RepoEntry, old: str, new: str, branches: Branches) -> l
 
 
 def _worktree_calls(
-    entry: RepoEntry, old: str, new: str, old_dir: Path, new_dir: Path
+    entry: RepoEntry, old: str, new: str, old_dir: Path, new_dir: Path, suffixes: tuple[str, ...]
 ) -> tuple[list[Call], list[str]]:
     """The moves of the worktrees `entry` has under `release-OLD/`, multi-branch or not."""
     moves, problems = [], []
     registered = _registered(entry)
-    for name in (entry.name, f"{entry.name}-sdbx"):
+    for name in (f"{entry.name}{suffix}" for suffix in suffixes):
         if (old_dir / name).resolve() not in registered:
             continue
         if not (old_dir / name).is_dir():
@@ -720,7 +733,9 @@ def move_folder(old_dir: str, new_dir: str, old: str, new: str, mode: str) -> No
             print(f"{source} stays, it still holds: {stays}", file=sys.stderr)
 
 
-def _new_folder_free(old_dir: Path, new_dir: Path, entries: list[RepoEntry]) -> bool:
+def _new_folder_free(
+    old_dir: Path, new_dir: Path, entries: list[RepoEntry], suffixes: tuple[str, ...]
+) -> bool:
     """`release-NEW/` is free, or holds only what an earlier run of this move put there: the moved
     files (`release.toml` first) and worktrees of the repos, with nothing also in `release-OLD/`."""
     if not new_dir.exists():
@@ -728,7 +743,7 @@ def _new_folder_free(old_dir: Path, new_dir: Path, entries: list[RepoEntry]) -> 
     held = {path.name for path in new_dir.iterdir()}
     if not held:
         return True
-    repo_dirs = {f"{entry.name}{suffix}" for entry in entries for suffix in ("", "-sdbx")}
+    repo_dirs = {f"{entry.name}{suffix}" for entry in entries for suffix in suffixes}
     if "release.toml" not in held or not held <= set(FOLDER_FILES) | repo_dirs:
         return False
     if any((old_dir / name).exists() for name in held):
@@ -736,7 +751,7 @@ def _new_folder_free(old_dir: Path, new_dir: Path, entries: list[RepoEntry]) -> 
     return all(
         (new_dir / name).resolve() in _registered(entry)
         for entry in entries
-        for name in (entry.name, f"{entry.name}-sdbx")
+        for name in (f"{entry.name}{suffix}" for suffix in suffixes)
         if name in held
     )
 
@@ -812,10 +827,16 @@ def update_published(
             for key in ("code_branch", "sandbox_branch"):
                 if isinstance(row.get(key), str):
                     row[key] = _swap(row[key], old, new)
+            for slot in (row.get("environments") or {}).values():
+                if isinstance(slot, dict) and isinstance(slot.get("branch"), str):
+                    slot["branch"] = _swap(slot["branch"], old, new)
             for key in ("code_pr", "sandbox_pr"):
                 ref = f"{name}-{row.get(key)}"
                 if ref in known:
                     row[key] = known[ref][2]
+            for slot in (row.get("environments") or {}).values():
+                if isinstance(slot, dict) and f"{name}-{slot.get('pr')}" in known:
+                    slot["pr"] = known[f"{name}-{slot['pr']}"][2]
         writeplan.write_published(folder, data)
     except (OSError, ReleaseSetup) as error:
         warnings.append(f"{folder / writeplan.PUBLISHED} was not updated: {error}")

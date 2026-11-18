@@ -36,6 +36,8 @@ Decisions the controller made on the user's behalf while building `ws release` (
 
 - User decision (15/11): review B item 3 → option 1: two Alembic heads at the sandbox merge = conflict (new makes -sdbx, exit 3); R4/R5 accept exactly one merge migration under alembic with down_revision = both heads; heads checked at the -sdbx tip. Routed to the read-side fix agent.
 
+- User decision (18/11): releases per environment. `-sdbx` is the copy for the sandbox, `-stg` for staging, no suffix is production; configurable in `[release.environments]`. `new` and `publish` take `--env NAME ...`; without it, production plus the `default = true` environments (today: sandbox). The copy is always built for a selected environment (no longer only on a conflict), so the sandbox PR can go out before the production PR.
+
 ## Deferred (follow-ups)
 
 - Task 2: minor (deferred): closing fence regex `^\+\+\+[ \t]*\n?` accepts `+++x` (folder.py:130)

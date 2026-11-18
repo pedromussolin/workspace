@@ -3,6 +3,7 @@
 import hashlib
 import re
 import tomllib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -179,8 +180,11 @@ def read_pr(path: Path) -> PrDraft:
     )
 
 
-def pr_drafts(folder: Path, repo: str) -> dict[str, PrDraft]:
-    pattern = re.compile(rf"{re.escape(repo)}(-sandbox(?:-(\d+))?)?\.md")
+def pr_drafts(folder: Path, repo: str, envs: Iterable[str]) -> dict[str, PrDraft]:
+    """The drafts of `repo` in `pr/`: `code` (`<repo>.md`), `<env>` (`<repo>-<env>.md`) and
+    `<env>-N` (`<repo>-<env>-N.md`, N from 2) for each environment name in `envs`."""
+    names = "|".join(re.escape(env) for env in envs) or "(?!)"
+    pattern = re.compile(rf"{re.escape(repo)}(?:-({names})(?:-(\d+))?)?\.md")
     found: dict[str, Path] = {}
     directory = folder / "pr"
     if directory.is_dir():
@@ -188,12 +192,13 @@ def pr_drafts(folder: Path, repo: str) -> dict[str, PrDraft]:
             match = pattern.fullmatch(path.name)
             if not match:
                 continue
-            if match.group(1) is None:
+            env, number = match.group(1), match.group(2)
+            if env is None:
                 found["code"] = path
-            elif match.group(2) is None:
-                found["sandbox"] = path
-            elif int(match.group(2)) >= 2:
-                found[f"sandbox-{int(match.group(2))}"] = path
+            elif number is None:
+                found[env] = path
+            elif int(number) >= 2:
+                found[f"{env}-{int(number)}"] = path
     return {key: read_pr(path) for key, path in found.items()}
 
 

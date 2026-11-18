@@ -12,13 +12,35 @@ from pathlib import Path
 from ws.release import folder as release_folder
 from ws.release import gitops, migrations, text
 from ws.release.folder import PrDraft
-from ws.release.settings import ReleaseConfig, RepoEntry
+from ws.release.settings import Environment, ReleaseConfig, RepoEntry
 
 TEMPLATE_PATH = ".github/pull_request_template.md"
 DEFAULT_HEADINGS = ["## O que traz", "## Antes de subir", "## Ordem e efeitos", "## Como validei"]
-SANDBOX_SUFFIX = " (sdbx)"
-MAX_SANDBOX_TITLE = 100
+MAX_COPY_TITLE = 100
 SINGLE_TITLE = re.compile(r"^(feat|chore|refact|fix|test)\(TS-\d+\): .+")
+
+
+@dataclass
+class EnvState:
+    """The side of one environment: its copy of the code branch (`<code><suffix>`)."""
+
+    name: str
+    branch: str
+    copy: str
+    exists: bool = False
+    merged: bool = False
+    differs: tuple[str, ...] = ()
+    heads: list[str] = field(default_factory=list)
+
+    def as_json(self) -> dict:
+        return {
+            "branch": self.branch,
+            "copy": self.copy,
+            "exists": self.exists,
+            "merged": self.merged,
+            "differs": list(self.differs),
+            "heads": self.heads,
+        }
 
 
 @dataclass
@@ -29,9 +51,7 @@ class RepoState:
     code_branch: str
     tip: str | None
     worktree: str | None
-    sandbox_head: str
-    sdbx: str | None
-    sdbx_differs: tuple[str, ...]
+    environments: dict[str, EnvState]
     ahead: int
     behind: int
     remote: bool
@@ -52,9 +72,7 @@ class RepoState:
             "code_branch": self.code_branch,
             "tip": self.tip,
             "worktree": self.worktree,
-            "sandbox_head": self.sandbox_head,
-            "sdbx": self.sdbx,
-            "sdbx_differs": list(self.sdbx_differs),
+            "environments": {name: env.as_json() for name, env in self.environments.items()},
             "ahead": self.ahead,
             "behind": self.behind,
             "remote": self.remote,
@@ -167,35 +185,35 @@ def order_check(
 
 
 def mirror(
-    entry: RepoEntry, code: str, sdbx: str, config: ReleaseConfig
+    entry: RepoEntry, code: str, copy: str, env: Environment, base_branch: str
 ) -> tuple[list[str], list[str]]:
-    """R4: the `-sdbx` only adds `sandbox`; (problems, files where it differs from the code)."""
+    """R4: the copy only adds the environment branch; (problems, files where it differs from the
+    code)."""
     repo, name = entry.path, entry.name
-    sandbox = _remote(config.sandbox_branch)
-    base = _remote(config.base_branch)
-    code_ref, sdbx_ref = _ref(repo, code) or code, _ref(repo, sdbx) or sdbx
+    env_ref = _remote(env.branch)
+    base = _remote(base_branch)
+    code_ref, copy_ref = _ref(repo, code) or code, _ref(repo, copy) or copy
     problems: list[str] = []
-    if not gitops.is_ancestor(repo, code_ref, sdbx_ref):
-        problems.append(f"{name}: {sdbx} does not contain {code}")
-    if not gitops.is_ancestor(repo, sandbox, sdbx_ref):
-        problems.append(f"{name}: {sdbx} does not contain origin/{config.sandbox_branch}")
-    from_sandbox = {sha for sha, _ in gitops.commits(repo, f"{code_ref}..{sandbox}")}
+    if not gitops.is_ancestor(repo, code_ref, copy_ref):
+        problems.append(f"{name}: {copy} does not contain {code}")
+    if not gitops.is_ancestor(repo, env_ref, copy_ref):
+        problems.append(f"{name}: {copy} does not contain origin/{env.branch}")
+    from_env = {sha for sha, _ in gitops.commits(repo, f"{code_ref}..{env_ref}")}
     merge_migration: str | None = None
-    for sha, subject in gitops.commits(repo, f"{code_ref}..{sdbx_ref}", merges=False):
-        if sha in from_sandbox:
+    for sha, subject in gitops.commits(repo, f"{code_ref}..{copy_ref}", merges=False):
+        if sha in from_env:
             continue
         if merge_migration is None:
             merge_migration = _merge_migration(entry, sha)
             if merge_migration is not None:
                 continue
-        problems.append(f"{name}: {sdbx} has commits of its own: {sha[:7]} {subject}")
-    differs = gitops.diff_names(repo, code_ref, sdbx_ref)
-    sandbox_files = set(gitops.diff_names(repo, base, sandbox))
+        problems.append(f"{name}: {copy} has commits of its own: {sha[:7]} {subject}")
+    differs = gitops.diff_names(repo, code_ref, copy_ref)
+    env_files = set(gitops.diff_names(repo, base, env_ref))
     for path in differs:
-        if path not in sandbox_files and path != merge_migration:
+        if path not in env_files and path != merge_migration:
             problems.append(
-                f"{name}: {sdbx} differs from {code} in {path}, "
-                f"which {config.sandbox_branch} does not change"
+                f"{name}: {copy} differs from {code} in {path}, which {env.branch} does not change"
             )
     return problems, differs
 
@@ -203,7 +221,7 @@ def mirror(
 def _merge_migration(entry: RepoEntry, sha: str) -> str | None:
     """The path when commit `sha` only adds one Alembic migration under the repo's `alembic`
     folder whose `down_revision` is exactly the heads just before it (two or more): the merge
-    migration the user adds in the `-sdbx` when the sandbox side has two heads."""
+    migration the user adds in a copy when the environment side has two heads."""
     if not entry.alembic:
         return None
     changed = gitops.changed_files(entry.path, sha)
@@ -223,14 +241,6 @@ def _merge_migration(entry: RepoEntry, sha: str) -> str | None:
     if len(added.down) != len(before) or set(added.down) != set(before):
         return None
     return path
-
-
-def sandbox_heads(entry: RepoEntry, tip: str, tree: str | None) -> list[str]:
-    """The Alembic heads of a clean sandbox merge (`tree`) when the code has one head and the
-    merge has two or more: `sandbox` has a migration master lacks. `new` treats it as a conflict.
-    """
-    merged = heads_at(entry, tree) if tree else []
-    return merged if len(merged) >= 2 and len(heads_at(entry, tip)) <= 1 else []
 
 
 def heads_at(entry: RepoEntry, ref: str) -> list[str]:
@@ -277,37 +287,43 @@ def _commit_problems(name: str, repo: Path, commits: list[tuple[str, str]]) -> l
 
 
 def _own_commits(
-    entry: RepoEntry, shape: str, base: str, code_ref: str, sdbx_ref: str | None, sandbox: str
+    entry: RepoEntry,
+    shape: str,
+    base: str,
+    code_ref: str,
+    copies: list[tuple[str, str]],
 ) -> list[tuple[str, str]]:
-    """R5 scope (Ruling 9): what the tool makes, not what the user's task branches carry."""
+    """R5 scope (Ruling 9): what the tool makes, not what the user's task branches carry.
+    `copies` is (copy ref, environment ref) per copy."""
     repo = entry.path
     found = gitops.commits(repo, f"{base}..{code_ref}", merges=True, first_parent=True)
     if shape == "single":
         found = [(s, m) for s, m in found if text.MASTER_TEXT in m]
-    if sdbx_ref:
-        from_sandbox = {sha for sha, _ in gitops.commits(repo, f"{code_ref}..{sandbox}")}
+    for copy_ref, env_ref in copies:
+        from_env = {sha for sha, _ in gitops.commits(repo, f"{code_ref}..{env_ref}")}
         found += [
-            c for c in gitops.commits(repo, f"{code_ref}..{sdbx_ref}") if c[0] not in from_sandbox
+            c for c in gitops.commits(repo, f"{code_ref}..{copy_ref}") if c[0] not in from_env
         ]
-    return found
+    return list(dict.fromkeys(found))
 
 
-def _alembic_heads(state: RepoState, entry: RepoEntry, tip: str, side: str | None) -> None:
+def _alembic_heads(state: RepoState, entry: RepoEntry, tip: str, copies: dict[str, str]) -> None:
     try:
         revs = migrations.revisions(gitops.sources_at(entry.path, tip, entry.alembic))
         state.heads["code"] = migrations.heads(revs)
-        if side:
-            revs = migrations.revisions(gitops.sources_at(entry.path, side, entry.alembic))
-            state.heads["sandbox"] = migrations.heads(revs)
+        for name, ref in copies.items():
+            revs = migrations.revisions(gitops.sources_at(entry.path, ref, entry.alembic))
+            state.environments[name].heads = migrations.heads(revs)
     except migrations.MigrationUnreadable as error:
         state.problems.append(f"{entry.name}: {error}")
         return
-    for key, where in (("code", state.code_branch), ("sandbox", "the sandbox merge")):
-        problem = heads_problem(entry.name, where, state.heads.get(key, []))
-        if problem and key == "sandbox":
-            problem += "; run ws release new"
+    problem = heads_problem(entry.name, state.code_branch, state.heads.get("code", []))
+    if problem:
+        state.problems.append(problem)
+    for name, env in state.environments.items():
+        problem = heads_problem(entry.name, f"the {name} copy", env.heads)
         if problem:
-            state.problems.append(problem)
+            state.problems.append(f"{problem}; run ws release new --env {name}")
 
 
 def assess(
@@ -316,17 +332,18 @@ def assess(
     includes: tuple[str, ...],
     day: date,
     folder: Path,
+    envs: tuple[Environment, ...] | None = None,
 ) -> RepoState:
-    """Reads the repo: nothing is created, merged or pushed. `folder` is the release folder."""
+    """Reads the repo: nothing is created, merged or pushed. `folder` is the release folder;
+    `envs` are the environments in scope (the defaults when `None`)."""
     repo, name = entry.path, entry.name
-    base, sandbox = _remote(config.base_branch), _remote(config.sandbox_branch)
+    base = _remote(config.base_branch)
+    envs = config.defaults() if envs is None else envs
     shape = "single" if len(includes) == 1 else "multi"
     release_branch = f"release/{text.compact(day)}"
     code_branch = includes[0] if shape == "single" else release_branch
     code_ref = _ref(repo, code_branch)
     tip = gitops.rev(repo, code_ref) if code_ref else None
-    sdbx_name = f"{code_branch}-sdbx"
-    sdbx_ref = _ref(repo, sdbx_name)
     state = RepoState(
         repo=name,
         shape=shape,
@@ -334,9 +351,9 @@ def assess(
         code_branch=code_branch,
         tip=tip,
         worktree=None,
-        sandbox_head=code_branch,
-        sdbx=sdbx_name if sdbx_ref else None,
-        sdbx_differs=(),
+        environments={
+            env.name: EnvState(env.name, env.branch, f"{code_branch}{env.suffix}") for env in envs
+        },
         ahead=0,
         behind=0,
         remote=gitops.rev(repo, _remote(code_branch)) is not None,
@@ -373,45 +390,48 @@ def assess(
         )
     state.headings = template_headings(entry, tip, config.base_branch)
 
-    tree: str | None = None
-    conflicts: list[str] = []
-    if gitops.rev(repo, sandbox) is None:
-        state.problems.append(
-            f"{name}: {gitops.REMOTE}/{config.sandbox_branch} does not exist; "
-            "the sandbox side cannot be checked"
-        )
-    else:
-        tree, conflicts = gitops.merge_tree(repo, tip, sandbox)
-    side = sandbox_heads(entry, tip, tree) if not conflicts else []
-    used: str | None = None
-    if (conflicts or side) and sdbx_ref:
-        used, state.sandbox_head = sdbx_ref, sdbx_name
-        _tracking(state, repo, sdbx_name, config)
-        found, noted = against_origin(repo, name, sdbx_name)
+    copies: dict[str, str] = {}
+    pairs: list[tuple[str, str]] = []
+    for env in envs:
+        side = state.environments[env.name]
+        env_ref = _remote(env.branch)
+        if gitops.rev(repo, env_ref) is None:
+            state.problems.append(
+                f"{name}: {gitops.REMOTE}/{env.branch} does not exist; "
+                f"the {env.name} side cannot be checked"
+            )
+            continue
+        copy_ref = _ref(repo, side.copy)
+        if copy_ref is None:
+            state.problems.append(
+                f"{name}: {side.copy} missing; run ws release new --env {env.name}"
+            )
+            continue
+        side.exists = True
+        copies[env.name] = copy_ref
+        _tracking(state, repo, side.copy, config)
+        found, noted = against_origin(repo, name, side.copy)
         state.problems += found
         state.warnings += noted
-        problems, differs = mirror(entry, code_branch, sdbx_name, config)
+        if gitops.is_ancestor(repo, copy_ref, env_ref):
+            side.merged = True
+            continue
+        pairs.append((copy_ref, env_ref))
+        problems, differs = mirror(entry, code_branch, side.copy, env, config.base_branch)
         state.problems += problems
-        state.sdbx_differs = tuple(differs)
-    elif conflicts:
-        state.problems.append(
-            f"{name}: {code_branch} conflicts with origin/{config.sandbox_branch} in "
-            f"{', '.join(conflicts)}; run ws release new"
-        )
-    elif sdbx_ref and tree and not gitops.is_ancestor(repo, sdbx_ref, sandbox):
-        state.warnings.append(f"{sdbx_name} is not needed: {config.sandbox_branch} merges cleanly")
+        side.differs = tuple(differs)
 
     state.problems += _commit_problems(
-        name, repo, _own_commits(entry, shape, base, code_ref, used, sandbox)
+        name, repo, _own_commits(entry, shape, base, code_ref, pairs)
     )
     if entry.alembic:
-        _alembic_heads(state, entry, tip, used or tree)
+        _alembic_heads(state, entry, tip, copies)
     return state
 
 
 def _tracking(state: RepoState, repo: Path, branch: str, config: ReleaseConfig) -> None:
     upstream = gitops.upstream(repo, branch)
-    if upstream in (f"origin/{config.base_branch}", f"origin/{config.sandbox_branch}"):
+    if upstream in {f"origin/{branch}" for branch in config.protected}:
         state.problems.append(
             f"{state.repo}: {branch} tracks {upstream}; branches cut from master are --no-track"
         )
@@ -419,7 +439,7 @@ def _tracking(state: RepoState, repo: Path, branch: str, config: ReleaseConfig) 
 
 def pr_text_problems(
     state: RepoState,
-    kind: str,
+    env: Environment | None,
     draft: PrDraft,
     body: str,
     day: date,
@@ -431,13 +451,13 @@ def pr_text_problems(
     name = state.repo
     problems: list[str] = []
     title = draft.title
-    if kind != "code":
-        if not title.endswith(SANDBOX_SUFFIX):
-            problems.append(f"{name}: sandbox title must end with {SANDBOX_SUFFIX!r}")
+    if env is not None:
+        if not title.endswith(env.pr_suffix):
+            problems.append(f"{name}: {env.name} title must end with {env.pr_suffix!r}")
         else:
-            title = title[: -len(SANDBOX_SUFFIX)]
-        if len(draft.title) > MAX_SANDBOX_TITLE:
-            problems.append(f"{name}: sandbox title has more than {MAX_SANDBOX_TITLE} characters")
+            title = title[: -len(env.pr_suffix)]
+        if len(draft.title) > MAX_COPY_TITLE:
+            problems.append(f"{name}: {env.name} title has more than {MAX_COPY_TITLE} characters")
     if state.shape == "multi":
         if not re.match(rf"^release {text.compact(day)}: .+", title) or text.keys_of(title):
             problems.append(f"{name}: title must be 'release {text.compact(day)}: text', no key")

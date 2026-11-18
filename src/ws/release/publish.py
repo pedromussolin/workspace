@@ -16,9 +16,7 @@ from ws.release import run as run_release
 from ws.release.build import load_published
 from ws.release.github import Gh, PullRequest
 from ws.release.plan import Call, WritePlan
-from ws.release.settings import ReleaseConfig, RepoEntry
-
-SANDBOX_PARAGRAPH = "Leva este código para a sandbox, para validar antes da master."
+from ws.release.settings import PRODUCTION, Environment, ReleaseConfig, RepoEntry
 
 
 @dataclass
@@ -27,7 +25,7 @@ class _Create:
 
     entry: RepoEntry
     state: rules.RepoState
-    kind: str
+    env: Environment | None
     ref: str
     head: str
     base: str
@@ -51,6 +49,14 @@ def _latest(prs: list[PullRequest]) -> PullRequest | None:
     return max(prs, key=lambda pr: pr.number) if prs else None
 
 
+def scope(config: ReleaseConfig, names: list[str] | None) -> tuple[bool, tuple[Environment, ...]]:
+    """What a run publishes: whether production (the code PR), and which environments. Without
+    `--env`: production and the default environments."""
+    if not names:
+        return True, config.defaults()
+    return PRODUCTION in names, config.select(names)
+
+
 def _selected(
     config: ReleaseConfig, folder: Path, repos: list[str]
 ) -> tuple[release_folder.ReleaseFile, list[str]]:
@@ -67,6 +73,7 @@ def _others_known(
     day: date,
     gh: Gh,
     known: dict,
+    envs: tuple[Environment, ...],
 ) -> None:
     """The PRs already open (or the merged code PR) of the release's repos outside `--repo`, so a
     draft can cite them. Reads only: nothing is planned for those repos."""
@@ -81,16 +88,17 @@ def _others_known(
         )
         if code:
             known[entry.name] = _known(entry, code)
-        sandbox = _latest(
-            [
-                pr
-                for head in (f"{code_branch}-sdbx", code_branch)
-                for pr in gh.prs(entry.slug, head=head, base=config.sandbox_branch)
-                if pr.state == "OPEN"
-            ]
-        )
-        if sandbox:
-            known[f"{entry.name}-sandbox"] = _known(entry, sandbox)
+        for env in envs:
+            found = _latest(
+                [
+                    pr
+                    for head in (f"{code_branch}{env.suffix}", code_branch)
+                    for pr in gh.prs(entry.slug, head=head, base=env.branch)
+                    if pr.state == "OPEN"
+                ]
+            )
+            if found:
+                known[f"{entry.name}-{env.name}"] = _known(entry, found)
 
 
 def _push(entry: RepoEntry, branch: str, note: str, problems: list[str]) -> Call | None:
@@ -125,23 +133,66 @@ def _code_branch(includes: tuple[str, ...], day: date) -> str:
     return includes[0] if len(includes) == 1 else f"release/{text.compact(day)}"
 
 
-def _sandbox_draft(
-    name: str, drafts: dict, merged: int, problems: list[str]
+def _env_draft(
+    name: str, env: Environment, drafts: dict, merged: int, problems: list[str]
 ) -> tuple[release_folder.PrDraft | None, bool]:
-    """The draft of the next sandbox PR and whether it is the code draft's fallback."""
-    key = "sandbox" if merged == 0 else f"sandbox-{merged + 1}"
+    """The draft of the next PR of `env` and whether it is the code draft's fallback."""
+    key = env.name if merged == 0 else f"{env.name}-{merged + 1}"
     if key in drafts:
         return drafts[key], False
-    if key != "sandbox":
+    if key != env.name:
         problems.append(
-            f"{name}: pr/{name}-{key}.md not found for the sandbox PR number {merged + 1}"
+            f"{name}: pr/{name}-{key}.md not found for the {env.name} PR number {merged + 1}"
         )
         return None, False
     if "code" not in drafts:
         problems.append(f"{name}: pr/{name}.md not found")
         return None, False
     code = drafts["code"]
-    return replace(code, title=code.title + rules.SANDBOX_SUFFIX), True
+    return replace(code, title=code.title + env.pr_suffix), True
+
+
+def _env_items(
+    config: ReleaseConfig,
+    entry: RepoEntry,
+    state: rules.RepoState,
+    env: Environment,
+    drafts: dict,
+    gh: Gh,
+    plan_: dict,
+) -> list[Call | _Create]:
+    """The push of the copy of `env` and its PR, when there is one to open."""
+    name, repo = entry.name, entry.path
+    side = state.environments[env.name]
+    items: list[Call | _Create] = []
+    plan_["tips"].setdefault(name, {})[side.copy] = gitops.rev(repo, _local(side.copy)) or ""
+    push = _push(entry, side.copy, "", plan_["problems"])
+    if push:
+        items.append(push)
+    prs = gh.prs(entry.slug, head=side.copy, base=env.branch)
+    ref = f"{name}-{env.name}"
+    open_prs = [pr for pr in prs if pr.state == "OPEN"]
+    head_ref = _head_ref(repo, side.copy)
+    if open_prs:
+        latest = max(open_prs, key=lambda pr: pr.number)
+        plan_["known"][ref] = _known(entry, latest)
+        plan_["open"].append((entry, latest.number))
+    elif head_ref and gitops.count(repo, f"{_origin(env.branch)}..{head_ref}") > 0:
+        done = sum(1 for pr in prs if pr.merged_at)
+        draft, fallback = _env_draft(name, env, drafts, done, plan_["problems"])
+        if draft:
+            paragraphs: tuple[str, ...] = ()
+            if fallback:
+                paragraphs = (
+                    f"Leva este código para a {env.name}, para validar antes da produção.",
+                )
+                if side.differs:
+                    paragraphs += (
+                        f"A {side.copy} tem a {env.branch} mesclada; difere do código só em: "
+                        f"{', '.join(side.differs)}.",
+                    )
+            items.append(_Create(entry, state, env, ref, side.copy, env.branch, draft, paragraphs))
+    return items
 
 
 def _repo_items(
@@ -152,72 +203,51 @@ def _repo_items(
     folder: Path,
     gh: Gh,
     plan_: dict,
+    production: bool,
+    envs: tuple[Environment, ...],
 ) -> list[Call | _Create]:
     name, repo = entry.name, entry.path
     code_branch = _code_branch(includes, day)
     shape = "single" if len(includes) == 1 else "multi"
-    plan_["repos"][name] = {"shape": shape, "code_branch": code_branch}
+    plan_["repos"][name] = {"shape": shape, "code_branch": code_branch, "environments": {}}
     code_prs = gh.prs(entry.slug, head=code_branch, base=config.base_branch)
     merged = [pr for pr in code_prs if pr.merged_at]
     if merged:
         plan_["skipped"].append(name)
         plan_["known"][name] = _known(entry, max(merged, key=lambda pr: pr.number))
         return []
-    state = rules.assess(config, entry, includes, day, folder)
+    state = rules.assess(config, entry, includes, day, folder, envs)
     if not state.ready:
         plan_["problems"] += state.problems or [f"{name}: {code_branch} does not exist"]
         return []
-    plan_["repos"][name]["sandbox_branch"] = state.sandbox_head
-    drafts = release_folder.pr_drafts(folder, name)
+    for env in envs:
+        plan_["repos"][name]["environments"][env.name] = state.environments[env.name].copy
+    drafts = release_folder.pr_drafts(folder, name, [env.name for env in config.environments])
     open_code = [pr for pr in code_prs if pr.state == "OPEN"]
     items: list[Call | _Create] = []
-    note = " (já aberta, só o push)" if open_code else ""
-    heads = dict.fromkeys((code_branch, state.sandbox_head))
-    for branch in heads:
-        plan_["tips"].setdefault(name, {})[branch] = gitops.rev(repo, _local(branch)) or ""
-        push = _push(entry, branch, note if branch == code_branch else "", plan_["problems"])
-        if push:
-            items.append(push)
     if open_code:
         latest = max(open_code, key=lambda pr: pr.number)
         plan_["known"][name] = _known(entry, latest)
-        plan_["open"].append((entry, latest.number))
-    elif "code" not in drafts:
-        plan_["problems"].append(f"{name}: pr/{name}.md not found")
-    else:
-        items.append(
-            _Create(entry, state, "code", name, code_branch, config.base_branch, drafts["code"])
+        if production:
+            plan_["open"].append((entry, latest.number))
+    if production:
+        note = " (já aberta, só o push)" if open_code else ""
+        plan_["tips"].setdefault(name, {})[code_branch] = (
+            gitops.rev(repo, _local(code_branch)) or ""
         )
-    sandbox_prs = gh.prs(entry.slug, head=state.sandbox_head, base=config.sandbox_branch)
-    open_sandbox = [pr for pr in sandbox_prs if pr.state == "OPEN"]
-    head_ref = _head_ref(repo, state.sandbox_head)
-    if open_sandbox:
-        latest = max(open_sandbox, key=lambda pr: pr.number)
-        plan_["known"][f"{name}-sandbox"] = _known(entry, latest)
-        plan_["open"].append((entry, latest.number))
-    elif head_ref and gitops.count(repo, f"{_origin(config.sandbox_branch)}..{head_ref}") > 0:
-        done = sum(1 for pr in sandbox_prs if pr.merged_at)
-        draft, fallback = _sandbox_draft(name, drafts, done, plan_["problems"])
-        if draft:
-            paragraphs: tuple[str, ...] = (SANDBOX_PARAGRAPH,) if fallback else ()
-            if fallback and state.sdbx and state.sandbox_head == state.sdbx:
-                files = ", ".join(state.sdbx_differs)
-                paragraphs += (
-                    f"A {state.sdbx} tem a sandbox mesclada; difere do código só em: {files}.",
-                )
+        push = _push(entry, code_branch, note, plan_["problems"])
+        if push:
+            items.append(push)
+        if not open_code and "code" not in drafts:
+            plan_["problems"].append(f"{name}: pr/{name}.md not found")
+        elif not open_code:
             items.append(
-                _Create(
-                    entry,
-                    state,
-                    "sandbox",
-                    f"{name}-sandbox",
-                    state.sandbox_head,
-                    config.sandbox_branch,
-                    draft,
-                    paragraphs,
-                )
+                _Create(entry, state, None, name, code_branch, config.base_branch, drafts["code"])
             )
-    return items
+    for env in envs:
+        items += _env_items(config, entry, state, env, drafts, gh, plan_)
+    pushes = [item for item in items if isinstance(item, Call)]
+    return pushes + [item for item in items if isinstance(item, _Create)]
 
 
 def _render(config: ReleaseConfig, create: _Create, day: date, known: dict) -> str:
@@ -243,10 +273,10 @@ def _create_call(config: ReleaseConfig, create: _Create, body: str) -> Call:
         + tuple(arg for label in draft.labels for arg in ("--label", label))
         + tuple(arg for who in draft.assignees for arg in ("--assignee", who))
     )
-    if create.kind == "code":
+    if create.env is None:
         line = f"{entry.name}: abrir a PR de código ({create.head} para {create.base})"
     else:
-        line = f"{entry.name}: abrir a PR da sandbox ({create.head} para {create.base})"
+        line = f"{entry.name}: abrir a PR da {create.env.name} ({create.head} para {create.base})"
     return Call(repo=entry.name, program="gh", args=args, line=line, body=body, answers=create.ref)
 
 
@@ -279,9 +309,12 @@ def build_plan(
     gh: Gh,
     warnings: list[str] | None = None,
     loaded: dict | None = None,
+    names: list[str] | None = None,
 ) -> WritePlan:
     """Reads the release (the fetch is the caller's); notes go to `warnings`, `published.json` to
-    `loaded`."""
+    `loaded`. `names` are the `--env` values: `production` and the environments to publish
+    (without them, production and the default environments)."""
+    production, envs = scope(config, names)
     folder = release_folder.release_dir(slug, day)
     wanted, selected = _selected(config, folder, repos)
     published = load_published(folder)
@@ -292,8 +325,10 @@ def build_plan(
     items: list[Call | _Create] = []
     for name in selected:
         entry = config.entry(name)
-        items += _repo_items(config, entry, wanted.include[name], day, folder, gh, state)
-    _others_known(config, wanted, selected, day, gh, state["known"])
+        items += _repo_items(
+            config, entry, wanted.include[name], day, folder, gh, state, production, envs
+        )
+    _others_known(config, wanted, selected, day, gh, state["known"], envs)
     creates = [item for item in items if isinstance(item, _Create)]
     refs = set(state["known"]) | {create.ref for create in creates}
     slugs = {entry.name: entry.slug for entry in config.repos}
@@ -306,7 +341,7 @@ def build_plan(
             continue
         body = _render(config, item, day, known)
         state["problems"] += rules.pr_text_problems(
-            item.state, item.kind, item.draft, body, day, config.card_url_template, refs, slugs
+            item.state, item.env, item.draft, body, day, config.card_url_template, refs, slugs
         )
         calls.append(_create_call(config, item, body))
         path = f"pr/{item.draft.path.name}"
@@ -317,6 +352,7 @@ def build_plan(
         "known": state["known"],
         "skipped": state["skipped"],
         "repos": state["repos"],
+        "scope": {"production": production, "environments": [env.name for env in envs]},
     }
     return WritePlan(
         action="publish",
@@ -338,6 +374,7 @@ class _Context:
     names: list[str]
     gh: Gh
     fetched: list[str]
+    envs: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     loaded: dict = field(default_factory=dict)
     built: WritePlan | None = None
@@ -345,7 +382,14 @@ class _Context:
     def build(self) -> WritePlan:
         self.warnings[:] = self.fetched
         self.built = build_plan(
-            self.config, self.slug, self.day, self.names, self.gh, self.warnings, self.loaded
+            self.config,
+            self.slug,
+            self.day,
+            self.names,
+            self.gh,
+            self.warnings,
+            self.loaded,
+            self.envs,
         )
         return self.built
 
@@ -358,7 +402,9 @@ def _context(args: argparse.Namespace) -> _Context:
         return _selected(config, release_folder.release_dir(slug, day), repos)[1]
 
     config, gh, slug, warnings = plan.session(args.project, fetched)
-    return _Context(config, slug, day, repos, gh, warnings, list(warnings))
+    return _Context(
+        config, slug, day, repos, gh, warnings, envs=list(args.envs), warnings=list(warnings)
+    )
 
 
 def run_preview(args: argparse.Namespace) -> int:
@@ -367,6 +413,8 @@ def run_preview(args: argparse.Namespace) -> int:
         next_command = f"ws release publish {text.compact(context.day)} --project {context.slug}"
         if args.repos:
             next_command += f" --repo {' '.join(args.repos)}"
+        if args.envs:
+            next_command += f" --env {' '.join(args.envs)}"
         with plan.warnings_on_refusal(context.warnings):
             payload, code = plan.show_preview(context.build(), next_command, context.config)
         payload["warnings"] = context.warnings
@@ -380,11 +428,18 @@ def _record(folder: Path, built: WritePlan, data: dict, known: dict) -> None:
     for name, facts in built.facts["repos"].items():
         row = repos.setdefault(name, {})
         row["shape"], row["code_branch"] = facts["shape"], facts["code_branch"]
-        if "sandbox_branch" in facts:
-            row["sandbox_branch"] = facts["sandbox_branch"]
-        for key, ref in (("code_pr", name), ("sandbox_pr", f"{name}-sandbox")):
-            if ref in known:
-                row[key] = known[ref][2]
+        if name in known:
+            row["code_pr"] = known[name][2]
+        envs = row.get("environments") if isinstance(row.get("environments"), dict) else {}
+        for env, copy in facts["environments"].items():
+            slot = envs.setdefault(env, {})
+            slot["branch"] = copy
+            if f"{name}-{env}" in known:
+                slot["pr"] = known[f"{name}-{env}"][2]
+        if "sandbox" in facts["environments"]:
+            row.pop("sandbox_branch", None)
+            row.pop("sandbox_pr", None)
+        row["environments"] = envs
     data["repos"] = repos
     plan.write_published(folder, data)
 
@@ -409,7 +464,10 @@ def _finish(context: _Context, result: dict) -> dict:
     rows = []
     for name in built.facts["repos"]:
         row: dict = {"repo": name}
-        for key, ref in (("code", name), ("sandbox", f"{name}-sandbox")):
+        refs = [("code", name)] + [
+            (env, f"{name}-{env}") for env in built.facts["scope"]["environments"]
+        ]
+        for key, ref in refs:
             if ref in known:
                 number, url = known[ref][2], known[ref][1]
                 found[ref] = PullRequest(number, "OPEN", "", "", "", url, None)

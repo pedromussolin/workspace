@@ -5,9 +5,9 @@ preview publish` checks every rule below (R6) and names the file that breaks one
 
 | File | PR |
 |---|---|
-| `<repo>.md` | the code PR, to `master` |
-| `<repo>-sandbox.md` | the sandbox PR, only when it needs its own text |
-| `<repo>-sandbox-2.md`, `-3`, ... | later sandbox PRs, when the previous one is already merged and the branch grew |
+| `<repo>.md` | the code PR, to `master` (production) |
+| `<repo>-<env>.md` | the PR of an environment (`<repo>-sandbox.md`, `<repo>-staging.md`), only when it needs its own text |
+| `<repo>-<env>-2.md`, `-3`, ... | later PRs of that environment, when the previous one is already merged and the branch grew |
 
 ## Front matter
 
@@ -33,12 +33,13 @@ assignees = ["<github login>"]
 |---|---|
 | multi-branch | `release YYYYMMDD: <resumo>`, no task key |
 | single-branch | the task's normal title: `type(TS-N): <texto>` with `type` one of `feat`, `chore`, `refact`, `fix`, `test` |
-| sandbox PR | the code PR's title with ` (sdbx)` at the end; at most 100 characters |
+| environment PR | the code PR's title with the suffix of the environment without its dash, in parentheses: ` (sdbx)`, ` (stg)`; at most 100 characters |
 
-Without a sandbox file the sandbox PR takes the code PR's title and body: the title gets ` (sdbx)`,
-and the body gets a first paragraph saying that it takes the code to the sandbox to validate
-before `master` (and, when a `-sdbx` exists, what the `-sdbx` adds over the code branch). Write
-`<repo>-sandbox.md` only when the sandbox PR needs another text; its title must end with ` (sdbx)`.
+Without an environment file the PR of that environment takes the code PR's title and body: the
+title gets the suffix, and the body gets a first paragraph saying that it takes the code to that
+environment to validate before production (and what the copy adds over the code branch, when it
+differs). Write `<repo>-<env>.md` only when that PR needs another text; its title must end with the
+suffix of the environment.
 
 ## Placeholders
 
@@ -46,7 +47,7 @@ The script resolves them when it sends; a body with an unknown or unresolved one
 
 | Placeholder | Becomes |
 |---|---|
-| `{pr:bff}`, `{pr:bff-sandbox}` | `<org>/<repo>#N` of that PR, once it exists (the repo names are the keys of `repos`) |
+| `{pr:bff}`, `{pr:bff-sandbox}`, `{pr:bff-staging}` | `<org>/<repo>#N` of that PR, once it exists (the repo names are the keys of `repos`) |
 | `{url:bff}`, `{num:bff}` | its URL; its number |
 | `{tasks}` | the `tasks`, one line each: `- TS-101: <site>/browse/TS-101` |
 | `{release_date}` | the release date as `DD/MM/YYYY` |

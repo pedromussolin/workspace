@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from ws.release import ReleaseSetup
-from ws.release.settings import load_release_config
+from ws.release.settings import Environment, load_release_config
 
 JIRA = '[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "https://example.atlassian.net/"\n'
 README = 'see "Release" in the README'
@@ -34,7 +34,7 @@ def test_release_config_reads_repos_in_file_order(config_dir):
     config = load_release_config()
 
     assert config.base_branch == "main"
-    assert config.sandbox_branch == "sbx"
+    assert config.environments == (Environment("sandbox", "sbx", "-sdbx", True),)
     assert config.card_url_template == "https://example.atlassian.net/browse/{key}"
     assert tuple(entry.name for entry in config.repos) == ("repo-b", "repo-a")
     first, second = config.repos
@@ -89,7 +89,8 @@ def test_release_config_defaults_the_branches(config_dir):
 
     config = load_release_config()
 
-    assert (config.base_branch, config.sandbox_branch) == ("master", "sandbox")
+    assert config.base_branch == "master"
+    assert config.environments == (Environment("sandbox", "sandbox", "-sdbx", True),)
 
 
 def test_release_config_names_missing_keys(config_dir):
@@ -134,6 +135,70 @@ def test_release_config_without_a_release_table(config_dir):
 
 def test_release_config_without_a_config_file(config_dir):
     with pytest.raises(ReleaseSetup) as error:
+        load_release_config()
+
+    assert str(error.value).endswith(README)
+
+
+REPO = '[release.repos.repo-a]\nslug = "acme/repo-a"\npath = "/srv/a"\n'
+ENVS = (
+    '[release.environments.sandbox]\nbranch = "sandbox"\nsuffix = "-sdbx"\ndefault = true\n'
+    '[release.environments.staging]\nbranch = "staging"\nsuffix = "-stg"\n'
+)
+
+
+def test_release_config_reads_environments_in_file_order(config_dir):
+    _write(config_dir, JIRA + "[release]\n" + ENVS + REPO)
+
+    config = load_release_config()
+
+    assert config.environments == (
+        Environment("sandbox", "sandbox", "-sdbx", True),
+        Environment("staging", "staging", "-stg", False),
+    )
+    assert config.environment("staging").pr_suffix == " (stg)"
+    assert [env.name for env in config.defaults()] == ["sandbox"]
+    assert config.protected == {"master", "sandbox", "staging"}
+
+
+def test_release_config_selects_environments_by_name(config_dir):
+    _write(config_dir, JIRA + "[release]\n" + ENVS + REPO)
+    config = load_release_config()
+
+    assert [e.name for e in config.select(None)] == ["sandbox"]
+    assert [e.name for e in config.select(["staging", "sandbox"])] == ["sandbox", "staging"]
+    assert config.select(["production"]) == ()
+    with pytest.raises(ReleaseSetup, match="unknown environment 'qa'"):
+        config.select(["qa"])
+
+
+@pytest.mark.parametrize(
+    ("release", "message"),
+    [
+        ('sandbox_branch = "sandbox"\n' + ENVS, "use one"),
+        ("[release.environments.production]\nbranch = 'p'\nsuffix = '-p'\n", "production"),
+        ("[release.environments.Qa]\nbranch = 'q'\nsuffix = '-q'\n", "must match"),
+        ("[release.environments.qa]\nbranch = 'q'\nsuffix = 'q'\n", "suffix must look like"),
+        ("[release.environments.qa]\nbranch = 'q'\nsuffix = '-q'\nx = 1\n", "unknown key x"),
+        ("[release.environments.qa]\nbranch = 'q'\nsuffix = '-q'\ndefault = 1\n", "true or false"),
+        ("[release.environments.qa]\nbranch = 'master'\nsuffix = '-q'\n", "base branch"),
+        (
+            "[release.environments.a]\nbranch = 'q'\nsuffix = '-q'\n"
+            "[release.environments.b]\nbranch = 'r'\nsuffix = '-q'\n",
+            "share a suffix",
+        ),
+        (
+            "[release.environments.a]\nbranch = 'q'\nsuffix = '-a'\n"
+            "[release.environments.b]\nbranch = 'q'\nsuffix = '-b'\n",
+            "share a branch",
+        ),
+    ],
+)
+def test_release_config_refuses_bad_environments(config_dir, release, message):
+    head = "[release]\n" if release.startswith("sandbox_branch") else ""
+    _write(config_dir, JIRA + head + release + REPO)
+
+    with pytest.raises(ReleaseSetup, match=message) as error:
         load_release_config()
 
     assert str(error.value).endswith(README)

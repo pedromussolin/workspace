@@ -16,21 +16,32 @@ from ws.release import folder as release_folder
 from ws.release.github import Gh, GhFailed, GhMissing, GhUncertain, PullRequest
 from ws.release.settings import ReleaseConfig, RepoEntry, load_release_config
 
-SANDBOX = "-sandbox"
-RELEASE_HEAD = re.compile(r"release/(\d{8})(?:-sdbx)?")
 FOLDER = re.compile(r"release-(\d{8})")
 
 
+def _release_head(config: ReleaseConfig) -> re.Pattern[str]:
+    suffixes = "|".join(re.escape(env.suffix) for env in config.environments)
+    return re.compile(rf"release/(\d{{8}})(?:{suffixes})?" if suffixes else r"release/(\d{8})")
+
+
 def links(config: ReleaseConfig, prs: dict[str, PullRequest]) -> list[str]:
-    """`prs` is keyed by `repo` and `repo-sandbox`: code PRs in the given order, then sandbox."""
+    """`prs` is keyed by `repo` and `repo-ENV`: the code PRs in the given order, then each
+    environment in config order."""
+    names = {entry.name for entry in config.repos}
     lines = []
-    for sandbox in (False, True):
+    for env in (None, *config.environments):
         for ref, pr in prs.items():
-            if ref.endswith(SANDBOX) != sandbox:
+            if env is None:
+                name, label = ref, None
+            else:
+                name = ref.removesuffix(f"-{env.name}")
+                label = env.name
+                if name == ref:
+                    continue
+            if name not in names or (env is None) != (label is None):
                 continue
-            name = config.entry(ref.removesuffix(SANDBOX)).repo_name
-            label = f"{name} (sandbox)" if sandbox else name
-            lines.append(f"{label}, PR #{pr.number}: {pr.url}")
+            repo = config.entry(name).repo_name
+            lines.append(f"{repo + (f' ({label})' if label else '')}, PR #{pr.number}: {pr.url}")
     return lines
 
 
@@ -65,16 +76,17 @@ def _releases(config: ReleaseConfig, slug: str, gh: Gh) -> dict:
             if match and path.is_dir():
                 row(match.group(1), folder=True)
     warnings: list[str] = []
+    release_head = _release_head(config)
     for entry in config.repos:
         error = gitops.fetch(entry.path)
         if error:
             warnings.append(f"{entry.name}: fetch failed: {error}")
         for branch in gitops.remote_branches(entry.path, "release/"):
-            match = RELEASE_HEAD.fullmatch(branch)
+            match = release_head.fullmatch(branch)
             if match:
                 row(match.group(1))["branches"].append({"repo": entry.name, "branch": branch})
         for pr in gh.prs(entry.slug, state="open"):
-            match = RELEASE_HEAD.fullmatch(pr.head)
+            match = release_head.fullmatch(pr.head)
             if match:
                 row(match.group(1))["open_prs"].append(
                     {"repo": entry.name, "number": pr.number, "base": pr.base, "url": pr.url}
@@ -103,9 +115,27 @@ def _merged_row(entry: RepoEntry, includes: tuple[str, ...], code_branch: str) -
         "code_branch": code_branch,
         "tip": tip or gitops.rev(entry.path, f"refs/heads/{code_branch}"),
         "merged": True,
+        "environments": {},
         "problems": [],
         "warnings": [],
     }
+
+
+def _envs_in_scope(config: ReleaseConfig, entry: RepoEntry, code_branch: str) -> tuple:
+    """The default environments, and any other whose copy of the code branch exists here or on
+    origin."""
+    return tuple(
+        env
+        for env in config.environments
+        if env.default
+        or any(
+            gitops.rev(entry.path, ref)
+            for ref in (
+                f"refs/heads/{code_branch}{env.suffix}",
+                f"refs/remotes/{gitops.REMOTE}/{code_branch}{env.suffix}",
+            )
+        )
+    )
 
 
 def _day(config: ReleaseConfig, slug: str, day: date, gh: Gh, with_links: bool) -> tuple[dict, int]:
@@ -118,22 +148,22 @@ def _day(config: ReleaseConfig, slug: str, day: date, gh: Gh, with_links: bool) 
         warning = gitops.fetch(entry.path)
         code_branch = includes[0] if len(includes) == 1 else f"release/{text.compact(day)}"
         code = _pick(gh.prs(entry.slug, head=code_branch, base=config.base_branch))
+        envs = _envs_in_scope(config, entry, code_branch)
         if _is_merged(config, entry, code_branch, code):
-            row, sandbox_head = _merged_row(entry, includes, code_branch), code_branch
+            row = _merged_row(entry, includes, code_branch)
         else:
-            state = rules.assess(config, entry, includes, day, folder)
-            row, sandbox_head = {**state.as_json(), "merged": False}, state.sandbox_head
+            row = {
+                **rules.assess(config, entry, includes, day, folder, envs).as_json(),
+                "merged": False,
+            }
         row["warnings"] = row["warnings"] + ([f"fetch failed: {warning}"] if warning else [])
         row["prs"] = []
-        heads = dict.fromkeys((sandbox_head, code_branch, f"{code_branch}-sdbx"))
-        sandbox = _pick(
-            [
-                pr
-                for head in heads
-                for pr in gh.prs(entry.slug, head=head, base=config.sandbox_branch)
-            ]
-        )
-        for kind, ref, pr in (("code", name, code), ("sandbox", name + SANDBOX, sandbox)):
+        wanted = [("code", name, code)]
+        for env in envs:
+            heads = dict.fromkeys((f"{code_branch}{env.suffix}", code_branch))
+            prs = [pr for head in heads for pr in gh.prs(entry.slug, head=head, base=env.branch)]
+            wanted.append((env.name, f"{name}-{env.name}", _pick(prs)))
+        for kind, ref, pr in wanted:
             if pr:
                 found[ref] = pr
                 row["prs"].append(_pr_json(gh, entry.slug, pr, kind))
