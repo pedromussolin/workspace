@@ -538,3 +538,18 @@ downgrade volta para `ceo`/`CEO`. Docstring: a app role no Azure precisa ter o m
 4. Ligar o job `avisos-pre-trade-sla-estourado` em cada ambiente (card 1).
 5. SLA padrão de 3h úteis já vem na migration do card 1 (D18); mudar é uma migration nova.
 6. Usuário apaga a role `ceo-pre-trade:approve` depois do deploy do card 3.
+
+## Execução
+
+Cinco agentes em paralelo desde 18/11, cada um na sua worktree, com o brief comum na pasta privada
+do projeto (`agentes/common-brief.md`). Sem commit: cada tarefa deixa um retrato cumulativo
+(`after-task-<N>.patch`), e os commits saem depois da revisão. As migrations dos três cards nascem
+sobre `c3f81d5a92e7`; a corrente é refeita na junção, na ordem TS-5846 → TS-5847 → TS-5848.
+
+| Agente | Card | Tarefas | Modelo e esforço | Por quê |
+|---|---|---|---|---|
+| ts5846-shared | TS-5846 | 1 a 4 | Sonnet, alto | Calendário novo e SLA no motor, com bordas |
+| ts5846-front | TS-5846 | 5 | Sonnet, médio | Um componente da área, contrato fechado |
+| ts5847-shared | TS-5847 | 6 a 9 | Sonnet, muito alto | Índices, concorrência e rodadas no motor |
+| ts5847-front | TS-5847 | 10 a 13 | Sonnet, alto | Quatro mudanças de tela ligadas pelo mesmo estado |
+| ts5848-all | TS-5848 | 14 a 16 | Sonnet, médio | Troca de nome nos três repositórios |
