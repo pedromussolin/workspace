@@ -37,3 +37,9 @@ Em "Quem", quem decidiu.
 | D16 | SLA com vencimento gravado na entrada da etapa | usuário | 18/11/2026 | Lista e job em SQL simples; mudar o SLA vale para as próximas entradas |
 | D17 | As tarefas do Pré-Trade no TS ficam no épico TS-5046 | usuário | 18/11/2026 | Épico do Pré-Trade |
 | D18 | SLA padrão de 3h úteis (180 min) nas etapas 1ª aprovação, 2ª aprovação, Trade, Conferência e Ajustes; Rascunho sem SLA (escolha técnica, ajustável) | usuário | 18/11/2026 | "3 horas uteis de SLA por default, qualquer coisa eu mudo" |
+| D19 | A variante `warning` do botão comum do front fica, em commit próprio | usuário | 18/11/2026 | O "Antecipar trade" pede tom de alerta e não havia botão nesse tom |
+| D20 | `portfolio-manager` não entra nas listas de departamentos da base de conhecimento (BFF e front); o grupo existe só no Pré-Trade | revisão técnica | 18/11/2026 | Evita criar departamento e roles novos na base de conhecimento; o escopo do Pré-Trade já tem nome próprio no catálogo |
+| D21 | O aviso de aprovação pulada vai só para as áreas puladas de fato, citando a etapa de cada uma | revisão técnica | 18/11/2026 | Aplica a D7: área que já tinha decidido não foi pulada |
+| D22 | No downgrade da estrutura do pulo, o índice de decisores continua ignorando `SKIPPED` | usuário | 18/11/2026 | O downgrade roda mesmo com vagas puladas, sem reescrever o histórico |
+| D23 | O downgrade da configuração do trade antecipado para com erro claro se já houve antecipação; a volta é corrigir para a frente | revisão técnica | 18/11/2026 | O histórico aponta para a transição usada e o código anterior não lê `SKIPPED` |
+| D24 | O usuário testa o front local, com o mock, antes dos commits | usuário | 18/11/2026 | Correção do teste entra no próprio commit |

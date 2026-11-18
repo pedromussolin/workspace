@@ -8,18 +8,20 @@ Leia antes: o `AGENTS.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 ## Onde parei
 
-18/11/2026: desenho aprovado (`attachments/design.md`), plano por entrega aprovado
-(`attachments/plan.md`, 16 tarefas) e cards criados no épico TS-5046 com prazo 19/11: TS-5846
-(SLA por etapa), TS-5847 (trade antecipado) e TS-5848 (2ª aprovação pela Gestão). Execução
-escolhida: por agentes, um por card. Sem branch e sem código ainda. Passagem de chat em
-`~/.local/share/workspace/projects/pre-trade/HANDOFF-20261118-sla-trade-antecipado-agentes.md`.
+18/11/2026: os três cards (TS-5846 SLA, TS-5847 trade antecipado, TS-5848 2ª aprovação pela Gestão)
+estão em andamento, implementados por cinco agentes em paralelo, revisados (código e revisão visual
+das telas) e com as correções da revisão aplicadas. **Nada commitado**: tudo está no working tree das
+sete worktrees. SLA padrão de 3h úteis (D18) já na migration do TS-5846. Decisões da revisão em D19 a
+D24. Passagem de chat em
+`~/.local/share/workspace/projects/pre-trade/HANDOFF-20261118-teste-do-front-e-commits.md`.
 
 ## Próximo passo
 
-Ler o handoff inteiro. Depois, `/card iniciar` dos três cards com `--worktree` e um agente por card,
-em paralelo, com o brief tirado do `plan.md`. Ordem de merge: TS-5846, TS-5847, TS-5848. O TS-5848
-depende da app role nova no Azure, criada pelo usuário antes do deploy.
+Ler o handoff inteiro. Montar uma worktree de teste do front a partir da master com os diffs dos três
+cards (TS-5846, TS-5847, TS-5848) e subir com o mock para o usuário testar. Depois do ok: commits por
+card e repositório, junção da corrente de migrations, push das branches e PRs.
 
 ## Branches e worktrees
 
-Nenhuma ainda.
+Sete worktrees em `~/repos/.worktrees/` (`<repo>-TS-<id>`), uma por repositório de cada card, todas
+sem upstream e sem commit. Lista completa no handoff.
