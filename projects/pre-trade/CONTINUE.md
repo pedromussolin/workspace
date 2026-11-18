@@ -19,5 +19,9 @@ Nenhuma ainda.
 
 ## Próximo passo
 
-Desenho aprovado em 18/11. Plano em `attachments/plan.md` (14 tarefas, 4 cards no épico TS-5046).
-Criar os cards, escolher o modo de execução e começar pelo card 1 (motor). Só depois: plano de implementação, cards no TS e branches.
+Desenho aprovado em 18/11. Plano em `attachments/plan.md` (16 tarefas em 3 cards, por entrega).
+Cards criados em 18/11 no épico TS-5046, com prazo 19/11: TS-5846 (SLA), TS-5847 (trade
+antecipado), TS-5848 (2ª aprovação). Execução escolhida: por agentes (subagent-driven), um por
+card, em paralelo, cada um na sua branch. Próximo: `/card iniciar` de cada card (branches e
+movimento para em andamento) e disparar os agentes com o plano. O TS-5848 depende da app role nova
+no Azure, criada pelo usuário, antes do deploy. Só depois: plano de implementação, cards no TS e branches.
