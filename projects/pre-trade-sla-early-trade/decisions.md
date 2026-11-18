@@ -12,8 +12,6 @@ Em "Quem", quem decide.
 
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
-| P1 | Horário comercial das horas úteis do SLA (proposta: 9h às 18h, America/Sao_Paulo) | usuário | 18/11/2026 | Define quando o relógio do SLA anda |
-| P2 | E-mail do SLA estourado: um só, no momento em que estoura, ou um por dia útil, como o aviso de prazo vencido de hoje | usuário | 18/11/2026 | O usuário escolheu "tela + e-mail" achando que era o comportamento atual; o atual é diário |
 | P3 | Abordagem técnica do SLA e do pulo de aprovações no motor | usuário | 18/11/2026 | Mudança de arquitetura no motor genérico |
 | P4 | Valores de SLA de cada etapa e quem os mantém | usuário | 18/11/2026 | O SLA é opcional por etapa |
 
@@ -25,7 +23,7 @@ Em "Quem", quem decidiu.
 |---|---|---|---|---|
 | D1 | SLA opcional por etapa do fluxo | usuário | 18/11/2026 | Pedido inicial |
 | D2 | SLA conta em horas úteis: seg. a sex., horário comercial, sem os feriados da B3 | usuário | 18/11/2026 | Sem isso, um SLA curto vence no fim de semana |
-| D3 | SLA estourado aparece na tela (lista e detalhe), separado do chip de prazo da solicitação, e gera e-mail para quem age na etapa | usuário | 18/11/2026 | Ver P2 para a frequência |
+| D3 | SLA estourado aparece na tela (lista e detalhe), separado do chip de prazo da solicitação, e gera e-mail para quem age na etapa | usuário | 18/11/2026 | Frequência em D14 |
 | D4 | Trade antecipado: Operações pode executar na 1ª e na 2ª aprovação | usuário | 18/11/2026 | Quem executa o trade não pode depender da fila de aprovações |
 | D5 | As aprovações que faltavam são puladas de vez; a solicitação segue para a Conferência do Jurídico | usuário | 18/11/2026 | O Jurídico já revisa depois do trade; "2ª aprovação → Trade" já existe como aprovação |
 | D6 | Trade antecipado exige motivo em texto, que vai para o histórico e para o aviso na tela | usuário | 18/11/2026 | Auditoria |
@@ -35,3 +33,5 @@ Em "Quem", quem decidiu.
 | D10 | O usuário cria a app role nova no Azure e a atribui antes do deploy; a `ceo-pre-trade:approve` sai só depois | usuário | 18/11/2026 | Quem aprova não fica sem role no meio da troca |
 | D11 | Exceção à regra de prefixo dos scopes do BFF: `ceo-pre-trade` sai e `portfolio-manager-pre-trade` entra na lista `SCOPES_OUTSIDE_THE_PREFIX_RULE`, sem crescer | usuário | 18/11/2026 | O padrão `{grupo}-pre-trade` da shared não segue o prefixo da página |
 | D12 | Fast track fica fora deste projeto | usuário | 18/11/2026 | Será implementado no futuro |
+| D13 | Horário comercial das horas úteis do SLA: 9h às 18h, America/Sao_Paulo | usuário | 18/11/2026 | Horário de trabalho das áreas |
+| D14 | E-mail do SLA estourado sai uma vez só, no momento em que estoura (diferente do aviso de prazo, que é diário) | usuário | 18/11/2026 | O SLA conta em horas; repetir todo dia não ajuda |

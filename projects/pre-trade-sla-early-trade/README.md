@@ -77,5 +77,5 @@ tarefas entram depois de a abordagem técnica ser aprovada.
 
 ## Situação
 
-18/11/2026: regras de negócio quase fechadas (faltam o horário comercial e a frequência do e-mail
-do SLA). Próximo: apresentar as abordagens técnicas e escrever o desenho.
+18/11/2026: regras de negócio fechadas (D1 a D14). Próximo: apresentar as abordagens técnicas e
+escrever o desenho.
