@@ -56,6 +56,8 @@ TS-5596, TS-5568 e TS-5624 não têm migration.
 
 **Release 1 (entrega em 24/11), sem card próprio:** a montagem fecha os cards que já estão na
 sprint **e a TS-5737** (decisão de 17/11: tudo sobe de uma vez); o registro formal do deploy é a GMUD.
+A montagem da release fica para o dia do deploy (decisão do usuário, 18/11), sobre o ensaio já
+feito; até lá, nenhuma branch de release nem PR.
 - [ ] Antes: TS-5624 no navegador; revisão da DBA na TS-5596 e no `EXPLAIN` da consulta de ids da
       TS-5737; snapshot OpenAPI da TS-5584; `kill -9` da TS-5737 na sandbox.
 - [x] Horário do job da TS-5585: 20:00 em dias úteis (17/11; ajustado na branch, sem commit).
