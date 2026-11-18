@@ -209,9 +209,12 @@ e, no fim de cada card, `npm test -- --watch=false` e `npm run lint`. Responsivo
 - `scheduler.scheduled_jobs`: nome `avisos-pre-trade-sla-estourado`,
   `job_type = 'pre_trade.notify_sla_overdue'`, `CRON`, `*/15 9-18 * * 1-5`, `America/Sao_Paulo`,
   `payload = {}`, `is_active = false`.
-- SLA das etapas continua nulo (P4 entra numa migration própria). Downgrade apaga as linhas.
+- `workflows.stage.sla_business_minutes = 180` em `PENDING_FIRST_APPROVAL`, `PENDING_SECOND_APPROVAL`,
+  `PENDING_TRADE`, `PENDING_FINAL_CHECK` e `PENDING_ADJUSTMENTS` do Pré-Trade (D18); `DRAFT` fica nulo.
+  Downgrade apaga as linhas inseridas e volta o SLA para nulo.
 
-- [ ] **Passo 1:** testes de integração que falham: `test_sla_job_row_is_inactive`,
+- [ ] **Passo 1:** testes de integração que falham: `test_pre_trade_stages_have_default_sla` (180 nas
+  cinco etapas, nulo no rascunho), `test_sla_job_row_is_inactive`,
   `test_sla_overdue_template_renders` (renderiza com as variáveis da Tarefa 3).
 - [ ] **Passo 2:** rodar e ver falhar.
 - [ ] **Passo 3:** escrever a migration.
@@ -533,5 +536,5 @@ downgrade volta para `ceo`/`CEO`. Docstring: a app role no Azure precisa ter o m
 2. Validação local de cada card; depois a sandbox (release da semana).
 3. Deploy de cada card: shared → BFF logo em seguida → front.
 4. Ligar o job `avisos-pre-trade-sla-estourado` em cada ambiente (card 1).
-5. Migration com os SLAs por etapa quando P4 fechar.
+5. SLA padrão de 3h úteis já vem na migration do card 1 (D18); mudar é uma migration nova.
 6. Usuário apaga a role `ceo-pre-trade:approve` depois do deploy do card 3.

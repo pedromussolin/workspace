@@ -260,10 +260,9 @@ Para cada tipo:
 - Depois do antecipado, o fluxo é o normal: Operações edita e anexa no Trade e envia para a
   Conferência; o Jurídico conclui ou devolve para o Trade.
 - `notification_config` e templates da seção 5.4. Job do SLA (5.4).
-- SLA das etapas fica nulo nesta migration. Os valores (P4) entram numa migration própria quando
-  o usuário definir, para não travar a entrega.
-- Sem preenchimento retroativo: o SLA vale para as entradas em etapa depois da migration dos
-  valores. Solicitações que já estão na etapa seguem sem SLA até a próxima mudança de etapa, e
+- SLA padrão de 3h úteis (180 min) nesta migration, em todas as etapas menos o Rascunho (D18).
+  Mudar o valor de uma etapa é uma migration nova.
+- Sem preenchimento retroativo: o SLA vale para as entradas em etapa depois desta migration. Solicitações que já estão na etapa seguem sem SLA até a próxima mudança de etapa, e
   ligar o job não dispara uma leva de e-mails atrasados (minha decisão).
 - O downgrade remove as linhas inseridas. Os valores de enum ficam.
 
@@ -438,8 +437,7 @@ antecipar, chip do SLA nos tons, faixa do detalhe, título do histórico.
   3. BFF, logo em seguida.
   4. Front.
   5. Ligar o job do SLA.
-  6. Definir os SLAs por migration (P4).
-  7. Apagar a role antiga.
+  6. Apagar a role antiga.
 
 ## 7. Deixado para quem implementa
 

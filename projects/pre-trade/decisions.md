@@ -12,7 +12,6 @@ Em "Quem", quem decide.
 
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
-| P4 | Valores de SLA de cada etapa e quem os mantém | usuário | 18/11/2026 | O SLA é opcional por etapa |
 
 ## Tomadas
 
@@ -37,3 +36,4 @@ Em "Quem", quem decidiu.
 | D15 | Trade antecipado no motor: transição com `skips_approvals`, vagas abertas viram `SKIPPED`, evento com as etapas puladas | usuário | 18/11/2026 | Histórico coerente e reaproveitável por outro fluxo |
 | D16 | SLA com vencimento gravado na entrada da etapa | usuário | 18/11/2026 | Lista e job em SQL simples; mudar o SLA vale para as próximas entradas |
 | D17 | As tarefas do Pré-Trade no TS ficam no épico TS-5046 | usuário | 18/11/2026 | Épico do Pré-Trade |
+| D18 | SLA padrão de 3h úteis (180 min) nas etapas 1ª aprovação, 2ª aprovação, Trade, Conferência e Ajustes; Rascunho sem SLA (escolha técnica, ajustável) | usuário | 18/11/2026 | "3 horas uteis de SLA por default, qualquer coisa eu mudo" |
