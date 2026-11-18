@@ -10,6 +10,20 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ## Onde parei
 
+### 18/11/2026
+
+**Passagem de chat (18/11):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261118-release-24-11-sandbox.md` (release
+de 24/11 na sandbox); a de 17/11 fica só como histórico.
+
+**TS-5624 do front concluída e enviada** (`feature/TS-5624-product-settings-page`, `2c08d916`). A
+revisão visual por um agente novo achou 4 desvios (grades da aba Cessão, erro de horário escrito à
+mão, tabela da conciliação à esquerda, 12 px a mais no celular); um agente corrigiu e outro revisou
+de novo sem desvio. A correção do celular mexeu na barra de filtros de `shared/ui`, com a aprovação
+do Pietro. Fica de fora o balão de "Adicionar horário", que repete o texto do botão.
+
+**Ambiente local derrubado.** O ensaio do front está 13 commits atrás da TS-5624.
+
 ### 17/11/2026
 
 **Passagem de chat (fim de 17/11):** retomar pela passagem privada
@@ -296,12 +310,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **TS-5624:** revisão visual por um agente novo (`review-screen`, brief em
-   `templates/briefs/front-screen-review.md`), na worktree `ts5624-front`.
-2. **Release de 24/11, só quando o Pietro liberar:** refazer o ensaio do front com a TS-5624 atual,
-   montar com `/release` pelo checklist de `tasks/13-plan.md` (ordem de merge, os dois
-   `down_revision`).
-3. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
+1. **Release de 24/11 na sandbox (18/11, com a palavra do Pietro):** refazer o ensaio do front com
+   a TS-5624 atual, montar com `/release` pelo checklist de `tasks/13-plan.md` (ordem de merge, os
+   dois `down_revision`), uma PR por repositório, e oferecer o movimento dos cards ao subir.
+2. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
    `CONCORRENCIA_POR_FILA`.
-4. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
-5. **Sem data:** TS-5620 (revisão do liquidar, D37, D38); `viva-production`; S1 a S14; TS-5537.
+3. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
+4. **Sem data:** TS-5620 (revisão do liquidar, D37, D38); `viva-production`; S1 a S14; TS-5537.
