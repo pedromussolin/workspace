@@ -23,7 +23,17 @@ def _run(capsys, day: str | None = DAY, **kwargs) -> tuple[int, dict]:
     return code, json.loads(out) if out.strip() else {}
 
 
-def _release(world: World, *, repo_b: bool = True) -> None:
+def _copy(world: World, repo: str, code: str, suffix: str = "-sdbx", env: str = "sandbox") -> None:
+    """The copy of `code` for the environment `env`, as `ws release new` makes it."""
+    world.git(repo, "checkout", "-q", code)
+    world.branch(repo, f"{code}{suffix}", code, push=False)
+    world.git(
+        repo, "merge", "--no-ff", "-m", f"chore(TS-101): junta a {code} na {env}", f"origin/{env}"
+    )
+    world.git(repo, "checkout", "-q", "master")
+
+
+def _release(world: World, *, repo_b: bool = True, copies: bool = True) -> None:
     include = {"repo-a": [ONE, TWO]}
     if repo_b:
         include["repo-b"] = [ONLY]
@@ -39,6 +49,10 @@ def _release(world: World, *, repo_b: bool = True) -> None:
             branch,
         )
     world.git("repo-a", "checkout", "-q", "master")
+    if copies:
+        _copy(world, "repo-a", CODE)
+        if repo_b:
+            _copy(world, "repo-b", ONLY)
 
 
 def _repo(payload: dict, name: str) -> dict:
@@ -48,7 +62,7 @@ def _repo(payload: dict, name: str) -> dict:
 def test_status_multi_clean(world: World, fake_gh, capsys):  # noqa: F811
     _release(world, repo_b=False)
     fake_gh.add_pr("acme/repo-a", 12, CODE, "master")
-    fake_gh.add_pr("acme/repo-a", 13, CODE, "sandbox")
+    fake_gh.add_pr("acme/repo-a", 13, f"{CODE}-sdbx", "sandbox")
     fake_gh.set_checks("acme/repo-a", 12, "MERGEABLE", {"ci": "SUCCESS"})
     code, payload = _run(capsys)
     assert code == 0
@@ -63,6 +77,7 @@ def test_status_multi_clean(world: World, fake_gh, capsys):  # noqa: F811
 
 def test_status_single_clean(world: World, fake_gh, capsys):  # noqa: F811
     world.write_release({"repo-b": [ONLY]})
+    _copy(world, "repo-b", ONLY)
     fake_gh.add_pr("acme/repo-b", 5, ONLY, "master")
     code, payload = _run(capsys)
     assert code == 0
@@ -95,7 +110,7 @@ def _sdbx(world: World) -> None:
 
 def test_status_broken_mirror_exits_1(world: World, fake_gh, capsys):  # noqa: F811
     _conflict(world)
-    _release(world, repo_b=False)
+    _release(world, repo_b=False, copies=False)
     _sdbx(world)
     world.commit("repo-a", f"{CODE}-sdbx", "own.txt", "own\n", "feat: own", push=False)
     code, payload = _run(capsys)
@@ -107,7 +122,7 @@ def test_status_links_order_and_format(world: World, fake_gh, capsys):  # noqa: 
     _release(world)
     fake_gh.add_pr("acme/repo-b", 7, ONLY, "master")
     fake_gh.add_pr("acme/repo-a", 12, CODE, "master")
-    fake_gh.add_pr("acme/repo-a", 13, CODE, "sandbox")
+    fake_gh.add_pr("acme/repo-a", 13, f"{CODE}-sdbx", "sandbox")
     code, payload = _run(capsys, links=True)
     assert code == 0
     assert payload["links"] == [
@@ -162,6 +177,7 @@ def test_status_links_warn_about_a_repo_without_pr(world: World, fake_gh, capsys
     assert payload["links"] == ["repo-a, PR #12: https://github.com/acme/repo-a/pull/12"]
     assert f"repo-b: no code PR for {ONLY}; the links are incomplete" in err
     assert any("repo-a: no sandbox PR" in w for w in _repo(payload, "repo-a")["warnings"])
+    assert any("repo-b: no sandbox PR" in w for w in _repo(payload, "repo-b")["warnings"])
 
 
 def test_status_gh_failure_exits_2(world: World, fake_gh, capsys):  # noqa: F811
@@ -180,6 +196,7 @@ def test_status_missing_folder_exits_2(world: World, fake_gh, capsys):  # noqa: 
 
 def test_status_merged_pr_still_appears(world: World, fake_gh, capsys):  # noqa: F811
     world.write_release({"repo-b": [ONLY]})
+    _copy(world, "repo-b", ONLY)
     fake_gh.add_pr("acme/repo-b", 5, ONLY, "master", state="MERGED", merged_at="2026-11-01")
     code, payload = _run(capsys)
     assert code == 0
@@ -198,7 +215,7 @@ def test_status_links_follow_the_config_order(world: World, fake_gh, capsys):  #
 
 def test_status_links_keep_the_sandbox_pr_of_a_merged_sdbx(world: World, fake_gh, capsys):  # noqa: F811
     _conflict(world)
-    _release(world, repo_b=False)
+    _release(world, repo_b=False, copies=False)
     _sdbx(world)
     world.git("repo-a", "push", "-q", "origin", CODE, f"{CODE}-sdbx")
     fake_gh.add_pr("acme/repo-a", 10, CODE, "master")
@@ -266,3 +283,59 @@ def test_status_exit_codes(world: World, fake_gh, capsys):  # noqa: F811
         'repos = ["repo-a", "repo-b"]\n[include]\nrepo-a = ["x/TS-1"]\n'
     )
     assert _run(capsys)[0] == 1 and "repo-b is in repos but has no include list" in ERR[0]
+
+
+def _staging(world: World) -> None:
+    world.add_staging()
+    _release(world)
+    _copy(world, "repo-a", CODE, "-stg", "staging")
+
+
+def test_status_pr_kind_is_the_environment_name(world: World, fake_gh, capsys):  # noqa: F811
+    _staging(world)
+    fake_gh.add_pr("acme/repo-a", 12, CODE, "master")
+    fake_gh.add_pr("acme/repo-a", 13, f"{CODE}-sdbx", "sandbox")
+    fake_gh.add_pr("acme/repo-a", 14, f"{CODE}-stg", "staging")
+    code, payload = _run(capsys)
+    assert code == 0
+    repo = _repo(payload, "repo-a")
+    assert [(p["number"], p["kind"]) for p in repo["prs"]] == [
+        (12, "code"),
+        (13, "sandbox"),
+        (14, "staging"),
+    ]
+    assert list(repo["environments"]) == ["sandbox", "staging"]
+
+
+def test_status_covers_only_the_default_and_the_existing_copies(world: World, fake_gh, capsys):  # noqa: F811
+    _staging(world)
+    _, payload = _run(capsys)
+    assert list(_repo(payload, "repo-a")["environments"]) == ["sandbox", "staging"]
+    assert list(_repo(payload, "repo-b")["environments"]) == ["sandbox"]
+
+
+def test_status_links_put_environments_after_code(world: World, fake_gh, capsys):  # noqa: F811
+    _staging(world)
+    fake_gh.add_pr("acme/repo-a", 14, f"{CODE}-stg", "staging")
+    fake_gh.add_pr("acme/repo-a", 12, CODE, "master")
+    fake_gh.add_pr("acme/repo-a", 13, f"{CODE}-sdbx", "sandbox")
+    fake_gh.add_pr("acme/repo-b", 7, ONLY, "master")
+    code, payload = _run(capsys, links=True)
+    assert code == 0
+    assert payload["links"] == [
+        "repo-a, PR #12: https://github.com/acme/repo-a/pull/12",
+        "repo-b, PR #7: https://github.com/acme/repo-b/pull/7",
+        "repo-a (sandbox), PR #13: https://github.com/acme/repo-a/pull/13",
+        "repo-a (staging), PR #14: https://github.com/acme/repo-a/pull/14",
+    ]
+    warnings = _repo(payload, "repo-b")["warnings"]
+    assert warnings == [f"repo-b: no sandbox PR for {ONLY}; the links are incomplete"]
+
+
+def test_status_listing_knows_every_configured_suffix(world: World, fake_gh, capsys):  # noqa: F811
+    world.add_staging()
+    fake_gh.add_pr("acme/repo-a", 18, "release/20261211-stg", "staging")
+    fake_gh.add_pr("acme/repo-a", 19, "release/20261211-qa", "staging")
+    _, payload = _run(capsys, day=None)
+    rows = {r["date"]: r for r in payload["releases"]}
+    assert [p["number"] for p in rows["20261211"]["open_prs"]] == [18]
