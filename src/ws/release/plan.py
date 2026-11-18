@@ -26,12 +26,7 @@ from ws.release import folder as release_folder
 from ws.release.github import UNCERTAIN_STDERR, Gh, GhFailed, GhMissing, GhUncertain
 from ws.release.settings import ReleaseConfig, load_release_config
 
-RELEASE_BRANCH = r"release/\d{8}(-sdbx)?"
 TASK_BRANCH = r"(feature|chore|refact|hotfix|fix|test)/TS-\d+-[A-Za-z0-9._-]+"
-PUSHABLE = re.compile(rf"{RELEASE_BRANCH}|{TASK_BRANCH}")
-RELEASE_ONLY = re.compile(RELEASE_BRANCH)
-RELEASE_REF = re.compile(r"refs/remotes/origin/release/\d{8}(-sdbx|):refs/heads/release/\d{8}\1")
-RELEASE_PATH = re.compile(r"(/[^/\s]+)*/?release-\d{8}(-sdbx)?(/[^/\s]+)?")
 GIT_TIMEOUT_SECONDS = 120
 GIT_REJECTED = re.compile(r"^ ! \[(remote )?rejected\]", re.MULTILINE)
 GIT_DROPPED = re.compile(
@@ -53,6 +48,33 @@ def session_id() -> int:
 
 def store() -> Path:
     return data_dir() / "release" / "pending"
+
+
+@dataclass(frozen=True)
+class Shapes:
+    """The branch and path shapes a release write may touch: the release branch and one copy per
+    configured environment suffix."""
+
+    pushable: re.Pattern[str]
+    release_only: re.Pattern[str]
+    release_ref: re.Pattern[str]
+    release_path: re.Pattern[str]
+    protected: frozenset[str]
+
+
+def shapes_of(config: ReleaseConfig) -> Shapes:
+    suffixes = "|".join(re.escape(env.suffix) for env in config.environments)
+    optional = f"({suffixes})?" if suffixes else "()"
+    release = rf"release/\d{{8}}{optional}"
+    return Shapes(
+        pushable=re.compile(rf"{release}|{TASK_BRANCH}"),
+        release_only=re.compile(release),
+        release_ref=re.compile(
+            rf"refs/remotes/origin/release/\d{{8}}({suffixes}|):refs/heads/release/\d{{8}}\1"
+        ),
+        release_path=re.compile(rf"(/[^/\s]+)*/?release-\d{{8}}{optional}(/[^/\s]+)?"),
+        protected=frozenset(config.protected),
+    )
 
 
 @dataclass(frozen=True)
@@ -221,59 +243,58 @@ def second_pass(calls: list[Call]) -> list[Call]:
 def guard(plan: WritePlan, config: ReleaseConfig, local_names: tuple[str, ...] = ()) -> str | None:
     """The last line of defence: the call that is outside the allowed shapes, or `None`."""
     slugs = {repo.slug for repo in config.repos}
-    protected = {config.base_branch, config.sandbox_branch}
+    shapes = shapes_of(config)
     for call in plan.calls:
-        if not _allowed(call, slugs, protected, local_names):
+        if not _allowed(call, slugs, shapes, local_names):
             return f"{call.program} {' '.join(call.args)}"
     return None
 
 
-def _allowed(
-    call: Call, slugs: set[str], protected: set[str], local_names: tuple[str, ...]
-) -> bool:
+def _allowed(call: Call, slugs: set[str], shapes: Shapes, local_names: tuple[str, ...]) -> bool:
     args = call.args
     if call.program == "local":
         return bool(args) and args[0] in local_names
     if call.program == "git":
-        return call.cwd is not None and _git_allowed(args, protected)
+        return call.cwd is not None and _git_allowed(args, shapes)
     if call.program == "gh":
-        return _gh_allowed(args, slugs, protected)
+        return _gh_allowed(args, slugs, shapes)
     return False
 
 
-def _git_allowed(args: tuple[str, ...], protected: set[str]) -> bool:
+def _git_allowed(args: tuple[str, ...], shapes: Shapes) -> bool:
+    release = shapes.release_only
     match args:
         case ("push", "-u", "origin", branch):
-            return branch not in protected and PUSHABLE.fullmatch(branch) is not None
+            return branch not in shapes.protected and shapes.pushable.fullmatch(branch) is not None
         case ("push", "origin", spec):
-            return RELEASE_REF.fullmatch(spec) is not None
+            return shapes.release_ref.fullmatch(spec) is not None
         case ("push", "origin", "--delete", branch):
-            return RELEASE_ONLY.fullmatch(branch) is not None
+            return release.fullmatch(branch) is not None
         case ("branch", "-m", old, new):
-            return all(RELEASE_ONLY.fullmatch(name) for name in (old, new))
+            return all(release.fullmatch(name) for name in (old, new))
         case ("branch", "-u", upstream, branch):
             return (
                 upstream.startswith("origin/")
-                and RELEASE_ONLY.fullmatch(upstream.removeprefix("origin/")) is not None
-                and RELEASE_ONLY.fullmatch(branch) is not None
+                and release.fullmatch(upstream.removeprefix("origin/")) is not None
+                and release.fullmatch(branch) is not None
             )
         case ("worktree", "move", source, target):
-            return all(_release_path(path) for path in (source, target))
+            return all(_release_path(path, shapes) for path in (source, target))
     return False
 
 
-def _release_path(path: str) -> bool:
-    return ".." not in path.split("/") and RELEASE_PATH.fullmatch(path) is not None
+def _release_path(path: str, shapes: Shapes) -> bool:
+    return ".." not in path.split("/") and shapes.release_path.fullmatch(path) is not None
 
 
-def _gh_allowed(args: tuple[str, ...], slugs: set[str], protected: set[str]) -> bool:
+def _gh_allowed(args: tuple[str, ...], slugs: set[str], shapes: Shapes) -> bool:
     match args:
         case ("pr", "create", "-R", slug, "--base", base, "--head", head, "--title", title, *rest):
             return (
                 slug in slugs
-                and base in protected
-                and head not in protected
-                and PUSHABLE.fullmatch(head) is not None
+                and base in shapes.protected
+                and head not in shapes.protected
+                and shapes.pushable.fullmatch(head) is not None
                 and bool(title)
                 and _create_extras(tuple(rest))
             )

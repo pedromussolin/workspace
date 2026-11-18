@@ -44,9 +44,9 @@ def ready(world, fake_gh, fixed_today, tmp_path, monkeypatch):  # noqa: F811
     sessions = itertools.count(1000)
     monkeypatch.setattr(writeplan, "session_id", lambda: next(sessions))
     world.write_release({"repo-a": [ONE, TWO], "repo-b": [ONLY]})
-    code = build.run_new(argparse.Namespace(project="demo", day=DAY, repos=[]))
-    assert code == 0
     world.commit("repo-b", ONLY, "more.txt", "more\n", "feat(TS-201): ajuste local", push=False)
+    code = build.run_new(argparse.Namespace(project="demo", day=DAY, repos=[], envs=[]))
+    assert code == 0
     world.git("repo-a", "checkout", "-q", "master")
     world.git("repo-b", "checkout", "-q", "master")
     return world
@@ -107,20 +107,22 @@ def test_publish_with_the_right_code_runs_the_planned_calls_in_order(ready, fake
     a, b = "acme/repo-a", "acme/repo-b"
     assert out["calls"] == [
         f"repo-a: git push -u origin {CODE}",
+        f"repo-a: git push -u origin {CODE}-sdbx",
         f"repo-a: gh pr create -R {a} --base master --head {CODE} --title {A_TITLE}",
-        f"repo-a: gh pr create -R {a} --base sandbox --head {CODE} --title {A_TITLE} (sdbx)",
+        f"repo-a: gh pr create -R {a} --base sandbox --head {CODE}-sdbx --title {A_TITLE} (sdbx)",
         f"repo-b: git push -u origin {ONLY}",
+        f"repo-b: git push -u origin {ONLY}-sdbx",
         f"repo-b: gh pr create -R {b} --base master --head {ONLY} --title {B_TITLE}",
-        f"repo-b: gh pr create -R {b} --base sandbox --head {ONLY} --title {B_TITLE} (sdbx)",
+        f"repo-b: gh pr create -R {b} --base sandbox --head {ONLY}-sdbx --title {B_TITLE} (sdbx)",
     ]
     code, result, err = publish_with(capsys, out["code"])
     assert code == 0, err
     assert creates(fake_gh) == [
         ["pr", "create", "-R", a, "--base", "master", "--head", CODE, "--title", A_TITLE],
-        ["pr", "create", "-R", a, "--base", "sandbox", "--head", CODE]
+        ["pr", "create", "-R", a, "--base", "sandbox", "--head", f"{CODE}-sdbx"]
         + ["--title", A_TITLE + " (sdbx)"],
         ["pr", "create", "-R", b, "--base", "master", "--head", ONLY, "--title", B_TITLE],
-        ["pr", "create", "-R", b, "--base", "sandbox", "--head", ONLY]
+        ["pr", "create", "-R", b, "--base", "sandbox", "--head", f"{ONLY}-sdbx"]
         + ["--title", B_TITLE + " (sdbx)"],
     ]
     assert f"refs/heads/{CODE}" in ready.refs("repo-a")
@@ -135,7 +137,7 @@ def test_single_branch_prs_have_the_task_branch_as_head(ready, fake_gh, capsys):
     _, (code, _, err) = run_all(capsys, "--repo", "repo-b")
     assert code == 0, err
     prs = fake_gh.prs("acme/repo-b")
-    assert [pr["headRefName"] for pr in prs] == [ONLY, ONLY]
+    assert [pr["headRefName"] for pr in prs] == [ONLY, f"{ONLY}-sdbx"]
     assert all(pr["body"].startswith("Release: 20/11/2026\n\n") for pr in prs)
     assert fake_gh.prs("acme/repo-a") == []
 
@@ -144,7 +146,7 @@ def conflict_with_sandbox(world, capsys):
     world.commit("repo-a", "sandbox", "shared.txt", "sandbox\n", "chore: shared sandbox")
     world.commit("repo-a", ONE, "shared.txt", "one\n", "feat: shared one")
     world.git("repo-a", "checkout", "-q", "master")
-    args = argparse.Namespace(project="demo", day=DAY, repos=[])
+    args = argparse.Namespace(project="demo", day=DAY, repos=[], envs=[])
     assert build.run_new(args) == 3
     capsys.readouterr()
     sdbx = world.release_dir() / "repo-a-sdbx"
@@ -168,7 +170,7 @@ def test_sandbox_pr_comes_from_the_sdbx_when_it_exists(ready, fake_gh, capsys): 
     code_pr, sandbox_pr = fake_gh.prs("acme/repo-a")
     assert (code_pr["headRefName"], sandbox_pr["headRefName"]) == (CODE, f"{CODE}-sdbx")
     assert sandbox_pr["title"] == A_TITLE + " (sdbx)"
-    paragraph = "Leva este código para a sandbox, para validar antes da master."
+    paragraph = "Leva este código para a sandbox, para validar antes da produção."
     assert paragraph in sandbox_pr["body"]
     assert (
         f"A {CODE}-sdbx tem a sandbox mesclada; difere do código só em: "
@@ -237,7 +239,7 @@ def test_merged_code_pr_is_skipped(ready, fake_gh, capsys):  # noqa: F811
 
 def merge_into_origin_sandbox(world):
     world.git("repo-a", "checkout", "-q", "sandbox")
-    world.git("repo-a", "merge", "-q", "--no-edit", CODE)
+    world.git("repo-a", "merge", "-q", "--no-edit", f"{CODE}-sdbx")
     world.git("repo-a", "push", "-q", "origin", "sandbox")
     world.git("repo-a", "checkout", "-q", "master")
     world.git("repo-a", "fetch", "-q", "origin")
@@ -246,13 +248,16 @@ def merge_into_origin_sandbox(world):
 def test_second_sandbox_pr_from_the_sandbox_2_draft(ready, fake_gh, capsys):  # noqa: F811
     drafts(ready, sandbox=True)
     merge_into_origin_sandbox(ready)
-    fake_gh.add_pr("acme/repo-a", 9, CODE, "sandbox", state="MERGED", merged_at=MERGED)
+    fake_gh.add_pr("acme/repo-a", 9, f"{CODE}-sdbx", "sandbox", state="MERGED", merged_at=MERGED)
     out = preview(capsys, "--repo", "repo-a")
     assert [line for line in out["calls"] if "--base sandbox" in line] == []
     worktree = ready.release_dir() / "repo-a"
     (worktree / "more.txt").write_text("more\n")
     ready.git("repo-a", "-C", str(worktree), "add", "more.txt")
     ready.git("repo-a", "-C", str(worktree), "commit", "-q", "-m", "feat(TS-101): mais um")
+    assert build.run_new(argparse.Namespace(project="demo", day=DAY, repos=[], envs=[])) == 0
+    capsys.readouterr()
+    ready.git("repo-a", "checkout", "-q", "master")
     code, out, err = cli_run(
         capsys, "preview", "publish", DAY, "--project", "demo", "--repo", "repo-a"
     )
@@ -349,6 +354,11 @@ def test_a_head_outside_the_task_branch_pattern_is_a_problem(ready, fake_gh, cap
     ready.commit("repo-b", odd, "odd.txt", "odd\n", "feat(TS-301): estranho")
     ready.git("repo-b", "checkout", "-q", "master")
     ready.write_release({"repo-b": [odd]})
+    stale = ready.release_dir() / "repo-b-sdbx"
+    ready.git("repo-b", "worktree", "remove", "--force", str(stale))
+    assert build.run_new(argparse.Namespace(project="demo", day=DAY, repos=[], envs=[])) == 0
+    capsys.readouterr()
+    ready.git("repo-b", "checkout", "-q", "master")
     ready.write_pr("repo-b", "feat(TS-301): estranho", ["TS-301"], B_BODY)
     code, out, err = cli_run(capsys, "preview", "publish", DAY, "--project", "demo")
     assert code == 1 and "outside the allowed shapes" in err
@@ -434,16 +444,14 @@ def test_publish_records_published_json(ready, fake_gh, capsys):  # noqa: F811
         "note": "x",
         "shape": "multi",
         "code_branch": CODE,
-        "sandbox_branch": CODE,
         "code_pr": 1,
-        "sandbox_pr": 2,
+        "environments": {"sandbox": {"branch": f"{CODE}-sdbx", "pr": 2}},
     }
     assert data["repos"]["repo-b"] == {
         "shape": "single",
         "code_branch": ONLY,
-        "sandbox_branch": ONLY,
         "code_pr": 1,
-        "sandbox_pr": 2,
+        "environments": {"sandbox": {"branch": f"{ONLY}-sdbx", "pr": 2}},
     }
     assert build.read_published(ready.release_dir())["repo-b"]["shape"] == "single"
 
@@ -521,3 +529,134 @@ def test_an_approval_refusal_keeps_the_warnings(ready, fake_gh, capsys, monkeypa
     code, refused, err = publish_with(capsys, out["code"])
     assert code == 1 and "the plan differs from the preview" in err
     assert "repo-a: fetch failed: boom" in refused["warnings"]
+
+
+def build_envs(world, capsys, *envs):
+    args = argparse.Namespace(project="demo", day=DAY, repos=[], envs=list(envs))
+    assert build.run_new(args) == 0
+    capsys.readouterr()
+    world.git("repo-a", "checkout", "-q", "master")
+    world.git("repo-b", "checkout", "-q", "master")
+
+
+def test_env_sandbox_publishes_only_the_copy_and_its_pr(ready, fake_gh, capsys):  # noqa: F811
+    drafts(ready)
+    out, (code, result, err) = run_all(capsys, "--env", "sandbox")
+    assert code == 0, err
+    assert out["next"].endswith(f"--env sandbox --approve {out['code']}")
+    assert out["calls"] == [
+        f"repo-a: git push -u origin {CODE}-sdbx",
+        f"repo-a: gh pr create -R acme/repo-a --base sandbox --head {CODE}-sdbx"
+        f" --title {A_TITLE} (sdbx)",
+        f"repo-b: git push -u origin {ONLY}-sdbx",
+        f"repo-b: gh pr create -R acme/repo-b --base sandbox --head {ONLY}-sdbx"
+        f" --title {B_TITLE} (sdbx)",
+    ]
+    assert f"refs/heads/{CODE}" not in ready.refs("repo-a")
+    assert [row["code_pr"] for row in result["repos"]] == [None, None]
+    assert [row["sandbox_pr"] for row in result["repos"]] == [1, 1]
+    assert result["gmud"] == [
+        "repo-a (sandbox), PR #1: https://github.com/acme/repo-a/pull/1",
+        "repo-b (sandbox), PR #1: https://github.com/acme/repo-b/pull/1",
+    ]
+    record = json.loads((ready.release_dir() / "published.json").read_text())
+    assert "code_pr" not in record["repos"]["repo-a"]
+    assert record["repos"]["repo-a"]["environments"]["sandbox"]["pr"] == 1
+
+
+def test_production_later_opens_the_code_pr_without_touching_the_sandbox_pr(
+    ready,  # noqa: F811
+    fake_gh,  # noqa: F811
+    capsys,
+):
+    drafts(ready)
+    run_all(capsys, "--env", "sandbox")
+    out, (code, result, err) = run_all(capsys, "--env", "production")
+    assert code == 0, err
+    assert out["calls"] == [
+        f"repo-a: git push -u origin {CODE}",
+        f"repo-a: gh pr create -R acme/repo-a --base master --head {CODE} --title {A_TITLE}",
+        f"repo-b: git push -u origin {ONLY}",
+        f"repo-b: gh pr create -R acme/repo-b --base master --head {ONLY} --title {B_TITLE}",
+    ]
+    assert [row["code_pr"] for row in result["repos"]] == [2, 2]
+    assert all("sandbox_pr" not in row for row in result["repos"])
+    record = json.loads((ready.release_dir() / "published.json").read_text())
+    assert record["repos"]["repo-a"]["code_pr"] == 2
+    assert record["repos"]["repo-a"]["environments"]["sandbox"]["pr"] == 1
+
+
+def test_env_staging_uses_its_draft_and_the_stg_title_fallback(ready, fake_gh, capsys):  # noqa: F811
+    ready.add_staging()
+    build_envs(ready, capsys, "staging")
+    drafts(ready)
+    ready.write_pr("repo-a-staging", A_TITLE + " (stg)", ["TS-101", "TS-102"], A_BODY)
+    out, (code, _, err) = run_all(capsys, "--env", "staging")
+    assert code == 0, err
+    assert creates(fake_gh) == [
+        ["pr", "create", "-R", "acme/repo-a", "--base", "staging", "--head", f"{CODE}-stg"]
+        + ["--title", A_TITLE + " (stg)"],
+        ["pr", "create", "-R", "acme/repo-b", "--base", "staging", "--head", f"{ONLY}-stg"]
+        + ["--title", B_TITLE + " (stg)"],
+    ]
+    body = fake_gh.prs("acme/repo-b")[0]["body"]
+    assert "Leva este código para a staging, para validar antes da produção." in body
+    assert f"A {ONLY}-stg tem a staging mesclada; difere do código só em: staging-only.txt." in body
+
+
+def test_all_environments_with_production_publish_in_config_order(ready, fake_gh, capsys):  # noqa: F811
+    ready.add_staging()
+    build_envs(ready, capsys, "staging")
+    drafts(ready)
+    out = preview(capsys, "--repo", "repo-b", "--env", "staging", "production", "sandbox")
+    assert [
+        line.split(" --head ")[1].split(" ")[0] for line in out["calls"] if "pr create" in line
+    ] == [
+        ONLY,
+        f"{ONLY}-sdbx",
+        f"{ONLY}-stg",
+    ]
+
+
+def test_without_env_the_default_environments_go_with_production(ready, fake_gh, capsys):  # noqa: F811
+    ready.add_staging()
+    build_envs(ready, capsys, "staging")
+    drafts(ready)
+    out = preview(capsys, "--repo", "repo-b")
+    assert not any("-stg" in line for line in out["calls"])
+    assert any(f"--head {ONLY}-sdbx" in line for line in out["calls"])
+
+
+def test_a_different_env_than_the_preview_is_refused(ready, fake_gh, capsys):  # noqa: F811
+    drafts(ready)
+    out = preview(capsys, "--env", "sandbox")
+    code, _, err = publish_with(capsys, out["code"])
+    assert code == 1 and "differs from the preview" in err
+    assert fake_gh.writes == []
+
+
+def test_an_environment_without_its_copy_stops_the_preview(ready, fake_gh, capsys):  # noqa: F811
+    ready.add_staging()
+    drafts(ready)
+    code, out, err = cli_run(
+        capsys, "preview", "publish", DAY, "--project", "demo", "--env", "staging"
+    )
+    assert code == 1
+    assert f"repo-a: {CODE}-stg missing; run ws release new --env staging" in out["problems"]
+
+
+def test_the_guard_accepts_every_configured_suffix_and_no_other(ready):  # noqa: F811
+    from ws.release.settings import load_release_config
+
+    ready.add_staging()
+    config = load_release_config()
+
+    def push(branch):
+        call = writeplan.Call("repo-a", "git", ("push", "-u", "origin", branch), "x", cwd="/r")
+        plan = writeplan.WritePlan("publish", "demo", (DAY,), {}, [call], [], {})
+        return writeplan.guard(plan, config)
+
+    assert push(f"release/{DAY}-stg") is None
+    assert push(f"release/{DAY}-sdbx") is None
+    assert push(f"release/{DAY}-qa") is not None
+    assert push("staging") is not None
