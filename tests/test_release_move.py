@@ -1082,3 +1082,19 @@ def test_preview_move_names_itself_and_a_refusal_keeps_the_warnings(ready, capsy
 def test_a_malformed_day_cannot_be_evaluated(ready, capsys):
     standard(ready)
     assert preview(capsys, new="2026-1-21")[0] == 2
+
+
+def test_move_carries_the_copy_of_every_configured_environment(ready, capsys):
+    ready.add_staging()
+    standard(ready)
+    ready.branch("repo-a", f"release/{DAY}-stg", "origin/staging")
+    ready.commit("repo-a", f"release/{DAY}-stg", "stg.txt", "stg\n", "feat: stg")
+    ready.git("repo-a", "checkout", "-q", "master")
+    ready.gh.add_pr(A, 74, f"release/{DAY}-stg", "staging", title=f"Staging {DAY}", body="stg\n")
+    code, payload = run(capsys)
+    assert code == 0, payload
+    refs = ready.refs("repo-a")
+    assert refs[f"refs/heads/release/{NEW}-stg"] == refs[f"refs/heads/release/{DAY}-stg"]
+    created = [pr for pr in ready.gh.prs(A) if pr["headRefName"] == f"release/{NEW}-stg"]
+    assert len(created) == 1 and created[0]["baseRefName"] == "staging"
+    assert ready.git("repo-a", "rev-parse", "--verify", f"release/{NEW}-stg")
