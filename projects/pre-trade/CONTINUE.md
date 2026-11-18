@@ -8,20 +8,18 @@ Leia antes: o `AGENTS.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 
 ## Onde parei
 
-18/11/2026: levantamento feito no código (shared, BFF, front) e na configuração do fluxo na
-sandbox (`README.md`, "Como o fluxo está hoje"). Regras de negócio decididas em D1 a D14; abordagem técnica em D15 e D16; desenho em
-`attachments/design.md`, revisado por um agente. Ainda sem
-card no TS, sem branch e sem código.
+18/11/2026: desenho aprovado (`attachments/design.md`), plano por entrega aprovado
+(`attachments/plan.md`, 16 tarefas) e cards criados no épico TS-5046 com prazo 19/11: TS-5846
+(SLA por etapa), TS-5847 (trade antecipado) e TS-5848 (2ª aprovação pela Gestão). Execução
+escolhida: por agentes, um por card. Sem branch e sem código ainda. Passagem de chat em
+`~/.local/share/workspace/projects/pre-trade/HANDOFF-20261118-sla-trade-antecipado-agentes.md`.
+
+## Próximo passo
+
+Ler o handoff inteiro. Depois, `/card iniciar` dos três cards com `--worktree` e um agente por card,
+em paralelo, com o brief tirado do `plan.md`. Ordem de merge: TS-5846, TS-5847, TS-5848. O TS-5848
+depende da app role nova no Azure, criada pelo usuário antes do deploy.
 
 ## Branches e worktrees
 
 Nenhuma ainda.
-
-## Próximo passo
-
-Desenho aprovado em 18/11. Plano em `attachments/plan.md` (16 tarefas em 3 cards, por entrega).
-Cards criados em 18/11 no épico TS-5046, com prazo 19/11: TS-5846 (SLA), TS-5847 (trade
-antecipado), TS-5848 (2ª aprovação). Execução escolhida: por agentes (subagent-driven), um por
-card, em paralelo, cada um na sua branch. Próximo: `/card iniciar` de cada card (branches e
-movimento para em andamento) e disparar os agentes com o plano. O TS-5848 depende da app role nova
-no Azure, criada pelo usuário, antes do deploy. Só depois: plano de implementação, cards no TS e branches.
