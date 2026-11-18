@@ -12,7 +12,6 @@ Em "Quem", quem decide.
 
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
-| P5 | Trade antecipado: Operações registra algo na etapa Trade (edição do formulário, anexo)? Define se o antecipado vai para o Trade ou direto para a Conferência | usuário | 18/11/2026 | Pergunta do revisor do desenho: direto para a Conferência, Operações não edita nem anexa |
 | P4 | Valores de SLA de cada etapa e quem os mantém | usuário | 18/11/2026 | O SLA é opcional por etapa |
 
 ## Tomadas
@@ -25,7 +24,7 @@ Em "Quem", quem decidiu.
 | D2 | SLA conta em horas úteis: seg. a sex., horário comercial, sem os feriados da B3 | usuário | 18/11/2026 | Sem isso, um SLA curto vence no fim de semana |
 | D3 | SLA estourado aparece na tela (lista e detalhe), separado do chip de prazo da solicitação, e gera e-mail para quem age na etapa | usuário | 18/11/2026 | Frequência em D14 |
 | D4 | Trade antecipado: Operações pode executar na 1ª e na 2ª aprovação | usuário | 18/11/2026 | Quem executa o trade não pode depender da fila de aprovações |
-| D5 | As aprovações que faltavam são puladas de vez; a solicitação segue para a Conferência do Jurídico | usuário | 18/11/2026 | O Jurídico já revisa depois do trade; "2ª aprovação → Trade" já existe como aprovação |
+| D5 | As aprovações que faltavam são puladas de vez; a solicitação vai para o Trade, e Operações faz tudo do fluxo normal (editar, anexar, enviar para a Conferência) | usuário | 18/11/2026 | Revisto após a revisão do desenho: "precisa fazer tudo que faria no fluxo normal, mas ignorando as aprovações" |
 | D6 | Trade antecipado exige motivo em texto, que vai para o histórico e para o aviso na tela | usuário | 18/11/2026 | Auditoria |
 | D7 | As áreas puladas recebem e-mail informativo, no estilo do aviso de aprovação automática | usuário | 18/11/2026 | Ciência das áreas |
 | D8 | A tela deixa claro que as aprovações foram puladas (trilha, detalhe e lista) | usuário | 18/11/2026 | Pedido inicial |

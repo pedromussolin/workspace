@@ -14,7 +14,7 @@ Evolução do fluxo do Pré-Trade (tela `features/pre-trade` do portal, motor de
    quem age na etapa recebe e-mail.
 2. **Trade antecipado.** Operações pode executar o trade enquanto a solicitação ainda está na 1ª ou
    na 2ª aprovação. As aprovações que faltavam são puladas de vez, com motivo obrigatório, e a
-   solicitação segue para a Conferência do Jurídico. A tela deixa claro que as aprovações foram
+   solicitação vai para a etapa Trade, onde Operações faz tudo do fluxo normal. A tela deixa claro que as aprovações foram
    puladas, e as áreas puladas recebem um e-mail informativo.
 3. **2ª aprovação genérica.** Deixa de ser do CEO e passa a ser do time de gestão: quem tem a
    certificação de gestor (CGA, Certificação de Gestores ANBIMA), hoje o diretor e o CEO. O nome
@@ -57,7 +57,7 @@ de prazo vencido roda pelo agendador em banco (`0 9 * * 1-5`, America/Sao_Paulo)
   nulo), autorizada por permissão (`apl-shared-service/src/shared/business/workflows.py:767`). Ao
   sair assim, as vagas pendentes da rodada continuam `PENDING`: falta marcá-las como puladas.
 - `uq_transition_workflow_id_stages`: uma transição por par de etapas. "2ª aprovação → Trade" já
-  existe (é a aprovação), por isso o trade antecipado vai para a Conferência.
+  existe (é a aprovação); o antecipado para o Trade exige trocar essa regra (desenho, seção 5.3).
 - O nome da permissão é calculado: `{grupo}-pre-trade:{ação}` e é o value da app role no Azure.
   "ceo" aparece no BFF (`src/shared/utils/permissions.py`, `src/modules/access_control/business/pages.py`,
   `src/modules/pre_trade/business/__init__.py`) e no front (`core/auth/groups.constants.ts`,

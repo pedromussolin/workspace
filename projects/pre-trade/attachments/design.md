@@ -24,7 +24,8 @@ O Pré-Trade sai do e-mail para o portal. Para virar o fluxo oficial, ele precis
 - SLA opcional por etapa, em horas úteis (seg. a sex., 9h às 18h, America/Sao_Paulo, sem os
   feriados da B3), visível na lista e no detalhe e com um e-mail único quando estoura.
 - Operações antecipa o trade na 1ª ou na 2ª aprovação, com motivo obrigatório. A solicitação vai
-  para a Conferência do Jurídico, e as aprovações que faltavam ficam registradas como **puladas**.
+  para a etapa Trade, onde Operações faz tudo o que faria no fluxo normal (editar, anexar, enviar
+  para a Conferência), e as aprovações que faltavam ficam registradas como **puladas**.
 - As áreas puladas recebem um e-mail informativo.
 - A permissão da 2ª aprovação passa de `ceo-pre-trade:approve` para
   `portfolio-manager-pre-trade:approve`, exibida como "Gestão (Aprovação trade)".
@@ -143,6 +144,22 @@ O Pré-Trade sai do e-mail para o portal. Para virar o fluxo oficial, ele precis
 - Model (`infra/postgres/models/workflows.py`) e `WorkflowApprovalStatus` (`shared/utils/constants.py`)
   acompanham.
 
+**Duas transições entre as mesmas etapas.** "2ª aprovação → Trade" já existe como saída por
+aprovação; o antecipado precisa de uma saída manual para o mesmo destino. Hoje a constraint
+`uq_transition_workflow_id_stages` (workflow, origem, destino) impede isso. Mudança (migration
+nova):
+
+- a constraint sai e entra o índice parcial `uq_transition_manual_stages` em (workflow, origem,
+  destino) `WHERE on_decision IS NULL`: no máximo uma saída manual por par de etapas;
+- as saídas por decisão continuam únicas por (origem, decisão) com o `uq_transition_single_per_decision`
+  que já existe;
+- `_resolve_transition` (`business/workflows.py:1420`), usado pelo `apply_transition`, passa a olhar
+  só as saídas manuais. As saídas por decisão continuam saindo pelo `_decision_transition` (1466). Se
+  o destino só tiver saída por decisão, o erro "use decide()" de hoje continua;
+- `transition_handlers` é indexado por (origem, destino) e valeria para as duas saídas. No
+  Pré-Trade só existe o handler do envio (Rascunho → 1ª aprovação), então nada muda; o motor
+  documenta que o handler vale para o par.
+
 **Validação de config:** um novo `_assert_skips_approvals` no carregamento (`business/workflows.py`,
 junto das linhas 180-190). `skips_approvals = true` só vale em transição com `on_decision` nulo que
 sai de etapa de aprovação. Fora disso, `WorkflowConfigurationError`.
@@ -165,7 +182,7 @@ sai de etapa de aprovação. Fora disso, `WorkflowConfigurationError`.
    (`StageTransitionPayload` em `shared/schemas/workflows.py`) ganha o campo opcional
    `skipped_stages: list[str]`. Minha decisão: não criar tipo de evento novo, para o histórico
    continuar com um item por ação.
-5. Segue o `_move` normal: move, abre vagas do destino (nenhuma na Conferência) e aplica regras.
+5. Segue o `_move` normal: move, abre vagas do destino (nenhuma no Trade) e aplica regras.
 
 **Leitura**
 
@@ -220,14 +237,14 @@ Para cada tipo:
 **Aprovações puladas**
 
 - O `move_request` (`modules/pre_trade/business.py:453`) chama o `_notify_move` de sempre: Gestão
-  recebe a mudança de etapa e o Jurídico recebe a ação. Além disso, chama um `_notify_skipped`
+  recebe a mudança de etapa e Operações recebe a ação do Trade. Além disso, chama um `_notify_skipped`
   novo.
 - O `_notify_skipped` manda um aviso por permissão com config ativa nas etapas puladas, no estilo
   do `_notify_rule_approvals`:
   - da 1ª aprovação: Compliance, Risco e Gestão (Aprovação trade);
   - da 2ª: só Gestão.
 - Só permissões com config **ativa** recebem. Na sandbox, o Jurídico está inativo na 1ª aprovação,
-  então não recebe esse aviso; recebe só o de ação da Conferência.
+  então não recebe esse aviso.
 - Chave: `pre-trade:{key}:{origem}:{stage_entered_at}:skipped:{permission}`.
 - Quem tem duas permissões pode receber dois e-mails de tipos diferentes (por exemplo, a mudança de
   etapa como quem abriu e o aviso de pulo como aprovador). Não há deduplicação entre tipos, como
@@ -237,9 +254,10 @@ Para cada tipo:
 ### 5.5 Configuração do fluxo (migration de dados do Pré-Trade)
 
 - Transições novas, autorizadas para `operations-pre-trade:update` e com `skips_approvals = true`:
-  - `PENDING_FIRST_APPROVAL → PENDING_FINAL_CHECK`
-  - `PENDING_SECOND_APPROVAL → PENDING_FINAL_CHECK`
-- Não há conflito com `uq_transition_workflow_id_stages`, porque esses pares não existem hoje.
+  - `PENDING_FIRST_APPROVAL → PENDING_TRADE`
+  - `PENDING_SECOND_APPROVAL → PENDING_TRADE` (convive com a saída por aprovação, ver 5.3)
+- Depois do antecipado, o fluxo é o normal: Operações edita e anexa no Trade e envia para a
+  Conferência; o Jurídico conclui ou devolve para o Trade.
 - `notification_config` e templates da seção 5.4. Job do SLA (5.4).
 - SLA das etapas fica nulo nesta migration. Os valores (P4) entram numa migration própria quando
   o usuário definir, para não travar a entrega.
@@ -313,16 +331,17 @@ alguns minutos sem conseguir decidir. Mitigação: subir shared e BFF em sequên
 - O botão abre o diálogo de motivo (`dialogs/reject-reason-dialog`, com `tone: 'warning'`) e chama
   `moveRequest(key, stage, motivo)`.
 - Texto do diálogo: "As aprovações pendentes serão puladas e ficarão registradas no histórico. A
-  solicitação segue para a conferência final do Jurídico."
-- A Conferência normal (Trade → Conferência) continua "Enviar para conferência".
+  solicitação vai para a execução do trade, e o resto do fluxo segue normal."
+- Para quem aprova, a saída por aprovação para o Trade continua sendo o botão "Aprovar"; o botão
+  "Antecipar trade" só aparece para quem tem a saída manual (Operações).
 
 **Trilha** (`components/stage-track`)
 
 - Estado novo `skipped`: casa tracejada, ícone de pulo e cor de alerta. O trecho até a próxima
   casa também fica tracejado.
 - Entrada nova `skippedStages`.
-- A casa do Trade, quando antecipado, conta como feita: o trade foi executado.
-- Legenda: "Etapa 5 de 6 · Conferência · aprovações puladas".
+- Depois do antecipado, a casa do Trade é a atual, como no fluxo normal.
+- Legenda: "Etapa 4 de 6 · Trade · aprovações puladas".
 
 **Aprovações** (`pre-trade.approvals.ts`)
 
@@ -363,7 +382,7 @@ alguns minutos sem conseguir decidir. Mitigação: subir shared e BFF em sequên
 **Histórico** (`components/request-history`): transição com `payload.skipped_stages` tem o título
 "Trade antecipado: aprovações puladas", com o motivo na nota.
 
-**Fake** (`testing/pre-trade.fake.ts`): uma solicitação antecipada na Conferência e campos de SLA
+**Fake** (`testing/pre-trade.fake.ts`): uma solicitação antecipada no Trade e campos de SLA
 nas demais, cobrindo os três tons. A troca de `ceo` vai junto.
 
 Esboço do detalhe:
@@ -373,12 +392,12 @@ Esboço do detalhe:
 │ ⚠ Trade antecipado por {nome} em 18/11 15:42.                         │
 │   Aprovações puladas: 1ª e 2ª. Motivo: "janela de mercado fecha às 16h"│
 └──────────────────────────────────────────────────────────────────────┘
- Solicitação #42 · Títulos de dívida   [Conferência] [SLA até 19/11 11:00]  prazo 22/11
+ Solicitação #42 · Títulos de dívida   [Trade] [SLA até 19/11 11:00]  prazo 22/11
 
- ●──────◌┄┄┄┄┄◌┄┄┄┄┄●──────◉──────○
+ ●──────◌┄┄┄┄┄◌┄┄┄┄┄◉──────○──────○
  Rascunho  1ª apr.  2ª apr.  Trade  Conferência  Concluído
            pulada   pulada
- Etapa 5 de 6 · Conferência · aprovações puladas
+ Etapa 4 de 6 · Trade · aprovações puladas
 ```
 
 ### 5.8 Testes
