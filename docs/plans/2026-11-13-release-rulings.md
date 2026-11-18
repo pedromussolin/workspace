@@ -40,6 +40,10 @@ Decisions the controller made on the user's behalf while building `ws release` (
 
 ## Deferred (follow-ups)
 
+- Environments review (18/11), medium: a release published before the change with the sandbox PR straight from `release/DAY` (no copy) is blocked by "copy missing", and `new --env sandbox` would open a second PR next to the old open one; `_env_items` (publish.py) should treat an open or merged PR with head = code branch and base = env branch as that environment's PR, as `status` already does.
+- Environments review (18/11), low: the push guard's `_gh_allowed` (plan.py) does not pair the head shape with the base (a copy head could target master); the env scope rests on `publish.build_plan`, correct today.
+- Environments review (18/11), low: with `--env <env>` only, an open code PR is not completed, so its `{pr:repo-<env>}` placeholder stays unfilled when the sandbox goes after production (publish.py `_repo_items`).
+- Environments review (18/11), low: `status.links` splits `known` refs with `removesuffix(f"-{env}")`; a repo name ending in `-<env>` could be mis-split.
 - Task 2: minor (deferred): closing fence regex `^\+\+\+[ \t]*\n?` accepts `+++x` (folder.py:130)
 - Task 2: minor (deferred): non-UTF-8 draft raises UnicodeDecodeError, not ReleaseRefused; read_text without encoding (folder.py:69,129)
 - Task 2: minor (deferred): explicit --project not checked against SLUG_PATTERN; `../x` escapes projects/ (folder.py:39-40,52)
