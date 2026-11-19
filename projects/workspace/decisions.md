@@ -13,6 +13,7 @@ Em "Quem", quem decide. A coluna "Motivo" traz a recomendação do Claude.
 | # | Decisão | Quem | Data | Motivo |
 |---|---|---|---|---|
 | P16 | Frentes do 1º lançamento, segundo agente (Cursor ou OpenCode perguntam antes da ferramenta) e segundo tracker (Linear ou GitHub Issues) | usuário | 08/11 | Propostas no documento de descoberta de produto |
+| P17 | Papéis de agente × motor agêntico da empresa: (a) campo de prova, com os mesmos papéis e documentos, ou (b) inspiração, com os conceitos e os formatos do workspace | usuário | 19/11 | Recomendado (b), com os mesmos nomes de papel onde servirem: o motor ainda muda (primeira versão na entrega 4 de 12) e o formato dele não é o do ADR 0003 |
 
 ## Tomadas
 
@@ -58,3 +59,5 @@ Em "Quem", quem decidiu.
 | D36 | O `CLAUDE.md` da raiz carrega sempre as regras de sigilo; as outras convenções são lidas sob demanda | usuário | 17/11 | Revisão da branch de documentos de agentes |
 | D37 | A skill `observe` não grava por heredoc quando o Write é negado: para e avisa | usuário | 17/11 | Revisão da branch de documentos de agentes |
 | D38 | Réplica de produção: a consulta direta, só leitura, com timeout e uma por vez, continua permitida; `ws observe run` é o caminho das observações, não o único | usuário | 17/11 | Corrige a regra que veio na branch de documentos de agentes e travou outro chat |
+| D39 | Papéis de agente: o QA roda o smoke na tela (Playwright, dados fictícios) só quando a mudança tem front; só backend = testes e critérios de aceite. O "tem front" vem da categoria `front` do `ws review pack` | usuário | 19/11 | "apenas quando front, muitas vezes mexo em aplicações full backend" |
+| D40 | Papéis de agente: sem agente classificador; o chat principal escolhe o papel pela conversa (descrição de cada agente, tabela situação → papel nas regras de agentes, hook que barra chamada sem papel nem modelo) | usuário | 19/11 | Recomendação aceita; segue o que ficou no backlog em 27/10 |

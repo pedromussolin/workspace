@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 17/11/2026
+Data: 19/11/2026
 Tags: ws, skills, hooks, segurança
 
 # Continuar em outro chat
@@ -7,6 +7,11 @@ Tags: ws, skills, hooks, segurança
 Leia antes: o `AGENTS.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefas do `README.md` e o `decisions.md`.
 
 ## Onde parei
+
+19/11/2026. Papéis de agente (arquiteto, dev, QA...) com base nos conceitos do motor agêntico da
+empresa: estudo do motor feito, brainstorming parado na P17; D39 e D40 tomadas. Nada escrito em
+`docs/` ainda. Passagem completa (privada):
+`~/.local/share/workspace/projects/workspace/HANDOFF-20261119-papeis-de-agente.md`.
 
 17/11/2026. Pendências do repo fechadas; tudo na `main`:
 
@@ -48,8 +53,10 @@ Documento de descoberta (07/11): https://claude.ai/artifact/NLmKWGPFbZQcyjGez78G
 
 ## Próximo passo
 
-1. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
+1. Papéis de agente: ler a passagem de 19/11 inteira, fechar a P17, mostrar as abordagens e
+   escrever a spec `docs/specs/<data>-agent-roles-design.md`.
+2. Desenho da base: ler a passagem de 09/11 e seguir uma seção por vez com o ok dele (tipos de
    arquivo e campos, memória por nível, índice e busca, nuvem e sigilo, migração, portas do
    núcleo); spec em `docs/specs/`, depois o plano.
-2. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
-3. Em aberto, sem pressa: P16 (1º lançamento) e a caixa do board sync ("aprovar = testado"?).
+3. Depois da base: a seção "Base" no documento de descoberta e a fase 2 dos portões (D24 a D30).
+4. Em aberto, sem pressa: P16 (1º lançamento) e a caixa do board sync ("aprovar = testado"?).
