@@ -141,6 +141,7 @@ commit `d0bc3de`, que era o origin/master do apl-credit-whitelabel em
 | 51 | [Limpeza do Azure: roles, grupos e permissões antigas da reestruturação](tasks/51-new-whitelabel-103.md) | — | Tarefa | dev-ae95329f82 | — |
 | 52 | [Apagar as 6 roles antigas dos Lastros no Azure](tasks/52-new-whitelabel-104.md) | — | Tarefa | dev-ae95329f82 | — |
 | 53 | [Rulesets nos repositórios e hotspots do Sonar](tasks/53-new-whitelabel-105.md) | — | Tarefa | dev-ae95329f82 | — |
+| 54 | [Unificar o CI do front no workflow de build](tasks/54-unify-front-ci-into-build-workflow.md) | — | Tarefa | dev-ae95329f82 | — |
 <!-- /ws:items -->
 
 ## Situação em 16/10
