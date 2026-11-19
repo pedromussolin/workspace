@@ -10,6 +10,37 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ## Onde parei
 
+### 19/11/2026
+
+**Release de 24/11 na sandbox: CI corrigida do nosso lado; falta a sandbox.** A montagem e as PRs
+da sandbox são de 18/11 (shared #87, cessão #2782, BFF #280, front #317), mas a CI estava vermelha
+nas quatro e ninguém tinha olhado. O Pietro: "Não posso subir nenhum deles com testes falhando".
+- **Cessão, 41 testes de log:** fora do `ENV=docker` (como na CI), o `logger.config` põe o logger
+  `cessao` com `propagate=0` e o caplog não vê nada; a imagem local tem `ENV=docker`, por isso
+  passava. Correção: fixture autouse `log_visivel` (padrão de
+  `test/database/test_cache_configuracao.py:125`) nos 11 arquivos, um commit por card na
+  `release/20261124`. Scripts que imitam a CI: `run-cessao-tests-{release,sdbx}-ci.sh`
+  (`env -u ENV`).
+- **Cessão, downgrade da TS-5737:** o SQLite da imagem da CI não tem `DROP COLUMN`; o teste
+  passou a conferir o `op` simulado, como as outras migrations.
+- **Cessão `-sdbx`:** o `amend` do merge de 18/11 tinha desfeito 5 ajustes de teste com a sandbox;
+  voltaram na resolução do merge da sandbox nova, sem commit próprio. Suíte da `-sdbx` nos dois
+  modos: 7071 passed e 1 failed (o bloqueio abaixo).
+- **Front:** `batches.service.ts` fora do Prettier (TS-5582); formatado.
+- **BFF:** o lint vermelho é da TS-5848 (Pré-Trade); a correção foi à sandbox pela #281.
+- **Semgrep fica como está** (decisão do Pietro): já falhava em toda PR. A release acrescenta um
+  falso positivo no `INSERT` da `liquidacao_remessa` (`refact.py`, TS-5572); o CVE novo do
+  `urllib3` vale para qualquer PR.
+- **Teste da administradora externa** (`test_criar_success`, depende da homologação dela): "Se só
+  esse falhar, não tem problema".
+- **Bloqueio:** a sandbox ficou vermelha sozinha com a #2784 (TS-5283, outro dev, 19/11):
+  `test_originador_sem_cnpj_nao_consulta` falha porque `normalizar_cnpj("")` devolve 14 zeros. A
+  #2782 falha nele até a sandbox ser corrigida.
+- **Achados para cards da próxima sprint:** a ingestão da TS-5283 não registra a remessa para o
+  fechamento automático (só o backstop fecha); na sandbox a validação da Dayvale lê a lista
+  inteira; suspeita na liquidação de estoque (TS-4989) com lote aberto. Detalhe em
+  `~/repos/.artemis_v2/agentes/release-20261124/investigacao-sdbx-5.md`.
+
 ### 18/11/2026
 
 **Passagem de chat (18/11):** retomar pela passagem privada
@@ -310,9 +341,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Release de 24/11 na sandbox (18/11, com a palavra do Pietro):** refazer o ensaio do front com
-   a TS-5624 atual, montar com `/release` pelo checklist de `tasks/13-plan.md` (ordem de merge, os
-   dois `down_revision`), uma PR por repositório, e oferecer o movimento dos cards ao subir.
+1. **Release de 24/11 na sandbox:** esperar a correção do teste da TS-5283 na sandbox (combinar com
+   o dono), rodar de novo a CI da #2782 e da #280 (depois do merge da #281) e passar os links ao
+   Pietro; ao subir, oferecer o movimento dos cards.
 2. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
    `CONCORRENCIA_POR_FILA`.
 3. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
