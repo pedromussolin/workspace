@@ -70,6 +70,16 @@ deploy.
       da 5582 e com o preâmbulo da 5572; o `schema_produto_config` com a 5624.
 - [ ] Deploy da TS-5737: worker da fila isolada no argocd e `CONCORRENCIA_POR_FILA` no Parameter
       Store antes da imagem; a chave nasce desligada e liga produto a produto.
+- [ ] **Parameter Store: `APL_SHARED_SERVICE_URL` da cessão** (TS-5585, obrigatória em
+      `cessao/config/__init__.py:423`; sem ela o pod não passa na checagem de variáveis e não sobe):
+      sandbox antes do merge da PR da sandbox (#2782); produção antes do deploy da cessão. Entra na GMUD.
+- [ ] **D3 da TS-5572 (`liquidacao_automatico`):** a release deixou de ler a flag e o fechamento
+      automático sempre envia. Réplica em 19/11 (Pietro): 6 produtos `automatico_por_chave` com a flag
+      desligada (22, 26, 27, 28, 39, 42), que hoje fecham e esperam o liquidar. Decisão e correção antes
+      do deploy; conferir de novo no dia (consulta em `13-plan-ts-5572.md:141-146` e no relatório da
+      revisão). Entra na GMUD.
+- [ ] **D4 da TS-5583:** repetir no dia do deploy a conferência de `13-plan-ts-5583.md:111-117`
+      (produtos com flags incoerentes com a modalidade). Entra na GMUD.
 
 **Ensaio da montagem (17/11, front refeito em 18/11; HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
 rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio-release/`):**
