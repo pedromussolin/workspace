@@ -12,6 +12,17 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 19/11/2026
 
+**Passagem de chat (19/11):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261119-release-24-11-revisao-correcoes.md`
+(CI da release, revisão da #2782, correções e GMUD); a de 18/11 fica só como histórico.
+
+**Revisão da #2782 (cessão), feita junto com a revisão manual do Pietro.** Confirmados os achados
+2 (D3), 5, 6, 7 e 8; os outros são intencionais ou só da sandbox. As correções 5, 6 e 8 estão
+prontas em worktrees, sem commit, com a suíte verde nos dois modos, e esperam a revisão do Pietro.
+A D3 (seis produtos com fechamento automático e `liquidacao_automatico` desligada passariam a
+enviar sozinhos) espera a decisão; a recomendação é manter o comportamento de hoje. O achado 7
+vira tarefa só no workspace, depois do sim. A D4 deu 0 linhas: o backfill é seguro.
+
 **Release de 24/11 na sandbox: CI corrigida do nosso lado; falta a sandbox.** A montagem e as PRs
 da sandbox são de 18/11 (shared #87, cessão #2782, BFF #280, front #317), mas a CI estava vermelha
 nas quatro e ninguém tinha olhado. O Pietro: "Não posso subir nenhum deles com testes falhando".
@@ -342,10 +353,14 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Release de 24/11 na sandbox:** o Pietro mergeia a #281 (lint da TS-5848) e depois as quatro
-   PRs com a CI verde, salvo o Semgrep; rodar de novo a CI da #280 depois da #281. Ao subir,
-   oferecer o movimento dos cards.
-2. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
+1. **Correções da #2782:** depois da revisão do Pietro, commitar as correções 8, 6 e 5 na
+   `release/20261124`, rodar a suíte nos dois modos, juntar na `-sdbx` e enviar. Decisão da D3 e
+   sim para a tarefa do achado 7.
+2. **CI da #280:** a #281 já foi mergeada; juntar a sandbox na `-sdbx` do BFF para a CI rodar de
+   novo. Com as quatro PRs verdes (salvo o Semgrep), o Pietro mergeia; oferecer mover os cards.
+3. **GMUD de 24/11:** conferir `APL_SHARED_SERVICE_URL` (credenciais da AWS) e oferecer
+   `/change-request` com os itens do checklist da tarefa 13.
+4. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
    `CONCORRENCIA_POR_FILA`.
-3. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
-4. **Sem data:** TS-5620 (revisão do liquidar, D37, D38); `viva-production`; S1 a S14; TS-5537.
+5. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
+   S1 a S14; TS-5537.
