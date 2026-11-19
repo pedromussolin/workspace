@@ -33,12 +33,13 @@ nas quatro e ninguém tinha olhado. O Pietro: "Não posso subir nenhum deles com
   `urllib3` vale para qualquer PR.
 - **Teste da administradora externa** (`test_criar_success`, depende da homologação dela): "Se só
   esse falhar, não tem problema".
-- **Bloqueio:** a sandbox ficou vermelha sozinha com a #2784 (TS-5283, outro dev, 19/11):
-  `test_originador_sem_cnpj_nao_consulta` falha porque `normalizar_cnpj("")` devolve 14 zeros. A
-  #2782 falha nele até a sandbox ser corrigida.
-- **Achados para cards da próxima sprint:** a ingestão da TS-5283 não registra a remessa para o
-  fechamento automático (só o backstop fecha); na sandbox a validação da Dayvale lê a lista
-  inteira; suspeita na liquidação de estoque (TS-4989) com lote aberto. Detalhe em
+- **TS-5283 (outro dev):** a #2784 deixou a sandbox vermelha (`normalizar_cnpj("")` devolve 14
+  zeros); o dono corrigiu na #2785 e a `-sdbx` juntou a sandbox nova: 7072 passed no modo da CI.
+- **Achados em código de outros devs, sem efeito em 24/11** (nada disso está na master): a
+  validação da Dayvale lê a lista inteira na sandbox (partes da TS-5207 e da TS-5498 que só estão
+  lá), então o ganho de memória da TS-5737 não aparece na homologação para a Dayvale; o estoque
+  (TS-4989, PR ainda aberta) pode, com lote aberto, passar o pagamento pelo lote aberto antes do
+  lote do estoque. Vale quando essas branches forem para a master depois de 24/11. Detalhe em
   `~/repos/.artemis_v2/agentes/release-20261124/investigacao-sdbx-5.md`.
 
 ### 18/11/2026
@@ -341,9 +342,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Release de 24/11 na sandbox:** esperar a correção do teste da TS-5283 na sandbox (combinar com
-   o dono), rodar de novo a CI da #2782 e da #280 (depois do merge da #281) e passar os links ao
-   Pietro; ao subir, oferecer o movimento dos cards.
+1. **Release de 24/11 na sandbox:** o Pietro mergeia a #281 (lint da TS-5848) e depois as quatro
+   PRs com a CI verde, salvo o Semgrep; rodar de novo a CI da #280 depois da #281. Ao subir,
+   oferecer o movimento dos cards.
 2. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
    `CONCORRENCIA_POR_FILA`.
 3. **Pietro:** DBA (TS-5596 e o `EXPLAIN` da TS-5737) quando quiser; apagar o prazo da TS-5612.
