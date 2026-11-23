@@ -235,5 +235,6 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   - TS-5624, apagar os horários: o 23:50 do produto 55 e o 19:00 do 24 (os dois em Manual)
     apagados pela tela às 20:20; no banco, os dois agendamentos inativos, sem horário e sem próxima
     execução; Alembic da sandbox em `d2e8b5a7c013` (a junção própria da `-sdbx`), com a CHECK nova;
+    num produto em Agendado, tirar o último horário deixa o "Salvar horários" desligado;
   - A6, aprovar antes do corte: a fazer, em dia útil antes das 14h, produto 55.
   - Produtos de teste de volta a Manual (53, 54, 55, 187, 24); esteira nova do 28 desligada.
