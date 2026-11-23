@@ -97,12 +97,13 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 - **Disparo do agendador perdido ou travado** (sandbox, 23/11) **[C]**: o despacho reaproveita a
   conexão com o RabbitMQ, e depois de ~30 min parada ela é derrubada em silêncio no caminho. Sem
   confirmação de publicação, a mensagem some (execução das 17:00 UTC publicada e nunca recebida);
-  com `CELERY_CONFIRM_PUBLISH=1` no beat (teste a partir das 17:43 UTC), o beat trava esperando a
-  confirmação (18:30 UTC: execução gravada, sem log de despacho, publicação sem fim). Conexão nova
+  com `CELERY_CONFIRM_PUBLISH=1` no beat (teste a partir das 17:43 UTC), o beat trava ~16 min esperando a
+  confirmação, até a conexão cair, e o Celery republica (18:30 UTC: execução gravada, sem log de
+  despacho, rodou às 18:46). Conexão nova
   funciona (16:30, 17:30 e 18:00 UTC). No backstop, disparos perdidos; num fechamento por horário
   (nasce desligado), o lote do dia não fecharia → segura: `CELERY_CONFIRM_PUBLISH` **não** vai no
-  beat de produção; fechamento por horário só se liga depois da correção do despacho (conexão nova a
-  cada publicação) validada na sandbox; o agendador marca como falha, com aviso no log, a execução
+  beat de produção; fechamento por horário só se liga depois que a correção do despacho (conexão nova a
+  cada publicação, TS-5569, já nesta release) for validada na sandbox; o agendador marca como falha, com aviso no log, a execução
   não consumida em 2 h.
 - **E-mail recusado pelo shared** (sem remetente ativo ou sem destinatário: 422) → a execução do
   resumo ou do aviso fica registrada com erro, sem nova tentativa → segura: o job do resumo nasce
