@@ -67,7 +67,7 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
 
 ## Prioridade
 
-Medium (proposta; a confirmar)
+High
 
 ## Link Tarefa
 
@@ -94,6 +94,13 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
     desligados; o backstop nasce ligado e só olha remessas automáticas;
   - sem a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê, os pods de lá não sobem (a
     confirmar se é o mesmo do principal).
+- **Mensagem do agendador perdida sem erro** (sandbox, 23/11): a execução das 17:00 UTC do backstop
+  foi publicada na fila e nenhum worker a recebeu; as de 16:30 e 17:30 rodaram. Causa provável
+  **[H]**: o beat publica sem confirmação do RabbitMQ (a `CELERY_CONFIRM_PUBLISH` está só nos
+  workers), e a primeira publicação numa conexão que o RabbitMQ já fechou por ociosidade some → no
+  backstop, atraso de 30 min; num fechamento por horário (nasce desligado), o lote do dia não
+  fecharia → segura: `CELERY_CONFIRM_PUBLISH=1` no beat (passo 6), em teste na sandbox; o agendador
+  marca como falha, com aviso no log, a execução não consumida em 2 h.
 - **E-mail recusado pelo shared** (sem remetente ativo ou sem destinatário: 422) → a execução do
   resumo ou do aviso fica registrada com erro, sem nova tentativa → segura: o job do resumo nasce
   desligado; remetente e grupo cadastrados no passo 9, antes de ligar.
@@ -125,17 +132,20 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 1. Parameter Store de produção da cessão: criar `APL_SHARED_SERVICE_URL` (tipo `String`, mesmo
    valor do parâmetro de URL do shared no BFF) e acrescentar `liquidacao_baixa_isolada_celery=<N>` à
    `CONCORRENCIA_POR_FILA`. Conferir pelo nome. Sem a primeira, o pod da cessão não passa na
-   checagem de variáveis e não sobe.
+   checagem de variáveis e não sobe. **No `viva-production`:** conferir se ele lê o mesmo Parameter
+   Store do principal; se não, criar a variável lá também.
 2. Réplica, somente leitura: repetir a conferência dos produtos automáticos com
    `liquidacao_automatico` desligada (esperado: 22, 26, 27, 28, 39, 42) e a das flags incoerentes
    com a modalidade (esperado: nenhuma linha). Se a lista mudou, decidir produto a produto antes.
-3. DBA: permissões dos objetos novos (schema da cessão a confirmar).
+3. DBA: permissões dos objetos novos (schema da cessão a confirmar), inclusive leitura da
+   `email_dispatch.template_recipients` para os usuários de consulta (na sandbox ela nasceu sem).
 
 **Janela (shared → cessão → BFF → portal)**
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
 5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `9300117a09ae`.
-6. **Cessão:** um commit no argocd com a tag nova em `asgard-production` e em `viva-production` e o
-   worker `liquidacao-baixa-isolada` no `asgard-production`. Conferir:
+6. **Cessão:** um commit no argocd com a tag nova em `asgard-production` e em `viva-production`, o
+   worker `liquidacao-baixa-isolada` no `asgard-production` e `CELERY_CONFIRM_PUBLISH=1` no beat dos
+   dois ambientes (ver o risco da mensagem perdida). Conferir:
    - Alembic em `c9d4a1e7f358` (pela réplica);
    - `produto_config` com o gatilho e o agrupamento preenchidos conforme o mapeamento;
    - beat: "Agendamentos despachados" no próximo :00 ou :30, e "Backstop de remessas automáticas
@@ -145,8 +155,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 7. **BFF:** tag nova. Conferir: a consulta da configuração de um produto responde 200.
 8. **Portal:** tag nova nas três marcas (`apl-credit-whitelabel-front`, `-dots` e `-cerys`). Hoje
    cada marca está numa versão diferente (`prod-0c4dc76`, `prod-2ff9802`, `prod-91670d4`); a nova
-   leva as três para a mesma (a confirmar). Conferir: a página "Configuração do produto" abre; a
-   listagem de lotes carrega.
+   leva as três para a mesma. Conferir: a página "Configuração do produto" abre; a listagem de
+   lotes carrega.
 
 **Depois**
 9. E-mails: ativar o remetente com a caixa compartilhada de produção e cadastrar o grupo do Entra ID
@@ -176,6 +186,9 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   `sand-9b7cc4e` (portal), cada uma contendo a release (ancestralidade conferida).
   - beat `sand-b588264`: "Agendamentos despachados" às 16:30:01 e 17:00:01;
   - backstop concluído às 16:30:02, 0 remessas avaliadas e 0 falhas (trace
-    `18073983290972130364`);
+    `18073983290972130364`); a execução das 17:00 ficou `pendente` (mensagem publicada às
+    17:00:01, nunca consumida); a das 17:30 terminou em `sucesso`;
+  - e-mails: remetente da liquidação ativo e ligado aos dois templates; destinatários cadastrados
+    pelo usuário (a tabela nova ainda não tem permissão de leitura para o usuário de consulta);
   - nenhum erro de coluna ou tabela inexistente de 15:30 a 17:06.
 - **Testes do usuário na sandbox:** a preencher.
