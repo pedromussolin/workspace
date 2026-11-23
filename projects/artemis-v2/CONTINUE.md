@@ -12,9 +12,16 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
-**Passagem de chat (23/11):** retomar pela passagem privada
-`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-revisao-pr-2782-e-d41.md`
-(ajustes da revisão da #2782, D41 e release de 24/11); a de 19/11 fica só como histórico.
+**Passagem de chat (23/11, tarde):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-homologacao-sandbox-release-24-11.md`
+(homologação na sandbox e deploy de produção de 24/11); as anteriores ficam só como histórico.
+
+- Ajustes da revisão da #2782 commitados (referências do planejamento, URL do shared, constantes
+  sem import no `constants.py`, `cessao/utils`, rename da modalidade); 18 comentários respondidos.
+- D41 feita no shared (`email_dispatch.template_recipients`, migration `9300117a09ae`) e na cessão
+  (sem `targets`, sem a `email_destinatario`; 4xx do shared registrado como erro, sem retry).
+- As quatro PRs da sandbox mergeadas; tags da sandbox trocadas no argocd, com o worker da fila
+  isolada da TS-5737; 14 cards em validação. Resumo de objetos de banco pronto para a DBA.
 
 - Correções 8, 6 e 5 da revisão da #2782 commitadas na `release/20261124` e enviadas na `-sdbx`,
   com a suíte verde nos dois modos e a integração com Postgres e Redis descartáveis.
@@ -371,11 +378,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Revisão da #2782:** apresentar ao Pietro os 4 patches dos ajustes e, com o ok, commitar um
-   por item na `release/20261124`; suíte junta nos dois modos e integração.
-2. **D41:** destinatários por template no shared e a cessão sem a `email_destinatario`, pelo
-   brief salvo; juntar nas `-sdbx` (#87 e #2782) e enviar.
-3. **Release de 24/11:** o Pietro mergeia as quatro PRs da sandbox; mover os cards; conferir a URL
-   do shared em produção; `/change-request` da GMUD com os itens do checklist da tarefa 13.
-4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
+1. **Homologação na sandbox:** cadastrar remetente e destinatário dos e-mails da liquidação no
+   shared (item do checklist da tarefa 13) e acompanhar os testes do Pietro.
+2. **Deploy de 24/11:** `/change-request` da GMUD com os itens do checklist da tarefa 13; conferir a
+   URL do shared em produção; `/release` para as PRs da `release/20261124` para a `master`.
+3. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
    S1 a S14; TS-5537.
