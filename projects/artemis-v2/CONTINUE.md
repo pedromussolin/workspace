@@ -12,7 +12,18 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
-**Passagem de chat (23/11, depois das 20h):** retomar pela passagem privada
+**Passagem de chat (23/11, fim do dia):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-deploy-24-11-e-teste-a6.md`
+(deploy de 24/11 e teste A6).
+
+- TS-5624 validada na sandbox: a cessão, o BFF e o front estão com a versão nova e o Alembic com a
+  CHECK nova. Os horários dos produtos 55 e 24 foram apagados pela tela, e os agendamentos ficaram
+  inativos e sem horário. Em Agendado, o último horário não sai.
+- GMUD de 24/11 atualizada: correção da TS-5624, Alembic esperado `a4f7c2d9e1b6`, rollback da
+  cessão na imagem atual de produção (a TS-5616 subiu em 23/11) e evidências da sandbox. Só falta
+  o A6.
+
+**Passagem de chat anterior (23/11, depois das 20h):**
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-horarios-vazios-e-testes-sandbox.md`
 (horários vazios da TS-5624 e fim dos testes da sandbox).
 
@@ -459,13 +470,12 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Sandbox:** tags do argocd da cessão, do BFF e do front depois dos builds da correção da
-   TS-5624; com o usuário, apagar pela tela o horário dos produtos 55 e 24; A6 num dia útil antes
-   das 14h (roteiro na passagem privada).
+1. **A6 em 24/11, antes das 14h:** aprovar antes do corte no produto 55, depois de conferir a
+   administradora do fundo 27 e a conta vinculada; registrar na GMUD.
 2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` (a da cessão
-   com a Tarefa 24 e a migration nova da TS-5624, que vai no resumo à DBA); argocd de produção com
-   as tags, conferindo antes a confirmação de publicação no beat contra o guia A4; evidências na
-   GMUD.
+   com a Tarefa 24 e a migration nova da TS-5624, que vai no resumo à DBA); passos da GMUD na
+   ordem shared → cessão → BFF → portal, sem confirmação de publicação no beat; `/deploy-check`
+   por serviço.
 3. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
 4. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
