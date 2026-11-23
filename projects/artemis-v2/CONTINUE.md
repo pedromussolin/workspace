@@ -12,7 +12,21 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
-**Passagem de chat (23/11, depois das 19h):** retomar pela passagem privada
+**Passagem de chat (23/11, depois das 20h):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-horarios-vazios-e-testes-sandbox.md`
+(horários vazios da TS-5624 e fim dos testes da sandbox).
+
+- Tarefa 24 validada na sandbox: automático por remessa (54) e por chave (187) abrem o lote vigente
+  na chegada e o fecham no fim da remessa, com `recusadas=0` e `ocupadas=0`.
+- Também passaram C1 (aviso depois do corte, produto 55), C2 de novo (15 lotes, com `reenvio`), B2
+  (esteira de baixa nova no produto 28) e A3 (backstop). A5 não dá pela tela (lote vazio não
+  aparece); A6 fica para um dia útil antes das 14h.
+- TS-5624: apagar o último horário de fechamento fora do gatilho agendado, na tela, no BFF e na
+  cessão, com uma migration nova que aceita agendamento cron inativo sem expressão. Na sandbox por
+  PR mergeada; vai na release de 24/11.
+- Achados B28, B29 e B30 em `bugs-found.md`.
+
+**Passagem de chat anterior (23/11, depois das 19h):**
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-tarefa24-e-avulsos.md`
 (testes na sandbox, Tarefa 24 e pagamentos avulsos).
 
@@ -445,12 +459,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Sandbox:** publicar a tag do argocd depois do build da imagem e repetir o teste do automático
-   (53 e 54) com a Tarefa 24: lote vigente na chegada, fechado no fim da remessa; resumo diário com
-   os lotes do dia (roteiro na passagem privada).
+1. **Sandbox:** tags do argocd da cessão, do BFF e do front depois dos builds da correção da
+   TS-5624; com o usuário, apagar pela tela o horário dos produtos 55 e 24; A6 num dia útil antes
+   das 14h (roteiro na passagem privada).
 2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` (a da cessão
-   agora com a Tarefa 24); argocd de produção com as tags e a confirmação de publicação no beat;
-   evidências na GMUD.
+   com a Tarefa 24 e a migration nova da TS-5624, que vai no resumo à DBA); argocd de produção com
+   as tags, conferindo antes a confirmação de publicação no beat contra o guia A4; evidências na
+   GMUD.
 3. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
 4. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
