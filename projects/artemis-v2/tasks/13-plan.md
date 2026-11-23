@@ -87,15 +87,25 @@ deploy.
       aviso de que esses produtos deixam de esperar o liquidar.
 - [ ] **D4 da TS-5583:** repetir no dia do deploy a conferência de `13-plan-ts-5583.md:111-117`
       (produtos com flags incoerentes com a modalidade). Entra na GMUD.
-- [ ] **E-mails da liquidação no shared (TS-5585 e D41):** em cada ambiente, depois do deploy do
-      shared (sandbox: depois do merge da #87; produção: antes do primeiro resumo diário). Sem os dois
-      passos, o shared recusa o pedido (422) e a execução do resumo fica registrada com erro. Entra na GMUD.
-      1. Ativar o remetente dos templates da cessão com a caixa compartilhada do ambiente: o `UPDATE`
-         de `email_dispatch.senders` está na docstring da migration `c4d8a1f65b27` do shared.
-      2. Cadastrar o grupo do Entra ID nos dois templates:
-         `INSERT INTO email_dispatch.template_recipients (template_name, type, value, created_by) VALUES
-         ('cessao-liquidacao-resumo-diario', 'GROUP', '<id do grupo>', '<quem>'),
-         ('cessao-liquidacao-fechamento-pos-corte', 'GROUP', '<id do grupo>', '<quem>');`
+- [ ] **E-mails da liquidação no shared (TS-5585 e D41):** sem remetente ativo e sem destinatário
+      cadastrado para o template, o shared recusa o pedido (422) e a execução do resumo fica registrada
+      com erro. Fora de produção o shared entrega tudo na caixa de teste do ambiente, mas só depois de
+      aceitar o pedido (`src/shared/business/email_dispatch.py:233-249`), então os dois passos valem
+      também na sandbox.
+      - **Sandbox** (depois do merge da #87, feito em 23/11):
+        1. ativar o remetente dos templates da cessão com a caixa remetente da sandbox: o `UPDATE` de
+           `email_dispatch.senders` está na docstring da migration `c4d8a1f65b27` do shared;
+        2. um destinatário `EMAIL` por template, com a própria caixa de teste (um e-mail por envio; um
+           grupo mandaria uma cópia por membro para a mesma caixa):
+           `INSERT INTO email_dispatch.template_recipients (template_name, type, value, created_by) VALUES
+           ('cessao-liquidacao-resumo-diario', 'EMAIL', '<caixa de teste>', '<quem>'),
+           ('cessao-liquidacao-fechamento-pos-corte', 'EMAIL', '<caixa de teste>', '<quem>');`
+      - **Produção** (depois do deploy do shared, antes do primeiro resumo diário). Entra na GMUD.
+        1. ativar o remetente com a caixa compartilhada de produção (o mesmo `UPDATE`);
+        2. cadastrar o grupo do Entra ID nos dois templates:
+           `INSERT INTO email_dispatch.template_recipients (template_name, type, value, created_by) VALUES
+           ('cessao-liquidacao-resumo-diario', 'GROUP', '<id do grupo>', '<quem>'),
+           ('cessao-liquidacao-fechamento-pos-corte', 'GROUP', '<id do grupo>', '<quem>');`
 
 **Ensaio da montagem (17/11, front refeito em 18/11; HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
 rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio-release/`):**
