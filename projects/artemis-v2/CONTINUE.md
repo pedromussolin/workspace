@@ -12,6 +12,20 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
+**Passagem de chat (23/11, noite):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-correcao-beat.md`
+(correção do beat, tela das esteiras e testes na sandbox).
+
+- Beat: a execução perdida tem causa comprovada: o despacho reaproveita a conexão com o RabbitMQ,
+  derrubada em silêncio depois de ~30 min parada; com a confirmação de publicação o beat trava
+  ~16 min. Correção (conexão nova a cada disparo) pronta na TS-5569, sem commit; a confirmação no
+  beat de produção saiu da GMUD e do guia.
+- Tela das esteiras (TS-5624, leitura na TS-5737): chave da baixa nova e agendamentos da
+  liquidação, na release de 24/11; cessão, BFF e portal prontos, sem commit; portal em ajustes da
+  revisão visual.
+- Massa de liquidação para a sandbox: script privado pronto, nada enviado; a administradora da
+  sandbox é real, então os testes que fecham e enviam lote não vão até o fim.
+
 **Passagem de chat (23/11, fim da tarde):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-tela-config.md`
 (testes na sandbox, tela das configurações na TS-5624 e deploy de 24/11).
@@ -392,10 +406,14 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Sandbox:** conferir o beat das 18:30 e 19:00 UTC; passar pelo guia de testes com o Pietro.
-2. **Tela (TS-5624):** decidir o escopo (chave da baixa nova, agendamentos do módulo, campos de
-   cálculo) e se entra na release de 24/11; desenho para aprovação antes de implementar.
-3. **Deploy de 24/11:** evidências na GMUD; `/release` para as PRs da `release/20261124` para a
-   `master`; argocd de produção com tags, worker isolado e confirmação no beat.
+1. **Revisar e commitar:** correção do despacho (TS-5569), leitura da chave da baixa (TS-5737) e a
+   tela (TS-5624, BFF e portal, depois de nova revisão visual); merges na release e na `-sdbx`;
+   PRs para a sandbox.
+2. **Sandbox:** A1 (com o ok do Pietro); com a imagem nova, A4 (dois disparos com 30 min de
+   intervalo), B2 pela tela e B1 depois de conferir a administradora do fundo; C1 e C2 quando os
+   destinatários estiverem gravados.
+3. **Deploy de 24/11:** evidências e texto do risco do beat na GMUD; `/release` para as PRs da
+   `release/20261124` para a `master`; argocd de produção com tags e worker isolado, sem a
+   confirmação no beat.
 4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, leitura da tabela de destinatários); TS-5620
    (D37, D38); S1 a S14; TS-5537.
