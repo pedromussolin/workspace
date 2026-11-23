@@ -1,7 +1,8 @@
 # GMUD — release de 24/11/2026 (Artemis V2: fechamento de lotes de liquidação)
 
 > **Status (23/11/2026):** rascunho. Deploy previsto para 24/11, à noite. Pendências marcadas
-> "a confirmar"; as evidências dos testes do usuário na sandbox entram quando ele terminar.
+> "a confirmar"; testes do usuário na sandbox registrados em 23/11, falta o A6 (dia útil, antes
+> das 14h).
 
 Tipo: Mudança programada
 
@@ -37,8 +38,14 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
     desligados;
   - resumo diário dos lotes por e-mail, com Excel, e aviso quando um horário de fechamento fica
     depois do corte da conciliação (TS-5585); o job nasce desligado;
-  - lote aberto passa a ser o padrão de todos os produtos (TS-5567);
-  - API da configuração do produto (TS-5624);
+  - lote aberto passa a ser o padrão de todos os produtos, inclusive os de gatilho automático
+    (TS-5567);
+  - API da configuração do produto (TS-5624); fora do gatilho agendado, apagar todos os horários
+    de fechamento deixa o agendamento do produto inativo e sem horário: a CHECK
+    `ck_agendamento_tipo_coerente` passa a aceitar cron inativo sem expressão (migration
+    `a4f7c2d9e1b6`);
+  - junção das migrations da release com a da master (`1f00f6aacbb7`, sem efeito no banco): a
+    TS-5616 já está em produção, com a `b8e41f6c2a93`;
   - aprovar em tela um lote fechado antes das 14h, sem esperar a rotina do corte (TS-5571);
   - o gatilho automático passa a fechar pelo fluxo novo, com a tabela de remessas e um backstop a
     cada 30 min para remessa presa (TS-5572);
@@ -46,7 +53,8 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
     `liquidacao_baixa_refact`, que nasce desligada em todos; fila própria
     `liquidacao_baixa_isolada_celery` (TS-5737).
 - **apl-credit-whitelabel-api** (BFF, a camada entre o portal e os serviços; PR a abrir): guardas de
-  lote vazio (TS-5582), lote aberto (TS-5567), rotas da configuração do produto (TS-5624), contrato
+  lote vazio (TS-5582), lote aberto (TS-5567), rotas da configuração do produto, que aceitam a lista
+  de horários vazia fora do agendado (TS-5624), contrato
   do envio de e-mail com anexo (TS-5584), remoção da rota `/fake-batches/consolidate`, que o portal
   já não chama (TS-5568), e atualização do `virtualenv` de desenvolvimento por CVE (TS-5871).
 - **apl-credit-whitelabel** (portal; PR a abrir): página "Configuração do produto", com as abas
@@ -122,7 +130,9 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 - **Banco da cessão:** 7 enums, 4 tabelas novas (`agendamento`, `agendamento_execucao`,
   `agendamento_alteracao`, `liquidacao_remessa`), `produto_config` com 3 colunas novas,
   `liquidacao_lote_vigente` com 1 coluna e 1 índice parcial, 14 agendamentos inseridos e 1 UPDATE
-  de preenchimento. Nenhuma coluna removida. Detalhe para a DBA no resumo dos objetos.
+  de preenchimento; a CHECK `ck_agendamento_tipo_coerente` da tabela nova `agendamento` é recriada,
+  mais permissiva, na mesma release (`a4f7c2d9e1b6`). Nenhuma coluna removida. Detalhe para a DBA
+  no resumo dos objetos.
 - **Banco do shared:** tabela `email_dispatch.template_recipients`, 2 templates e 1 remetente
   inativo.
 - **Infra:** worker novo `liquidacao-baixa-isolada` (1 pod); o beat passa a ler o banco; os jobs
@@ -150,7 +160,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 6. **Cessão:** um commit no argocd com a tag nova em `asgard-production` e em `viva-production`, o
    worker `liquidacao-baixa-isolada` no `asgard-production`. Sem `CELERY_CONFIRM_PUBLISH` no beat
    (ver o risco do disparo do agendador). Conferir:
-   - Alembic em `c9d4a1e7f358` (pela réplica);
+   - Alembic em `a4f7c2d9e1b6` (pela réplica);
    - `produto_config` com o gatilho e o agrupamento preenchidos conforme o mapeamento;
    - beat: "Agendamentos despachados" no próximo :00 ou :30, e "Backstop de remessas automáticas
      concluído" no worker. Na partida o beat costuma reiniciar 1 ou 2 vezes por falta de
@@ -173,11 +183,12 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 - **Sem deploy, por produto:** gatilho `manual` na tela de configuração (os 6 produtos do primeiro
   risco); desligar um agendamento (inclusive o backstop) pela rota de agendamento.
 - **Com deploy, na ordem inversa:** portal (as três tags anteriores), BFF `prod-5aca171`, cessão
-  `prod-a410fc9` nos dois ambientes (e remover o worker isolado depois de conferir a fila vazia),
-  shared `prod-79d43a7`.
+  `prod-ca52465` nos dois ambientes (em produção desde 23/11, com a TS-5616; remover o worker
+  isolado depois de conferir a fila vazia), shared `prod-79d43a7`.
 - **Banco:** as migrations só acrescentam; a imagem anterior ignora as tabelas e colunas novas, então
   a volta não pede downgrade. O downgrade, se preciso, é com a DBA: apaga as tabelas do agendador
-  (perde o histórico) e não desfaz o preenchimento.
+  (perde o histórico) e não desfaz o preenchimento. O primeiro passo dele (`a4f7c2d9e1b6`) volta a
+  CHECK estrita e falha se houver agendamento cron inativo sem horário; apagar essas linhas antes.
 - **O que fica:** tabelas, colunas, enums e agendamentos novos; linhas de `liquidacao_remessa`;
   e configuração gravada pela tela nova, que a imagem anterior não lê (ela lê a coluna antiga).
 
@@ -195,4 +206,34 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   - e-mails: remetente da liquidação ativo e ligado aos dois templates; destinatários cadastrados
     pelo usuário (a tabela nova ainda não tem permissão de leitura para o usuário de consulta);
   - nenhum erro de coluna ou tabela inexistente de 15:30 a 17:06.
-- **Testes do usuário na sandbox:** a preencher.
+- **Correção da TS-5624 (23/11):** cessão 1202 (liquidação, agendamento e o teste que compara a
+  migration com o model), BFF 4678 e portal 116 specs da configuração do produto; CHECK nova provada
+  num Postgres descartável. Imagens finais da sandbox: cessão `sand-a03d015`, BFF `sand-a9812b0`,
+  portal `sand-01bf80e`, shared `sand-e8bb038`.
+- **Testes do usuário na sandbox (23/11, horário de Brasília)**, pelo guia
+  `tasks/13-post-deploy-switch-on-guide.md`:
+  - A1, lote aberto: produto 584, lote 50027 com 5 pagamentos;
+  - manual por chave (produto 187): dois vigentes e dois lotes (50031 e 50032) fechados pela tela
+    às 18:43, `concluido`, envio simulado. O aviso de compromisso de saldo é esperado: fundo sem
+    conta vinculada;
+  - A2, automático no lote aberto (`sand-822b5f9`): produto 54 por remessa (lote 50044, fechado
+    às 19:34:57) e 187 por chave (lote 50046, 2 pagamentos, 19:38:27); os dois com "Remessa de
+    liquidação fechada automaticamente", 0 recusadas, 0 ocupadas, lote `concluido`;
+  - A3, backstop: a cada :00 e :30 (último visto às 19:30), 0 remessas avaliadas;
+  - A4, agendador: uma execução presa às 16:16, do incidente da tarde (ver o risco do disparo);
+    nenhuma depois;
+  - A5, lote sem pagamento: não dá para ver pela tela (lote vazio não aparece, B29); conferir em
+    produção pelos logs;
+  - B1, por horário: produto 24 às 19:00, "Agendamentos despachados" às 19:00:01 e "Fechamento de
+    lotes por horário concluído" às 19:00:07 (9 lotes, 0 falhas);
+  - B2, esteira de baixa nova: produto 28 com `liquidacao_baixa_refact` ligada, lote 50047 fechado
+    pela tela, desviado e concluído às 19:47:16; chave desligada de novo;
+  - C1, aviso de horário depois do corte: produto 55, 23:50 ligado às 19:48:38, 1 aviso, shared
+    `sent=1`;
+  - C2, resumo diário: execução às 19:40 com 15 lotes e anexo, shared `sent=1`; duas execuções
+    anteriores do dia tinham a mesma chave de envio e só uma saiu (B28);
+  - TS-5624, apagar os horários: o 23:50 do produto 55 e o 19:00 do 24 (os dois em Manual)
+    apagados pela tela às 20:20; no banco, os dois agendamentos inativos, sem horário e sem próxima
+    execução; Alembic da sandbox em `d2e8b5a7c013` (a junção própria da `-sdbx`), com a CHECK nova;
+  - A6, aprovar antes do corte: a fazer, em dia útil antes das 14h, produto 55.
+  - Produtos de teste de volta a Manual (53, 54, 55, 187, 24); esteira nova do 28 desligada.
