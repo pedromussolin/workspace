@@ -508,6 +508,45 @@ diz como foi confirmado; ao virar tarefa, mover para `tasks/`.
 - **Correção proposta:** o estado pausa (`is_estado_async`) e o retorno do registro reenfileira a esteira, como o
   `liquidando` faz com a administradora. Achado pelo agente da TS-5737 em 17/11; vai para card da próxima sprint.
 
+## B28 — Executar o resumo diário de novo no mesmo dia não reenvia e registra sucesso
+
+- **Onde [C, código, cessão `release/20261124-sdbx` `5cc0da14b`]:** a chave de idempotência do e-mail é o dia
+  mais o contador `reenvio` (`cessao/api/liquidacao/resumo_diario.py:64`). A execução manual
+  (`POST /agendamento/<chave>/executar`, `cessao/api/agendamento/viewer.py:250`) usa o payload do agendamento,
+  com `reenvio` 0. O shared descarta o pedido repetido pela chave, e mesmo assim a execução fica `sucesso` com
+  `enviado: true`.
+- **Efeito:** quem usa "executar agora" num dia em que o resumo já saiu vê sucesso e não recebe e-mail.
+- **Como foi confirmado [C, sandbox, 23/11]:** duas execuções do dia com a mesma `dispatch_key` e um e-mail só;
+  uma terceira com `payload {"reenvio": 1}` gerou chave nova e o shared registrou `sent=1`.
+- **Correção proposta:** a execução manual soma 1 ao `reenvio` (ou usa a chave da execução), ou o resultado diz
+  que o envio foi descartado como repetido. Card da próxima sprint.
+
+## B29 — Lote aberto que perde todos os pagamentos continua aberto e some da tela
+
+- **Onde [C, código, cessão `5cc0da14b`]:** o `DELETE /liquidacao/pagamentos` apaga os pagamentos e mantém o
+  lote vigente aberto. A tela de fechamento monta as linhas a partir dos pagamentos, então o lote vazio não
+  aparece. O descarte de lote sem pagamento só acontece na esteira de baixa
+  (`cessao/tasks/liquidacao_lote.py:154`), na conciliação manual (`cessao/api/liquidacao/service.py:538`) e no
+  script de limpeza. Ver B26.
+- **Efeito:** um lote `pendente` sem pagamento fica esquecido. Pagamento novo da mesma chave entra nele, o que
+  está certo; sem pagamento novo, só o script de limpeza o tira.
+- **Como foi confirmado [C, sandbox, 23/11]:** lote 50048 (produto 35): 1 pagamento enviado e apagado
+  (`liquidacoes_apagadas_quantidade: 1`); o vigente 1456 seguiu aberto e a tela não listou o lote.
+- **Correção proposta:** o `DELETE` descarta o lote vigente que ficou vazio (`descartar_lote_sem_pagamento`,
+  com origem própria), ou o script de limpeza passa a cobrir o vigente vazio. Card da próxima sprint.
+
+## B30 — Lote de fundo que não está no produto fica fora da tela de fechamento
+
+- **Onde [C, código, cessão `5cc0da14b`]:** o lote é criado com o fundo do contrato, mas a tela escolhe o fundo
+  pela lista de `/fundo/produtos`, que só traz os fundos de `produto_fundo` (`cessao/api/fundo/repository.py:11-30`).
+  Contrato de um fundo que não está em `produto_fundo` do produto gera um lote que ninguém consegue fechar
+  pela tela.
+- **Como foi confirmado [C, sandbox, 23/11]:** lote 50030 (produto 17), 3 pagamentos de contratos do fundo 16,
+  que não está em `produto_fundo` do 17; o fundo não aparece na tela e o lote segue aberto.
+- **Alcance [H]:** medir na réplica os lotes em aberto cujo par (produto, fundo) não está em `produto_fundo`.
+- **Correção proposta:** decidir com o negócio entre a tela listar também os fundos dos lotes abertos ou a
+  entrada no lote recusar contrato de fundo fora do produto. Card da próxima sprint.
+
 ## Menores
 
 - `export_batches` no BFF está sem `self` (`business.py:326-328`); a rota
