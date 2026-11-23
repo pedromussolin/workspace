@@ -12,6 +12,20 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
+**Passagem de chat (23/11, fim da tarde):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-tela-config.md`
+(testes na sandbox, tela das configurações na TS-5624 e deploy de 24/11).
+
+- GMUD da release de 24/11 em rascunho: [gmud-release-20261124.md](gmud-release-20261124.md)
+  (prioridade High, três marcas do portal na mesma versão, cuidado com o `viva-production`).
+- Guia de testes e de ligar por produto:
+  [tasks/13-post-deploy-switch-on-guide.md](tasks/13-post-deploy-switch-on-guide.md).
+- Sandbox: uma execução do backstop (17:00 UTC) publicada e nunca consumida; hipótese de publicação
+  sem confirmação numa conexão ociosa. `CELERY_CONFIRM_PUBLISH=1` no beat da sandbox (argocd
+  `0e7f6e2`); teste nos disparos das 18:30 e 19:00 UTC. Entra no beat de produção no deploy.
+- Pietro quer tela para todas as configurações das esteiras da cessão, dentro da TS-5624 (escopo
+  e entrada na release a decidir).
+
 **Passagem de chat (23/11, tarde):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-homologacao-sandbox-release-24-11.md`
 (homologação na sandbox e deploy de produção de 24/11); as anteriores ficam só como histórico.
@@ -378,9 +392,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Homologação na sandbox:** cadastrar remetente e destinatário dos e-mails da liquidação no
-   shared (item do checklist da tarefa 13) e acompanhar os testes do Pietro.
-2. **Deploy de 24/11:** `/change-request` da GMUD com os itens do checklist da tarefa 13; conferir a
-   URL do shared em produção; `/release` para as PRs da `release/20261124` para a `master`.
-3. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
-   S1 a S14; TS-5537.
+1. **Sandbox:** conferir o beat das 18:30 e 19:00 UTC; passar pelo guia de testes com o Pietro.
+2. **Tela (TS-5624):** decidir o escopo (chave da baixa nova, agendamentos do módulo, campos de
+   cálculo) e se entra na release de 24/11; desenho para aprovação antes de implementar.
+3. **Deploy de 24/11:** evidências na GMUD; `/release` para as PRs da `release/20261124` para a
+   `master`; argocd de produção com tags, worker isolado e confirmação no beat.
+4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, leitura da tabela de destinatários); TS-5620
+   (D37, D38); S1 a S14; TS-5537.
