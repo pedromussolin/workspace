@@ -10,6 +10,24 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ## Onde parei
 
+### 23/11/2026
+
+**Passagem de chat (23/11):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-revisao-pr-2782-e-d41.md`
+(ajustes da revisão da #2782, D41 e release de 24/11); a de 19/11 fica só como histórico.
+
+- Correções 8, 6 e 5 da revisão da #2782 commitadas na `release/20261124` e enviadas na `-sdbx`,
+  com a suíte verde nos dois modos e a integração com Postgres e Redis descartáveis.
+- D3 decidida (os 6 produtos passam a enviar sozinhos; a volta é o gatilho `manual`) e o legado
+  sai depois que o fluxo novo estiver estável. Achado 7 virou a tarefa 26 (TS-5873, backlog).
+- BFF: TS-5871 (virtualenv sem a CVE) deixou o Semgrep da #280 verde; as quatro PRs da sandbox
+  estão verdes, salvo o Semgrep aceito da cessão e do shared.
+- `APL_SHARED_SERVICE_URL` criada na sandbox; em produção não existe e entra na GMUD.
+- Revisão do Pietro na #2782 (18 comentários): constantes no `constants.py`, utilitários em
+  `utils/`, nomes em PT-BR, referências do workspace fora do código e URL no `config.ini` estão
+  prontos sem commit, em patches. Destinatários de e-mail no shared viraram a D41, aprovada e
+  por fazer.
+
 ### 19/11/2026
 
 **Passagem de chat (19/11):** retomar pela passagem privada
@@ -353,14 +371,11 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Correções da #2782:** depois da revisão do Pietro, commitar as correções 8, 6 e 5 na
-   `release/20261124`, rodar a suíte nos dois modos, juntar na `-sdbx` e enviar. Decisão da D3 e
-   sim para a tarefa do achado 7.
-2. **CI da #280:** a #281 já foi mergeada; juntar a sandbox na `-sdbx` do BFF para a CI rodar de
-   novo. Com as quatro PRs verdes (salvo o Semgrep), o Pietro mergeia; oferecer mover os cards.
-3. **GMUD de 24/11:** conferir `APL_SHARED_SERVICE_URL` (credenciais da AWS) e oferecer
-   `/change-request` com os itens do checklist da tarefa 13.
-4. **Sandbox:** `kill -9` da TS-5737, prova do pooler, worker da fila isolada e
-   `CONCORRENCIA_POR_FILA`.
-5. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
+1. **Revisão da #2782:** apresentar ao Pietro os 4 patches dos ajustes e, com o ok, commitar um
+   por item na `release/20261124`; suíte junta nos dois modos e integração.
+2. **D41:** destinatários por template no shared e a cessão sem a `email_destinatario`, pelo
+   brief salvo; juntar nas `-sdbx` (#87 e #2782) e enviar.
+3. **Release de 24/11:** o Pietro mergeia as quatro PRs da sandbox; mover os cards; conferir a URL
+   do shared em produção; `/change-request` da GMUD com os itens do checklist da tarefa 13.
+4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737); TS-5620 (D37, D38); `viva-production`;
    S1 a S14; TS-5537.
