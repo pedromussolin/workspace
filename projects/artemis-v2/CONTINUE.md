@@ -12,6 +12,19 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
+**Passagem de chat (23/11, fim da noite):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-cards-parados.md`
+(testes na sandbox e cards parados do sprint).
+
+- Segunda leva da release de 24/11 na sandbox: correção do despacho do agendador (TS-5569),
+  leitura da chave da baixa (TS-5737) e tela das esteiras (TS-5624, BFF e portal) commitadas,
+  mergeadas na release e na `-sdbx`, PRs da sandbox mergeadas e tags novas no argocd da sandbox.
+- A1 feito: 5 pagamentos no lote aberto do produto de teste; a linha do lote aberto aparece em
+  todas as datas no fechamento, como no desenho do lote aberto.
+- Texto do risco do beat corrigido na GMUD.
+- Sprint 16.6.41 (16/11 a 30/11): 16 cards em "Tarefas pendentes" sem trabalho desde a planning;
+  os 9 da Artemis V2 têm prazo 24/11 e precisam da data da próxima release do sprint.
+
 **Passagem de chat (23/11, noite):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-correcao-beat.md`
 (correção do beat, tela das esteiras e testes na sandbox).
@@ -406,14 +419,12 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Revisar e commitar:** correção do despacho (TS-5569), leitura da chave da baixa (TS-5737) e a
-   tela (TS-5624, BFF e portal, depois de nova revisão visual); merges na release e na `-sdbx`;
-   PRs para a sandbox.
-2. **Sandbox:** A1 (com o ok do Pietro); com a imagem nova, A4 (dois disparos com 30 min de
-   intervalo), B2 pela tela e B1 depois de conferir a administradora do fundo; C1 e C2 quando os
+1. **Sandbox:** A4 (dois disparos do backstop com 30 min ou mais, nenhum pendente) com a imagem
+   nova; B2 pela tela; B1 depois de conferir a administradora do fundo; C1 e C2 quando os
    destinatários estiverem gravados.
-3. **Deploy de 24/11:** evidências e texto do risco do beat na GMUD; `/release` para as PRs da
-   `release/20261124` para a `master`; argocd de produção com tags e worker isolado, sem a
-   confirmação no beat.
+2. **Cards do sprint:** data da próxima release para os 9 cards parados da Artemis V2; responsável
+   da TS-5379; mover cada card conforme a iteração.
+3. **Deploy de 24/11:** evidências na GMUD; `/release` para as PRs da `release/20261124` para a
+   `master`; argocd de produção com tags e worker isolado.
 4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, leitura da tabela de destinatários); TS-5620
    (D37, D38); S1 a S14; TS-5537.
