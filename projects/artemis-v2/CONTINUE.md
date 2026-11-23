@@ -12,6 +12,18 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
+**Passagem de chat (23/11, depois das 19h):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-tarefa24-e-avulsos.md`
+(testes na sandbox, Tarefa 24 e pagamentos avulsos).
+
+- Testes do guia 13 na sandbox: resumo diário (C2), fechamento manual e por chave (produto 187),
+  automático por chave e por remessa (53 e 54, A2) e por horário (24, B1, às 19:00) passaram, com
+  envio simulado pela administradora própria.
+- Tarefa 24 da TS-5567 antecipada para a release de 24/11: o automático entra no lote aberto (D36).
+  Commit na `release/20261124` da cessão e na `-sdbx`; PR da sandbox mergeada; tag do argocd da
+  sandbox commitada local, esperando o build.
+- D42 pendente: o horário do 24 levou avulsos de 2021 e 2022; regra a validar com o negócio.
+
 **Passagem de chat (23/11, depois das 18h):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-features-e-email-novo.md`
 (testes das features na sandbox e e-mail novo).
@@ -433,10 +445,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Sandbox:** conferir os pods com as tags novas; disparar o resumo diário e conferir o e-mail
-   novo; depois os testes de fechamento manual, automático, por chave, por horário e de remessa
-   com os produtos de administradora simulada (roteiro na passagem privada).
-2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master`; argocd de
-   produção com as tags e a confirmação de publicação no beat; evidências na GMUD.
-3. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
+1. **Sandbox:** publicar a tag do argocd depois do build da imagem e repetir o teste do automático
+   (53 e 54) com a Tarefa 24: lote vigente na chegada, fechado no fim da remessa; resumo diário com
+   os lotes do dia (roteiro na passagem privada).
+2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` (a da cessão
+   agora com a Tarefa 24); argocd de produção com as tags e a confirmação de publicação no beat;
+   evidências na GMUD.
+3. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
+   administradora real.
+4. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
    TS-5737, consulta do resumo diário com ids); TS-5620 (D37, D38); S1 a S14; TS-5537.

@@ -28,8 +28,9 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
 ## Parte A — o que já vale no deploy (conferir, não se liga)
 
 ### A1. Lote aberto (TS-5567)
-- **Para quê:** todo produto com configuração, **menos os de gatilho automático**, junta os
-  pagamentos num lote aberto até alguém (tela, horário) fechar. A flag `acumula_liquidacoes` não
+- **Para quê:** todo produto com configuração, de qualquer gatilho (o automático desde a
+  Tarefa 24, decidida em 23/11), junta os pagamentos num lote aberto até alguém (tela, horário,
+  fim da remessa no automático) fechar. A flag `acumula_liquidacoes` não
   decide mais.
 - **Conferir:** Datadog `"Entrada no lote aberto da liquidação concluída"` (`@pagamentos_no_lote`,
   `@chaves_com_recuo`) e o alerta `"Pagamento de liquidação ficou sem lote aberto"` (`@motivo`).
@@ -46,6 +47,8 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
   ocupada"` e o erro `"Falha no fechamento automático da remessa"`. Banco: `SELECT proc_id,
   produto_id, status, total_esperado, fechada_em FROM liquidacao_remessa ORDER BY id DESC LIMIT 20;`
   (`processando` → `fechando` → `fechada`).
+- **Com a Tarefa 24:** o pagamento entra no lote vigente da chave na chegada e o fim da remessa
+  fecha esse lote (`liquidacao_lote_vigente` com `fechado = true`).
 - **Voltar, por produto:** tela, aba Liquidação, gatilho `Manual`, "Salvar fechamento".
 
 ### A3. Backstop das remessas (a cada 30 min)
