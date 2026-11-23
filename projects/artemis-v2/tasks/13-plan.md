@@ -74,8 +74,8 @@ deploy.
       `cessao/config/__init__.py:423`; sem ela o pod não passa na checagem de variáveis e não sobe):
       sandbox antes do merge da PR da sandbox (#2782); produção antes do deploy da cessão. Entra na GMUD.
       Conferido pelo nome em 23/11: **não existe em produção** (as vizinhas `APL_USER_SERVICE_URL` e
-      `APL_ORIGINATOR_URL` existem); criar antes do deploy. **Também não existe na sandbox**; criar
-      antes do merge da #2782. O valor é o mesmo do parâmetro de URL do shared service do BFF no mesmo
+      `APL_ORIGINATOR_URL` existem); criar antes do deploy. Na sandbox também não existia; **criada em
+      23/11**, antes do merge da #2782. O valor é o mesmo do parâmetro de URL do shared service do BFF no mesmo
       ambiente (os dois clientes chamam caminhos relativos à raiz, e a rota `/email-dispatches` não
       pede token); tipo `String`, como as vizinhas. A `CONCORRENCIA_POR_FILA` da TS-5737 já existe
       nos dois ambientes.
