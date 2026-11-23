@@ -73,11 +73,12 @@ deploy.
 - [ ] **Parameter Store: `APL_SHARED_SERVICE_URL` da cessão** (TS-5585, obrigatória em
       `cessao/config/__init__.py:423`; sem ela o pod não passa na checagem de variáveis e não sobe):
       sandbox antes do merge da PR da sandbox (#2782); produção antes do deploy da cessão. Entra na GMUD.
-- [ ] **D3 da TS-5572 (`liquidacao_automatico`):** a release deixou de ler a flag e o fechamento
-      automático sempre envia. Réplica em 19/11 (Pietro): 6 produtos `automatico_por_chave` com a flag
-      desligada (22, 26, 27, 28, 39, 42), que hoje fecham e esperam o liquidar. Decisão e correção antes
-      do deploy; conferir de novo no dia (consulta em `13-plan-ts-5572.md:141-146` e no relatório da
-      revisão). Entra na GMUD.
+- [ ] **D3 da TS-5572 (`liquidacao_automatico`), decidida em 23/11 (`decisions.md`):** sem correção
+      de código. Os 6 produtos `automatico_por_chave` com a flag desligada (22, 26, 27, 28, 39, 42),
+      que hoje fecham e esperam o liquidar, passam a fechar e enviar sozinhos depois da migration.
+      No dia, repetir a consulta (`13-plan-ts-5572.md:141-146` e o relatório da revisão) para ver se a
+      lista mudou. Volta por produto, sem deploy: gatilho `manual` na configuração. Entra na GMUD, com o
+      aviso de que esses produtos deixam de esperar o liquidar.
 - [ ] **D4 da TS-5583:** repetir no dia do deploy a conferência de `13-plan-ts-5583.md:111-117`
       (produtos com flags incoerentes com a modalidade). Entra na GMUD.
 

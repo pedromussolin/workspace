@@ -24,6 +24,8 @@ o motivo — é o que evita rediscutir depois.
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 23/11/2026 | D3 da TS-5572 (`liquidacao_automatico`): sem correção de código. Os 6 produtos `automatico_por_chave` com a flag desligada (22, 26, 27, 28, 39, 42) entram no modelo novo pela migration `5d2e8f1a9c47` (gatilho `automatico`) e passam a fechar e enviar à administradora sozinhos, sem esperar o liquidar. Volta por produto, sem deploy: gatilho `manual` na configuração do produto. A flag sai com o legado | Pietro: trazer tudo para o modelo novo, com a chave para voltar se der problema |
+| 23/11/2026 | O código legado da liquidação (flags antigas do fechamento, `liquidacao_automatico`, caminhos fora do `refact`) sai depois que as features novas estiverem estáveis em produção; até lá, os dois convivem | Pietro: o novo é feito em paralelo, nos arquivos `refact`, e o legado morre depois |
 | 17/11/2026 | A TS-5737 (reentrega segura e arquivo em blocos) entra na mesma release dos 12 cards da tarefa 13, com entrega em 24/11; a release 2a deixa de existir | Pietro: tudo sobe de uma vez |
 | 17/11/2026 | D39, decisão 1 da Fase 0 da tarefa 14: nem (a) nem (b). A esteira de baixa ganha uma versão nova (refact) ao lado da atual, escolhida por uma chave por produto no `produto_config`, desligada por padrão; a esteira atual não muda. Chave e esteira antiga saem na TS-5612, depois de validada. Desenho na revisão de 17/11 de `tasks/14-phase0-design.md` | Pietro: voltar atrás sem rollback de imagem |
 | 17/11/2026 | D39, decisão 4: marca antes do envio; depois de envio interrompido, só administradora da lista de reenvio seguro (D40) reenvia sozinha; as outras param em `errado` com log e o operador reenvia | Pietro, pela recomendação do desenho |
