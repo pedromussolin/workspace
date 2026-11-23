@@ -54,9 +54,12 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
 - **Voltar:** `cessao -X PATCH "$CESSAO_URL/agendamento/<chave>" -d "{\"ativo\": false,
   \"solicitado_por\": \"$QUEM\"}"` (a chave sai da A4 ou de `GET /agendamento/?modulo=liquidacao`).
 
-### A4. Agendador não perde disparo (beat com confirmação de publicação)
-- **Para quê:** em 23/11 a sandbox perdeu a execução das 17:00 (publicada e nunca consumida); com
-  `CELERY_CONFIRM_PUBLISH=1` no beat, a publicação numa conexão caída dá erro e é refeita.
+### A4. Agendador não perde disparo
+- **Para quê:** em 23/11 a sandbox perdeu a execução das 17:00 UTC (publicada e nunca consumida) e,
+  com `CELERY_CONFIRM_PUBLISH=1` no beat, travou o beat às 18:30 UTC: o despacho reaproveita a
+  conexão com o RabbitMQ, derrubada em silêncio depois de ~30 min parada. Não ligar a confirmação no
+  beat; o teste vale para a correção do despacho (conexão nova a cada publicação), conferindo dois
+  disparos seguidos com 30 min ou mais de intervalo.
 - **Conferir:** nenhuma execução parada em `pendente` por mais de alguns minutos:
   ```sql
   SELECT a.nome, e.gatilho, e.status, e.previsto_para, e.iniciado_em, e.finalizado_em, e.erro
@@ -86,7 +89,7 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
 
 ### B1. ⚠ Fechamento por horário (TS-5570), pela tela
 - **Antes:**
-  - `CELERY_CONFIRM_PUBLISH=1` no beat de produção (A4);
+  - correção do despacho do agendador validada (A4); sem ela o horário pode não disparar;
   - Mercato Libero (4, 80, 81, 1406): drenar os lotes abertos antes; volume de ~370 mil pagamentos
     por dia útil (80: ~263 mil); medir o maior grupo das 16h;
   - produto 15: decidir antes os 10 contratos presos da TS-5537;

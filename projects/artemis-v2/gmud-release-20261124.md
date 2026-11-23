@@ -94,13 +94,16 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
     desligados; o backstop nasce ligado e só olha remessas automáticas;
   - sem a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê, os pods de lá não sobem (a
     confirmar se é o mesmo do principal).
-- **Mensagem do agendador perdida sem erro** (sandbox, 23/11): a execução das 17:00 UTC do backstop
-  foi publicada na fila e nenhum worker a recebeu; as de 16:30 e 17:30 rodaram. Causa provável
-  **[H]**: o beat publica sem confirmação do RabbitMQ (a `CELERY_CONFIRM_PUBLISH` está só nos
-  workers), e a primeira publicação numa conexão que o RabbitMQ já fechou por ociosidade some → no
-  backstop, atraso de 30 min; num fechamento por horário (nasce desligado), o lote do dia não
-  fecharia → segura: `CELERY_CONFIRM_PUBLISH=1` no beat (passo 6), em teste na sandbox; o agendador
-  marca como falha, com aviso no log, a execução não consumida em 2 h.
+- **Disparo do agendador perdido ou travado** (sandbox, 23/11) **[C]**: o despacho reaproveita a
+  conexão com o RabbitMQ, e depois de ~30 min parada ela é derrubada em silêncio no caminho. Sem
+  confirmação de publicação, a mensagem some (execução das 17:00 UTC publicada e nunca recebida);
+  com `CELERY_CONFIRM_PUBLISH=1` no beat (teste a partir das 17:43 UTC), o beat trava esperando a
+  confirmação (18:30 UTC: execução gravada, sem log de despacho, publicação sem fim). Conexão nova
+  funciona (16:30, 17:30 e 18:00 UTC). No backstop, disparos perdidos; num fechamento por horário
+  (nasce desligado), o lote do dia não fecharia → segura: `CELERY_CONFIRM_PUBLISH` **não** vai no
+  beat de produção; fechamento por horário só se liga depois da correção do despacho (conexão nova a
+  cada publicação) validada na sandbox; o agendador marca como falha, com aviso no log, a execução
+  não consumida em 2 h.
 - **E-mail recusado pelo shared** (sem remetente ativo ou sem destinatário: 422) → a execução do
   resumo ou do aviso fica registrada com erro, sem nova tentativa → segura: o job do resumo nasce
   desligado; remetente e grupo cadastrados no passo 9, antes de ligar.
@@ -144,8 +147,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
 5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `9300117a09ae`.
 6. **Cessão:** um commit no argocd com a tag nova em `asgard-production` e em `viva-production`, o
-   worker `liquidacao-baixa-isolada` no `asgard-production` e `CELERY_CONFIRM_PUBLISH=1` no beat dos
-   dois ambientes (ver o risco da mensagem perdida). Conferir:
+   worker `liquidacao-baixa-isolada` no `asgard-production`. Sem `CELERY_CONFIRM_PUBLISH` no beat
+   (ver o risco do disparo do agendador). Conferir:
    - Alembic em `c9d4a1e7f358` (pela réplica);
    - `produto_config` com o gatilho e o agrupamento preenchidos conforme o mapeamento;
    - beat: "Agendamentos despachados" no próximo :00 ou :30, e "Backstop de remessas automáticas
