@@ -73,6 +73,10 @@ deploy.
 - [ ] **Parameter Store: `APL_SHARED_SERVICE_URL` da cessão** (TS-5585, obrigatória em
       `cessao/config/__init__.py:423`; sem ela o pod não passa na checagem de variáveis e não sobe):
       sandbox antes do merge da PR da sandbox (#2782); produção antes do deploy da cessão. Entra na GMUD.
+      Conferido pelo nome em 23/11: **não existe em produção** (as vizinhas `APL_USER_SERVICE_URL` e
+      `APL_ORIGINATOR_URL` existem); criar antes do deploy. Sandbox não conferida: as credenciais
+      disponíveis eram só da conta de produção. A `CONCORRENCIA_POR_FILA` da TS-5737 já existe em
+      produção.
 - [ ] **D3 da TS-5572 (`liquidacao_automatico`), decidida em 23/11 (`decisions.md`):** sem correção
       de código. Os 6 produtos `automatico_por_chave` com a flag desligada (22, 26, 27, 28, 39, 42),
       que hoje fecham e esperam o liquidar, passam a fechar e enviar sozinhos depois da migration.
