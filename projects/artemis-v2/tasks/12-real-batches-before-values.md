@@ -10,7 +10,7 @@ docs = ["12-real-batches-pr-analysis.md"]
 status = "done"
 priority = "Highest"
 sprint = "TETRIS - Sprint 16.6.40"
-synced = 2026-11-17
+synced = 2026-11-23
 +++
 # 12 — Lotes reais: buscar os lotes antes dos valores
 

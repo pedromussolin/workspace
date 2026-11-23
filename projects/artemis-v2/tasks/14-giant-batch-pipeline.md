@@ -12,7 +12,7 @@ status = "in_progress"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-17
+synced = 2026-11-23
 +++
 # 14 — Esteira de baixa que não aguenta lote gigante
 

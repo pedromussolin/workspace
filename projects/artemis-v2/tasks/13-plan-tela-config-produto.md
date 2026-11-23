@@ -10,7 +10,7 @@ status = "in_progress"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-17
+synced = 2026-11-23
 +++
 # TS-5624: tela de configuração do produto (Cessão e Liquidação) — plano de implementação
 

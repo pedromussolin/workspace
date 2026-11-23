@@ -10,7 +10,7 @@ status = "todo"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-17
+synced = 2026-11-23
 +++
 # 04 — Performance das listagens de lotes
 

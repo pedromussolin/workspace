@@ -10,7 +10,7 @@ status = "todo"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-17
+synced = 2026-11-23
 +++
 # 07 — Filtro por identificador de contrato
 
