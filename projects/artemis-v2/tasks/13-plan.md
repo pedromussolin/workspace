@@ -87,6 +87,15 @@ deploy.
       aviso de que esses produtos deixam de esperar o liquidar.
 - [ ] **D4 da TS-5583:** repetir no dia do deploy a conferência de `13-plan-ts-5583.md:111-117`
       (produtos com flags incoerentes com a modalidade). Entra na GMUD.
+- [ ] **E-mails da liquidação no shared (TS-5585 e D41):** em cada ambiente, depois do deploy do
+      shared (sandbox: depois do merge da #87; produção: antes do primeiro resumo diário). Sem os dois
+      passos, o shared recusa o pedido (422) e a execução do resumo fica registrada com erro. Entra na GMUD.
+      1. Ativar o remetente dos templates da cessão com a caixa compartilhada do ambiente: o `UPDATE`
+         de `email_dispatch.senders` está na docstring da migration `c4d8a1f65b27` do shared.
+      2. Cadastrar o grupo do Entra ID nos dois templates:
+         `INSERT INTO email_dispatch.template_recipients (template_name, type, value, created_by) VALUES
+         ('cessao-liquidacao-resumo-diario', 'GROUP', '<id do grupo>', '<quem>'),
+         ('cessao-liquidacao-fechamento-pos-corte', 'GROUP', '<id do grupo>', '<quem>');`
 
 **Ensaio da montagem (17/11, front refeito em 18/11; HEAD destacada, sem branch nem push; resoluções gravadas pelo `git
 rerere`, ligado nos quatro repos; detalhe em `~/repos/.artemis_v2/agentes/ensaio-release/`):**
