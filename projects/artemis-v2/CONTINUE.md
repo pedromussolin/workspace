@@ -12,6 +12,20 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 23/11/2026
 
+**Passagem de chat (23/11, depois das 18h):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-features-e-email-novo.md`
+(testes das features na sandbox e e-mail novo).
+
+- Terceira leva da release de 24/11 na sandbox, no ar: e-mail do resumo diário com tabela por
+  fundo e produto e link para a tela de lotes (TS-5585, shared e cessão), coluna do fundo
+  alinhada na tela de configuração (TS-5624). Variável opcional do endereço do portal criada no
+  Parameter Store da sandbox.
+- A release da cessão recebeu a master nova e ganhou uma migration de junção (duas pontas no
+  Alembic); sem ela o deploy de produção falharia.
+- Testes: A1, A4 (dois disparos seguidos na hora), C2 e a tela da configuração feitos. Os testes
+  de fechamento (manual, automático, por chave, por horário e remessa) seguem com produtos de
+  administradora própria, que só simula o envio.
+
 **Passagem de chat (23/11, fim da noite):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261123-testes-sandbox-e-cards-parados.md`
 (testes na sandbox e cards parados do sprint).
@@ -419,12 +433,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Sandbox:** A4 (dois disparos do backstop com 30 min ou mais, nenhum pendente) com a imagem
-   nova; B2 pela tela; B1 depois de conferir a administradora do fundo; C1 e C2 quando os
-   destinatários estiverem gravados.
-2. **Cards do sprint:** data da próxima release para os 9 cards parados da Artemis V2; responsável
-   da TS-5379; mover cada card conforme a iteração.
-3. **Deploy de 24/11:** evidências na GMUD; `/release` para as PRs da `release/20261124` para a
-   `master`; argocd de produção com tags e worker isolado.
-4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, leitura da tabela de destinatários); TS-5620
-   (D37, D38); S1 a S14; TS-5537.
+1. **Sandbox:** conferir os pods com as tags novas; disparar o resumo diário e conferir o e-mail
+   novo; depois os testes de fechamento manual, automático, por chave, por horário e de remessa
+   com os produtos de administradora simulada (roteiro na passagem privada).
+2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master`; argocd de
+   produção com as tags e a confirmação de publicação no beat; evidências na GMUD.
+3. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
+   TS-5737, consulta do resumo diário com ids); TS-5620 (D37, D38); S1 a S14; TS-5537.
