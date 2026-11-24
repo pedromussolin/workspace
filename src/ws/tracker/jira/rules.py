@@ -5,14 +5,17 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
+from ws import cardpolicy
+from ws.config import repo_root
 from ws.identity import dev_id
 from ws.taskmodel import Status
 from ws.tracker import vocab
+from ws.tracker.errors import TrackerSetup
 from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
 from ws.tracker.jira.settings import JiraConfig
 from ws.tracker.write import CREATED, UPPER_OUT_OF_SPRINTS, Draft
-from ws.userconfig import Person
+from ws.userconfig import ConfigInvalid, ConfigMissing, Person
 
 MAX_SUMMARY = 255
 WORKLOG_HOUR = 9
@@ -120,8 +123,10 @@ class Context:
         today,
         people: dict[str, Person] | None = None,
         identity_email: str | None = None,
+        config: object = None,
     ):
         self.client = client
+        self.config = config
         self.people = people or {}
         self.own_dev_id = dev_id(identity_email) if identity_email else None
         self.settings = settings
@@ -134,6 +139,9 @@ class Context:
         self._meta: dict[str, list[dict]] = {}
         self._active_sprints: list[dict] | None = None
         self._open_sprints: list[dict] | None = None
+        self._policies: dict[str | None, cardpolicy.Policy] = {}
+        self.batch_started: set[str] = set()
+        self.batch_worklogs: set[str] = set()
 
     @classmethod
     def load(
@@ -143,6 +151,7 @@ class Context:
         now: datetime,
         people: dict[str, Person] | None = None,
         identity_email: str | None = None,
+        config: object = None,
     ) -> "Context":
         me = client.myself() or {}
         if not me.get("accountId"):
@@ -151,7 +160,20 @@ class Context:
             tz = ZoneInfo(me.get("timeZone"))
         except (ValueError, TypeError, OSError):
             raise JiraError("Jira did not give a valid time zone for the user") from None
-        return cls(client, settings, me, tz, now.astimezone(tz).date(), people, identity_email)
+        today = now.astimezone(tz).date()
+        return cls(client, settings, me, tz, today, people, identity_email, config)
+
+    def policy(self, item: str | None, epic_ref: str | None) -> cardpolicy.Policy:
+        """The merged card policy of the project of an item or an epic, loaded once per project.
+        A layer that is missing or invalid is a setup error (exit 2), not a problem of a draft."""
+        root = repo_root()
+        project = cardpolicy.project_for(item, epic_ref, root)
+        if project not in self._policies:
+            try:
+                self._policies[project] = cardpolicy.load(self.config, project, root)
+            except (ConfigMissing, ConfigInvalid) as error:
+                raise TrackerSetup(str(error)) from None
+        return self._policies[project]
 
     def key_in_project(self, key: str) -> bool:
         return re.fullmatch(rf"{re.escape(self.project)}-[1-9]\d*", key) is not None
@@ -429,17 +451,17 @@ def _summary_problems(title: str) -> list[str]:
     return problems
 
 
-def _prefix_problem(title: str, epic_title: str | None) -> str | None:
-    prefix = _PREFIX.match(epic_title or "")
-    if prefix and not title.startswith(f"{prefix.group(0)} "):
-        return f"the title must start with the epic's prefix {prefix.group(0)} and a space"
-    return None
+def _epic_prefix(epic_title: str | None) -> str | None:
+    """The prefix of an epic's title without its brackets, None when it has none."""
+    found = _PREFIX.match(epic_title or "")
+    return found.group(0)[1:-1] if found else None
 
 
-def _section_problems(text: str, type_: str) -> list[str]:
-    required = vocab.required_sections(type_)
+def _parse_sections(text: str, required: list[str]) -> tuple[dict[str, int], dict[str, str]]:
+    """How many times each required `## heading` appears in a description (code blocks do not
+    count) and the text under it, for the policy to judge."""
     counts = {name: 0 for name in required}
-    filled = {name: False for name in required}
+    lines: dict[str, list[str]] = {name: [] for name in required}
     current = None
     in_code = False
     for line in text.splitlines():
@@ -451,16 +473,69 @@ def _section_problems(text: str, type_: str) -> list[str]:
                 counts[current] += 1
             continue
         if current and line.strip():
-            filled[current] = True
+            lines[current].append(line)
+    return counts, {name: "\n".join(found) for name, found in lines.items()}
+
+
+_SECTION_GAP = re.compile(r"section '(.*)' is missing or empty")
+
+
+def _section_problems(gaps: list[dict], counts: dict[str, int]) -> list[str]:
+    """The description problems: what the policy found missing or empty, said as the headings
+    appear, plus a heading that appears twice."""
+    empty = {m.group(1) for g in gaps if (m := _SECTION_GAP.fullmatch(g["detail"]))}
     problems = []
-    for name in required:
-        if counts[name] == 0:
+    for name, count in counts.items():
+        if count == 0:
             problems.append(f"the description needs a '## {name}' section")
-        elif counts[name] > 1:
+        elif count > 1:
             problems.append(f"the section '## {name}' appears more than once")
-        elif not filled[name]:
+        elif name in empty:
             problems.append(f"the section '## {name}' is empty")
     return problems
+
+
+def _required_sections(policy: cardpolicy.Policy, type_: str) -> list[str]:
+    return list(policy.data.get("sections", {}).get(type_, {}).get("required", []))
+
+
+def _gap_message(gap: dict, sprint: str | None = None) -> str:
+    """A gap that is a problem of the draft, in the words `ws card check` has always used."""
+    if gap["rule"] == "title.format":
+        return f"the {gap['detail']}"
+    if gap["rule"] == "create.due_with_sprint":
+        return f'due is required with sprint = "{sprint}"'
+    return f"{gap['detail']} (card policy: {gap['rule']})"
+
+
+def _title_message(gap: dict, epic_prefix: str | None) -> str:
+    if epic_prefix and gap["detail"].startswith("title must start with"):
+        return f"the title must start with the epic's prefix [{epic_prefix}] and a space"
+    return _gap_message(gap)
+
+
+def _padding_warning(policy: cardpolicy.Policy) -> str | None:
+    percent = policy.data.get("estimate", {}).get("padding_percent", 0)
+    if percent > 0:
+        return f"Estimativa original: confira se já inclui a folga de {percent:g}% do padrão."
+    return None
+
+
+def _split_gaps(gaps: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """The gaps by where the check says them: title, sections, the sprint's due date, the rest."""
+    title = [g for g in gaps if g["rule"] == "title.format"]
+    sections = [g for g in gaps if g["rule"] == "sections.required"]
+    due = [g for g in gaps if g["rule"] == "create.due_with_sprint"]
+    rest = [g for g in gaps if g not in title + sections + due]
+    return title, sections, due, rest
+
+
+def _say_rest(verdict: Verdict, gaps: list[dict]) -> None:
+    for gap in gaps:
+        if gap["severity"] == "suggestion":
+            verdict.warnings.append(gap["detail"])
+        else:
+            verdict.problems.append(_gap_message(gap))
 
 
 def _convert(text: str, label: str, verdict: Verdict) -> dict | None:
@@ -528,10 +603,9 @@ def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     if type_id is None:
         return
     epic = ctx.epic(values["epic"], verdict)
-    if epic and (problem := _prefix_problem(draft.title, epic["title"])):
-        verdict.problems.append(problem)
     link = {"epic": epic, "line": f"Épico: {epic['key']} {epic['title']}"} if epic else None
-    _create_issue(ctx, draft, verdict, type_id, link, link_required=True)
+    prefix = _epic_prefix(epic["title"]) if epic else None
+    _create_issue(ctx, draft, verdict, type_id, link, link_required=True, epic_prefix=prefix)
 
 
 def _create_upper(ctx: Context, draft: Draft, verdict: Verdict) -> None:
@@ -572,12 +646,44 @@ def _create_issue(
     link: dict | None,
     *,
     link_required: bool,
+    epic_prefix: str | None = None,
 ) -> None:
     values = draft.values
     type_ = values["type"]
     title = draft.title
+    policy = ctx.policy(values.get("item"), values.get("epic"))
+    labels = values.get("labels", [])
+    estimate, minutes, estimate_problems = None, 0, []
+    if "estimate" in values:
+        estimate, minutes, estimate_problems = _duration(values["estimate"], "estimate")
+    sprint_value = values.get("sprint")
+    wants_sprint = sprint_value not in (None, "backlog")
+    required = _required_sections(policy, type_)
+    counts, sections = _parse_sections(draft.body, required)
+    gaps = cardpolicy.evaluate(
+        policy,
+        {
+            "type": type_,
+            "title": title,
+            "epic": values.get("epic"),
+            "epic_prefix": epic_prefix,
+            "labels": labels,
+            "estimate_minutes": minutes,
+            "due": values.get("due"),
+            "sprint": sprint_value if wants_sprint else None,
+            "assignee": values.get("assignee", "me"),
+            "reporter": values.get("reporter", "me"),
+            "sections": sections,
+        },
+        "create",
+    )
+    if estimate_problems:
+        gaps = [gap for gap in gaps if gap["field"] != "estimate"]
+    title_gaps, section_gaps, due_gaps, other_gaps = _split_gaps(gaps)
+    if type_ in vocab.CARD_TYPES:
+        verdict.problems.extend(_title_message(gap, epic_prefix) for gap in title_gaps)
     verdict.problems.extend(_summary_problems(title))
-    verdict.problems.extend(_section_problems(draft.body, type_))
+    verdict.problems.extend(_section_problems(section_gaps, counts))
     description = _convert(draft.body, "description", verdict)
     allowed = ctx.priorities(type_id)
     if values["priority"] not in allowed:
@@ -591,18 +697,14 @@ def _create_issue(
     reporter = ctx.person(reporter_ref, verdict)
     due = values.get("due")
     # "backlog" is refused on a create by the card-write check; here it sends no sprint.
-    sprint_value = values.get("sprint")
-    wants_sprint = sprint_value not in (None, "backlog")
     if due and due < ctx.today:
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
-    if wants_sprint and due is None:
-        verdict.problems.append(f'due is required with sprint = "{sprint_value}"')
-    labels = values.get("labels", [])
+    verdict.problems.extend(_gap_message(gap, sprint_value) for gap in due_gaps)
     verdict.problems.extend(_label_problems(labels))
-    estimate = None
-    if "estimate" in values:
-        estimate, _, found = _duration(values["estimate"], "estimate")
-        verdict.problems.extend(found)
+    verdict.problems.extend(estimate_problems)
+    _say_rest(verdict, other_gaps)
+    if estimate and not estimate_problems and (warning := _padding_warning(policy)):
+        verdict.warnings.append(warning)
     sent = ["summary", "description", "assignee"]
     sent += ["labels"] if labels else []
     sent += ["reporter"] if "reporter" in values else []
@@ -735,8 +837,8 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         verdict.problems.extend(_summary_problems(values["title"]))
     if "title" in values and level in (1, 2) and not _UPPER_TITLE.match(values["title"]):
         verdict.problems.append(f"{_LEVELS[level]} title starts with [PREFIX]")
+    epic_prefix = None
     if level == 0 and ("title" in values or "epic" in values):
-        title = values.get("title", current.get("summary") or "")
         if "epic" in values:
             epic_title = new_epic["title"] if new_epic else None
             check_prefix = new_epic is not None
@@ -746,8 +848,47 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             if check_prefix and epic_title is None:
                 verdict.problems.append("the card's current epic could not be read")
                 check_prefix = False
-        if check_prefix and (problem := _prefix_problem(title, epic_title)):
-            verdict.problems.append(problem)
+        epic_prefix = _epic_prefix(epic_title) if check_prefix else None
+    epic_ref = values.get("epic") or current_parent.get("key") or (key if level == 1 else None)
+    policy = ctx.policy(None, epic_ref)
+    type_ = values["type"] if "type" in values and level == 0 else None
+    type_ = type_ or _card_type(ctx, current) or "task"
+    held = [item for item in current.get("labels") or [] if isinstance(item, str)]
+    labels = [x for x in held if x not in values.get("remove_labels", [])]
+    labels += [x for x in dict.fromkeys(values.get("add_labels", [])) if x not in labels]
+    tracked = current.get("timetracking") or {}
+    seconds = tracked.get("originalEstimateSeconds")
+    minutes = seconds // 60 if isinstance(seconds, int) and not isinstance(seconds, bool) else 0
+    estimate_problems: list[str] = []
+    if "estimate" in values:
+        _, minutes, estimate_problems = _duration(values["estimate"], "estimate")
+    required = _required_sections(policy, type_)
+    counts, sections = _parse_sections(draft.body, required) if draft.body.strip() else ({}, {})
+    changed = [*values, *(["description"] if draft.body.strip() else [])]
+    if "epic" in values and policy.data.get("title", {}).get("format") == "epic_prefix":
+        changed.append("title")
+    gaps = cardpolicy.evaluate(
+        policy,
+        {
+            "type": type_,
+            "title": values.get("title", current.get("summary") or ""),
+            "epic": values.get("epic") or current_parent.get("key"),
+            "epic_prefix": epic_prefix,
+            "labels": labels,
+            "estimate_minutes": minutes,
+            "due": values.get("due") or current.get("duedate"),
+            "assignee": values.get("assignee") or (current.get("assignee") or {}).get("accountId"),
+            "reporter": values.get("reporter") or (current.get("reporter") or {}).get("accountId"),
+            "sections": sections,
+            "changed": changed,
+        },
+        "edit",
+    )
+    if estimate_problems:
+        gaps = [gap for gap in gaps if gap["field"] != "estimate"]
+    title_gaps, section_gaps, _, other_gaps = _split_gaps(gaps)
+    if level == 0:
+        verdict.problems.extend(_title_message(gap, epic_prefix) for gap in title_gaps)
     if "title" in values and values["title"] != current.get("summary"):
         changes["summary"] = values["title"]
         before["summary"] = current.get("summary")
@@ -834,6 +975,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
 
     _edit_labels(values, current, verdict, updates, before, lines)
     _edit_estimate(values, current, verdict, changes, before, lines)
+    _say_rest(verdict, other_gaps)
+    if "estimate" in values and not estimate_problems and (warning := _padding_warning(policy)):
+        verdict.warnings.append(warning)
 
     upper = isinstance(level, int) and level >= 1
     if "sprint" in values and upper and values["sprint"] != "backlog":
@@ -842,8 +986,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         _edit_sprint(ctx, values["sprint"], current, verdict, changes, before, lines)
 
     if draft.body.strip():
-        sections = _card_type(ctx, current) or "task"
-        verdict.problems.extend(_section_problems(draft.body, sections))
+        verdict.problems.extend(_section_problems(section_gaps, counts))
         old_doc = current.get("description")
         if old_doc:
             try:
@@ -1006,6 +1149,8 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             f"the transition {chosen.get('name')!r} requires fields ({', '.join(required)}); "
             "do it by hand in Jira"
         )
+    if _destination_status(ctx, chosen.get("to") or {}) == Status.DONE:
+        _finish_problems(ctx, key, current, verdict)
     if verdict.problems:
         return
     destination = (chosen.get("to") or {}).get("name")
@@ -1024,6 +1169,32 @@ def _move(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     ]
     if _starts_work(ctx, chosen.get("to") or {}):
         _add_start_date(ctx, key, current, verdict)
+
+
+def _finish_problems(ctx: Context, key: str, current: dict, verdict: Verdict) -> None:
+    """What the card policy requires of a card that is done: a start date, time spent. What the
+    same batch sets (a start date, a worklog) counts."""
+    parent = (current.get("parent") or {}).get("key")
+    level = (current.get("issuetype") or {}).get("hierarchyLevel")
+    policy = ctx.policy(None, parent or (key if level == 1 else None))
+    required = policy.data.get("finish", {}).get("require", [])
+    field = ctx.settings.start_date_field
+    start = current.get(field) if field else None
+    if "start" in required and not field:
+        verdict.warnings.append(
+            "start_date_field is not in config.toml [tracker.jira]; the policy's start rule was "
+            "not checked"
+        )
+        start = True
+    seconds = (current.get("timetracking") or {}).get("timeSpentSeconds")
+    spent = seconds // 60 if isinstance(seconds, int) and not isinstance(seconds, bool) else 0
+    card = {
+        "start": start or key in ctx.batch_started,
+        "spent_minutes": spent or (1 if key in ctx.batch_worklogs else 0),
+    }
+    verdict.problems.extend(
+        _gap_message(gap) for gap in cardpolicy.evaluate(policy, card, "finish")
+    )
 
 
 def _transitions_to(
@@ -1112,6 +1283,7 @@ def _add_start_date(ctx: Context, key: str, current: dict, verdict: Verdict) -> 
         }
     )
     verdict.preview.append(f"Data de início: hoje, {ctx.today.strftime('%d/%m')}")
+    ctx.batch_started.add(key)
 
 
 def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:

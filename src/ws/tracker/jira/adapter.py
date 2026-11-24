@@ -266,6 +266,7 @@ class JiraTracker:
                 people=config.people,
                 identity_email=config.identity_email,
                 now=_now(),
+                config=config,
             )
         except (KeyError, TypeError, AttributeError) as error:
             raise TrackerError(f"unexpected answer from {self.name} ({error!r})") from None
