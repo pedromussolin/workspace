@@ -26,6 +26,7 @@ number of the new record.
 | [0009](0009-tracker-writes-only-the-users-cards.md) | Tracker writes limited to the user's cards | accepted | 2026-10-27 |
 | [0010](0010-epic-initiative-link-without-premium.md) | Epic-to-initiative link without the premium plan | accepted | 2026-11-16 |
 | [0011](0011-epics-and-initiatives-outside-sprints.md) | Epics and initiatives outside sprints, with due dates | accepted | 2026-11-16 |
+| [0012](0012-card-filling-rules-in-layers.md) | Card filling rules in layers | accepted | 2026-11-24 |
 
 ## Older rulings
 
