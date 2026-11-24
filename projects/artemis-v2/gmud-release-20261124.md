@@ -247,4 +247,4 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   - ajustes de 24/11 no front (`sand-4917fe3`): o aviso de lote fechado lista só os lotes (a
     contagem vinha dos avulsos e mostrava 0 no lote aberto) e o exemplo da observação no aprovar
     deixou de citar uma pessoa real; o exemplo foi conferido na tela;
-  - Produtos de teste de volta a Manual (53, 54, 55, 187, 24); esteira nova do 28 desligada.
+  - Produtos de teste de volta a Manual (53, 54, 55, 187, 24, 35); esteira nova do 28 desligada.
