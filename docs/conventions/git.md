@@ -10,7 +10,8 @@ Sync and commits in this repo.
 - No `Co-Authored-By` trailer: the commit is the user's responsibility. [hook]
 - No "Generated with" line in the message. [review]
 - Never `--no-verify`, `git commit -n` or a `core.hooksPath` override. [gate]
-- `git push` and `gh` writes go in their own short Bash call. [review]
+- `git push` and `gh` writes go in their own short Bash call: see the Bash section of
+  [`instructions/user.md`](../../instructions/user.md). [review]
 - The company-repo git rules do not apply here: no `TS-…` branches or commit prefixes, no `-sdbx`
   replication, no "never commit on master". [review]
 

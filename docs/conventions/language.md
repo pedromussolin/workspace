@@ -20,4 +20,4 @@ Which language names and content use.
 | `src/`, `tests/`, CLI commands, flags and messages | the project template content (`templates/project/`) |
 | `skills/` and `.claude/skills/` (names and `SKILL.md`) | what the automations produce for people: GMUD text, Jira issues and comments, standup |
 | `docs/specs/`, `docs/conventions/`, `docs/how-to/`, `docs/adr/`, root `README.md`, `AGENTS.md`, `CONTRIBUTING.md` and `CLAUDE.md` | commit messages |
-| config files (`names.toml`, `config.toml`), hook | |
+| config files (`names.toml`, `config.toml`), hook | the global instructions (`instructions/*.md`) |
