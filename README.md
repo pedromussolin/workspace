@@ -486,10 +486,12 @@ Protection starts after `ws setup`: a fresh clone has no git hooks. From then on
 The approval gate (`hooks/approval_gate.py`, rules in `hooks/gate/`) is a `PreToolUse` hook for
 `Bash` and `mcp__*` tools: it asks you before a write that leaves the machine (a push, a GitHub,
 GitKraken or Atlassian write, a card apply) and shows what will be sent. Two more hooks block
-commits with a co-author trailer and hook bypasses. Two session hooks only inform:
+commits with a co-author trailer and hook bypasses. Three session hooks only inform or record:
 `hooks/context_watch.py` (`UserPromptSubmit`) tells Claude to propose a handoff when the context
 passes 300k tokens and every 100k after, and `hooks/handoff_pointer.py` (`SessionStart`,
-`startup|clear|compact`) points at the handoffs of the last 7 days; both always exit 0, with a
+`startup|clear|compact`) points at the handoffs of the last 7 days; `hooks/time_activity.py`
+(`UserPromptSubmit`) appends one `activity` event (time, repo, branch, card ref taken from the
+branch) to the private time log for `ws time report`, and prints nothing; all always exit 0, with a
 10 s timeout. `ws setup` copies them all to
 `~/.claude/hooks/workspace/` (read-only files and a `manifest.json` of SHA-256 sums), reports a
 missing, stale, edited or extra file (`--check` only reports) and prints the settings JSON that
@@ -574,6 +576,10 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws names review` | Asks in the terminal about each pending word (real name, harmless, skip), then lists the files and unpushed commits that carry the real names added |
 | `ws project new <slug>` | Copies `templates/project/` into `projects/<slug>/` |
 | `ws slot [-n N] -- <cmd>` | Runs a heavy command in one of N slots (file lock), so parallel agents do not exhaust memory; the command holds the lock and gets SIGTERM, SIGHUP and SIGINT forwarded, so the slot lasts until it exits |
+| `ws time start REF [--at HH:MM]` | Opens a time interval on the card, now or today at that time (private log `timelog/<YYYY-MM>.jsonl`, append-only); several cards may be open at once; a card already open is a no-op with a note |
+| `ws time stop [REF] [--at HH:MM]` | Closes the card's open interval; without REF, closes all |
+| `ws time status` | The open intervals and today's minutes per card, as JSON |
+| `ws time report (--card REF \| --from DATE --to DATE \| --week YYYY-Www) [--drafts DIR] [--unplanned]` | Real hours per day and card from marks, hook activity, commits and the floor fill (contract `time-report` v1), minus what the tracker already has; `--drafts DIR` with `--card` writes the `worklog` drafts (and, with `--unplanned`, the `edit` with the estimate equal to the real time); writes nothing to the tracker |
 | `ws config token jira` | Reads the Jira API key from the terminal (hidden) and stores it in `~/.config/workspace/credentials` with mode 600; refuses to run outside a terminal |
 | `ws config token github` | Same for the GitHub token (`[github]` table of the same file; the other tables are kept); `ws mcp-headers github` reads it back |
 | `ws mcp-headers github` | Meant for Claude Code's `headersHelper`: prints `{"Authorization": "Bearer <token>"}` and nothing else; exit 2 without a token, or when `CLAUDE_CODE_MCP_SERVER_NAME` is unset (a guard against casual use, not a barrier: the approval gate asks before any command that names `ws mcp-headers`) |
