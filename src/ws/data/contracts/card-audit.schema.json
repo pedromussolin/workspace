@@ -1,0 +1,165 @@
+{
+  "type": "object",
+  "required": [
+    "$schema",
+    "version",
+    "cards",
+    "summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "card-audit"
+    },
+    "version": {
+      "const": 1
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "ref",
+          "title",
+          "assignee",
+          "writable",
+          "gaps"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "writable": {
+            "type": "boolean"
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "rule",
+                "field",
+                "detail",
+                "fix",
+                "severity"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "fix": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "needs": {
+                      "enum": [
+                        "input"
+                      ]
+                    }
+                  }
+                },
+                "severity": {
+                  "enum": [
+                    "required",
+                    "suggestion"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "cards",
+        "with_gaps",
+        "by_rule"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cards": {
+          "type": "integer"
+        },
+        "with_gaps": {
+          "type": "integer"
+        },
+        "by_rule": {
+          "type": "object"
+        }
+      }
+    },
+    "drafts": {
+      "type": "object",
+      "required": [
+        "folder",
+        "count",
+        "need_input",
+        "not_writable"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "need_input": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "ref",
+              "rule",
+              "field",
+              "detail"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "not_writable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
