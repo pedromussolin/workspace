@@ -78,6 +78,7 @@ HOOK_REGISTRATIONS = (
     HookRegistration("block_co_authored_by.py", "PreToolUse", "Bash", ("Bash",), HOOK_TIMEOUT),
     HookRegistration("block_hook_bypass.py", "PreToolUse", "Bash", ("Bash",), HOOK_TIMEOUT),
     HookRegistration("context_watch.py", "UserPromptSubmit", None, (), SESSION_HOOK_TIMEOUT),
+    HookRegistration("time_activity.py", "UserPromptSubmit", None, (), SESSION_HOOK_TIMEOUT),
     HookRegistration(
         "handoff_pointer.py",
         "SessionStart",
