@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ws import approval, bootstrap, humans, itemrecord, userconfig
+from ws import approval, bootstrap, cardpolicy, humans, itemrecord, userconfig
 from ws.carddraft import DraftError, parse_draft
 from ws.config import claude_settings_path, data_dir, repo_root
 from ws.identity import dev_id
@@ -379,6 +379,24 @@ def _print_check(
         "requests": requests or [],
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def run_policy(project: str | None) -> int:
+    """Prints the card policy of a project (the default and the company layer when there is no
+    project) as `{"policy": ..., "sources": ...}`: the merged document and, for each top-level
+    key, the layer that set it."""
+    try:
+        try:
+            config = userconfig.load_config()
+        except userconfig.ConfigMissing:
+            config = None
+        policy = cardpolicy.load(config, project, repo_root())
+    except (userconfig.ConfigMissing, userconfig.ConfigInvalid) as error:
+        print(f"ws card policy: {error}", file=sys.stderr)
+        return 2
+    document = {"policy": policy.data, "sources": policy.sources}
+    print(json.dumps(document, ensure_ascii=False, indent=2))
+    return 0
 
 
 def run_epics() -> int:

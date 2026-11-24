@@ -800,6 +800,12 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     check.set_defaults(handler=lambda args: card.run_check(args.draft))
     epics = commands.add_parser("epics", help="List the open epics of my open cards (JSON).")
     epics.set_defaults(handler=lambda args: card.run_epics())
+    policy = commands.add_parser(
+        "policy",
+        help="Print the card policy (JSON): how a card is filled, default, company and project.",
+    )
+    policy.add_argument("--project", metavar="SLUG", help="Add the project's own policy layer.")
+    policy.set_defaults(handler=lambda args: card.run_policy(args.project))
     preview = commands.add_parser(
         "preview",
         help="Check a draft or a folder of drafts, print the preview and the approval code.",
