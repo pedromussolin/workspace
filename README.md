@@ -117,6 +117,10 @@ label = "<short name>"
 [standup]
 repo_roots = ["~/repos"]
 stale_workdays = 3
+
+[time]
+day_floor = "8h48"
+idle_minutes = 30
 ```
 
 - `[tracker] kind` names the tracker adapter (`jira` is the only one) and is required. The old
@@ -143,6 +147,12 @@ stale_workdays = 3
   `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) when the status category alone is not enough.
 - `[standup]` is optional; the two values above are its defaults. There is no e-mail to set for
   git: each repo's own `user.email` picks the commits.
+- `[time]` is optional; the two values above are its defaults. `day_floor` is the least a working
+  day closes at (`8h48`, `8h`, `528m`; up to 24h): `ws time report` fills a closed working day up to
+  it among the planned cards, and a weekend or holiday has no floor. `idle_minutes` is the silence
+  that ends an interval of session activity. A card carrying a label listed in `estimate.unplanned_labels`
+  of the card policy (default none) is an intruder: its time counts apart and never fills the
+  floor. The time log is `~/.local/share/workspace/timelog/`.
 - The keys after `email` (and `[tracker.jira.types]`, `[tracker.jira.links]`) are read by `ws card`; a missing one
   exits 2 naming it.
   `ws card` only touches cards of `project`.

@@ -17,14 +17,18 @@ How the `ws` CLI behaves. Decision: [0006](../adr/0006-script-first.md).
 - Config lives only in `~/.config/workspace/`: `config.toml`, and the company card policy
   `card-policies/<name>.toml` that `[card] policy` names (a company name is masked in the repo, so
   that layer never enters it). [review]
+- The time log is append-only: `ws time start|stop` and the session hook add lines, nothing
+  rewrites or deletes one, and `ws time report` only reads it. [test: tests/test_timelog.py]
 - Secrets live only in `~/.config/workspace/credentials`, which the model never reads. [gate]
 - Data goes under `config.data_dir()`. Tests set `WS_DATA_DIR` and `WS_CONFIG_DIR`. [review]
 - Outside the repo there are three places, one per kind of content:
   - `~/.config/workspace/`: configuration and secrets (`config.toml`, `card-policies/<name>.toml`,
     `names.toml`, `private/<slug>.md`, `credentials`);
-  - `~/.local/share/workspace/`: local data to keep: the dictionaries, and `projects/<slug>/` for
-    what a project never puts in git (worktrees, logs, locks, deploy files, evidence with real
-    data), same slug as in the repo, created by `ws project new`, mode 700;
+  - `~/.local/share/workspace/`: local data to keep: the dictionaries, the time log
+    (`timelog/<YYYY-MM>.jsonl`, one JSON line per event, mode 600 in a folder 700, append-only),
+    and `projects/<slug>/` for what a project never puts in git (worktrees, logs, locks, deploy
+    files, evidence with real data), same slug as in the repo, created by `ws project new`, mode
+    700;
   - `~/.cache/workspace/`: what can be rebuilt. [review]
 
 ## Current behaviour

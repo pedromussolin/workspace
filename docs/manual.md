@@ -42,6 +42,32 @@ status looks behind). Write the standup from it, one line per task, the card key
 A draft whose write failed or is uncertain moves to `~/.local/share/workspace/cards/uncertain/`;
 check the card in Jira before trying again.
 
+## Time spent on a card
+
+Real hours, from evidence only, never from a plan
+([design](specs/2026-11-24-time-tracking-design.md)).
+
+1. Mark the work as it happens: `ws time start TS-123` when a card begins, `ws time stop` when you
+   stop or switch (`ws time stop TS-123` closes one card). `--at HH:MM` marks today at that local
+   time, never in the future. Several cards may be open; `ws time status` prints the open ones and
+   today's minutes per card. The session hook also records activity on a card branch, which covers
+   what you forget to mark. All of it lives in `~/.local/share/workspace/timelog/<YYYY-MM>.jsonl`
+   (private, append-only).
+2. Look at a period: `ws time report --week 2026-W48` (or `--from DATE --to DATE`). Per day and
+   card it gives the minutes by source (`marked`, `hook`, `commits`, `filled`), what the tracker
+   already holds (`logged_minutes`) and what is left to log (`to_log_minutes`). A working day
+   closes at the floor (`[time] day_floor`) among the planned cards, by their share of the day's
+   commits; an intruder card counts apart. `below_floor` and `no_evidence_minutes` are the hours
+   the evidence did not explain: mark them, or tell the model what was done. Today is never filled
+   before it is over.
+3. When a card is done: `ws time report --card TS-123 --drafts
+   ~/.local/share/workspace/cards/drafts/time-ts-123` writes one `worklog` draft per day with
+   hours to log (`TS-123-worklog-<day>.md`). A card with an unplanned label, or any card with
+   `--unplanned` (no plan came before the work), also gets `TS-123-estimate.md`: its original
+   estimate is its real time, with no padding. The folder must be new or empty.
+4. Steps 2 to 4 of "Jira card" on that folder: `ws card preview`, then `ws card apply` in your
+   terminal. Hours already logged are subtracted, so a second run never logs the same hours twice.
+
 ## End of an iteration (checkpoint)
 
 1. Update `projects/<slug>/CONTINUE.md` (`## Onde parei`, `## Próximo passo`), `decisions.md` and
