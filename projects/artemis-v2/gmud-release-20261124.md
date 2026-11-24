@@ -12,7 +12,7 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
 ## Descrição
 
 **Contexto**
-- A liquidação do Mercato Libero e da Voltis fecha lote por uma varredura externa (VM de automações),
+- A liquidação do Mercato Libero fecha lote por uma varredura externa (VM de automações),
   que sai junto com o Atlas. Esta release traz o fechamento para dentro da cessão, configurável por
   produto, e a operação passa a mexer na configuração pela tela, sem pedir ajuste no banco.
 - Lote de liquidação sem pagamento quebra a esteira de baixa, a conciliação e o "aprovar" da fila
@@ -65,7 +65,7 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
   quatro serviços.
 
 **O que não muda**
-- A varredura externa segue fechando os lotes do Mercato Libero e da Voltis até os horários por
+- A varredura externa segue fechando os lotes do Mercato Libero até os horários por
   produto serem ligados; o produto 1604 continua no agendamento fixo atual.
 - A rota legada `POST /liquidacao/` da cessão e a esteira de baixa atual (todo produto continua
   nela, porque a chave nova nasce desligada).
