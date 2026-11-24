@@ -15,6 +15,10 @@ from ws.identity import DEV_ID
 from ws.tracker import ADAPTERS, KNOWN_KINDS
 
 DEFAULT_STALE_WORKDAYS = 3
+DEFAULT_DAY_FLOOR_MINUTES = 8 * 60 + 48
+DEFAULT_IDLE_MINUTES = 30
+MAX_DAY_FLOOR_MINUTES = 24 * 60
+DURATION = re.compile(r"(?:(\d+)h(?: ?([0-5]?\d)m?)?|(\d+)m)")
 TOKEN_SERVICES = {"jira": "Jira", "github": "GitHub"}
 STORED_FIELD = "token"
 BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
@@ -38,6 +42,15 @@ class StandupConfig:
 
 
 @dataclass(frozen=True)
+class TimeConfig:
+    """`[time]`: the least a working day closes at, and the gap of silence that ends an interval
+    of session activity."""
+
+    day_floor_minutes: int = DEFAULT_DAY_FLOOR_MINUTES
+    idle_minutes: int = DEFAULT_IDLE_MINUTES
+
+
+@dataclass(frozen=True)
 class Person:
     dev_id: str
     ids: dict[str, str]
@@ -55,6 +68,7 @@ class UserConfig:
     people: dict[str, Person]
     tracker_settings: object
     card_policy: str | None
+    time: TimeConfig
 
     def __init__(
         self,
@@ -66,6 +80,7 @@ class UserConfig:
         people: dict[str, Person] | None = None,
         tracker_settings: object = None,
         card_policy: str | None = None,
+        time: TimeConfig | None = None,
     ):
         values = {
             "standup": standup,
@@ -74,6 +89,7 @@ class UserConfig:
             "people": {} if people is None else people,
             "tracker_settings": tracker_settings,
             "card_policy": card_policy,
+            "time": time or TimeConfig(),
         }
         for name, value in values.items():
             object.__setattr__(self, name, value)
@@ -190,6 +206,16 @@ def load_standup() -> StandupConfig:
     return _standup_config(_read_toml(path), path)
 
 
+def load_time() -> TimeConfig:
+    """The `[time]` settings alone; the defaults when config.toml does not exist, so marking time
+    needs no setup."""
+    path = config_dir() / "config.toml"
+    try:
+        return _time_config(_read_toml(path), path)
+    except ConfigMissing:
+        return TimeConfig()
+
+
 def load_table(name: str) -> dict:
     """The raw `[name]` table of config.toml, `{}` when the file has no such table.
 
@@ -270,6 +296,32 @@ def _card_policy(data: dict, path: Path) -> str | None:
     return name
 
 
+def _duration_minutes(text: str) -> int | None:
+    """`8h48`, `8h 48m`, `8h` or `528m` as minutes; None for any other text."""
+    found = DURATION.fullmatch(text.strip())
+    if not found:
+        return None
+    if found.group(3) is not None:
+        return int(found.group(3))
+    return int(found.group(1)) * 60 + int(found.group(2) or 0)
+
+
+def _time_config(data: dict, path: Path) -> TimeConfig:
+    """`[time] day_floor` (default 8h48) and `idle_minutes` (default 30)."""
+    table = _table(data, "time", path)
+    floor = DEFAULT_DAY_FLOOR_MINUTES
+    if "day_floor" in table:
+        text = _string(table, "day_floor", path, "time")
+        minutes = _duration_minutes(text)
+        if minutes is None or not 0 < minutes <= MAX_DAY_FLOOR_MINUTES:
+            raise ConfigInvalid(
+                f"{path}: time.day_floor must be hours and minutes like 8h48, up to 24h"
+            )
+        floor = minutes
+    idle = _optional_positive_int(table, "idle_minutes", path, "time") or DEFAULT_IDLE_MINUTES
+    return TimeConfig(day_floor_minutes=floor, idle_minutes=idle)
+
+
 def load_config() -> UserConfig:
     path = config_dir() / "config.toml"
     data = _read_toml(path)
@@ -288,6 +340,7 @@ def load_config() -> UserConfig:
         people=_people(data, path),
         tracker_settings=settings,
         card_policy=_card_policy(data, path),
+        time=_time_config(data, path),
     )
 
 
