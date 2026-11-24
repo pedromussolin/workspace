@@ -210,14 +210,12 @@ def test_edit_labels_and_fields_travel_in_one_request(world, capsys):  # noqa: F
     }
 
 
-@pytest.mark.parametrize(
-    ("front", "field"),
-    [({"add_labels": ["a"]}, "labels"), ({"estimate": "1h"}, "timetracking")],
-)
-def test_edit_names_a_field_missing_from_the_edit_screen(world, capsys, front, field):  # noqa: F811
-    world.set_edit_screen("TS-101", without=(field,))
+def test_edit_names_labels_missing_from_the_edit_screen(world, capsys):  # noqa: F811
+    world.set_edit_screen("TS-101", without=("labels",))
 
-    assert problems(edit_draft(**front), capsys) == f"the edit screen of TS-101 has no {field}"
+    message = problems(edit_draft(add_labels=["a"]), capsys)
+
+    assert message == "the edit screen of TS-101 has no labels"
 
 
 def test_edit_estimate_sets_the_original_estimate_and_shows_the_old_one(world, capsys):  # noqa: F811
@@ -238,6 +236,15 @@ def test_edit_estimate_without_a_current_one(world, capsys):  # noqa: F811
     passing(path, capsys)
 
     assert "  Estimativa original: (nenhuma) -> 45m\n" in preview(path, capsys)[0]
+
+
+def test_edit_estimate_goes_even_when_the_edit_screen_does_not_list_it(world, capsys):  # noqa: F811
+    world.set_edit_screen("TS-101", without=("timetracking",))
+    path = edit_draft(estimate="2h 30m")
+
+    verdict = passing(path, capsys)
+
+    assert body_of(verdict) == {"fields": {"timetracking": {"originalEstimate": "2h 30m"}}}
 
 
 def test_edit_estimate_equal_to_the_current_one_changes_nothing(world, capsys):  # noqa: F811

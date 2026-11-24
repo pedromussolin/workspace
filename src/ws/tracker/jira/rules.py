@@ -867,6 +867,10 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             lines.extend(f"  {line}" for line in adf_text(new_doc).splitlines())
 
     for name in (*changes, *updates):
+        # Jira's editmeta leaves `timetracking` out even where the card view shows the
+        # estimate and a PUT sets it (checked on the real site on 2026-11-24).
+        if name == _ESTIMATE_SCREEN:
+            continue
         if name not in meta:
             verdict.problems.append(f"the edit screen of {key} has no {name}")
     if not changes and not updates and not links and not verdict.problems:
