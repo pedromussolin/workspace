@@ -1,9 +1,13 @@
 # GMUD — release de 24/11/2026 (Artemis V2: fechamento de lotes de liquidação)
 
-> **Status (24/11/2026):** rascunho, PRs de produção abertas. Deploy previsto para 24/11, à noite. Pendências marcadas
+> **Status (24/11/2026):** criada no portal como GDM-374; janela de 24/11, das 17:30 às 19:30. Pendências marcadas
 > "a confirmar"; testes do usuário na sandbox concluídos (A6 em 24/11).
 
 Tipo: Mudança programada
+
+## Início / Fim
+
+24/11/2026, das 17:30 às 19:30 (horário de Brasília); previsão de terminar às 18:30.
 
 ## Summary
 
@@ -83,8 +87,11 @@ High
 
 ## Link Tarefa
 
-`<link do Jira>` das 16 tarefas: TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571,
-TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537.
+Filtro do Jira com as 16 tarefas (o link completo está na GDM-374): TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571, TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537.
+
+## Há mudança no banco?
+
+Sim
 
 ## Risco
 
@@ -103,8 +110,9 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537
   `errado` (reprocessável) antes do deploy da cessão, por SQL revisado pela DBA (passo 6). O
   produto 15 não tem lote de cessão nem desembolso automáticos.
 - **Migration esperando trava na `produto_config`** (inclui colunas e faz um UPDATE em todas as
-  linhas) → leituras da tabela ficam na fila atrás dela → segura: janela noturna; acompanhar o Job
-  de migration; DBA de prontidão (a confirmar). A migration não define `lock_timeout` (a confirmar).
+  linhas) → leituras da tabela ficam na fila atrás dela; as migrations da cessão rodam numa
+  transação só, sem `lock_timeout` → segura: janela às 17:30, depois do corte das 14h e da rotina
+  das 16h; acompanhar o Job de migration; DBA na janela (roda o SQL do passo 6).
 - **Pods novos antes do fim da migration** → leitura de coluna inexistente na `produto_config` →
   na sandbox, em 23/11, nenhum erro de coluna ou tabela inexistente durante a migration → segura:
   conferir a revisão do Alembic antes do BFF e do portal (passo 6).
@@ -114,7 +122,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537
   mapeamento das colunas novas nos produtos de lá, os agendamentos com os ids de produto do
   principal, a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê e os produtos que fecham pela
   rotina fixa das 16h (flag `baixa_por_agendamento`), que sai.
-- **Disparo do agendador perdido ou travado** (sandbox, 23/11) **[C]**: o despacho reaproveita a
+- **Disparo do agendador perdido ou travado** (sandbox, 23/11): o despacho reaproveita a
   conexão com o RabbitMQ, e depois de ~30 min parada ela é derrubada em silêncio no caminho. Sem
   confirmação de publicação, a mensagem some (execução das 17:00 UTC publicada e nunca recebida);
   com `CELERY_CONFIRM_PUBLISH=1` no beat (teste a partir das 17:43 UTC), o beat trava ~16 min esperando a
@@ -164,18 +172,21 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537
 2. Réplica, somente leitura: repetir a conferência dos produtos automáticos com
    `liquidacao_automatico` desligada (esperado: 22, 26, 27, 28, 39, 42) e a das flags incoerentes
    com a modalidade (esperado: nenhuma linha). Se a lista mudou, decidir produto a produto antes.
-3. DBA: permissões dos objetos novos (schema da cessão a confirmar), inclusive leitura da
+3. DBA: resumo dos objetos novos e SQL da TS-5537 enviados em 24/11; ela confirma o Alembic da
+   cessão em `b8e41f6c2a93` antes da janela. As permissões dos objetos novos só podem ser dadas
+   depois de cada migration (passos 5 e 6), inclusive a leitura da
    `email_dispatch.template_recipients` para os usuários de consulta (na sandbox ela nasceu sem).
 
 **Janela (shared → cessão → BFF → portal)**
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
 5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `5e7b2d94a1c8`.
+   DBA: permissões da `email_dispatch.template_recipients`.
 6. **Cessão:** antes da tag, a DBA roda o SQL da TS-5537 (19 contratos do produto 15 de
    `liberando` para `errado`: prévia, transação que aborta se não forem 19, log em cada contrato e
    conferência). Depois, um commit no argocd com a tag nova e o worker `liquidacao-baixa-isolada` no
    `asgard-production`; o `viva-production` não muda. Sem `CELERY_CONFIRM_PUBLISH` no beat
    (ver o risco do disparo do agendador). Conferir:
-   - Alembic em `a4f7c2d9e1b6` (pela réplica);
+   - Alembic em `a4f7c2d9e1b6` (pela réplica); DBA: permissões das 4 tabelas novas;
    - `produto_config` com o gatilho e o agrupamento preenchidos conforme o mapeamento;
    - beat: "Agendamentos despachados" no próximo :00 ou :30, e "Backstop de remessas automáticas
      concluído" no worker. Na partida o beat costuma reiniciar 1 ou 2 vezes por falta de
