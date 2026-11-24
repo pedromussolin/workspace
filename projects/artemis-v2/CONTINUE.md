@@ -12,6 +12,21 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 24/11/2026
 
+**Passagem de chat (24/11, tarde):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-ts5612-sandbox-e-deploy-24-11.md`
+(TS-5612 na sandbox e deploy da release de 24/11).
+
+- TS-5612 na release: sai a rotina fixa do beat que fechava às 16h todo produto `agendado`; commits
+  `7bef8f777` e `8cccc51e8` na `release/20261124` da cessão (só local); PR #2795 da sandbox
+  esperando o merge. Suíte: 6689 passed, 207 skipped, 0 falhas.
+- Agendador: `CELERY_CONFIRM_PUBLISH` saiu do beat da sandbox (argocd `a1b8c3b`); a prova do A4
+  sem ela está pendente (`scripts/a4_despacho.py`, pasta privada).
+- PRs de produção: branches prontas na máquina e os 4 rascunhos revisados; falta pôr a TS-5612 no
+  rascunho da cessão e na GMUD.
+- Produtos: o 15 é o primeiro do Mercato Libero no horário, à mão, depois do deploy; o 1604 liga no
+  agendamento novo logo depois do deploy. Tabela de mudanças na pasta privada
+  (`migracao-produtos-fluxo-novo.md`).
+
 **Passagem de chat (24/11, manhã):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-release-24-11-sandbox-validada.md`
 (release de 24/11 com a sandbox validada).
@@ -486,10 +501,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` nos quatro
-   repos (a da cessão com a Tarefa 24 e a migration `a4f7c2d9e1b6`, que vai no resumo à DBA); passos
-   1 a 3 da GMUD antes da janela; na janela, shared → cessão → BFF → portal com `/deploy-check` por
-   serviço. Depois, o A5 pela réplica e os cards da release.
+1. **Deploy de 24/11:** conferir o agendador da sandbox (`scripts/a4_despacho.py`); depois do merge
+   da #2795, tag da sandbox e teste da TS-5612; TS-5612 no rascunho da cessão e na GMUD; publicar as
+   4 PRs de produção; janela shared → cessão → BFF → portal com `/deploy-check`; depois, ligar o 1604
+   e o 15 pela tela, o A5 pela réplica e os cards.
 2. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
 3. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
