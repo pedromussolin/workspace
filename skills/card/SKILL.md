@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to align the project items with the tracker ("reorganizar", "sincronizar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
+description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to align the project items with the tracker ("reorganizar", "sincronizar"), to audit how the cards are filled ("auditar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
 ---
 
 # Card
@@ -177,6 +177,38 @@ branch.
 7. `undo` (git lines that revert the branches made) is offered only after an exit other than 0, or
    when the user wants to drop the task; never after a successful start. Run it only on the
    user's yes.
+
+## Audit (`/card auditar`)
+
+Finds the cards that miss what the card policy asks (title, sections, estimate, due date,
+category labels, start date and time spent of a done card), drafts what the code can compute and
+fills the rest with the user's help. Reads only; the tracker is written by the apply.
+
+1. Run `ws card audit --drafts ~/.local/share/workspace/cards/drafts/audit-<YYYY-MM-DD>/`. Add
+   `--who me|DEV_ID` (repeatable; `ws people add EMAIL` prints a colleague's id) and `--sprint active|next|NAME` only
+   when the user's words ask for other people or another sprint, or `--keys REF,REF` for named
+   cards. It prints one JSON object. Exit 1: the folder exists and is not empty (use a new name)
+   or an argument is wrong; exit 2 and 3 as in "Exit codes".
+2. Show the user, in PT-BR and short: how many cards were audited and how many have gaps; the
+   gaps by rule in plain words (`summary.by_rule`); how many drafts were written (`drafts.count`);
+   and the cards in `drafts.not_writable` (the user is not their assignee or reporter), which only
+   the user can change by hand in the tracker. A gap with `severity` `suggestion` is a hint, not
+   a failure.
+3. Fill each `drafts.need_input` entry (`ref`, `rule`, `field`, `detail`), one draft per card:
+   propose the value from the card's text, the history of the code of the task and the rule's
+   `detail`; ask the user only what only they know, such as the hours really spent or the day a
+   task really started. Never invent either. The draft of a card with a computed label already
+   exists (`<ref>.md`, `op = "edit"`): add the keys to it, or create it with `op = "edit"` and
+   `key`. Keys by `field`: `title`, `estimate`, `due`, `start`, `epic`, `add_labels` (a category
+   with no computed value), and the body for `sections` (the body replaces the whole description,
+   so start from the card's current text and keep what is there). `time_spent` goes in its own
+   `worklog` draft (`<ref>-worklog.md`, `time` and `day`) and `links` (a bug with no cause) in its
+   own `link` draft (`<ref>-link.md`, `caused_by`); propose the cause only when the code makes it
+   clear, otherwise leave it and say so.
+4. Run `ws card check` on every draft of the folder and fix each until `ok` is true.
+5. Steps 3 and 4 of "Steps": one preview of the folder, one approval. Handle an exit 1 of the
+   preview as in step 6 of "Steps" (Sync). Afterwards, `ws card audit --keys REF,REF` on the
+   changed cards confirms the gaps are gone (read only).
 
 ## The draft
 
