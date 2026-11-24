@@ -228,6 +228,21 @@ class JiraClient:
     def issue(self, key: str, fields: list[str]) -> dict:
         return self.get(f"/rest/api/3/issue/{_segment(key)}", {"fields": ",".join(fields)})
 
+    def worklogs(self, key: str) -> list[dict]:
+        """The worklogs of an issue, every page, as Jira gives them."""
+        path = f"/rest/api/3/issue/{_segment(key)}/worklog"
+        logs: list[dict] = []
+        for _ in range(MAX_META_PAGES):
+            page = self.get(path, {"startAt": str(len(logs)), "maxResults": str(PAGE_SIZE)}) or {}
+            got = page.get("worklogs")
+            if not isinstance(got, list):
+                break
+            logs.extend(got)
+            total = page.get("total")
+            if not got or not isinstance(total, int) or len(logs) >= total:
+                break
+        return logs
+
     def transitions(self, key: str) -> list[dict]:
         page = self.get(
             f"/rest/api/3/issue/{_segment(key)}/transitions", {"expand": "transitions.fields"}

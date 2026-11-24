@@ -6,7 +6,7 @@ from ws.taskmodel import Status
 from ws.tracker import write
 from ws.tracker.errors import TrackerError
 from ws.tracker.jira.adapter import JIRA_CAPABILITIES
-from ws.tracker.port import CAPABILITIES, Card, CardQuery
+from ws.tracker.port import CAPABILITIES, Card, CardQuery, Worklog
 
 NEEDS = {
     "sprint": "sprint",
@@ -75,6 +75,7 @@ class FakeTracker:
         descriptions=None,
         kind="jira",
         sprints=SPRINTS,
+        worklogs=None,
     ):
         self.kind = kind
         self._sprints = list(sprints)
@@ -85,6 +86,7 @@ class FakeTracker:
         self._names = names or {}
         self._today = today
         self._descriptions = descriptions or {}
+        self._worklogs: dict[str, list[Worklog]] = worklogs or {}
         self.reads: list[str] = []
         self.records: dict[str, dict] = {}
         self.sent: list[dict] = []
@@ -137,6 +139,9 @@ class FakeTracker:
 
     def description(self, ref: str) -> str | None:
         return self._descriptions.get(ref) or None
+
+    def worklogs(self, ref: str) -> list[Worklog]:
+        return list(self._worklogs.get(ref, []))
 
     def plan(self, entries: list[dict]) -> dict:
         taken = set(self._cards) | set(self.records)

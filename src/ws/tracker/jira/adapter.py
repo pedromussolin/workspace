@@ -12,7 +12,7 @@ from ws.tracker.jira import client as jira
 from ws.tracker.jira import discover, writer
 from ws.tracker.jira.client import JiraClient, JiraError, SiteRefused
 from ws.tracker.jira.settings import JiraConfig
-from ws.tracker.port import Card, CardQuery, Link
+from ws.tracker.port import Card, CardQuery, Link, Worklog
 from ws.userconfig import UserConfig
 
 JIRA_CAPABILITIES = frozenset(
@@ -243,6 +243,26 @@ class JiraTracker:
         except (TypeError, AttributeError) as error:
             raise TrackerError(str(error)) from None
         return text or None
+
+    def worklogs(self, ref: str) -> list[Worklog]:
+        self._require()
+        try:
+            logs = self._client.worklogs(ref)
+        except JiraError as error:
+            if error.status == 404:
+                return []
+            raise TrackerError(str(error)) from None
+        try:
+            return [
+                Worklog(
+                    day=date.fromisoformat(item["started"][:10]),
+                    minutes=round(item["timeSpentSeconds"] / 60),
+                    author=(item.get("author") or {}).get("accountId") or "",
+                )
+                for item in logs
+            ]
+        except (KeyError, TypeError, ValueError, AttributeError) as error:
+            raise TrackerError(f"unexpected worklog answer from {self.name} ({error!r})") from None
 
     def list_tasks(self, since: date, role: str) -> dict:
         try:

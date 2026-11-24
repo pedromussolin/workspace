@@ -27,6 +27,7 @@ __all__ = [
     "Tracker",
     "TrackerError",
     "TrackerSetup",
+    "Worklog",
     "Writer",
     "open_tracker",
     "open_writer",
@@ -73,6 +74,15 @@ class Card:
 
 
 @dataclass(frozen=True)
+class Worklog:
+    """Time logged on a card: the day it was logged for, in minutes, by a tracker account."""
+
+    day: date
+    minutes: int
+    author: str
+
+
+@dataclass(frozen=True)
 class CardQuery:
     """`sprint` is "active" (the board's open sprint), "next" (its earliest future sprint) or the
     exact name of a sprint; `assignees` are tracker account ids and, when given, say whose cards
@@ -107,6 +117,10 @@ class Tracker(Protocol):
 
     def description(self, ref: str) -> str | None:
         """The card description as plain text, headings as `## `; None when empty or absent."""
+        ...
+
+    def worklogs(self, ref: str) -> list[Worklog]:
+        """Every worklog of the card, whoever logged it; an absent card has none."""
         ...
 
 
