@@ -150,9 +150,10 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 
 **Antes da janela**
 1. Parameter Store de produção da cessão: criar `APL_SHARED_SERVICE_URL` (tipo `String`, mesmo
-   valor do parâmetro de URL do shared no BFF) e acrescentar `liquidacao_baixa_isolada_celery=<N>` à
-   `CONCORRENCIA_POR_FILA`. Conferir pelo nome. Sem a primeira, o pod da cessão não passa na
-   checagem de variáveis e não sobe.
+   valor do parâmetro de URL do shared no BFF) e acrescentar `liquidacao_baixa_isolada_celery=2` à
+   `CONCORRENCIA_POR_FILA`. Sem a primeira, o pod da cessão não passa na checagem de variáveis e
+   não sobe. **Feito em 24/11**, com `APL_CREDIT_WHITELABEL_URL` (endereço do portal, para os links
+   dos e-mails); conferido pelo nome e pelo valor.
 2. Réplica, somente leitura: repetir a conferência dos produtos automáticos com
    `liquidacao_automatico` desligada (esperado: 22, 26, 27, 28, 39, 42) e a das flags incoerentes
    com a modalidade (esperado: nenhuma linha). Se a lista mudou, decidir produto a produto antes.
