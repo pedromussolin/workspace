@@ -1,6 +1,6 @@
 ---
 name: card
-description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to align the project items with the tracker ("reorganizar", "sincronizar"), to audit how the cards are filled ("auditar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
+description: Creates and updates tracker cards the user can write (the user is the card's assignee or reporter) (create, edit, move to a status, comment, log work, link two cards) in the user's card style, with a preview and an approval prompt before any write, through the `ws card` commands. Use when the user asks to create, edit, move, comment on, log work on or link a card, to start a task ("iniciar TS-5431": branches and the move to in progress), to log the hours of a card ("horas", "tempo gasto"), to align the project items with the tracker ("reorganizar", "sincronizar"), to audit how the cards are filled ("auditar"), for the daily's "para aplicar", or when the user types /card, for example "/card cria um card para ...", "/card mover TS-5431 para em validação". The model may start it by itself; every write still waits for the user's approval box.
 ---
 
 # Card
@@ -76,7 +76,8 @@ waits for the user's yes.
      "concluída", `cancelled` "cancelada".
    - No `moves`: say so and stop.
    - Otherwise run `ws board drafts --board ~/.local/share/workspace/board/board.json`; it prints
-     `{"folder", "count"}`. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
+     `{"folder", "count"}`. For each move to a done status, follow "Done" (the time report into
+     that `folder`) before the preview. Then steps 3 (preview of that `folder`) and 4 (apply it): one preview,
      one approval box for all moves. When the preview exits 1, it lists the failing drafts by file
      name: `mv` exactly those files to `<folder>-refused/` (next to the sync folder, inside
      `~/.local/share/workspace/cards/drafts/`; `mkdir -p` first), tell the user, in PT-BR, which
@@ -127,9 +128,9 @@ Items without an epic are not drafted: `by_hand` says so; set `epic` in the item
 ## Start (`/card iniciar TS-N`)
 
 Prepares the work on a task: a branch `<kind>/TS-N-<slug>` in each repo of the task, and the move of
-the card to in progress (with the start date). Git changes only the branches; the card changes
-only through the preview and the apply below. Never push, never commit and never create a `-sdbx`
-branch.
+the card to in progress (with the start date), and opens the time of the card (`ws time start`).
+Git changes only the branches; the card changes only through the preview and the apply below.
+Never push, never commit and never create a `-sdbx` branch.
 
 1. Run `ws card start TS-N`. Add `--repo NAME` (repeatable), `--kind K`, `--desc SLUG`,
    `--worktree` (the branch goes to its own folder, the current checkout stays as is) or
@@ -161,14 +162,17 @@ branch.
    card is left as is; the start-date setting is missing in `config.toml`), the card
    is already in progress with a start date, or there is nothing to change. Name the cause from the
    `warnings` and the card's status. A warning "removed start-TS-N.md from an earlier run" means
-   an old draft that is no longer needed was deleted: say so in one line. Stop.
+   an old draft that is no longer needed was deleted: say so in one line. The work still begins,
+   so run `ws time start TS-N` as in step 5 and say the time it opened. Stop.
    With `--dry-run`, `preview`, `code`, `draft` and `apply` are null: show the plan and
    `card_change`, and say nothing was changed. There is no apply step.
 5. Otherwise run the `apply` command exactly as printed, as its own Bash call (`ws card apply
    <draft> --approve <CODE>`). The approval box is the user's yes (step 4 of "Steps"); never
    run it in the same command line as another command, and never ask for a yes in chat instead.
    Afterwards give the link and say what changed: for `card_change` `move`, that the card moved
-   to in progress; for `start`, only that the start date was set.
+   to in progress; for `start`, only that the start date was set. Once the apply succeeded, run
+   `ws time start TS-N` as its own Bash call and say, in PT-BR, the time it opened ("Horas do
+   TS-N: aberto às 14:05"); the time log is local, so there is no box for it.
 6. **Exit 1 after branches were made**: `ws card preview` refused the draft. `problems` says the
    branches stay and then lists the preview's reasons. Show `preview` exactly as printed, the
    `repos` and the `undo` lines. When the reason is a start date after the due date, tell the user
@@ -209,6 +213,47 @@ fills the rest with the user's help. Reads only; the tracker is written by the a
 5. Steps 3 and 4 of "Steps": one preview of the folder, one approval. Handle an exit 1 of the
    preview as in step 6 of "Steps" (Sync). Afterwards, `ws card audit --keys REF,REF` on the
    changed cards confirms the gaps are gone (read only).
+
+## Done (a move to a done status)
+
+A card that goes to a done status carries its real hours (`finish.require`): the time comes from
+evidence, never from a plan. The `worklog` drafts are built by `ws time report`, so the hours go
+in the same preview and the same approval as the move. Rules of the report:
+`docs/specs/2026-11-24-time-tracking-design.md`.
+
+1. Before the preview, for each card that goes to done (also the done moves of a sync): write
+   the `move` draft in its folder, then run
+   `ws time report --card TS-N --drafts <folder of the move>`. Ask the user once, before running,
+   whether the card had a plan made before the work started, unless the card already carries one of
+   the policy's unplanned labels (`ws card policy`; the report applies the label by itself). No
+   plan (an intruder, a card opened after the work): add `--unplanned`. The report then also drafts
+   an `edit` with `estimate` equal to the real time, without padding. With a plan, the original
+   estimate stays the plan plus the policy's padding and is not touched here.
+2. The report prints JSON and writes one `worklog` draft per day with time to log (`day`, `time`);
+   it never writes to the tracker. Show the per-day table first, in PT-BR and short: date, hours
+   per card, where they came from (`sources`: marcado, hook, commits, preenchido) and the total to
+   log; say so when a day is `below_floor`.
+3. Any `no_evidence_minutes` is a question to the user ("No dia 20/11 sobraram 1h20 sem
+   evidência: foram em qual card, ou ficam de fora?"). Put in a draft only what the user answers;
+   what they leave out is not logged. Never log time without evidence: marks, hook activity,
+   commits or the user's word.
+4. Run `ws card check` on the folder, then steps 3 and 4 of "Steps": one preview with the move and
+   the worklogs (and the unplanned estimate), one approval.
+
+## Time on a card (horas reais)
+
+The real hours of a card are marked while the work happens and logged when the card is done (see
+"Done"). In any chat, with or without this skill started:
+
+- When work on a card begins, run `ws time start TS-N` (its own Bash call); when it stops, or the
+  chat switches to another card, run `ws time stop TS-N`. Several cards may be open at once;
+  `ws time status` shows what is open.
+- The session hook `hooks/time_activity.py` records activity on the card of the current branch at
+  each prompt, as a safety net for a start or a stop that was missed. It does not replace the marks.
+- Estimates follow rule 2 of the spec: padding only over a plan made before the work; a card with
+  no plan gets an estimate equal to the real time.
+- Never invent, round or "even out" hours; the user's word counts as evidence only when they say
+  the time.
 
 ## The draft
 
