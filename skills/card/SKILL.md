@@ -185,9 +185,9 @@ A Markdown file with TOML front matter between `+++` lines. Unknown keys are an 
 
 | `op` | Front matter | Body |
 |---|---|---|
-| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it and the tracker ties it by parent, not by a link); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; never on an epic or an initiative; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); no `start` | `# <title>` then the sections |
-| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint, the only value for an epic or an initiative) | optional new description |
-| `link` | `key`; any of `blocks`, `blocked_by`, `relates` (lists of keys) | none |
+| `create` | `item` (the item's repo-relative path; its `card` is written back after the apply); `type`, `priority`; `epic` (card types; refused for `epic`/`initiative`); `parent` (an epic only: its initiative, and only when the epic create screen has it and the tracker ties it by parent, not by a link); `assignee`, `reporter` (`me` or `dev-` + 10 hex, default `me`); `sprint` (absent = none; never on an epic or an initiative; `"active"`: the board's active sprint; `"next"`: its next sprint; or the exact name of an open sprint; `"backlog"` is for an edit only); `due` (optional, required with a sprint); `labels` (list of strings, none with a space); `estimate` (the original estimate: `10h`, `2h 30m`, `45m`); no `start` | `# <title>` then the sections |
+| `edit` | `key`; any of `title`, `type` (one of the five card types, on a card), `priority`, `start`, `due`, `epic` (on a card), `parent` (on an epic; never with `epic`), `assignee`, `reporter`, `sprint` (`"active"`: the board's active sprint; `"next"`: its next sprint; the exact name of an open sprint; `"backlog"`: out of its open sprint, the only value for an epic or an initiative), `add_labels`, `remove_labels` (lists; never a replace of the whole list, and a label cannot be in both; one already there or already absent is skipped), `estimate` (`10h`, `2h 30m`, `45m`) | optional new description |
+| `link` | `key`; any of `blocks`, `blocked_by`, `relates`, `causes`, `caused_by` (lists of keys; `caused_by`: the card is caused by the listed ones, `causes` is its opposite; both need a `causes` link type in the config) | none |
 | `move` | `key`; exactly one of `to` (target status name) or `status` (one of `todo`, `in_progress`, `review`, `validation`, `ready_deploy`, `blocked`, `done`, `cancelled`) | none |
 | `comment` | `key` | the comment, Markdown |
 | `worklog` | `key`, `time` (`2h`, `30m`, `1h 30m`), optional `day` | optional comment |
@@ -234,6 +234,28 @@ Trecho do log do erro, sem dado de cliente.
 
 ## Pronto quando
 - O filtro continua aplicado ao voltar para a aba.
+```
+
+A category added, one taken out and the original estimate set, on an existing card:
+
+```text
++++
+op = "edit"
+key = "TS-5431"
+add_labels = ["planejado"]
+remove_labels = ["outro"]
+estimate = "10h"
++++
+```
+
+A card caused by another one, for example a bug that comes from a change:
+
+```text
++++
+op = "link"
+key = "TS-5431"
+caused_by = ["TS-5400"]
++++
 ```
 
 A card taken out of its sprint, back to the backlog:

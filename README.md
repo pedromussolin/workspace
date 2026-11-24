@@ -90,6 +90,7 @@ initiative = "<issue type id>"
 [tracker.jira.links]
 blocks = "<link type name>"
 relates = "<link type name>"
+causes = "<link type name>"   # outward "causes", inward "is caused by"; only for a causes/caused_by link
 
 [tracker.jira.status_overrides]
 "Tarefas pendentes" = "todo"
@@ -122,7 +123,7 @@ stale_workdays = 3
   `[jira]` table still loads, with a deprecation line on stderr; move it under
   `[tracker.jira]`. Both tables at once are refused.
 - `[tracker.jira.types]` maps each neutral card type to the id of the issue type in the project, and
-  `[tracker.jira.links]` maps `blocks` and `relates` to the link type name. `[tracker.jira] issue_type` was
+  `[tracker.jira.links]` maps `blocks`, `relates` and `causes` to the link type name (`causes` is needed only by a draft with `causes` or `caused_by`). `[tracker.jira] issue_type` was
   replaced by `[tracker.jira.types]` and is refused: delete the `issue_type` line from `[tracker.jira]`, then
   run `ws tracker discover` and paste its output into `config.toml`.
 - `[tracker.jira] premium` (`true` or `false`, default `false`): with the premium plan an epic's `parent` sets its initiative as the parent field; without it, `parent` on an epic edit adds a link.
