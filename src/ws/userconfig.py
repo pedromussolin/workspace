@@ -18,6 +18,7 @@ DEFAULT_STALE_WORKDAYS = 3
 TOKEN_SERVICES = {"jira": "Jira", "github": "GitHub"}
 STORED_FIELD = "token"
 BARE_KEY = re.compile(r"[A-Za-z0-9_-]+")
+POLICY_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*")
 
 
 class ConfigMissing(Exception):
@@ -53,6 +54,7 @@ class UserConfig:
     tracker_kind: str | None
     people: dict[str, Person]
     tracker_settings: object
+    card_policy: str | None
 
     def __init__(
         self,
@@ -63,6 +65,7 @@ class UserConfig:
         tracker_kind: str | None = None,
         people: dict[str, Person] | None = None,
         tracker_settings: object = None,
+        card_policy: str | None = None,
     ):
         values = {
             "standup": standup,
@@ -70,6 +73,7 @@ class UserConfig:
             "tracker_kind": tracker_kind,
             "people": {} if people is None else people,
             "tracker_settings": tracker_settings,
+            "card_policy": card_policy,
         }
         for name, value in values.items():
             object.__setattr__(self, name, value)
@@ -256,6 +260,16 @@ def _old_jira_settings(data: dict, kind: str | None, path: Path) -> object:
     return adapter.parse_settings(_table(data, "jira", path), path, "jira")
 
 
+def _card_policy(data: dict, path: Path) -> str | None:
+    """`[card] policy`: the name of the company card policy file, None when it is not set."""
+    name = _optional_string(_table(data, "card", path), "policy", path, "card")
+    if name is not None and not POLICY_NAME.fullmatch(name):
+        raise ConfigInvalid(
+            f"{path}: card.policy must be a file name of lowercase letters, digits, - and _"
+        )
+    return name
+
+
 def load_config() -> UserConfig:
     path = config_dir() / "config.toml"
     data = _read_toml(path)
@@ -273,6 +287,7 @@ def load_config() -> UserConfig:
         tracker_kind=kind,
         people=_people(data, path),
         tracker_settings=settings,
+        card_policy=_card_policy(data, path),
     )
 
 
