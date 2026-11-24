@@ -254,6 +254,15 @@ def test_a_cancelled_card_is_left_out(tracker, capsys):
     assert "TS-6" not in [item["ref"] for item in document["cards"]]
 
 
+def test_an_epic_in_the_selection_is_left_out(tracker, capsys):
+    tracker()
+
+    code, document, _ = audit(capsys, "--keys", "TS-100,TS-1")
+
+    assert code == 0
+    assert [item["ref"] for item in document["cards"]] == ["TS-1"]
+
+
 def test_a_bug_without_a_cause_link_gets_the_suggestion(tracker, capsys):
     tracker()
 

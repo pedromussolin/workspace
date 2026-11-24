@@ -278,7 +278,7 @@ def report(auditor: Auditor, cards: list[Card]) -> tuple[dict, list[tuple[Card, 
     found = [
         (card, auditor.audit(card))
         for card in sorted(cards, key=lambda item: _ref_order(item.ref))
-        if card.status != Status.CANCELLED
+        if card.status != Status.CANCELLED and card.level == 0
     ]
     by_rule: dict[str, int] = {}
     for _, entry in found:
