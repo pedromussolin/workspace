@@ -74,9 +74,10 @@ class Card:
 
 @dataclass(frozen=True)
 class CardQuery:
-    """`sprint` is "active" (the board's open sprint) or the exact name of a sprint; `assignees`
-    are tracker account ids and, when given, say whose cards are asked for instead of `role`.
-    With `parent_in` empty, the other fields alone select the cards; with none set, no card."""
+    """`sprint` is "active" (the board's open sprint), "next" (its earliest future sprint) or the
+    exact name of a sprint; `assignees` are tracker account ids and, when given, say whose cards
+    are asked for instead of `role`. With `parent_in` empty, the other fields alone select the
+    cards; with none set, no card."""
 
     parent_in: tuple[str, ...] = ()
     role: str = "all"

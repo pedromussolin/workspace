@@ -116,6 +116,7 @@ def test_every_schema_pins_version_and_is_closed():
         "observe-result",
         "observe-run",
         "observe-status",
+        "card-audit",
         "card-policy",
         "card-write",
         "card-plan",
@@ -237,6 +238,28 @@ VALID = {
         "closed": "2026-12-16",
         "problems": [],
         "warnings": [],
+    },
+    "card-audit": {
+        "$schema": "card-audit",
+        "version": 1,
+        "cards": [
+            {
+                "ref": "TS-5",
+                "title": "[group] - text",
+                "assignee": None,
+                "writable": True,
+                "gaps": [
+                    {
+                        "rule": "categories.tag.derive",
+                        "field": "labels",
+                        "detail": "d",
+                        "fix": {"value": "BIG"},
+                        "severity": "required",
+                    }
+                ],
+            }
+        ],
+        "summary": {"cards": 1, "with_gaps": 1, "by_rule": {"categories.tag.derive": 1}},
     },
     "card-policy": {"version": 1, "title": {"format": "subgroup"}},
     "card-write": {

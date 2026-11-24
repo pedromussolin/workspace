@@ -123,6 +123,9 @@ class FakeTracker:
         return found
 
     def _in_sprint(self, item: Card, sprint: str) -> bool:
+        if sprint == "next":
+            future = [entry for entry in self._sprints if entry["state"] == "future"]
+            sprint = min(future, key=lambda entry: entry["start"])["name"] if future else ""
         if sprint != "active":
             return item.sprint == sprint
         return any(

@@ -189,7 +189,7 @@ class JiraTracker:
             jira.assignees_jql(query.assignees) if query.assignees else jira.role_jql(query.role)
         )
         if query.sprint:
-            clauses.append(jira.sprint_jql(query.sprint))
+            clauses.append(jira.sprint_jql(self._sprint_name(query.sprint)))
         if query.open_only:
             clauses.append("statusCategory != Done")
         try:
@@ -200,6 +200,24 @@ class JiraTracker:
         for item in found:
             self._cards.setdefault(item.ref, item)
         return found
+
+    def _sprint_name(self, sprint: str) -> str:
+        """`next` is the board's earliest future sprint, by name; `active` and a name stay."""
+        if sprint != "next":
+            return sprint
+        if not self._settings.board_id:
+            raise TrackerSetup("config.toml [tracker.jira] is missing board_id for sprint next")
+        try:
+            sprints = self._client.open_sprints(self._settings.board_id)
+        except (JiraError, AttributeError) as error:
+            raise TrackerError(str(error)) from None
+        future = [item for item in sprints if item.get("state") == "future" and item.get("name")]
+        if not future:
+            raise TrackerError("the board has no future sprint for sprint next")
+        first = min(
+            future, key=lambda item: (not item.get("startDate"), item.get("startDate") or "")
+        )
+        return str(first["name"])
 
     def display_name(self, account: str) -> str:
         self._require()

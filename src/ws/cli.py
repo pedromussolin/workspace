@@ -12,6 +12,7 @@ from ws import (
     board_cli,
     bootstrap,
     card,
+    cardaudit,
     cardstart,
     checkpoint,
     config,
@@ -806,6 +807,7 @@ def _add_card(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]")
     )
     policy.add_argument("--project", metavar="SLUG", help="Add the project's own policy layer.")
     policy.set_defaults(handler=lambda args: card.run_policy(args.project))
+    cardaudit.register(commands)
     preview = commands.add_parser(
         "preview",
         help="Check a draft or a folder of drafts, print the preview and the approval code.",
