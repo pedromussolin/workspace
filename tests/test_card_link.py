@@ -217,3 +217,88 @@ def test_relates_in_both_orders_in_a_batch_is_the_same_link(world, capsys):  # n
     )
 
     assert "  2-b.md: the Relates link between TS-120 and TS-101 is also asked by 1-a.md" in out
+
+
+def causes(other, side="outwardIssue"):
+    return {"type": {"name": "Causes"}, side: {"key": other}}
+
+
+def test_link_causes_puts_the_card_on_the_outward_side(world, capsys):  # noqa: F811
+    path = link_draft(causes=["TS-120"])
+    verdict = passing(path, capsys)
+
+    assert verdict["requests"] == [
+        {
+            "method": "POST",
+            "path": "/rest/api/3/issueLink",
+            "body": {
+                "type": {"name": "Causes"},
+                "inwardIssue": {"key": "TS-101"},
+                "outwardIssue": {"key": "TS-120"},
+            },
+        }
+    ]
+    assert "  TS-101 causa TS-120\n" in preview(path, capsys)[0]
+
+
+def test_link_caused_by_reverses_the_sides(world, capsys):  # noqa: F811
+    path = link_draft(caused_by=["TS-120"])
+    verdict = passing(path, capsys)
+
+    [request] = verdict["requests"]
+    assert request["body"] == {
+        "type": {"name": "Causes"},
+        "inwardIssue": {"key": "TS-120"},
+        "outwardIssue": {"key": "TS-101"},
+    }
+    assert "  TS-101 é causado por TS-120\n" in preview(path, capsys)[0]
+
+
+def test_link_causes_and_caused_by_skip_the_links_that_exist(world, capsys):  # noqa: F811
+    world.set_card("TS-101", issuelinks=[causes("TS-120"), causes("TS-102", "inwardIssue")])
+    world.set_card("TS-103")
+
+    path = link_draft(causes=["TS-120", "TS-103"], caused_by=["TS-102"])
+    verdict = passing(path, capsys)
+    out = preview(path, capsys)[0]
+
+    assert "  TS-101 causa TS-120: já existe\n" in out
+    assert "  TS-101 é causado por TS-102: já existe\n" in out
+    assert [r["body"]["outwardIssue"]["key"] for r in verdict["requests"]] == ["TS-103"]
+
+
+def test_link_contradicting_an_existing_causes_link_is_refused(world, capsys):  # noqa: F811
+    world.set_card("TS-101", issuelinks=[causes("TS-120", "inwardIssue")])
+    assert problems(link_draft(causes=["TS-120"]), capsys) == "TS-101 is already caused by TS-120"
+
+    world.set_card("TS-101", issuelinks=[causes("TS-120")])
+    assert problems(link_draft(caused_by=["TS-120"]), capsys) == "TS-101 already causes TS-120"
+
+
+def test_link_causes_without_the_config_key_names_the_key(world, ws_config, capsys):  # noqa: F811
+    config = ws_config / "config.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8").replace('causes = "Causes"\n', ""), encoding="utf-8"
+    )
+
+    for kind in ("causes", "caused_by"):
+        assert problems(link_draft(**{kind: ["TS-120"]}), capsys) == (
+            "link kind 'causes' has no link type: add it to [tracker.jira.links] "
+            '(ws tracker discover); write causes = "<link type name>" there'
+        )
+
+
+def test_link_a_card_cannot_be_in_causes_and_caused_by(world, capsys):  # noqa: F811
+    assert "TS-120 appears in more than one list" in problems(
+        link_draft(causes=["TS-120"], caused_by=["TS-120"]), capsys
+    )
+
+
+def test_the_same_causes_link_in_two_drafts_of_a_batch_is_refused(world, capsys):  # noqa: F811
+    out = batch_problems(
+        capsys,
+        ("1-a.md", "TS-101", "causes", "TS-120"),
+        ("2-b.md", "TS-120", "caused_by", "TS-101"),
+    )
+
+    assert "  2-b.md: the Causes link between TS-101 and TS-120 is also asked by 1-a.md" in out

@@ -723,11 +723,14 @@ def _report_failure(
         created = [line for line in step["preview"] if not line.endswith(": já existe")][:sent]
         print(f"{item.path.name}: {sent} vínculo(s) já criado(s); o restante não foi enviado")
         print(*[f"  Vinculado: {line}" for line in created], sep="\n")
+    elif sent and step["op"] == "create":
+        _report_created_failure(writer, plan, index, result)
     elif sent:
         print(f"{item.path.name}: a transição foi aplicada, mas a data de início não")
+    made = step["op"] == "create" and bool(sent)
     if result["status"] == "uncertain":
         print(f"{item.path.name}: resultado incerto: confira no {writer.name} ({result['error']})")
-        if step["op"] == "create":
+        if step["op"] == "create" and not made:
             print(f"Para procurar o card, {writer.find_hint(step['title'])}")
             rel = item.draft.values.get("item") if item.draft else None
             if rel:
@@ -742,6 +745,27 @@ def _report_failure(
     pending = [other.path.name for other in plan.loaded[index + 1 :]]
     if pending:
         print(f"Não enviados: {', '.join(pending)}")
+
+
+def _report_created_failure(writer: Writer, plan: Plan, index: int, result: dict) -> None:
+    """The create went through and the request after it (the original estimate) did not: the card
+    exists, so it is logged and linked back to its item, and the rest is done by an edit."""
+    item, step = plan.loaded[index], plan.steps[index]
+    key = result["created"]
+    if key is None:
+        print(f"{item.path.name}: o card foi criado, mas o {writer.name} não disse a chave")
+        print(f"Para procurar o card, {writer.find_hint(step['title'])}")
+        rel = item.draft.values.get("item") if item.draft else None
+        if rel:
+            _record_item(rel, None)
+            print(f"O item {rel} ficou registrado como incerto; veja ws item set-card")
+        return
+    print(
+        f"{item.path.name}: o card {key} foi criado ({writer.card_url(key)}), mas o pedido "
+        "seguinte (a estimativa original) não foi aplicado; ajuste com um edit"
+    )
+    _log_created(item.path.name, key, plan.today)
+    _write_back_item(item, key, writer.name)
 
 
 def _report_unreported(writer: Writer, plan: Plan, index: int, applied: list[str]) -> None:

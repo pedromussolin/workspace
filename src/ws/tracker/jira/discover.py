@@ -13,7 +13,12 @@ _TYPE_NAMES = {
     "epic": ("epic", "epico"),
     "initiative": ("iniciativa", "initiative"),
 }
-_LINK_NAMES = {"blocks": "blocks", "relates": "relates"}
+_LINK_NAMES = {
+    "blocks": "blocks",
+    "relates": "relates",
+    "causes": "causes",
+    "problem/incident": "causes",
+}
 
 
 def _quote(text: str) -> str:
@@ -56,7 +61,7 @@ def discover_toml(issue_types: list[dict], link_types: list[dict]) -> str:
         else:
             found[neutral] = name
     lines += ["", "[tracker.jira.links]"]
-    for neutral in _LINK_NAMES.values():
+    for neutral in dict.fromkeys(_LINK_NAMES.values()):
         if neutral in found:
             lines.append(f"{neutral} = {_quote(found[neutral])}")
         else:
