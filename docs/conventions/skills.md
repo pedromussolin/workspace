@@ -21,7 +21,8 @@ How a skill under `skills/` is written. Decisions:
 - `SKILL.md` stays under 500 lines, with detail one level deep in `references/`.
   [test: tests/test_card_skill_words.py]
 - Instructions are in English; lines shown to the user are in PT-BR. [review]
-- Card text talks about the task only, never the user, the AI or the conversation. [review]
+- Card text talks about the task only: see "Cards e horas" in
+  [`instructions/company-repos.md`](../../instructions/company-repos.md). [review]
 - A new or changed skill gets evals. [review]
 
 ## Context budget
