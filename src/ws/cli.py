@@ -38,6 +38,7 @@ from ws import (
     standupsummary,
     taskmodel,
     taskstatus,
+    time_cli,
     tracker,
     userconfig,
     workdays,
@@ -1287,6 +1288,7 @@ def build_parser() -> argparse.ArgumentParser:
     observe_cli.register(subparsers)
     release_cli.register(subparsers)
     reviewpack.register(subparsers)
+    time_cli.register(subparsers)
     return parser
 
 
