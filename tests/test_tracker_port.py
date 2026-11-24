@@ -195,6 +195,27 @@ def test_jira_cards_query_by_a_sprint_name_with_the_parents(world):  # noqa: F81
     )
 
 
+def test_jira_cards_query_by_the_next_sprint_is_the_earliest_future_one(world):  # noqa: F811
+    world.set_sprints(
+        [
+            {"id": 3, "name": "Sprint 57", "state": "future", "startDate": "2026-12-08T10:00:00Z"},
+            {"id": 1, "name": "Sprint 55", "state": "active", "startDate": "2026-11-10T10:00:00Z"},
+            {"id": 2, "name": "Sprint 56", "state": "future", "startDate": "2026-11-24T10:00:00Z"},
+        ]
+    )
+
+    jql = _jql(world, CardQuery(sprint="next", role="mine", open_only=False))
+
+    assert jql == 'project = "TS" AND assignee = currentUser() AND sprint = "Sprint 56"'
+
+
+def test_jira_cards_query_by_the_next_sprint_needs_one(world):  # noqa: F811
+    world.set_sprints([{"id": 1, "name": "Sprint 55", "state": "active"}])
+
+    with pytest.raises(TrackerError, match="no future sprint"):
+        _tracker().cards(CardQuery(sprint="next", role="mine"))
+
+
 def test_jira_cards_query_by_assignees_instead_of_the_role(world):  # noqa: F811
     jql = _jql(world, CardQuery(assignees=("acc-ana", "acc-bia"), role="mine"))
 
