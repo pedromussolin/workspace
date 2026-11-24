@@ -24,7 +24,9 @@ Claude dentro de `~/repos/workspace`.
   homologado (Ready Deploy), em produção (Concluído). Ofereça o movimento na hora, antes de
   disparar agentes. Depois de "mergeei" ou "subiu", rode `/card sincronizar`.
 - Ready Deploy é homologado, só falta o deploy. Impedimento só com o status Block.
-- Prazo e sprint do card: as regras estão na skill `/card`.
+- Prazo do card: a regra está na skill `/card`.
+- Antes de propor tirar um card da sprint, leia as datas no campo Sprint; card que perde a release
+  vai para a próxima release dentro da mesma sprint.
 - Ao começar o trabalho num card, rode `ws time start TS-N`; ao parar ou trocar de card,
   `ws time stop TS-N`. O tempo gasto sai das horas reais, nunca do plano.
 
@@ -94,6 +96,6 @@ Claude dentro de `~/repos/workspace`.
   (nada de FK, import ou chamada entre elas) nem à feature de negócio; quem integra é o módulo da
   feature. Agendamento só pelo banco (`schedulable` e linhas em `scheduled_jobs`), sem horário fixo
   no beat.
-- Front e BFF: as regras de código ficam no `.ai/` de cada repo, que o `CLAUDE.md` dele importa.
+- Front e BFF: as regras de código ficam no `.ai/` de cada repo, que o `CLAUDE.md` dele importa ou manda ler.
 - Dado pessoal nunca na URL, por causa da LGPD: busca livre e valor digitado ficam fora do link.
   Ao escrever regra sobre isso, cite a LGPD.

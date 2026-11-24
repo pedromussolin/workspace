@@ -101,8 +101,6 @@ current card, unless the user says to include it.
   date at creation: it is set when the card moves to in progress.
 - The due date of a card that takes code to production is the deploy day; of a post-deploy
   action, the day after. It is not the sprint's end.
-- Before proposing to take a card out of a sprint, read the dates in the Sprint field. A card that
-  misses its release goes to the next release in the same sprint.
 - The policy (`ws card policy`) also sets what a create must carry (`estimate`, categories) and
   what a move to done needs (a start date, time spent); see section 8 and the skill **[code]**.
 

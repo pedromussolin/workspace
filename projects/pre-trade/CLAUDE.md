@@ -8,8 +8,9 @@ Evolução do fluxo do Pré-Trade; a primeira entrega é o SLA por etapa, o trad
 aprovação genérica. Aqui ficam as decisões, as tarefas e o desenho; o código vive nos repositórios
 da empresa.
 
-As regras comuns (sigilo, commits, idioma e sincronização) e as regras de trabalho em
-`instructions/` estão no `AGENTS.md` e em `docs/conventions/` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, commits, idioma e sincronização) estão no `AGENTS.md` e em
+`docs/conventions/` da raiz do repositório; as regras de trabalho, em `instructions/`. Aqui ficam só
+as regras específicas deste projeto.
 
 ## Regras deste projeto
 

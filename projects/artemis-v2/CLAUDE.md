@@ -6,9 +6,9 @@ a absorção da liquidação do Mercato Libero (tarefa 13). Aqui ficam as
 tarefas, as decisões, as evidências e as análises. O código vive nos
 repositórios da empresa (ver "Repositórios"), não aqui.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
-`instructions/` estão no `CLAUDE.md` da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
-projeto.
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md` da
+raiz do repositório; as regras de trabalho, em `instructions/`. Aqui ficam só as regras específicas
+deste projeto.
 
 ## Análogos deste projeto
 

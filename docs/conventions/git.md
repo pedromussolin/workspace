@@ -13,7 +13,7 @@ Sync and commits in this repo.
 - `git push` and `gh` writes go in their own short Bash call: see the Bash section of
   [`instructions/user.md`](../../instructions/user.md). [review]
 - The company-repo git rules do not apply here: no `TS-…` branches or commit prefixes, no `-sdbx`
-  replication, no "never commit on master". [review]
+  replication, no review before each commit, no "never commit on master". [review]
 
 ## Current behaviour
 
