@@ -154,7 +154,7 @@ def test_default_policy_is_todays_behaviour(repo):
     assert policy.data["create"] == {"require": ["epic"], "due_with_sprint": True}
     assert policy.data["finish"] == {"require": []}
     assert policy.data["links"] == {"bug": {"caused_by": "off"}}
-    assert policy.data["estimate"] == {"padding_percent": 0}
+    assert policy.data["estimate"] == {"padding_percent": 0, "unplanned_labels": []}
     assert "categories" not in policy.data
     assert set(policy.sources.values()) == {"default"}
 
@@ -273,6 +273,11 @@ def test_a_project_layer_is_validated_alone(config_dir, repo):
         ("version = 1\n[sections.story]\nrequired = []", "$.sections.story: unexpected key"),
         ("version = 1\n[sections.task]\nrequires = []", "$.sections.task.requires: unexpected"),
         ("version = 1\n[estimate]\npadding_percent = -1", "padding_percent: must not be negative"),
+        (
+            "version = 1\n[estimate]\nunplanned_labels = ['a b']",
+            "unplanned_labels: 'a b' must be text without whitespace",
+        ),
+        ("version = 1\n[estimate]\nunplanned_labels = 'x'", "unplanned_labels: expected array"),
         ("version = 1\n[categories.a]\nvalues = []", "$.categories.a.values: must not be empty"),
         (
             "version = 1\n[categories.a]\nvalues = ['x y']",

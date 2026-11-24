@@ -105,6 +105,13 @@ def layer_problems(document: object) -> list[str]:
     padding = estimate.get("padding_percent") if isinstance(estimate, dict) else None
     if isinstance(padding, int | float) and not isinstance(padding, bool) and padding < 0:
         problems.append("$.estimate.padding_percent: must not be negative")
+    labels = estimate.get("unplanned_labels") if isinstance(estimate, dict) else None
+    if isinstance(labels, list):
+        problems.extend(
+            f"$.estimate.unplanned_labels: {label!r} must be text without whitespace"
+            for label in labels
+            if isinstance(label, str) and not NO_SPACE.fullmatch(label)
+        )
     return problems
 
 
@@ -206,6 +213,11 @@ def load(config: object, project: str | None, repo_root: Path) -> Policy:
         used = ", ".join(source for source, _ in layers)
         raise ConfigInvalid(f"merged card policy ({used}): " + "; ".join(problems))
     return Policy(merged, sources)
+
+
+def unplanned_labels(policy: Policy) -> frozenset[str]:
+    """The labels that mark a card as unplanned (an intruder): no plan came before its work."""
+    return frozenset(policy.data.get("estimate", {}).get("unplanned_labels", []))
 
 
 def _listed_epics(toml: Path) -> list[str]:

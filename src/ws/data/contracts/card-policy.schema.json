@@ -39,7 +39,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "padding_percent": {"type": "number"}
+        "padding_percent": {"type": "number"},
+        "unplanned_labels": {"type": "array", "items": {"type": "string"}}
       }
     },
     "categories": {

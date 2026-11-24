@@ -43,6 +43,7 @@ due_with_sprint = true
 
 [estimate]
 padding_percent = 0
+unplanned_labels = []
 
 [epic]
 skip_when = []
