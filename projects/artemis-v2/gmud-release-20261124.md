@@ -139,8 +139,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
   de preenchimento; a CHECK `ck_agendamento_tipo_coerente` da tabela nova `agendamento` é recriada,
   mais permissiva, na mesma release (`a4f7c2d9e1b6`). Nenhuma coluna removida. Detalhe para a DBA
   no resumo dos objetos.
-- **Banco do shared:** tabela `email_dispatch.template_recipients`, 2 templates e 1 remetente
-  inativo.
+- **Banco do shared:** tabela `email_dispatch.template_recipients`, 1 remetente inativo e 4
+  templates (os 2 da primeira versão ficam desativados pela segunda: 2 ativos).
 - **Infra:** worker novo `liquidacao-baixa-isolada` (1 pod); o beat passa a ler o banco; os jobs
   novos rodam na fila `liquidacao_lote_celery`, que o `worker` (15 pods) já consome.
 - **Deploy:** sem indisponibilidade prevista; migrations no shared e na cessão; variável nova
@@ -162,7 +162,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 
 **Janela (shared → cessão → BFF → portal)**
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
-5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `9300117a09ae`.
+5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `5e7b2d94a1c8`.
 6. **Cessão:** um commit no argocd com a tag nova e o worker `liquidacao-baixa-isolada` no
    `asgard-production`; o `viva-production` não muda. Sem `CELERY_CONFIRM_PUBLISH` no beat
    (ver o risco do disparo do agendador). Conferir:
