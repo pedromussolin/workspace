@@ -371,7 +371,9 @@ check` applies the same policy, so a draft that breaks it fails there.
   below a number of hours). Propose the computed value; the check refuses one that contradicts the
   estimate, except the values the policy keeps.
 - `estimate.padding_percent`: above zero, the preview warns that the original estimate should
-  already include that margin; say it to the user, do not add it yourself.
+  already include that margin. An estimate the model proposes already includes it (the hours
+  of effort plus the margin, rounded up to 30 minutes); an estimate the user gives is used as
+  given, and the preview's warning is shown to them.
 - `finish.require`: what a move to done needs, a start date and time spent. The same batch may
   supply them (an edit with `start`, a `worklog` draft).
 - Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
