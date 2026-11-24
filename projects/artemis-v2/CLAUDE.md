@@ -6,8 +6,8 @@ a absorção da liquidação do Mercato Libero (tarefa 13). Aqui ficam as
 tarefas, as decisões, as evidências e as análises. O código vive nos
 repositórios da empresa (ver "Repositórios"), não aqui.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md`
-da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
+`instructions/` estão no `CLAUDE.md` da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
 projeto.
 
 ## Análogos deste projeto
@@ -40,8 +40,6 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 
 ## Como escrever
 
-- PT-BR, enxuto: conclusão primeiro, depois o porquê em poucos pontos.
-  Explicar todo termo técnico na primeira vez que aparece.
 - Separar o comprovado da hipótese: **[C]** (visto no código ou no Datadog) e
   **[H]** (hipótese, com o caminho para validar).
 - Citar código como `caminho/arquivo.py:linha` e dizer contra qual commit as
@@ -74,10 +72,6 @@ sensível novo vai para lá, e aqui entra só a referência genérica.
 | atlas / fetch-api | API GraphQL legada que também fecha lote |
 | EC2 de automações | onde a liquidação do Mercato Libero roda hoje, fora dos repos (tarefa 13) |
 
-As regras de git dos repos da empresa (branch e commit com o ID `TS-…`, sem `Co-Authored-By`,
-replicar na branch `-sdbx`) estão no `~/repos/CLAUDE.md` e valem só para eles. Neste repo valem as
-regras do `CLAUDE.md` da raiz.
-
 ## Diretrizes de desenvolvimento do projeto
 
 - **Código novo da liquidação** vai em `cessao/api/liquidacao/refact.py`
@@ -89,9 +83,6 @@ regras do `CLAUDE.md` da raiz.
   `WHERE liquidacao_lote_id IS NULL`. Ver `tasks/03-*`.
 - **Regra para entrar em lote (D9):** exige a cessão do contrato `cadastrado`
   (revisão de 14/10) e usa o produto da liquidação.
-- **Logs como eventos:** mensagem fixa, dimensões no `extra`, um INFO por
-  execução.
-- **Migrations:** nunca alterar uma existente; mudança vai em migration nova.
 - **Varredura do Mercato Libero:** chama a mesma rota por fora e grava direto
   no banco. Mudança de regra ou de estado na liquidação deve ser combinada
   com o dono dela. Com a saída do Rafael Frankl, o fluxo vem para a V2
