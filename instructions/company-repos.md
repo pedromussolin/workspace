@@ -38,7 +38,7 @@ Claude dentro de `~/repos/workspace`.
 - data-lake-api: consultas ao data lake.
 - docs: documentação dos fluxos e desenvolvimentos.
 - `*-argocd`: deploy de cada aplicação (tags e values).
-- pldr-automations: automações, monitores e portais da VM Windows.
+- o repo de automações (o nome termina em `-automations`): automações, monitores e portais da VM Windows.
 - Outro repo: leia o README e as regras `.ai/` dele antes de mexer.
 
 ## Git
