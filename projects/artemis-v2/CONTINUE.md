@@ -12,9 +12,12 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 24/11/2026
 
-**Passagem de chat (24/11, fim da tarde):** retomar pela passagem privada
-`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-ts5537-errado-e-janela-24-11.md`
-(TS-5537 com os 19 contratos para `errado` e a janela de 24/11).
+**Passagem de chat (24/11, 16:30):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-janela-24-11-com-ts5925.md`
+(janela de produção das 17:30 com a TS-5925 incluída). Nesta iteração: GMUD criada no portal
+(GDM-374); conferência das 16h da TS-5612 na sandbox passou; TS-5925 (cadastro e troca da conta
+vinculada do fundo pela aba Liquidação, nos três repos) feita, homologada na sandbox e juntada
+na release de hoje; argocd de produção preparado sem commit; regra nova na skill `release`.
 
 - 4 PRs de produção abertas (shared, cessão, BFF, portal); GMUD com TS-5612 e TS-5537, viva-production
   fora do deploy, head da shared corrigido (`5e7b2d94a1c8`) e o passo do SQL da TS-5537.
@@ -512,9 +515,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Deploy de 24/11:** às 19:00 UTC conferir no Datadog que a rotina fixa antiga não disparou na
-   sandbox; a DBA roda o SQL da TS-5537 antes da tag da cessão; janela shared → cessão → BFF →
-   portal com `/deploy-check`; depois, ligar o 1604 e o 15 pela tela, o A5 pela réplica e os cards.
+1. **Deploy de 24/11 (17:30 às 19:30, GDM-374):** confirmar a resposta da DBA e as roles do Azure
+   da TS-5925; a DBA roda o SQL da TS-5537 antes da tag da cessão; janela shared → cessão → BFF →
+   portal com `/deploy-check` e o passo a passo do argocd de produção; depois, ligar o 1604 e o 15
+   pela tela, o A5 pela réplica e os cards (TS-5612, TS-5537 e TS-5925 incluídas).
 2. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
 3. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
