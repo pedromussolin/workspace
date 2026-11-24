@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "required": ["$schema", "version", "window", "days", "cards", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"const": "time-report"},
+    "version": {"const": 1},
+    "window": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {"type": "string"},
+        "to": {"type": "string"}
+      }
+    },
+    "days": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "date",
+          "workday",
+          "closed",
+          "floor_minutes",
+          "planned_minutes",
+          "intruder_minutes",
+          "below_floor",
+          "cards",
+          "no_evidence_minutes"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "date": {"type": "string"},
+          "workday": {"type": "boolean"},
+          "closed": {"type": "boolean"},
+          "floor_minutes": {"type": "integer"},
+          "planned_minutes": {"type": "integer"},
+          "intruder_minutes": {"type": "integer"},
+          "below_floor": {"type": "boolean"},
+          "no_evidence_minutes": {"type": "integer"},
+          "cards": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ref",
+                "unplanned",
+                "minutes",
+                "sources",
+                "logged_minutes",
+                "to_log_minutes"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "ref": {"type": "string"},
+                "unplanned": {"type": "boolean"},
+                "minutes": {"type": "integer"},
+                "logged_minutes": {"type": "integer"},
+                "to_log_minutes": {"type": "integer"},
+                "sources": {
+                  "type": "object",
+                  "required": ["marked", "hook", "commits", "filled"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "marked": {"type": "integer"},
+                    "hook": {"type": "integer"},
+                    "commits": {"type": "integer"},
+                    "filled": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "unplanned", "total_minutes", "logged_minutes", "to_log_minutes"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": {"type": "string"},
+          "unplanned": {"type": "boolean"},
+          "total_minutes": {"type": "integer"},
+          "logged_minutes": {"type": "integer"},
+          "to_log_minutes": {"type": "integer"}
+        }
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "drafts": {
+      "type": "object",
+      "required": ["folder", "count", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "folder": {"type": "string"},
+        "count": {"type": "integer"},
+        "files": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

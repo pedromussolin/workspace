@@ -102,6 +102,63 @@ def _own_commits(repo: Path, email: str, since: date, until: date | None = None)
     return commits
 
 
+def timed_commits(repo: Path, email: str, since: date, until: date) -> list[dict]:
+    """The author's commits with the moment of each one: `{repo, sha, at, keys}`.
+
+    `at` is the author date as ISO text with its offset. The card keys come from the subject,
+    else from the ref the commit was reached through (`--source`), so a commit on a card branch
+    counts for the card. Merges are left out: a merge is not work. The window is padded by a day
+    on each side (git filters on the committer date); the caller keeps what falls in its days.
+    """
+    out = _git(
+        repo,
+        "log",
+        "--exclude=refs/stash",
+        "--all",
+        "--source",
+        "--no-merges",
+        f"--since={(since - timedelta(days=1)).isoformat()} 00:00:00",
+        f"--until={(until + timedelta(days=1)).isoformat()} 23:59:59",
+        f"--author=<{email}>",
+        "--fixed-strings",
+        f"--format=%H{FIELD_SEPARATOR}%aI{FIELD_SEPARATOR}%S{FIELD_SEPARATOR}%s",
+    )
+    commits = []
+    for line in _lines(out):
+        sha, at, source, subject = line.split(FIELD_SEPARATOR, 3)
+        keys = keys_in(subject) or keys_in(source)
+        commits.append({"repo": repo.name, "sha": sha, "at": at, "keys": keys})
+    return commits
+
+
+def collect_timed(
+    cfg: StandupConfig, workspace: Path, since: date, until: date, warnings: list[str]
+) -> list[dict]:
+    """`timed_commits` of every repo under the repo roots (not the workspace), each commit once."""
+    commits: list[dict] = []
+    seen: set[str] = set()
+    for repo in find_repos(cfg, workspace, warnings):
+        try:
+            email = _author_email(repo)
+            if email is None:
+                warnings.append(f"repo {repo.name}: git user.email is not set, commits left out")
+                continue
+            found = timed_commits(repo, email, since, until)
+        except RuntimeError as error:
+            warnings.append(f"repo {repo.name}: left out ({error})")
+            continue
+        for item in found:
+            if item["sha"] not in seen:
+                seen.add(item["sha"])
+                commits.append(item)
+    return commits
+
+
+def author_email(repo: Path) -> str | None:
+    """The `user.email` of a repo, None when it is not set."""
+    return _author_email(repo)
+
+
 def _created_on(common_dir: Path, name: str) -> date | None:
     """Day of the first reflog entry of the branch; None when there is no readable reflog."""
     try:

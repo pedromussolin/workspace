@@ -190,7 +190,7 @@ def check_folder(argument: str) -> Path:
     return folder.resolve()
 
 
-def _write_private(path: Path, text: str) -> None:
+def write_private(path: Path, text: str) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(text)
@@ -213,7 +213,7 @@ def write_drafts(
             continue
         add, remove = _computed_labels(auditor.policy(card), card, entry["gaps"])
         if add:
-            _write_private(folder / f"{card.ref}.md", _draft_text(card.ref, add, remove))
+            write_private(folder / f"{card.ref}.md", _draft_text(card.ref, add, remove))
             count += 1
         need_input += [
             {

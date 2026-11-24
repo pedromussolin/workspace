@@ -121,6 +121,7 @@ def test_every_schema_pins_version_and_is_closed():
         "card-write",
         "card-plan",
         "card-result",
+        "time-report",
     }
     assert names == set(VALID)
     for name in names:
@@ -262,6 +263,43 @@ VALID = {
         "summary": {"cards": 1, "with_gaps": 1, "by_rule": {"categories.tag.derive": 1}},
     },
     "card-policy": {"version": 1, "title": {"format": "subgroup"}},
+    "time-report": {
+        "$schema": "time-report",
+        "version": 1,
+        "window": {"from": "2026-12-09", "to": "2026-12-09"},
+        "days": [
+            {
+                "date": "2026-12-09",
+                "workday": True,
+                "closed": True,
+                "floor_minutes": 528,
+                "planned_minutes": 528,
+                "intruder_minutes": 0,
+                "below_floor": False,
+                "no_evidence_minutes": 0,
+                "cards": [
+                    {
+                        "ref": "TS-5",
+                        "unplanned": False,
+                        "minutes": 528,
+                        "sources": {"marked": 60, "hook": 30, "commits": 0, "filled": 438},
+                        "logged_minutes": 0,
+                        "to_log_minutes": 528,
+                    }
+                ],
+            }
+        ],
+        "cards": [
+            {
+                "ref": "TS-5",
+                "unplanned": False,
+                "total_minutes": 528,
+                "logged_minutes": 0,
+                "to_log_minutes": 528,
+            }
+        ],
+        "warnings": [],
+    },
     "card-write": {
         "$schema": "card-write",
         "version": 1,
