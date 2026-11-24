@@ -1,6 +1,6 @@
 ---
 name: release
-description: Builds, publishes, moves and reports the release of the company repos (release branches, the merge into the environments, the PRs, a new date, the PR links for the GMUD) through the `ws release` commands, with a preview and an approval prompt before any GitHub write. Use when the user asks to build, publish, move or check a release ("monta a release de 20/11 com TS-101 e TS-102", "publica a release", "move a release de 20/11 para 27/11", "como está a release?") or types /release. The model may start it by itself; every GitHub write still waits for the user's approval box.
+description: Builds, publishes, moves and reports the release of the company repos (release branches, the merge into the environments, the PRs, a new date, the PR links for the GMUD) through the `ws release` commands, with a preview and an approval prompt before any GitHub write. Use when the user asks to build, publish, move or check a release ("monta a release de 20/11 com TS-101 e TS-102", "publica a release", "move a release de 20/11 para 27/11", "como está a release?"), to add a task to a release already built or published ("inclui a TS-103 na release de hoje", "essa tarefa entra na release") or types /release. The model may start it by itself; every GitHub write still waits for the user's approval box.
 ---
 
 # Release
@@ -132,7 +132,9 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
    to the `change-request` skill. A `warnings` line "no code PR" (or "no ENV PR") means the links
    are incomplete.
 7. **A new change after the release exists.** It goes to the task branch first, then to the code
-   branch (`ws release new DATE` merges it in), then into each copy (`new` syncs it with
+   branch: add the task branch to `release.toml` and run `ws release new DATE`, which merges it in
+   with the subject `chore(TS-N): junta a <branch>`; never a hand `git merge`, whose default
+   subject ("Merge branch ...") breaks the commit rule that `ws release status` checks, then into each copy (`new` syncs it with
    `origin/<environment branch>` first). When the previous PR of an environment is already merged,
    write `pr/<repo>-<env>-2.md` (then `-3`, ...) and publish. A new task branch in a repo that was
    single-branch changes its shape: `new` stops with exit 2 and the user decides.
@@ -151,6 +153,7 @@ gate: tell the user to read the README section "Release" and run `ws setup`.
 
 - Merge a PR, push to `master` or to an environment branch, force-push, or write to GitHub by any route other
   than `ws release publish|move --approve`.
+- Merge a task branch into a release branch or its copy by hand (`git merge`): step 7 does it.
 - Delete a branch without `--delete-old-branches` and the user's yes (see the moving reference).
 - Run the preview and the approval in the same Bash call, or hide the approval command in a
   script, a variable, `eval` or a background process.
