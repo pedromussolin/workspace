@@ -89,9 +89,16 @@ def plan(
     people,
     identity_email,
     now: datetime,
+    config=None,
 ) -> dict:
     found, _ = plan_and_resolved(
-        client, settings, entries, people=people, identity_email=identity_email, now=now
+        client,
+        settings,
+        entries,
+        people=people,
+        identity_email=identity_email,
+        now=now,
+        config=config,
     )
     return found
 
@@ -104,9 +111,17 @@ def plan_and_resolved(
     people,
     identity_email,
     now: datetime,
+    config=None,
 ) -> tuple[dict, list[dict]]:
-    """The plan, and what the rules resolved for each step (`ws card check` prints it)."""
-    context = rules.Context.load(client, settings, now, people, identity_email)
+    """The plan, and what the rules resolved for each step (`ws card check` prints it). `config`
+    is the user config, where `[card] policy` names the company card policy."""
+    context = rules.Context.load(client, settings, now, people, identity_email, config)
+    for entry in entries:
+        found = entry["write"] or {}
+        if found.get("op") == "worklog":
+            context.batch_worklogs.add(found["key"])
+        elif found.get("op") == "edit" and "start" in found:
+            context.batch_started.add(found["key"])
     verdicts = [
         rules.check(context, from_document(entry["write"]))
         if entry["write"]
