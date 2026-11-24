@@ -205,8 +205,9 @@ fills the rest with the user's help. Reads only; the tracker is written by the a
    exists (`<ref>.md`, `op = "edit"`): add the keys to it, or create it with `op = "edit"` and
    `key`. Keys by `field`: `title`, `estimate`, `due`, `start`, `epic`, `add_labels` (a category
    with no computed value), and the body for `sections` (the body replaces the whole description,
-   so start from the card's current text and keep what is there). `time_spent` goes in its own
-   `worklog` draft (`<ref>-worklog.md`, `time` and `day`) and `links` (a bug with no cause) in its
+   so start from the card's current text and keep what is there). For `time_spent`, run
+   `ws time report --card <ref> --drafts <this folder>`: it adds one `worklog` draft per day
+   (`<ref>-worklog-<day>.md`) from the real hours, as in "Done"; and `links` (a bug with no cause) in its
    own `link` draft (`<ref>-link.md`, `caused_by`); propose the cause only when the code makes it
    clear, otherwise leave it and say so.
 4. Run `ws card check` on every draft of the folder and fix each until `ok` is true.
