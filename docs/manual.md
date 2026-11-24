@@ -64,7 +64,9 @@ Real hours, from evidence only, never from a plan
    ~/.local/share/workspace/cards/drafts/time-ts-123` writes one `worklog` draft per day with
    hours to log (`TS-123-worklog-<day>.md`). A card with an unplanned label, or any card with
    `--unplanned` (no plan came before the work), also gets `TS-123-estimate.md`: its original
-   estimate is its real time, with no padding. The folder must be new or empty.
+   estimate is its real time, with no padding. The folder may already hold other drafts (the
+   move to done, an audit) for one preview; a file name already taken refuses the run and nothing
+   is overwritten.
 4. Steps 2 to 4 of "Jira card" on that folder: `ws card preview`, then `ws card apply` in your
    terminal. Hours already logged are subtracted, so a second run never logs the same hours twice.
 
