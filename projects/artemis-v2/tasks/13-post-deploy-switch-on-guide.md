@@ -118,18 +118,19 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
 - **Voltar:** desligar os horários na tela (ou trocar o gatilho, que desliga mantendo os horários) e
   religar a rodada da varredura.
 
-### B2. ⚠ Esteira de baixa nova (TS-5737), por `curl`
+### B2. ⚠ Esteira de baixa nova (TS-5737), pela tela
+- **Independente do gatilho:** o gatilho diz quem fecha o lote; esta chave diz qual esteira baixa
+  o lote já fechado. Vale para produto de qualquer gatilho, inclusive os fechados pela tela.
 - **Antes:** worker `liquidacao-baixa-isolada` no ar (log de partida com a fila
   `liquidacao_baixa_isolada_celery`); o fundo do produto não pode ser de administradora que ficou
-  fora da esteira nova (um dos geradores em `cessao/geradores/` recusa a esteira refact). Ler o
-  valor atual, só pelo banco (não há rota de leitura):
-  `SELECT produto_id, liquidacao_baixa_refact FROM produto_config WHERE produto_id = <id>;`
-- **Passos:**
+  fora da esteira nova (um dos geradores em `cessao/geradores/` recusa a esteira refact).
+- **Passos:** "Configuração do produto", aba Liquidação, bloco "Esteira de baixa", toggle
+  "Esteira de baixa nova" e confirmar. Por `curl`, a mesma coisa (mande `true` sem aspas: a
+  esteira testa o booleano):
   ```bash
   cessao -X PATCH "$CESSAO_URL/produto/<id>/" -d '{"produto_config": {"liquidacao_baixa_refact": true}}'
   ```
-  Mande `true` sem aspas: a esteira testa o booleano.
-- **Esperado:** `"Dados atualizados com sucesso"`; no banco, `true`. No próximo lote do produto:
+- **Esperado:** o toggle ligado depois de recarregar a tela. No próximo lote do produto:
   `"Lotes desviados para a esteira de baixa refact"` (`@lote_identificadores`) e `"Esteira de baixa
   refact executada"` com `@estado_final:concluido`; `liquidacao_lote_processo.estado_atual` e o log
   do lote.
@@ -137,7 +138,7 @@ alias cessao='curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: appli
   4 h), `"Esteira de baixa refact esgotou as rodadas"` (lote em `errado`), `"...interrompida,
   conferir no destino"` e `"...envio à administradora interrompido, conferir na administradora"`
   (conferência manual).
-- **Voltar:** o mesmo `PATCH` com `false`. O lote já enviado não volta.
+- **Voltar:** desligar o toggle (ou o mesmo `PATCH` com `false`). O lote já enviado não volta.
 
 ## Parte C — e-mails (shared)
 
