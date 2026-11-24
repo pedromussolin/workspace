@@ -66,13 +66,23 @@ class Card:
     sprint: str | None
     links: tuple[Link, ...] = ()
     start: date | None = None
+    labels: tuple[str, ...] = ()
+    estimate_minutes: int | None = None
+    spent_minutes: int | None = None
+    created: date | None = None
 
 
 @dataclass(frozen=True)
 class CardQuery:
-    parent_in: tuple[str, ...]
+    """`sprint` is "active" (the board's open sprint) or the exact name of a sprint; `assignees`
+    are tracker account ids and, when given, say whose cards are asked for instead of `role`.
+    With `parent_in` empty, the other fields alone select the cards; with none set, no card."""
+
+    parent_in: tuple[str, ...] = ()
     role: str = "all"
     open_only: bool = True
+    sprint: str | None = None
+    assignees: tuple[str, ...] = ()
 
 
 @runtime_checkable

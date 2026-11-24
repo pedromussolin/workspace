@@ -39,6 +39,11 @@ _BASE_FIELDS = [
     "reporter",
     "issuetype",
     "issuelinks",
+    "labels",
+    "timetracking",
+    "timeoriginalestimate",
+    "timespent",
+    "created",
 ]
 
 
@@ -175,13 +180,16 @@ class JiraTracker:
 
     def cards(self, query: CardQuery) -> list[Card]:
         self._require()
-        if not query.parent_in:
+        if not (query.parent_in or query.sprint or query.assignees):
             return []
-        clauses = [
-            f'project = "{self._settings.project}"',
-            f"parent in ({', '.join(query.parent_in)})",
-            jira.role_jql(query.role),
-        ]
+        clauses = [f'project = "{self._settings.project}"']
+        if query.parent_in:
+            clauses.append(f"parent in ({', '.join(query.parent_in)})")
+        clauses.append(
+            jira.assignees_jql(query.assignees) if query.assignees else jira.role_jql(query.role)
+        )
+        if query.sprint:
+            clauses.append(jira.sprint_jql(query.sprint))
         if query.open_only:
             clauses.append("statusCategory != Done")
         try:
@@ -301,6 +309,7 @@ class JiraTracker:
         level = kind.get("hierarchyLevel")
         due = fields.get("duedate")
         start = fields.get(settings.start_date_field) if settings.start_date_field else None
+        created = fields.get("created")
         return Card(
             ref=jira._required(issue, "key", "issue"),
             title=jira._required(fields, "summary", "issue fields"),
@@ -317,7 +326,24 @@ class JiraTracker:
             ),
             links=self._links(fields.get("issuelinks") or []),
             start=date.fromisoformat(start[:10]) if start else None,
+            labels=tuple(item for item in fields.get("labels") or () if isinstance(item, str)),
+            estimate_minutes=self._minutes(
+                fields, "originalEstimateSeconds", "timeoriginalestimate"
+            ),
+            spent_minutes=self._minutes(fields, "timeSpentSeconds", "timespent"),
+            created=date.fromisoformat(created[:10]) if created else None,
         )
+
+    @staticmethod
+    def _minutes(fields: dict, tracked: str, plain: str) -> int | None:
+        """Minutes from the seconds of the `timetracking` field, else of the plain field; None
+        when the card has none."""
+        seconds = (fields.get("timetracking") or {}).get(tracked)
+        if seconds is None:
+            seconds = fields.get(plain)
+        if isinstance(seconds, bool) or not isinstance(seconds, int | float) or seconds <= 0:
+            return None
+        return round(seconds / 60)
 
     @staticmethod
     def _sprint(entries) -> str | None:
@@ -329,16 +355,18 @@ class JiraTracker:
     def _links(self, links: list) -> tuple[Link, ...]:
         blocks = self._settings.links.get("blocks")
         relates = self._settings.links.get("relates")
+        causes = self._settings.links.get("causes")
         found = []
         for link in links:
             name = (link.get("type") or {}).get("name")
             outward = (link.get("outwardIssue") or {}).get("key")
             inward = (link.get("inwardIssue") or {}).get("key")
-            if name and name == blocks:
+            if name and name in (blocks, causes):
+                kinds = ("blocks", "blocked_by") if name == blocks else ("causes", "caused_by")
                 if outward:
-                    found.append(Link("blocks", outward))
+                    found.append(Link(kinds[0], outward))
                 elif inward:
-                    found.append(Link("blocked_by", inward))
+                    found.append(Link(kinds[1], inward))
             elif name and name == relates and (outward or inward):
                 found.append(Link("relates", outward or inward))
         return tuple(found)

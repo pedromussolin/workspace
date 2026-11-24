@@ -169,6 +169,99 @@ def test_jira_cards_query_by_parent_and_role(world):  # noqa: F811
     assert world.fake.requests == []
 
 
+def _jql(env, query):
+    env.fake.pages = {None: {"issues": [], "isLast": True}}
+    env.fake.requests.clear()
+    _tracker().cards(query)
+    (search,) = [r for r in env.fake.requests if r["path"] == "/rest/api/3/search/jql"]
+    return search["query"]["jql"]
+
+
+def test_jira_cards_query_by_the_active_sprint(world):  # noqa: F811
+    jql = _jql(world, CardQuery(sprint="active", role="mine"))
+
+    assert jql == (
+        'project = "TS" AND assignee = currentUser() AND sprint in openSprints() '
+        "AND statusCategory != Done"
+    )
+
+
+def test_jira_cards_query_by_a_sprint_name_with_the_parents(world):  # noqa: F811
+    jql = _jql(world, CardQuery(("TS-100",), sprint='Sprint "55"', open_only=False))
+
+    assert jql == (
+        'project = "TS" AND parent in (TS-100) AND '
+        '(assignee = currentUser() OR reporter = currentUser()) AND sprint = "Sprint \\"55\\""'
+    )
+
+
+def test_jira_cards_query_by_assignees_instead_of_the_role(world):  # noqa: F811
+    jql = _jql(world, CardQuery(assignees=("acc-ana", "acc-bia"), role="mine"))
+
+    assert jql == (
+        'project = "TS" AND assignee in ("acc-ana", "acc-bia") AND statusCategory != Done'
+    )
+
+
+def test_jira_cards_query_with_nothing_to_select_by_asks_nothing(world):  # noqa: F811
+    world.fake.requests.clear()
+
+    assert _tracker().cards(CardQuery(role="mine")) == []
+    assert [r for r in world.fake.requests if r["path"] == "/rest/api/3/search/jql"] == []
+
+
+def test_jira_card_reads_labels_estimate_time_spent_and_creation(world):  # noqa: F811
+    world.set_card(
+        "TS-104",
+        labels=["planejado", "dados"],
+        timetracking={
+            "originalEstimate": "2h 30m",
+            "originalEstimateSeconds": 9000,
+            "timeSpentSeconds": 3600,
+        },
+        created="2026-11-03T10:15:00.000-0300",
+    )
+
+    found = _tracker().card("TS-104")
+
+    assert found.labels == ("planejado", "dados")
+    assert found.estimate_minutes == 150
+    assert found.spent_minutes == 60
+    assert found.created == date(2026, 11, 3)
+
+
+def test_jira_card_reads_the_plain_time_fields_when_timetracking_is_absent(world):  # noqa: F811
+    world.set_card("TS-104", timeoriginalestimate=7200, timespent=1800)
+
+    found = _tracker().card("TS-104")
+
+    assert (found.estimate_minutes, found.spent_minutes) == (120, 30)
+
+
+def test_jira_card_without_labels_or_time_has_the_defaults(world):  # noqa: F811
+    world.set_card("TS-104")
+
+    found = _tracker().card("TS-104")
+
+    assert found.labels == ()
+    assert (found.estimate_minutes, found.spent_minutes, found.created) == (None, None, None)
+
+
+def test_jira_card_reads_the_causes_links(world):  # noqa: F811
+    world.set_card(
+        "TS-104",
+        issuelinks=[
+            {"type": {"name": "Causes"}, "outwardIssue": {"key": "TS-120"}},
+            {"type": {"name": "Causes"}, "inwardIssue": {"key": "TS-121"}},
+        ],
+    )
+
+    assert _tracker().card("TS-104").links == (
+        Link("causes", "TS-120"),
+        Link("caused_by", "TS-121"),
+    )
+
+
 def test_jira_cards_without_the_open_filter(world):  # noqa: F811
     world.fake.pages = {None: {"issues": [], "isLast": True}}
 
@@ -267,6 +360,23 @@ def test_people_without_a_tracker_id_have_a_problem():
 
 def test_fake_tracker_is_a_tracker():
     assert isinstance(FakeTracker(), Tracker)
+
+
+def test_fake_tracker_filters_by_sprint_and_assignees_without_parents():
+    in_sprint = make_card("TS-1", sprint="Sprint 55")
+    other_sprint = make_card("TS-2", sprint="Sprint 56")
+    theirs = make_card("TS-3", assignee="acc-ana", reporter="acc-ana", sprint="Sprint 55")
+    fake = FakeTracker([in_sprint, other_sprint, theirs])
+
+    def refs(**query):
+        return [item.ref for item in fake.cards(CardQuery(**query))]
+
+    assert refs(sprint="active") == ["TS-1"]
+    assert refs(sprint="active", assignees=("acc-ana",)) == ["TS-3"]
+    assert refs(sprint="Sprint 56") == ["TS-2"]
+    assert refs(assignees=("acc-ana",)) == ["TS-3"]
+    assert refs(assignees=("acc-ana",), sprint="Sprint 56") == []
+    assert refs() == []
 
 
 def test_fake_tracker_filters_by_parent_role_and_open():

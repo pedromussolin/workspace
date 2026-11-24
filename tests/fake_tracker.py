@@ -18,6 +18,7 @@ NEEDS = {
 }
 FIELDS = {"epic": "parent"}
 OPS_NEEDING = {"worklog": "worklog", "link": "link_types"}
+LINK_KINDS = ("blocks", "blocked_by", "relates", "causes", "caused_by")
 CURRENT = ("title", "priority", "assignee", "reporter", "parent", "due", "sprint", "start", "type")
 SPRINTS = (
     {"name": "Sprint 54", "state": "closed", "start": "2026-10-27"},
@@ -99,6 +100,8 @@ class FakeTracker:
         return self._cards.get(ref)
 
     def cards(self, query: CardQuery) -> list[Card]:
+        if not (query.parent_in or query.sprint or query.assignees):
+            return []
         found = []
         for item in self._cards.values():
             mine = item.assignee == self._account
@@ -108,12 +111,23 @@ class FakeTracker:
                 "following": asked and not mine,
                 "all": mine or asked,
             }[query.role]
-            if item.parent not in query.parent_in or not wanted:
+            if query.assignees:
+                wanted = item.assignee in query.assignees
+            if (query.parent_in and item.parent not in query.parent_in) or not wanted:
+                continue
+            if query.sprint and not self._in_sprint(item, query.sprint):
                 continue
             if query.open_only and item.status in (Status.DONE, Status.CANCELLED):
                 continue
             found.append(item)
         return found
+
+    def _in_sprint(self, item: Card, sprint: str) -> bool:
+        if sprint != "active":
+            return item.sprint == sprint
+        return any(
+            entry["name"] == item.sprint for entry in self._sprints if entry["state"] == "active"
+        )
 
     def display_name(self, account: str) -> str:
         return self._names.get(account, account)
@@ -246,7 +260,7 @@ class FakeTracker:
             step["native"] = [{"method": "POST", "path": f"{path}/worklogs", "body": body}]
             step["preview"] = [f"Lançar {values['time']}"]
         else:
-            kinds = [kind for kind in ("blocks", "blocked_by", "relates") if kind in values]
+            kinds = [kind for kind in LINK_KINDS if kind in values]
             step["native"] = [
                 {"method": "POST", "path": f"{path}/links", "body": {"kind": kind, "to": other}}
                 for kind in kinds
