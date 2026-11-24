@@ -25,8 +25,8 @@ waits for the user's yes.
    (`ws people me` prints the user's id; `ws people add EMAIL` prints the config block of a
    colleague; when an id is unknown, `ws card check` says which). Leave `reporter` out when it is
    the user: the tracker makes the creator the reporter, and a `reporter` key is sent only when
-   written (the type's create screen must have the field). Write the title and sections in
-   the user's style (below).
+   written (the type's create screen must have the field). Write the title and sections as
+   the card policy says (below).
 2. **Write the draft** with the Write tool in `~/.local/share/workspace/cards/drafts/` (one
    operation per file; `cat > <path> <<'EOF'` with the delimiter quoted, if Write is denied). Run `ws card check <draft>`; fix the
    draft and repeat until `ok` is true. Ask the user only about problems that only they can settle.
@@ -341,16 +341,39 @@ day = 2026-10-28
 +++
 ```
 
-## The user's card style
+## The card policy (the user's card style by default)
 
-- Title `[ÁREA] ...`: the epic's prefix (as `ws card epics` prints it), a space, then a short
-  description. An epic with no prefix takes any title. One line, up to 255 characters.
-- Description sections, level-2 headings exactly: `## Contexto`, `## Desenho combinado`,
-  `## A fazer antes de implementar`, `## Pronto quando`. `## Contexto` and `## Pronto quando` are
-  required and not empty; the other two only when there is something to say. A `bug` and a
-  `hotfix` also need `## Como reproduzir` and `## Evidência`, a `hotfix` also
-  `## Por que não espera a release`, and an `epic` or `initiative` only `## Contexto`
-  (`references/card-rules.md`).
+How a card is filled comes from the card policy, not from this file. Run `ws card policy` (add
+`--project SLUG` when the card belongs to a workspace project) before writing a `create` draft or
+an `edit` of a title or a description, read the JSON it prints and follow it. It holds the merged
+rules: the default policy, which is the user's own style described below, then the company profile
+the user's config names, then the project's own layer. A later layer changes what it declares, so a
+company or a project may differ from what this section says; the command is the truth. `ws card
+check` applies the same policy, so a draft that breaks it fails there.
+
+- `title.format`: `epic_prefix` is the user's style, `[ÁREA] ...` (the epic's prefix as `ws card
+  epics` prints it, a space, then a short description; an epic with no prefix takes any title);
+  `subgroup` is `[group] - text`, where the group is free text of 1 to 60 characters and has no
+  brackets. An epic's or an initiative's own title always starts with `[PREFIX] `. One line, up to
+  255 characters.
+- `sections.<type>.required`: the level-2 headings of the type, exactly as written, not empty; the
+  `optional` ones only when there is something to say. The default is `## Contexto` and
+  `## Pronto quando` for `task`, `improvement` and `feature`; a `bug` and a `hotfix` also need
+  `## Como reproduzir` and `## Evidência`, a `hotfix` also `## Por que não espera a release`, and
+  an `epic` or `initiative` only `## Contexto` (`references/card-rules.md`). Optional by default:
+  `## Desenho combinado` and `## A fazer antes de implementar`.
+- `create.require`: the fields a create must carry besides the draft's own: `epic`, `due`,
+  `estimate`, `assignee`, `reporter` and `categories`. With `categories`, a create has exactly one
+  value of each category group the policy marks `required`, written in `labels` (a group is
+  skipped when the card carries a value its `skip_when` lists). Ask the user for what only they
+  know, such as the estimate or the group of a subgroup title.
+- `categories.<group>.derive`: a value computed from the estimate (for example a size tag above or
+  below a number of hours). Propose the computed value; the check refuses one that contradicts the
+  estimate, except the values the policy keeps.
+- `estimate.padding_percent`: above zero, the preview warns that the original estimate should
+  already include that margin; say it to the user, do not add it yourself.
+- `finish.require`: what a move to done needs, a start date and time spent. The same batch may
+  supply them (an edit with `start`, a `worklog` draft).
 - Plain PT-BR describing the task and only the task: no mention of the user, the AI, the
   conversation or agreements between them. Bad: "Validar a estrutura do documento com <o usuário>."
   Good: "Validar a estrutura do documento." Valid for create, edit (title and description) and

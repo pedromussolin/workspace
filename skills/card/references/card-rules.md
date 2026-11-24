@@ -96,13 +96,22 @@ current card, unless the user says to include it.
   of an open sprint, or (edit only) `"backlog"` **[code]**.
 - An epic or an initiative stays out of sprints: only its cards go into one, and it keeps its due
   date **[code]**. An edit with `"backlog"` takes it out of a sprint.
-- `due` is optional without a sprint and required with one **[code]**. There is no start date at
-  creation: it is set when the card moves to in progress.
+- `due` is optional without a sprint and required with one **[code]**; a company or project policy
+  may require it always (`create.require`, or `create.due_with_sprint = false`). There is no start
+  date at creation: it is set when the card moves to in progress.
+- The policy (`ws card policy`) also sets what a create must carry (`estimate`, categories) and
+  what a move to done needs (a start date, time spent); see section 8 and the skill **[code]**.
 
 ## 8. Text
 
+- The title format and the sections below are the default card policy, which is the user's own
+  style; the format and the headings a card follows are the ones `ws card policy` prints for its
+  project (the default, then the company profile, then the project's layer), and `ws card check`
+  applies them **[code]**. Epics and initiatives keep the `[PREFIX] ` title whatever the layers
+  say about titles; their sections are the policy's too (default: `## Contexto` only).
 - Title `[PREFIX] text`, with the epic's prefix and a space, as `ws card epics` prints it
-  **[code]**; an epic with no prefix takes any title. An epic's or an initiative's own title starts
+  **[code]** (policy `title.format = "epic_prefix"`; `"subgroup"` is `[group] - text`); an epic
+  with no prefix takes any title. An epic's or an initiative's own title starts
   with `[PREFIX] ` (the brackets and a space), at create and at edit **[code]**. One line, up to
   255 characters **[code]**.
 - The text talks only about the task: never the user, the AI, the conversation or agreements
