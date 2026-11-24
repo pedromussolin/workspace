@@ -50,7 +50,10 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
     cada 30 min para remessa presa (TS-5572);
   - esteira de baixa nova com reentrega segura e arquivo em blocos, ligada por produto pela coluna
     `liquidacao_baixa_refact`, que nasce desligada em todos; fila própria
-    `liquidacao_baixa_isolada_celery` (TS-5737).
+    `liquidacao_baixa_isolada_celery` (TS-5737);
+  - sai a rotina fixa de fechamento por agendamento do beat (`liquidacao_fecha_lote_task`, 16h de
+    Brasília): com a release, ela fecharia todo produto com gatilho agendado junto com o horário
+    novo; produto agendado passa a fechar só pelo agendamento dele (TS-5612).
 - **apl-credit-whitelabel-api** (BFF, a camada entre o portal e os serviços; PR a abrir): guardas de
   lote vazio (TS-5582), lote aberto (TS-5567), rotas da configuração do produto, que aceitam a lista
   de horários vazia fora do agendado (TS-5624), contrato
@@ -65,8 +68,8 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
   quatro serviços.
 
 **O que não muda**
-- A varredura externa segue fechando os lotes do Mercato Libero até os horários por
-  produto serem ligados; o produto 1604 continua no agendamento fixo atual.
+- A varredura externa segue fechando os lotes do Mercato Libero nos primeiros dias, mesmo com os
+  horários por produto ligados.
 - A rota legada `POST /liquidacao/` da cessão e a esteira de baixa atual (todo produto continua
   nela, porque a chave nova nasce desligada).
 - A limpeza dos lotes vazios antigos não roda neste deploy; depende da revisão da DBA.
@@ -78,8 +81,8 @@ High
 
 ## Link Tarefa
 
-`<link do Jira>` das 14 tarefas: TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571,
-TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
+`<link do Jira>` das 15 tarefas: TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571,
+TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 
 ## Risco
 
@@ -88,6 +91,10 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   flag `liquidacao_automatico` desligada, fecham e esperam o "liquidar") → depois da migration, o
   lote vai à administradora sem esperar o liquidar → segura: conferência da lista no dia (passo 2);
   volta por produto, sem deploy, com o gatilho `manual` na tela de configuração.
+- **Produto agendado sem agendamento ligado** (a rotina fixa sai e os agendamentos de liquidação
+  nascem desligados) → o produto em gatilho agendado não fecha sozinho; no principal é só o 1604
+  (réplica, 24/11) → segura: ligar o horário das 16:00 do 1604 logo depois do deploy (passo 9),
+  antes das 16h do dia seguinte.
 - **Migration esperando trava na `produto_config`** (inclui colunas e faz um UPDATE em todas as
   linhas) → leituras da tabela ficam na fila atrás dela → segura: janela noturna; acompanhar o Job
   de migration; DBA de prontidão (a confirmar). A migration não define `lock_timeout` (a confirmar).
@@ -100,7 +107,10 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   - os 14 agendamentos entram com os ids de produto do principal: os 13 de liquidação nascem
     desligados; o backstop nasce ligado e só olha remessas automáticas;
   - sem a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê, os pods de lá não sobem (a
-    confirmar se é o mesmo do principal).
+    confirmar se é o mesmo do principal);
+  - a rotina fixa de fechamento das 16h também sai de lá: produto que fecha por ela (flag
+    `baixa_por_agendamento`) para de fechar sozinho até o agendamento dele ser ligado (a
+    confirmar).
 - **Disparo do agendador perdido ou travado** (sandbox, 23/11) **[C]**: o despacho reaproveita a
   conexão com o RabbitMQ, e depois de ~30 min parada ela é derrubada em silêncio no caminho. Sem
   confirmação de publicação, a mensagem some (execução das 17:00 UTC publicada e nunca recebida);
@@ -114,7 +124,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   não consumida em 2 h.
 - **E-mail recusado pelo shared** (sem remetente ativo ou sem destinatário: 422) → a execução do
   resumo ou do aviso fica registrada com erro, sem nova tentativa → segura: o job do resumo nasce
-  desligado; remetente e grupo cadastrados no passo 9, antes de ligar.
+  desligado; remetente e grupo cadastrados no passo 11, antes de ligar.
 - **Deploy no meio de uma tarefa** → o pod que sai tem 30 s para terminar
   (`terminationGracePeriodSeconds`) e depois é morto; a mensagem volta à fila (`acks_late`) e o pod
   novo refaz. Repetir é seguro: o fechamento só pega pagamento sem lote.
@@ -172,10 +182,15 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
    lotes carrega.
 
 **Depois**
-9. E-mails: ativar o remetente com a caixa compartilhada de produção e cadastrar o grupo do Entra ID
-   nos dois templates da liquidação, antes de ligar o resumo diário.
-10. Fica desligado até decisão: fechamento por horário do Mercato Libero e da Voltis (horários a
-    confirmar com o negócio), resumo diário e `liquidacao_baixa_refact` por produto.
+9. Produto 1604: ligar o fechamento por horário às 16:00 pela tela de configuração (ou
+   `PUT /liquidacao/fechamento-por-horario/1604`). Conferir o agendamento ativo, com próxima
+   execução às 16:00, e, no dia seguinte, "Fechamento de lotes por horário concluído".
+10. Produto 15 (Mercato Libero): fechamento por horário ligado pelo usuário pela tela (16:00, 17:00,
+    18:00 e 20:45); a varredura externa segue ligada nos primeiros dias.
+11. E-mails: ativar o remetente com a caixa compartilhada de produção e cadastrar o grupo do Entra ID
+    nos dois templates da liquidação, antes de ligar o resumo diário.
+12. Fica desligado até decisão: fechamento por horário dos outros produtos do Mercato Libero,
+    resumo diário e `liquidacao_baixa_refact` por produto. A Voltis segue manual.
 
 ## Plano de Rollback
 
@@ -193,6 +208,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
 
 ## Evidências de validação
 
+- **Testes (24/11, TS-5612):** cessão 6689 passaram e 207 pulados no Docker, sem falha (`8cccc51e8`);
+  antes da TS-5612, 6698 e 210: a diferença são os testes da rotina que saiu.
 - **Testes (23/11):** shared 898 (`15cb14d`, contém a `release/20261124` em `93835fe`); cessão 7082
   nos dois modos da suíte e integração 124 e 45 (`71be313a3`, contém `79747b2c0`). CI das PRs da
   sandbox (#87, #2782, #280, #317): verde, salvo o Semgrep no shared e na cessão (aceito).
