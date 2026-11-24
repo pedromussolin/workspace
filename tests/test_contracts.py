@@ -116,6 +116,7 @@ def test_every_schema_pins_version_and_is_closed():
         "observe-result",
         "observe-run",
         "observe-status",
+        "card-policy",
         "card-write",
         "card-plan",
         "card-result",
@@ -237,6 +238,7 @@ VALID = {
         "problems": [],
         "warnings": [],
     },
+    "card-policy": {"version": 1, "title": {"format": "subgroup"}},
     "card-write": {
         "$schema": "card-write",
         "version": 1,

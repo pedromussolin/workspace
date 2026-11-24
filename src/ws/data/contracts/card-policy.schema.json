@@ -1,0 +1,76 @@
+{
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "title": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {"enum": ["epic_prefix", "subgroup"]}
+      }
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "task": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "bug": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "hotfix": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "improvement": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "feature": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "epic": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}},
+        "initiative": {"type": "object", "additionalProperties": false, "properties": {"required": {"type": "array", "items": {"type": "string"}}, "optional": {"type": "array", "items": {"type": "string"}}}}
+      }
+    },
+    "create": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require": {
+          "type": "array",
+          "items": {"enum": ["epic", "due", "estimate", "assignee", "reporter", "categories"]}
+        },
+        "due_with_sprint": {"type": "boolean"}
+      }
+    },
+    "estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "padding_percent": {"type": "number"}
+      }
+    },
+    "categories": {
+      "type": "object"
+    },
+    "epic": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skip_when": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "finish": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require": {"type": "array", "items": {"enum": ["start", "time_spent"]}}
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bug": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caused_by": {"enum": ["off", "suggest"]}
+          }
+        }
+      }
+    }
+  }
+}

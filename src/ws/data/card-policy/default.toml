@@ -1,0 +1,54 @@
+version = 1
+
+[title]
+format = "epic_prefix"
+
+[sections.task]
+required = ["Contexto", "Pronto quando"]
+optional = ["Desenho combinado", "A fazer antes de implementar"]
+
+[sections.improvement]
+required = ["Contexto", "Pronto quando"]
+optional = ["Desenho combinado", "A fazer antes de implementar"]
+
+[sections.feature]
+required = ["Contexto", "Pronto quando"]
+optional = ["Desenho combinado", "A fazer antes de implementar"]
+
+[sections.bug]
+required = ["Contexto", "Pronto quando", "Como reproduzir", "Evidência"]
+optional = ["Desenho combinado", "A fazer antes de implementar"]
+
+[sections.hotfix]
+required = [
+  "Contexto",
+  "Pronto quando",
+  "Como reproduzir",
+  "Evidência",
+  "Por que não espera a release",
+]
+optional = ["Desenho combinado", "A fazer antes de implementar"]
+
+[sections.epic]
+required = ["Contexto"]
+optional = []
+
+[sections.initiative]
+required = ["Contexto"]
+optional = []
+
+[create]
+require = ["epic"]
+due_with_sprint = true
+
+[estimate]
+padding_percent = 0
+
+[epic]
+skip_when = []
+
+[finish]
+require = []
+
+[links.bug]
+caused_by = "off"
