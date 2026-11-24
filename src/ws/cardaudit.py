@@ -177,15 +177,16 @@ def _computed_labels(
     return list(dict.fromkeys(add)), list(dict.fromkeys(remove))
 
 
-def check_folder(argument: str) -> Path:
-    """The folder drafts go to: new or empty, and under `cards/drafts` so a preview can read it."""
+def check_folder(argument: str, allow_existing: bool = False) -> Path:
+    """The folder drafts go to: new or empty (unless `allow_existing`), and under `cards/drafts`
+    so a preview can read it."""
     folder = Path(argument).expanduser()
     root = (data_dir() / "cards" / "drafts").resolve()
     if folder.is_symlink() or not folder.resolve().is_relative_to(root) or folder.resolve() == root:
         raise Refused(f"{argument} is not a folder inside {root}", 1)
     if folder.exists() and not folder.is_dir():
         raise Refused(f"{argument} exists and is not a folder", 1)
-    if folder.is_dir() and any(folder.iterdir()):
+    if not allow_existing and folder.is_dir() and any(folder.iterdir()):
         raise Refused(f"{argument} is not empty; use a new folder", 1)
     return folder.resolve()
 

@@ -168,6 +168,7 @@ def test_status_gives_todays_minutes_per_card_and_the_open_ones(world, capsys):
         mark("start", "TS-2", TODAY, "16:00"),
         activity("TS-3", TODAY, "11:00"),
         activity("TS-3", TODAY, "11:20"),
+        activity("TS-5", TODAY, "17:50"),
         mark("start", "TS-4", "2026-11-26", "09:00"),
         mark("stop", "TS-4", "2026-11-26", "10:00"),
     )
@@ -180,7 +181,8 @@ def test_status_gives_todays_minutes_per_card_and_the_open_ones(world, capsys):
     assert document["today"] == [
         {"card": "TS-1", "minutes": 60, "marked": 60, "hook": 0},
         {"card": "TS-2", "minutes": 120, "marked": 120, "hook": 0},
-        {"card": "TS-3", "minutes": 20, "marked": 0, "hook": 20},
+        {"card": "TS-3", "minutes": 50, "marked": 0, "hook": 50},
+        {"card": "TS-5", "minutes": 10, "marked": 0, "hook": 10},
     ]
 
 
@@ -318,8 +320,9 @@ def test_the_reader_accepts_null_fields_and_a_session_and_counts_no_card_time_fo
     events, skipped = timelog.read(day, day)
 
     assert (len(events), skipped) == (2, 0)
-    assert [item.minutes for item in timelog.hook_intervals(events, 30)] == [0]
-    assert [item.card for item in timelog.hook_intervals(events, 30)] == ["TS-1"]
+    found = timelog.hook_intervals(events, 30, NOW)
+    assert [item.card for item in found] == ["TS-1"]
+    assert [item.minutes for item in found] == [30]
 
 
 def test_the_log_folder_follows_the_data_dir_override(world, tmp_path, monkeypatch):

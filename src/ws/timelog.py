@@ -189,9 +189,11 @@ def marked_intervals(events: list[Event], now: datetime, warnings: list[str]) ->
     return intervals
 
 
-def hook_intervals(events: list[Event], idle_minutes: int) -> list[Interval]:
-    """Activity of one card with gaps of at most `idle_minutes` makes one interval, from its
-    first to its last event; a lone event is an interval of no length (the card was touched)."""
+def hook_intervals(events: list[Event], idle_minutes: int, now: datetime) -> list[Interval]:
+    """Activity of one card with gaps of at most `idle_minutes` makes one run, and the run is an
+    interval from its first event to `idle_minutes` past its last (the work after a prompt goes
+    on), never past `now`. Runs are more than `idle_minutes` apart, so they never overlap; a lone
+    prompt counts `idle_minutes` and no more."""
     by_card: dict[str, list[datetime]] = defaultdict(list)
     for item in events:
         if item.event == "activity" and item.card:
@@ -202,10 +204,10 @@ def hook_intervals(events: list[Event], idle_minutes: int) -> list[Interval]:
         begin = last = stamps[0]
         for stamp in stamps[1:]:
             if stamp - last > gap:
-                intervals.append(Interval(card, begin, last, "hook"))
+                intervals.append(Interval(card, begin, min(last + gap, max(now, last)), "hook"))
                 begin = stamp
             last = stamp
-        intervals.append(Interval(card, begin, last, "hook"))
+        intervals.append(Interval(card, begin, min(last + gap, max(now, last)), "hook"))
     return intervals
 
 
@@ -240,12 +242,15 @@ def _uncovered(item: Interval, cover: list[tuple[datetime, datetime]]) -> list[I
 def evidence(
     events: list[Event], idle_minutes: int, now: datetime, warnings: list[str]
 ) -> list[Interval]:
-    """Marked intervals, plus the hook intervals where no marked interval (of any card) covers."""
+    """Marked intervals, plus the hook intervals of a card where no marked interval of that same
+    card covers. Intervals of different cards may overlap: `ws.timereport` splits the overlap."""
     marked = marked_intervals(events, now, warnings)
-    cover = _merged([(item.start, item.end) for item in marked])
-    hooked = [
-        piece for item in hook_intervals(events, idle_minutes) for piece in _uncovered(item, cover)
-    ]
+    covers: dict[str, list[tuple[datetime, datetime]]] = defaultdict(list)
+    for item in marked:
+        covers[item.card].append((item.start, item.end))
+    hooked = []
+    for item in hook_intervals(events, idle_minutes, now):
+        hooked.extend(_uncovered(item, _merged(covers.get(item.card, []))))
     return sorted([*marked, *hooked], key=lambda item: (item.start, item.end, item.card))
 
 

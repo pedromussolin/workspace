@@ -111,8 +111,8 @@ def register(subparsers: "argparse._SubParsersAction[argparse.ArgumentParser]") 
     report.add_argument(
         "--drafts",
         metavar="DIR",
-        help="With --card: write a worklog draft per day with time to log into DIR, a new or "
-        "empty folder under cards/drafts.",
+        help="With --card: write a worklog draft per day with time to log into DIR, a folder "
+        "under cards/drafts (new, or holding other drafts; a name already taken refuses).",
     )
     report.add_argument(
         "--unplanned",

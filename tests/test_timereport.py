@@ -227,29 +227,106 @@ def test_marked_and_hook_time_come_first_and_the_fill_goes_to_the_committer(worl
     assert row(document, TUESDAY, "TS-1")["minutes"] == 120
     assert row(document, TUESDAY, "TS-2")["sources"] == {
         "marked": 0,
-        "hook": 45,
+        "hook": 75,
         "commits": 0,
-        "filled": FLOOR - 165,
+        "filled": FLOOR - 195,
     }
     assert day_of(document, TUESDAY)["planned_minutes"] == FLOOR
 
 
-def test_hook_time_inside_a_mark_is_not_counted_twice(world, capsys):
+def test_hook_time_of_a_card_inside_its_own_mark_is_not_counted_twice(world, capsys):
+    world.tracker()
+    write_log(
+        mark("start", "TS-1", SATURDAY, "09:00"),
+        mark("stop", "TS-1", SATURDAY, "11:00"),
+        activity("TS-1", SATURDAY, "09:30"),
+        activity("TS-1", SATURDAY, "10:00"),
+        activity("TS-3", SATURDAY, "12:30"),
+        activity("TS-3", SATURDAY, "13:00"),
+    )
+
+    _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
+
+    assert minutes(document, SATURDAY) == {"TS-1": 120, "TS-3": 60}
+    assert row(document, SATURDAY, "TS-1")["sources"] == {
+        "marked": 120,
+        "hook": 0,
+        "commits": 0,
+        "filled": 0,
+    }
+    assert row(document, SATURDAY, "TS-3")["sources"]["hook"] == 60
+
+
+def test_hook_time_of_the_run_ends_at_the_next_mark_of_its_own_card(world, capsys):
+    world.tracker()
+    write_log(
+        activity("TS-1", SATURDAY, "09:50"),
+        mark("start", "TS-1", SATURDAY, "10:00"),
+        mark("stop", "TS-1", SATURDAY, "11:00"),
+    )
+
+    _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
+
+    assert row(document, SATURDAY, "TS-1")["sources"]["hook"] == 10
+    assert minutes(document, SATURDAY) == {"TS-1": 70}
+
+
+def test_a_mark_of_one_card_does_not_hide_the_hook_activity_of_another(world, capsys):
     world.tracker()
     write_log(
         mark("start", "TS-1", SATURDAY, "09:00"),
         mark("stop", "TS-1", SATURDAY, "11:00"),
         activity("TS-2", SATURDAY, "09:30"),
         activity("TS-2", SATURDAY, "10:00"),
-        activity("TS-3", SATURDAY, "10:30"),
-        activity("TS-3", SATURDAY, "11:00"),
-        activity("TS-3", SATURDAY, "11:30"),
     )
 
     _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
 
-    assert minutes(document, SATURDAY) == {"TS-1": 120, "TS-3": 30}
-    assert row(document, SATURDAY, "TS-3")["sources"]["hook"] == 30
+    # TS-2's run is 09:30 to 10:30; the hour inside TS-1's mark is split equally.
+    assert row(document, SATURDAY, "TS-1")["sources"] == {
+        "marked": 90,
+        "hook": 0,
+        "commits": 0,
+        "filled": 0,
+    }
+    assert row(document, SATURDAY, "TS-2")["sources"]["hook"] == 30
+    assert day_of(document, SATURDAY)["planned_minutes"] == 120
+
+
+def test_a_mark_and_hook_activity_of_two_cards_split_the_overlap_by_commits(world, capsys):
+    world.tracker()
+    write_log(
+        mark("start", "TS-1", SATURDAY, "09:00"),
+        mark("stop", "TS-1", SATURDAY, "11:00"),
+        activity("TS-2", SATURDAY, "09:30"),
+        activity("TS-2", SATURDAY, "10:00"),
+    )
+    commit(world.api, "feat(TS-2): x", stamp(SATURDAY, "10:00"))
+
+    _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
+
+    assert row(document, SATURDAY, "TS-1")["sources"]["marked"] == 60
+    assert row(document, SATURDAY, "TS-2")["sources"]["hook"] == 60
+
+
+def test_two_cards_with_overlapping_hook_activity_split_the_overlap(world, capsys):
+    world.tracker()
+    write_log(
+        activity("TS-1", SATURDAY, "10:00"),
+        activity("TS-1", SATURDAY, "10:20"),
+        activity("TS-2", SATURDAY, "10:10"),
+        activity("TS-2", SATURDAY, "10:40"),
+    )
+    commit(world.api, "feat(TS-1): x", stamp(SATURDAY, "10:15"))
+    commit(world.api, "feat(TS-1): y", stamp(SATURDAY, "10:25"))
+    commit(world.api, "feat(TS-2): z", stamp(SATURDAY, "10:35"))
+
+    _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
+
+    # TS-1 runs 10:00-10:50 and TS-2 10:10-11:10; they overlap from 10:10 to 10:50 (40 minutes),
+    # where TS-1 has two commits and TS-2 one.
+    assert row(document, SATURDAY, "TS-1")["sources"]["hook"] == round(10 + 40 * 2 / 3)
+    assert row(document, SATURDAY, "TS-2")["sources"]["hook"] == round(20 + 40 / 3)
 
 
 def test_a_gap_over_the_idle_limit_ends_the_hook_interval(world, capsys):
@@ -262,7 +339,7 @@ def test_a_gap_over_the_idle_limit_ends_the_hook_interval(world, capsys):
 
     _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
 
-    assert minutes(document, SATURDAY) == {"TS-1": 25}
+    assert minutes(document, SATURDAY) == {"TS-1": 85}
 
 
 def test_the_idle_limit_comes_from_the_config(world, capsys):
@@ -276,7 +353,7 @@ def test_the_idle_limit_comes_from_the_config(world, capsys):
 
     _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
 
-    assert minutes(document, SATURDAY) == {"TS-1": 70}
+    assert minutes(document, SATURDAY) == {"TS-1": 130}
 
 
 def test_overlapping_marks_of_two_cards_split_by_commits_in_the_report(world, capsys):
@@ -320,8 +397,9 @@ def test_an_open_mark_of_a_past_day_ends_at_the_cards_last_activity(world, capsy
     code, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
 
     assert code == 0
-    assert minutes(document, SATURDAY) == {"TS-1": 90}
+    assert minutes(document, SATURDAY) == {"TS-1": 120}
     assert row(document, SATURDAY, "TS-1")["sources"]["marked"] == 90
+    assert row(document, SATURDAY, "TS-1")["sources"]["hook"] == 30
     assert any("TS-2" in warning and "no stop" in warning for warning in document["warnings"])
 
 
@@ -696,18 +774,57 @@ def test_a_card_with_an_unplanned_label_gets_the_estimate_draft_by_itself(world,
     assert worklog.values["time"] == "50m"
 
 
-def test_drafts_refuse_a_folder_that_is_not_empty(world, capsys):
+def test_drafts_go_into_a_folder_that_already_holds_other_drafts(world, capsys):
     world.tracker()
     three_days(world)
     folder = drafts_folder(world)
     folder.mkdir(parents=True)
-    (folder / "old.md").write_text("x", encoding="utf-8")
+    (folder / "TS-1-move.md").write_text("+++\nop = 'move'\n+++\n", encoding="utf-8")
+
+    code, document, err = report(capsys, "--card", "TS-1", "--drafts", str(folder))
+
+    assert code == 0, err
+    assert document["drafts"]["files"] == [
+        "TS-1-worklog-2026-11-24.md",
+        "TS-1-worklog-2026-11-26.md",
+    ]
+    assert sorted(path.name for path in folder.iterdir()) == [
+        "TS-1-move.md",
+        "TS-1-worklog-2026-11-24.md",
+        "TS-1-worklog-2026-11-26.md",
+    ]
+    assert (folder / "TS-1-move.md").read_text(encoding="utf-8") == "+++\nop = 'move'\n+++\n"
+
+
+def test_drafts_refuse_a_name_clash_listing_the_names_and_overwrite_nothing(world, capsys):
+    world.tracker()
+    three_days(world)
+    folder = drafts_folder(world)
+    folder.mkdir(parents=True)
+    (folder / "TS-1-worklog-2026-11-24.md").write_text("mine", encoding="utf-8")
+    (folder / "TS-1-worklog-2026-11-26.md").write_text("mine too", encoding="utf-8")
 
     code, document, err = report(capsys, "--card", "TS-1", "--drafts", str(folder))
 
     assert (code, document) == (1, None)
-    assert "not empty" in err
-    assert [path.name for path in folder.iterdir()] == ["old.md"]
+    assert "TS-1-worklog-2026-11-24.md, TS-1-worklog-2026-11-26.md" in err
+    assert sorted(path.read_text(encoding="utf-8") for path in folder.iterdir()) == [
+        "mine",
+        "mine too",
+    ]
+
+
+def test_a_clash_on_one_name_writes_none_of_the_other_drafts(world, capsys):
+    world.tracker()
+    three_days(world)
+    folder = drafts_folder(world)
+    folder.mkdir(parents=True)
+    (folder / "TS-1-worklog-2026-11-26.md").write_text("mine", encoding="utf-8")
+
+    code, _, _ = report(capsys, "--card", "TS-1", "--drafts", str(folder))
+
+    assert code == 1
+    assert [path.name for path in folder.iterdir()] == ["TS-1-worklog-2026-11-26.md"]
 
 
 def test_drafts_refuse_a_folder_outside_the_drafts_area(world, capsys, tmp_path):
@@ -857,7 +974,7 @@ def test_an_unreadable_line_of_the_log_is_skipped_with_a_note(world, capsys):
 
     _, document, _ = report(capsys, "--from", SATURDAY, "--to", SATURDAY)
 
-    assert minutes(document, SATURDAY) == {"TS-1": 10}
+    assert minutes(document, SATURDAY) == {"TS-1": 40}
     assert any("2 unreadable" in warning for warning in document["warnings"])
 
 

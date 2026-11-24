@@ -202,24 +202,24 @@ def split_day(
     points = sorted({stamp for part in pieces for stamp in (part.start, part.end)})
     windows: list[list] = []
     for begin, end in zip(points, points[1:], strict=False):
-        active = [part for part in pieces if part.start <= begin and part.end >= end]
+        active = frozenset(
+            (part.card, part.source) for part in pieces if part.start <= begin and part.end >= end
+        )
         if not active:
             continue
-        cards = frozenset(part.card for part in active)
-        source = "marked" if any(part.source == "marked" for part in active) else "hook"
-        if windows and windows[-1][1] == begin and windows[-1][2] == cards:
+        if windows and windows[-1][1] == begin and windows[-1][2] == active:
             windows[-1][1] = end
         else:
-            windows.append([begin, end, cards, source])
-    for begin, end, cards, source in windows:
+            windows.append([begin, end, active])
+    for begin, end, active in windows:
         minutes = (end - begin).total_seconds() / 60
         weights = {
             card: sum(1 for stamp in commits.get(card, []) if begin <= stamp < end)
-            for card in cards
+            for card, _ in active
         }
         total = sum(weights.values())
-        for card in cards:
-            share = weights[card] / total if total else 1 / len(cards)
+        for card, source in active:
+            share = weights[card] / total if total else 1 / len(active)
             out[card][source] += minutes * share
     return out
 
@@ -477,34 +477,40 @@ def build(request: Request, config: userconfig.UserConfig, tracker: Tracker, now
     }
 
 
-def write_drafts(folder: Path, display: str, request: Request, document: dict) -> dict:
-    """One `worklog` draft per day with minutes to log, and the `estimate` draft of an unplanned
-    card (its estimate is its real time, with no padding)."""
-    approval.ensure_store(folder.parent)
-    approval.ensure_store(folder)
+def planned_drafts(request: Request, document: dict) -> dict[str, str]:
+    """The drafts a report calls for, by file name: one `worklog` per day with minutes to log,
+    and the `estimate` of an unplanned card (its real time, with no padding)."""
     ref = request.card
     summary = document["cards"][0]
-    files = []
+    found = {}
     for day in document["days"]:
         minutes = day["cards"][0]["to_log_minutes"] if day["cards"] else 0
-        if minutes <= 0:
-            continue
-        name = f"{ref}-worklog-{day['date']}.md"
-        text = (
-            f'+++\nop = "worklog"\nkey = {json.dumps(ref)}\n'
-            f"time = {json.dumps(duration_text(minutes))}\nday = {day['date']}\n+++\n"
-        )
-        cardaudit.write_private(folder / name, text)
-        files.append(name)
-    if (request.unplanned or summary["unplanned"]) and summary["total_minutes"] > 0:
-        name = f"{ref}-estimate.md"
-        text = (
+        if minutes > 0:
+            found[f"{ref}-worklog-{day['date']}.md"] = (
+                f'+++\nop = "worklog"\nkey = {json.dumps(ref)}\n'
+                f"time = {json.dumps(duration_text(minutes))}\nday = {day['date']}\n+++\n"
+            )
+    if summary["unplanned"] and summary["total_minutes"] > 0:
+        found[f"{ref}-estimate.md"] = (
             f'+++\nop = "edit"\nkey = {json.dumps(ref)}\n'
             f"estimate = {json.dumps(duration_text(summary['total_minutes']))}\n+++\n"
         )
+    return found
+
+
+def write_drafts(folder: Path, display: str, request: Request, document: dict) -> dict:
+    """Write the drafts into a new folder or one that holds other drafts already (one preview
+    and one approval for all of them). A name that is taken refuses everything, listing the
+    names; nothing is overwritten."""
+    found = planned_drafts(request, document)
+    taken = sorted(name for name in found if (folder / name).exists())
+    if taken:
+        raise TimeRefused(f"{display} already holds {', '.join(taken)}; nothing was written")
+    approval.ensure_store(folder.parent)
+    approval.ensure_store(folder)
+    for name, text in found.items():
         cardaudit.write_private(folder / name, text)
-        files.append(name)
-    return {"folder": display, "count": len(files), "files": files}
+    return {"folder": display, "count": len(found), "files": list(found)}
 
 
 def _now() -> datetime:
@@ -521,7 +527,7 @@ def run(
 ) -> int:
     try:
         request = make_request(card, from_, to, week, drafts, unplanned)
-        folder = cardaudit.check_folder(drafts) if drafts is not None else None
+        folder = cardaudit.check_folder(drafts, allow_existing=True) if drafts is not None else None
         config = userconfig.load_config()
         tracker = port.open_tracker()
         document = build(request, config, tracker, _now())
