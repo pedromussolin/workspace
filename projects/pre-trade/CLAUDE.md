@@ -15,6 +15,9 @@ As regras comuns (sigilo, commits, idioma e sincronização) e as regras de trab
 
 - O motor de workflows é genérico: SLA, pulo de aprovações e avisos novos entram nele sem citar o
   Pré-Trade; o módulo `pre_trade` só integra (avisos, rótulos, regras do fluxo).
+- Mudança no contrato entre shared, BFF e front só com o desenho aprovado pelo usuário (regra geral
+  de arquitetura: `instructions/company-repos.md`, "Fluxo da tarefa").
+- Mudança na configuração do fluxo vai em migration nova.
 - A configuração do fluxo que vale é a da sandbox: conferir lá antes de afirmar como o fluxo está.
 
 ## Valores reais fora do repo
