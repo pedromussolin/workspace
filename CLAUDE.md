@@ -9,10 +9,16 @@ conventions are read on demand.
 
 ## Company-repo rules do not apply here
 
-`~/repos/CLAUDE.md` is also loaded in this repo, because it sits under `~/repos`. Its git rules are
-for the company repos and do not apply here: no `TS-…` branches or commit prefixes, no `-sdbx`
-replication, no "never commit on master". This repo follows
-[docs/conventions/git.md](docs/conventions/git.md).
+`~/repos/CLAUDE.md` is also loaded in this repo, because it sits under `~/repos`. Its part for
+every repo (communication, Bash, reading, agents, cards and hours) holds here too. Its part for the
+company repos (git, task flow, code) does not: no `TS-…` branches or commit prefixes, no `-sdbx`
+replication, no review before each commit, no "never commit on master". This repo follows
+[docs/conventions/git.md](docs/conventions/git.md) and the language and confidentiality rules
+below.
+
+Sessions usually start in `~/repos`, where this file loads only after a file of this repo is read,
+and a conversation summary can drop it. Before changing this repo, make sure this file and
+`AGENTS.md` are in context; read them again if not.
 
 ## Two kinds of skills
 

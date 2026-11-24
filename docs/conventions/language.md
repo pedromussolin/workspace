@@ -7,6 +7,9 @@ Which language names and content use.
 - Content stays in the language of its context, as the table below shows. [review]
 - A new file takes a short English slug, with the `NN-` prefix for tasks; proper nouns, analogs
   and acronyms stay (`genius`, `gmud-ts-5383.md`). [review]
+- A planning project takes the short name of the product or feature (`pre-trade`), not of the
+  delivery: later deliveries go in the same project, and the current delivery's scope goes in its
+  `README.md`. [review]
 - Chat follows the language the user writes in. [review]
 - Migrated documents are not rewritten: a file with PT-BR content still has an English name.
   [review]

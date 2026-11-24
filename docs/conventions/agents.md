@@ -26,5 +26,15 @@ How a controller briefs subagents, and how agents work in this repo. Decision:
   [gate]
 - Agents work in their own worktree and branch, never merge or push, and never dispatch
   subagents. The controller reviews, merges, runs the suite and pushes. [review]
+- Up to five agents at once, each with a disjoint set of files. Each gets the lightest model and
+  effort the task allows, recorded in the plan; a task that comes back with a defect the agent
+  should have caught moves up a level. [review]
+- A development server runs directly, in the agent's own worktree and on its own port range. A
+  heavy command (front build and tests, Playwright, a full suite) runs through
+  `ws slot -- <cmd>`. [review]
+- A "never", "only" or "must" line that an agent writes into a rule document (a convention, a
+  `SKILL.md`, a project `CLAUDE.md`) needs a recorded decision: `decisions.md`, an ADR or the
+  user's words. Before merging, the controller checks each such line and asks the user about any
+  without one, or stricter than the practice. [review]
 - At the end of a work block, sweep for leftover loops, pytest runs, containers and temp folders.
   [review]
