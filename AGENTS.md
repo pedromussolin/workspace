@@ -20,7 +20,8 @@ ws setup
 ```
 
 `ws setup` is idempotent: it sets the git hooks path (a fresh clone has no hooks), links
-`skills/*` into `~/.claude/skills/` and prints the Claude Code gates to add. `ws setup --check`
+`skills/*` into `~/.claude/skills/`, links `instructions/` as `~/.claude/CLAUDE.md` and
+`~/repos/CLAUDE.md`, and prints the Claude Code gates to add. `ws setup --check`
 only reports.
 
 ## Commands

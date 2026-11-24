@@ -33,6 +33,7 @@ from ws.config import (
     claude_hooks_dir,
     claude_json_path,
     claude_settings_path,
+    claude_user_instructions_path,
     repo_root,
     ws_executable,
 )
@@ -191,6 +192,7 @@ def run_setup(
     check: bool = False,
     hooks_dir: Path | None = None,
     by_hand: bool | None = None,
+    user_instructions: Path | None = None,
 ) -> SetupResult:
     """Wire the clone, fix what can be fixed and return what was done and what is left.
 
@@ -201,12 +203,15 @@ def run_setup(
         settings = claude_settings_path()
     if hooks_dir is None:
         hooks_dir = claude_hooks_dir()
+    if user_instructions is None:
+        user_instructions = claude_user_instructions_path()
     setup = _Setup(apply=not check, by_hand=by_hand)
     hooks_path_ok = _set_hooks_path(setup, repo)
     _fix_hook_bits(setup, repo)
     if hooks_path_ok:
         _check_hooks_path(setup, repo)
     _link_skills(setup, repo, skills_target)
+    _link_instructions(setup, repo, user_instructions)
     _check_config(setup, config)
     _check_sandbox_tools(setup)
     _check_hook_python(setup)
@@ -304,6 +309,33 @@ def _link_skills(setup: _Setup, repo: Path, skills_target: Path) -> None:
             )
         elif not (link.is_symlink() and link.resolve() == skill.resolve()):
             setup.need(f"skill {skill.name}: {link} exists and is not a link to this repo")
+
+
+def _link_file(link: Path, source: Path) -> None:
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(source.resolve())
+
+
+def _link_instructions(setup: _Setup, repo: Path, user_instructions: Path) -> None:
+    source = repo / "instructions"
+    if not source.is_dir():
+        return
+    if (repo / ".git").is_file():
+        setup.need(f"instructions: {repo} is a linked worktree; run ws setup from the main clone")
+        return
+    for name, link in (
+        ("user.md", user_instructions),
+        ("company-repos.md", repo.parent / "CLAUDE.md"),
+    ):
+        target = source / name
+        if not (link.is_symlink() or link.exists()):
+            setup.fix(
+                f"instructions {name}: link {link}",
+                lambda link=link, target=target: _link_file(link, target),
+                f"instructions {name}: could not link {link}",
+            )
+        elif not (link.is_symlink() and link.resolve() == target.resolve()):
+            setup.need(f"instructions {name}: {link} exists and is not a link to this repo")
 
 
 def _make_private_dir(path: Path) -> None:

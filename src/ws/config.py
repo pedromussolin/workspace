@@ -33,6 +33,10 @@ def claude_skills_dir() -> Path:
     return _env_path("WS_CLAUDE_SKILLS_DIR", Path.home() / ".claude" / "skills")
 
 
+def claude_user_instructions_path() -> Path:
+    return _env_path("WS_CLAUDE_USER_INSTRUCTIONS", Path.home() / ".claude" / "CLAUDE.md")
+
+
 def claude_settings_path() -> Path:
     return _env_path("WS_CLAUDE_SETTINGS", Path.home() / ".claude" / "settings.json")
 

@@ -55,6 +55,7 @@ def _clean_environment(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("WS_CLAUDE_JSON", str(tmp_path / "claude.json"))
     monkeypatch.setenv("WS_CLAUDE_PLUGINS_DIR", str(tmp_path / "no-plugins"))
     monkeypatch.setenv("WS_BIN", str(tmp_path / "bin" / "ws"))
+    monkeypatch.setenv("WS_CLAUDE_USER_INSTRUCTIONS", str(tmp_path / "home-claude" / "CLAUDE.md"))
 
 
 def _github_server(helper: str | None = None, **changes) -> dict:
@@ -132,6 +133,9 @@ def env(tmp_path: Path, monkeypatch) -> Env:
         (repo / "skills" / name).mkdir(parents=True)
         (repo / "skills" / name / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8")
     (repo / "skills" / ".gitkeep").touch()
+    (repo / "instructions").mkdir()
+    for name in ("user.md", "company-repos.md"):
+        (repo / "instructions" / name).write_text(f"{name}\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
 
     config = tmp_path / "config"
@@ -264,6 +268,83 @@ def test_links_skills(env):
         assert link.resolve() == (env.repo / "skills" / name).resolve()
         assert f"skill {name}: link {link}" in result.fixed
     assert sorted(p.name for p in env.skills_target.iterdir()) == ["alpha", "beta"]
+
+
+def _instruction_links(tmp_path: Path) -> dict[str, Path]:
+    return {
+        "user.md": tmp_path / "home-claude" / "CLAUDE.md",
+        "company-repos.md": tmp_path / "CLAUDE.md",
+    }
+
+
+def _instruction_fixed(name: str, link: Path) -> str:
+    return f"instructions {name}: link {link}"
+
+
+def _instruction_need(name: str, link: Path) -> str:
+    return f"instructions {name}: {link} exists and is not a link to this repo"
+
+
+def test_links_instruction_files(env, tmp_path):
+    result = _setup(env)
+
+    assert result.needs == []
+    for name, link in _instruction_links(tmp_path).items():
+        assert link.is_symlink()
+        assert link.resolve() == (env.repo / "instructions" / name).resolve()
+        assert _instruction_fixed(name, link) in result.fixed
+
+
+def test_check_does_not_link_instructions(env, tmp_path):
+    result = _setup(env, check=True)
+
+    for name, link in _instruction_links(tmp_path).items():
+        assert not link.is_symlink()
+        assert not link.exists()
+        assert _instruction_fixed(name, link) in result.fixed
+
+
+def test_regular_file_instead_of_instructions_link_untouched(env, tmp_path):
+    link = tmp_path / "CLAUDE.md"
+    link.write_text("keep me", encoding="utf-8")
+
+    problems = _setup(env).needs
+
+    assert problems == [_instruction_need("company-repos.md", link)]
+    assert not link.is_symlink()
+    assert link.read_text(encoding="utf-8") == "keep me"
+
+
+@pytest.mark.parametrize("target", ["another.md", "gone.md"])
+def test_instructions_link_elsewhere_or_dangling_is_a_conflict(env, tmp_path, target):
+    other = tmp_path / target
+    if target == "another.md":
+        other.write_text("other", encoding="utf-8")
+    link = tmp_path / "home-claude" / "CLAUDE.md"
+    link.parent.mkdir()
+    link.symlink_to(other)
+
+    problems = _setup(env).needs
+
+    assert problems == [_instruction_need("user.md", link)]
+    assert os.readlink(link) == str(other)
+
+
+def test_instructions_skipped_in_linked_worktree(tmp_path):
+    repo = tmp_path / "worktree"
+    (repo / "instructions").mkdir(parents=True)
+    (repo / ".git").write_text("gitdir: /somewhere/else\n", encoding="utf-8")
+    user = tmp_path / "home-claude" / "CLAUDE.md"
+    setup = bootstrap._Setup(apply=True)
+
+    bootstrap._link_instructions(setup, repo, user)
+
+    assert setup.result.fixed == []
+    assert setup.result.needs == [
+        f"instructions: {repo} is a linked worktree; run ws setup from the main clone"
+    ]
+    assert not user.parent.exists()
+    assert not (tmp_path / "CLAUDE.md").exists()
 
 
 def test_second_run_is_noop(env):

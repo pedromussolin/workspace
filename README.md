@@ -24,6 +24,7 @@ ws setup
 - sets `core.hooksPath=.githooks` in the clone and makes the four hooks (`pre-commit`,
   `pre-merge-commit`, `commit-msg`, `pre-push`) executable; git skips a hook that is not;
 - symlinks `skills/*` into `~/.claude/skills/` (the folder is created only when there is a skill);
+- links `instructions/` as `~/.claude/CLAUDE.md` and `~/repos/CLAUDE.md` (from the main clone only);
 - creates `~/.config/workspace/` and `private/` and fixes the modes below with `chmod`;
 - downloads the common-word dictionaries of the new-word check, described below.
 
@@ -576,7 +577,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 
 | Command | What it does |
 |---|---|
-| `ws setup [--check]` | Fixes by itself the hooks path and modes, the skill links, `~/.config/workspace/` (folders and modes) and the common-word dictionaries; prints `fixed:` and `needs you:` lines, the Claude Code gates as one JSON block; `--check` only reports |
+| `ws setup [--check]` | Fixes by itself the hooks path and modes, the skill links, the instruction file links, `~/.config/workspace/` (folders and modes) and the common-word dictionaries; prints `fixed:` and `needs you:` lines, the Claude Code gates as one JSON block; `--check` only reports |
 | `ws check-secrets [--staged \| --all \| PATH…]` | Scans for secret patterns, real names and company domains; the git hooks run it |
 | `ws mask [--in-place \| --check] [FILE \| -]` | Replaces real names with analogs; `--check` exits 1 if a real name remains |
 | `ws names check (--staged \| --message FILE \| --range REVS) [--against REV] [--tip REV] [--warn]` | Lists the new words (capitalized words unknown to the remote state, `.known-words` and the analogs); exit 1 when there are any, always 0 with `--warn`; the hooks run it |
