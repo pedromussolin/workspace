@@ -10,6 +10,22 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ## Onde parei
 
+### 24/11/2026
+
+**Passagem de chat (24/11, manhã):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-release-24-11-sandbox-validada.md`
+(release de 24/11 com a sandbox validada).
+
+- Sandbox homologada: todos os testes do guia têm evidência na GMUD. A6 no produto 55 (lote 50049
+  aprovado antes do corte às 09:14:45, compromisso `manual` registrado, lote em `liquidando`
+  esperando o retorno da administradora). A5 no produto 35 por horário às 10:17 (lote vazio 50048
+  descartado pela esteira); o log do descarte é DEBUG, então em produção a conferência é pela
+  réplica. Produtos de teste de volta a Manual.
+- Front da release: o aviso de lote fechado lista só os lotes (TS-5567) e o exemplo da observação
+  no aprovar não cita mais uma pessoa real (TS-5571); na sandbox em `sand-4917fe3`.
+- TS-5921 concluída: regra no `.ai` do front e do BFF contra nome real de pessoa em texto de tela,
+  mock e teste (LGPD), já na master e na sandbox.
+
 ### 23/11/2026
 
 **Passagem de chat (23/11, fim do dia):** retomar pela passagem privada
@@ -470,13 +486,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **A6 em 24/11, antes das 14h:** aprovar antes do corte no produto 55, depois de conferir a
-   administradora do fundo 27 e a conta vinculada; registrar na GMUD.
-2. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` (a da cessão
-   com a Tarefa 24 e a migration nova da TS-5624, que vai no resumo à DBA); passos da GMUD na
-   ordem shared → cessão → BFF → portal, sem confirmação de publicação no beat; `/deploy-check`
-   por serviço.
-3. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
+1. **Deploy de 24/11:** `/release` para as PRs da `release/20261124` para a `master` nos quatro
+   repos (a da cessão com a Tarefa 24 e a migration `a4f7c2d9e1b6`, que vai no resumo à DBA); passos
+   1 a 3 da GMUD antes da janela; na janela, shared → cessão → BFF → portal com `/deploy-check` por
+   serviço. Depois, o A5 pela réplica e os cards da release.
+2. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
-4. **Sem data:** card do menu lateral recolhido na próxima sprint; DBA (TS-5596, `EXPLAIN` da
-   TS-5737, consulta do resumo diário com ids); TS-5620 (D37, D38); S1 a S14; TS-5537.
+3. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
+   recolhido.
+4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, consulta do resumo diário com ids); TS-5620
+   (D37, D38); S1 a S14; TS-5537.
