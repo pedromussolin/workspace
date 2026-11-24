@@ -1,8 +1,7 @@
 # GMUD — release de 24/11/2026 (Artemis V2: fechamento de lotes de liquidação)
 
-> **Status (23/11/2026):** rascunho. Deploy previsto para 24/11, à noite. Pendências marcadas
-> "a confirmar"; testes do usuário na sandbox registrados em 23/11, falta o A6 (dia útil, antes
-> das 14h).
+> **Status (24/11/2026):** rascunho. Deploy previsto para 24/11, à noite. Pendências marcadas
+> "a confirmar"; testes do usuário na sandbox concluídos (A6 em 24/11).
 
 Tipo: Mudança programada
 
@@ -236,5 +235,10 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
     apagados pela tela às 20:20; no banco, os dois agendamentos inativos, sem horário e sem próxima
     execução; Alembic da sandbox em `d2e8b5a7c013` (a junção própria da `-sdbx`), com a CHECK nova;
     num produto em Agendado, tirar o último horário deixa o "Salvar horários" desligado;
-  - A6, aprovar antes do corte: a fazer, em dia útil antes das 14h, produto 55.
+  - A6, aprovar antes do corte (24/11): produto 55 (fundo 27, conciliação automática), lote 50049
+    com 2 pagamentos fechado pela tela às 09:12:01 e roteado para a fila do dia
+    (`aguarda_conciliacao`); aprovado em tela às 09:14:45 ("Conciliacao de conta APROVADA em tela
+    antes do corte"), compromisso `manual` de R$ 2.000,00 na conta vinculada e lote em
+    `liquidando` às 09:14:46, aguardando o retorno da administradora; Datadog "Conciliacao de
+    conta aprovada em tela; lote retoma a esteira de baixa." às 09:14:46 (`sand-a03d015`);
   - Produtos de teste de volta a Manual (53, 54, 55, 187, 24); esteira nova do 28 desligada.
