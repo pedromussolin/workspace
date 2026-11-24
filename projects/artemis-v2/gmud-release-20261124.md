@@ -1,6 +1,6 @@
 # GMUD — release de 24/11/2026 (Artemis V2: fechamento de lotes de liquidação)
 
-> **Status (24/11/2026):** rascunho. Deploy previsto para 24/11, à noite. Pendências marcadas
+> **Status (24/11/2026):** rascunho, PRs de produção abertas. Deploy previsto para 24/11, à noite. Pendências marcadas
 > "a confirmar"; testes do usuário na sandbox concluídos (A6 em 24/11).
 
 Tipo: Mudança programada
@@ -21,11 +21,11 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
   worker reiniciou no meio, e ficou em `pendente` sem reenvio (TS-5737).
 
 **O que muda**
-- **apl-shared-service** (PR a abrir, `release/20261124` → `master`):
+- **apl-shared-service** ([PR #90](https://github.com/Capitalis/apl-shared-service/pull/90), `release/20261124` → `master`):
   - `POST /email-dispatches` aceita anexo em Excel montado a partir de dados tabulares (TS-5584);
   - templates dos e-mails da liquidação e destinatários padrão por template, na tabela nova
     `email_dispatch.template_recipients`; pedido sem destinatário usa os do template (TS-5585).
-- **platform-cessao** (PR a abrir):
+- **platform-cessao** ([PR #2796](https://github.com/Capitalis/platform-cessao/pull/2796)):
   - lote sem pagamento não segue na esteira, na conciliação nem no "aprovar" (TS-5582); script de
     limpeza dos vazios antigos entra no código, sem rodar (TS-5596);
   - a configuração de fechamento vira duas colunas, gatilho (quem fecha: manual, agendado,
@@ -54,12 +54,12 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
   - sai a rotina fixa de fechamento por agendamento do beat (`liquidacao_fecha_lote_task`, 16h de
     Brasília): com a release, ela fecharia todo produto com gatilho agendado junto com o horário
     novo; produto agendado passa a fechar só pelo agendamento dele (TS-5612).
-- **apl-credit-whitelabel-api** (BFF, a camada entre o portal e os serviços; PR a abrir): guardas de
+- **apl-credit-whitelabel-api** (BFF, a camada entre o portal e os serviços; [PR #286](https://github.com/Capitalis/apl-credit-whitelabel-api/pull/286)): guardas de
   lote vazio (TS-5582), lote aberto (TS-5567), rotas da configuração do produto, que aceitam a lista
   de horários vazia fora do agendado (TS-5624), contrato
   do envio de e-mail com anexo (TS-5584), remoção da rota `/fake-batches/consolidate`, que o portal
   já não chama (TS-5568), e atualização do `virtualenv` de desenvolvimento por CVE (TS-5871).
-- **apl-credit-whitelabel** (portal; PR a abrir): página "Configuração do produto", com as abas
+- **apl-credit-whitelabel** (portal; [PR #327](https://github.com/Capitalis/apl-credit-whitelabel/pull/327)): página "Configuração do produto", com as abas
   Cessão e Liquidação (TS-5624); aprovação antes do corte (TS-5571); lote aberto (TS-5567);
   guardas de lote vazio (TS-5582).
 - **Argocd** (`platform-cessao-argocd`): worker novo `liquidacao-baixa-isolada` em
