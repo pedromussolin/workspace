@@ -10,9 +10,9 @@ Planejamento e acompanhamento do épico que reestrutura o front do portal
 Aqui ficam as tarefas, as decisões, o design system, as evidências e os
 protótipos próprios. O código vive no repositório da empresa, não aqui.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
-`instructions/` estão no `CLAUDE.md` da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
-projeto.
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md` da
+raiz do repositório; as regras de trabalho, em `instructions/`. Aqui ficam só as regras específicas
+deste projeto.
 
 ## Análogos e placeholders deste projeto
 

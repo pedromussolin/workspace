@@ -12,8 +12,9 @@ O código vive nos repositórios da empresa (ver "Repositórios envolvidos"), n�
 Não é tarefa do Artemis: nada daqui vai para `projects/artemis-v2`, e as decisões daqui não usam a
 numeração de lá.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
-`instructions/` estão no `CLAUDE.md` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md` da
+raiz do repositório; as regras de trabalho, em `instructions/`. Aqui ficam só as regras específicas
+deste projeto.
 
 ## Análogos e dados deste projeto
 
@@ -98,5 +99,4 @@ só o caminho.
 | platform-cessao | cadastro da régua de PDD (`POST /pdd/regua`) e régua em vigor (`GET /pdd/regua-vigente`, D19) |
 | data-lake-api-argocd | deploy do worker `valid` e do agendamento das cargas no beat |
 
-Contrato novo entre front, BFF e data-lake-api muda
-nas três pontas no mesmo ciclo.
+Contrato novo entre front, BFF e data-lake-api muda nas três pontas no mesmo ciclo.

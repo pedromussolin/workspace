@@ -4,8 +4,9 @@ Tags:
 
 # Migração das telas de operações: regras do projeto
 
-As regras comuns (sigilo, commits, idioma e sincronização) e as regras de trabalho em
-`instructions/` estão no `CLAUDE.md` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, commits, idioma e sincronização) estão no `CLAUDE.md` da raiz do
+repositório; as regras de trabalho, em `instructions/`. Aqui ficam só as regras específicas deste
+projeto.
 
 ## Análogos deste projeto
 
