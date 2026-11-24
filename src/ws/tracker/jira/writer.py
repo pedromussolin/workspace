@@ -15,7 +15,7 @@ from ws.tracker.jira import rules
 from ws.tracker.jira.adf import to_adf
 from ws.tracker.jira.client import JiraClient, SiteRefused
 from ws.tracker.jira.settings import JiraConfig
-from ws.tracker.write import from_document
+from ws.tracker.write import CREATED, from_document
 
 REQUEST_TIMEOUT = 20
 
@@ -182,7 +182,7 @@ def guard(project: str, calls: list[dict]) -> str | None:
     key = rf"{re.escape(project)}-[1-9]\d*"
     allowed = {
         ("POST", re.compile(r"/rest/api/3/issue")),
-        ("PUT", re.compile(rf"/rest/api/3/issue/{key}")),
+        ("PUT", re.compile(rf"/rest/api/3/issue/({key}|{re.escape(CREATED)})")),
         ("POST", re.compile(rf"/rest/api/3/issue/{key}/(transitions|comment|worklog)")),
     }
     for request in calls:

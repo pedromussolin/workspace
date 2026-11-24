@@ -7,9 +7,14 @@ CARD_TYPES = ("task", "bug", "hotfix", "improvement", "feature")
 UPPER_TYPES = ("epic", "initiative")
 ALL_TYPES = CARD_TYPES + UPPER_TYPES
 LINK_KINDS = ("blocks", "blocked_by", "relates")
+"""The link kinds of a task item."""
+DRAFT_LINK_KINDS = (*LINK_KINDS, "causes", "caused_by")
+"""The link kinds of a `link` draft: those of an item, and the cause of an incident."""
+LABEL_KEYS = ("labels", "add_labels", "remove_labels")
 REF = re.compile(r"[A-Z][A-Z0-9_]*-[1-9]\d*")
-LINK_NAMES = ("blocks", "relates")
-"""The link kinds the config maps to a tracker link type; `blocked_by` is `blocks` reversed."""
+LINK_NAMES = ("blocks", "relates", "causes")
+"""The link kinds the config maps to a tracker link type; `blocked_by` is `blocks` reversed and
+`caused_by` is `causes` reversed."""
 
 TYPE_LABELS = {
     "task": "Tarefa",
@@ -24,6 +29,8 @@ LINK_LABELS = {
     "blocks": "bloqueia",
     "blocked_by": "é bloqueado por",
     "relates": "relaciona-se com",
+    "causes": "causa",
+    "caused_by": "é causado por",
 }
 
 _BASE = ("Contexto", "Pronto quando")

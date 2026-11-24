@@ -11,7 +11,7 @@ from ws.tracker import vocab
 from ws.tracker.jira.adf import AdfError, foreign_nodes, to_adf
 from ws.tracker.jira.client import CATEGORY_STATUS, JiraClient, JiraError
 from ws.tracker.jira.settings import JiraConfig
-from ws.tracker.write import UPPER_OUT_OF_SPRINTS, Draft
+from ws.tracker.write import CREATED, UPPER_OUT_OF_SPRINTS, Draft
 from ws.userconfig import Person
 
 MAX_SUMMARY = 255
@@ -21,7 +21,23 @@ _PREFIX = re.compile(r"^\[[^\]]+\]")
 _UPPER_TITLE = re.compile(r"^\[[^\]]+\] ")
 _TIME = re.compile(r"^\d+[hm](\s+\d+[hm])*$")
 _TIME_PART = re.compile(r"(\d+)([hm])")
-_SAME_LINK = {("blocks", "out"), ("blocked_by", "in")}
+_SAME_LINK = {("blocks", "out"), ("blocked_by", "in"), ("causes", "out"), ("caused_by", "in")}
+_LINK_TYPE = {
+    "blocks": "blocks",
+    "blocked_by": "blocks",
+    "relates": "relates",
+    "causes": "causes",
+    "caused_by": "causes",
+}
+"""The config key of the link type each draft kind uses."""
+_REVERSED_LINK = {"blocked_by", "caused_by"}
+_CONTRADICTION = {
+    "blocks": "{key} is already blocked by {target}",
+    "blocked_by": "{key} already blocks {target}",
+    "causes": "{key} is already caused by {target}",
+    "caused_by": "{key} already causes {target}",
+}
+_ESTIMATE_SCREEN = "timetracking"
 
 
 @dataclass
@@ -148,6 +164,7 @@ class Context:
             return cached
         names = ["summary", "status", "assignee", "description", "parent", "project"]
         names += ["priority", "duedate", "reporter", "issuetype", "issuelinks"]
+        names += ["labels", "timetracking"]
         if self.settings.start_date_field:
             names.append(self.settings.start_date_field)
         if self.settings.sprint_field:
@@ -233,9 +250,10 @@ class Context:
     def link_type(self, kind: str, verdict: Verdict) -> str | None:
         found = self.settings.links.get(kind)
         if not found:
+            hint = f'; write {kind} = "<link type name>" there' if kind == "causes" else ""
             verdict.problems.append(
                 f"link kind {kind!r} has no link type: add it to [tracker.jira.links] "
-                "(ws tracker discover)"
+                f"(ws tracker discover){hint}"
             )
         return found
 
@@ -469,6 +487,37 @@ def _dates_problems(start: date | None, due: date | None) -> list[str]:
     return []
 
 
+def _duration(text: str, name: str) -> tuple[str, int, list[str]]:
+    """`text` as hours and minutes (`2h`, `30m`, `1h 30m`) with the spaces collapsed, its minutes,
+    and what is wrong with it; the format of a worklog's `time` and of an `estimate`."""
+    spent = " ".join(text.split())
+    if not _TIME.match(spent):
+        return spent, 0, [f"{name} must be hours and minutes only, like 2h, 30m or 1h 30m"]
+    problems = []
+    parts = _TIME_PART.findall(spent)
+    if len({unit for _, unit in parts}) != len(parts):
+        problems.append(f"{name} repeats a unit; write it like 1h 30m")
+    minutes = sum(int(number) * (60 if unit == "h" else 1) for number, unit in parts)
+    if not minutes:
+        problems.append(f"{name} must be more than zero")
+    return spent, minutes, problems
+
+
+def _minutes_text(minutes: int) -> str:
+    hours, rest = divmod(minutes, 60)
+    return " ".join(
+        part for part in (f"{hours}h" if hours else "", f"{rest}m" if rest else "") if part
+    )
+
+
+def _label_problems(labels: list[str]) -> list[str]:
+    return [
+        f"label {label!r} has whitespace; the tracker refuses it, use a hyphen or an underscore"
+        for label in labels
+        if re.search(r"\s", label)
+    ]
+
+
 def _create(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     values = draft.values
     type_ = values["type"]
@@ -548,7 +597,14 @@ def _create_issue(
         verdict.problems.append(f"due {due.isoformat()} is before today ({ctx.today.isoformat()})")
     if wants_sprint and due is None:
         verdict.problems.append(f'due is required with sprint = "{sprint_value}"')
+    labels = values.get("labels", [])
+    verdict.problems.extend(_label_problems(labels))
+    estimate = None
+    if "estimate" in values:
+        estimate, _, found = _duration(values["estimate"], "estimate")
+        verdict.problems.extend(found)
     sent = ["summary", "description", "assignee"]
+    sent += ["labels"] if labels else []
     sent += ["reporter"] if "reporter" in values else []
     sent += ["parent"] if type_ in vocab.CARD_TYPES else []
     sent += ["duedate"] if due else []
@@ -579,11 +635,25 @@ def _create_issue(
         fields["parent"] = {"key": link["epic"]["key"]}
     if due:
         fields["duedate"] = due.isoformat()
+    if labels:
+        fields["labels"] = labels
     sprint_line = "Sprint: (nenhuma)"
     if sprint:
         fields[ctx.settings.sprint_field] = sprint.id
         sprint_line = f"Sprint: {sprint.label(create=True)}"
+    after = None
+    if estimate and ctx.create_screen_has(type_id, _ESTIMATE_SCREEN):
+        fields[_ESTIMATE_SCREEN] = {"originalEstimate": estimate}
+    elif estimate:
+        # The create screen has no estimate: the card is made first, then edited under the same
+        # approval, as a move to in progress sets the start date.
+        after = {
+            "method": "PUT",
+            "path": f"/rest/api/3/issue/{CREATED}",
+            "body": {"fields": {_ESTIMATE_SCREEN: {"originalEstimate": estimate}}},
+        }
     verdict.requests = [{"method": "POST", "path": "/rest/api/3/issue", "body": {"fields": fields}}]
+    verdict.requests += [after] if after else []
     heading = {"epic": "épico", "initiative": "iniciativa"}.get(type_, "card")
     verdict.preview = [
         f"Criar {heading} no projeto {ctx.project}",
@@ -595,6 +665,8 @@ def _create_issue(
         f"Relator: {ctx.person_name(reporter_ref, reporter)}",
         sprint_line,
         f"Prazo: {due.isoformat() if due else '(nenhum)'}",
+        *([f"Categorias: {', '.join(labels)}"] if labels else []),
+        *([f"Estimativa original: {estimate}"] if estimate else []),
         "Descrição:",
         *[f"  {line}" for line in adf_text(description).splitlines()],
     ]
@@ -646,6 +718,7 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         return
     settings = ctx.settings
     changes: dict = {}
+    updates: dict = {}
     before: dict = {}
     lines = [f"Editar o card {key}"]
     level = (current.get("issuetype") or {}).get("hierarchyLevel")
@@ -759,6 +832,9 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
         before["duedate"] = old_due.isoformat() if old_due else None
         lines.append(f"Prazo: {old_due or '(nenhum)'} -> {values['due'].isoformat()}")
 
+    _edit_labels(values, current, verdict, updates, before, lines)
+    _edit_estimate(values, current, verdict, changes, before, lines)
+
     upper = isinstance(level, int) and level >= 1
     if "sprint" in values and upper and values["sprint"] != "backlog":
         verdict.problems.append(UPPER_OUT_OF_SPRINTS)
@@ -790,21 +866,59 @@ def _edit(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             lines.append("Descrição, depois:")
             lines.extend(f"  {line}" for line in adf_text(new_doc).splitlines())
 
-    for name in changes:
+    for name in (*changes, *updates):
         if name not in meta:
             verdict.problems.append(f"the edit screen of {key} has no {name}")
-    if not changes and not links and not verdict.problems:
+    if not changes and not updates and not links and not verdict.problems:
         verdict.problems.append("the draft changes nothing on the card")
         if lines and lines[-1].endswith(": já existe"):
             # The plan shows the initiative's link that is already there, as the `link` op does.
             verdict.preview = lines
     if verdict.problems:
         return
+    body = {name: part for name, part in (("fields", changes), ("update", updates)) if part}
     verdict.requests = links or [
-        {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": {"fields": changes}}
+        {"method": "PUT", "path": f"/rest/api/3/issue/{key}", "body": body}
     ]
     verdict.before = before
     verdict.preview = lines
+
+
+def _edit_labels(
+    values: dict, current: dict, verdict: Verdict, updates: dict, before: dict, lines: list[str]
+) -> None:
+    """Adds and removes labels, never replacing the list: a label already on the card is not
+    added again, one that is not there is not removed, as an existing link is skipped."""
+    verdict.problems.extend(
+        _label_problems([*values.get("add_labels", []), *values.get("remove_labels", [])])
+    )
+    held = [item for item in current.get("labels") or [] if isinstance(item, str)]
+    add = [label for label in values.get("add_labels", []) if label not in held]
+    remove = [label for label in values.get("remove_labels", []) if label in held]
+    if not (add or remove):
+        return
+    updates["labels"] = [*({"add": label} for label in add), *({"remove": x} for x in remove)]
+    before["labels"] = held
+    shown = [*(f"+ {label}" for label in add), *(f"- {label}" for label in remove)]
+    lines.append(f"Categorias: {', '.join(shown)}")
+
+
+def _edit_estimate(
+    values: dict, current: dict, verdict: Verdict, changes: dict, before: dict, lines: list[str]
+) -> None:
+    if "estimate" not in values:
+        return
+    text, minutes, found = _duration(values["estimate"], "estimate")
+    verdict.problems.extend(found)
+    tracked = current.get("timetracking") or {}
+    seconds = tracked.get("originalEstimateSeconds")
+    old = seconds // 60 if isinstance(seconds, int) and not isinstance(seconds, bool) else None
+    if found or minutes == old:
+        return
+    was = tracked.get("originalEstimate") or (_minutes_text(old) if old else None)
+    changes[_ESTIMATE_SCREEN] = {"originalEstimate": text}
+    before[_ESTIMATE_SCREEN] = was
+    lines.append(f"Estimativa original: {was or '(nenhuma)'} -> {text}")
 
 
 def _initiative_link(
@@ -1010,15 +1124,8 @@ def _comment(ctx: Context, draft: Draft, verdict: Verdict) -> None:
 
 def _worklog(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     key = draft.values["key"]
-    spent = " ".join(draft.values["time"].split())
-    if not _TIME.match(spent):
-        verdict.problems.append("time must be hours and minutes only, like 2h, 30m or 1h 30m")
-    else:
-        units = [unit for _, unit in _TIME_PART.findall(spent)]
-        if len(units) != len(set(units)):
-            verdict.problems.append("time repeats a unit; write it like 1h 30m")
-        if not any(int(number) for number, _ in _TIME_PART.findall(spent)):
-            verdict.problems.append("time must be more than zero")
+    spent, _, found = _duration(draft.values["time"], "time")
+    verdict.problems.extend(found)
     day = draft.values.get("day", ctx.today)
     if day > ctx.today:
         verdict.problems.append(f"day {day.isoformat()} is after today ({ctx.today.isoformat()})")
@@ -1061,11 +1168,11 @@ def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
     verdict.resolved["card"] = {"key": key}
     targets = [
         (kind, target)
-        for kind in vocab.LINK_KINDS
+        for kind in vocab.DRAFT_LINK_KINDS
         for target in dict.fromkeys(draft.values.get(kind, []))
     ]
     target_fields = {target: ctx.card_fields(target, verdict) for _, target in targets}
-    names = {kind: "relates" if kind == "relates" else "blocks" for kind, _ in targets}
+    names = {kind: _LINK_TYPE[kind] for kind, _ in targets}
     type_names = {name: ctx.link_type(name, verdict) for name in dict.fromkeys(names.values())}
     if fields is None or verdict.problems:
         return
@@ -1085,13 +1192,9 @@ def _link(ctx: Context, draft: Draft, verdict: Verdict) -> None:
             verdict.preview.append(f"{line}: já existe")
             continue
         if found:
-            verdict.problems.append(
-                f"{key} is already blocked by {target}"
-                if kind == "blocks"
-                else f"{key} already blocks {target}"
-            )
+            verdict.problems.append(_CONTRADICTION[kind].format(key=key, target=target))
             continue
-        inward, outward = (target, key) if kind == "blocked_by" else (key, target)
+        inward, outward = (target, key) if kind in _REVERSED_LINK else (key, target)
         verdict.preview.append(line)
         verdict.requests.append(_link_request(type_name, inward, outward))
     if not verdict.problems and not verdict.requests:

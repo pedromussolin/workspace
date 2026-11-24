@@ -32,6 +32,7 @@ initiative = "9"
 [tracker.jira.links]
 blocks = "Blocks"
 relates = "Relates"
+causes = "Causes"
 
 [people."{dev_id("ana@example.com")}"]
 jira = "acc-ana"
@@ -43,9 +44,9 @@ NOW = datetime(2026, 10, 27, 15, 0, tzinfo=UTC)
 SECTIONS = "## Contexto\nAlgo a explicar.\n\n## Pronto quando\n- feito\n"
 TYPE_IDS = ("3", "4", "5", "6", "7", "8", "9")
 CREATE_FIELDS = ("summary", "description", "assignee", "reporter", "parent", "duedate")
-CREATE_FIELDS += (SPRINT_FIELD,)
+CREATE_FIELDS += (SPRINT_FIELD, "labels")
 EDIT_FIELDS = ("summary", "description", "priority", "duedate", START_FIELD, "assignee")
-EDIT_FIELDS += ("reporter", "parent", SPRINT_FIELD)
+EDIT_FIELDS += ("reporter", "parent", SPRINT_FIELD, "labels", "timetracking")
 
 
 def _fields(summary, *, assignee="acc-me", level=None, category="indeterminate", **extra):
@@ -119,10 +120,11 @@ class World:
         if ("GET", f"/rest/api/3/issue/{key}/editmeta") not in self.fake.routes:
             self.set_edit_screen(key)
 
-    def set_create_screen(self, type_id, priorities=("High", "Medium"), without=()):
-        """The type's create screen: every field `ws card` sends, minus `without`."""
+    def set_create_screen(self, type_id, priorities=("High", "Medium"), without=(), extra=()):
+        """The type's create screen: every field `ws card` sends, minus `without`, plus `extra`
+        (the original estimate is not on the real project's)."""
         fields = [{"fieldId": "priority", "allowedValues": [{"name": n} for n in priorities]}]
-        fields += [{"fieldId": name} for name in CREATE_FIELDS if name not in without]
+        fields += [{"fieldId": name} for name in (*CREATE_FIELDS, *extra) if name not in without]
         self.fake.routes[("GET", f"/rest/api/3/issue/createmeta/TS/issuetypes/{type_id}")] = (
             200,
             json.dumps({"fields": fields}),

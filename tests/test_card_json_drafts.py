@@ -293,6 +293,34 @@ RULE_TWINS = [
         id="spaces-in-a-list",
     ),
     pytest.param(
+        EDIT + 'add_labels = ["a", "b"]\nremove_labels = ["b"]',
+        "",
+        {**EDIT_JSON, "add_labels": ["a", "b"], "remove_labels": ["b"]},
+        ["b is in add_labels and in remove_labels"],
+        id="label-added-and-removed",
+    ),
+    pytest.param(
+        EDIT + 'add_labels = ["a", ""]',
+        "",
+        {**EDIT_JSON, "add_labels": ["a", ""]},
+        ["add_labels must be a list of labels"],
+        id="blank-label",
+    ),
+    pytest.param(
+        EDIT + 'remove_labels = ["a", "a"]',
+        "",
+        {**EDIT_JSON, "remove_labels": ["a", "a"]},
+        ["remove_labels lists a twice"],
+        id="repeated-label",
+    ),
+    pytest.param(
+        LINK + 'causes = ["TS-2"]\ncaused_by = ["TS-2"]',
+        "",
+        {**LINK_JSON, "causes": ["TS-2"], "caused_by": ["TS-2"]},
+        ["TS-2 appears in more than one list"],
+        id="cause-and-effect-of-the-same-card",
+    ),
+    pytest.param(
         'op = "move"\nkey = "TS-1"\nto = "X"\nstatus = "done"',
         "",
         {"op": "move", "key": "TS-1", "to": "X", "status": "done"},
@@ -368,8 +396,8 @@ SHAPE_TWINS = [
         LINK.rstrip(),
         "",
         LINK_JSON,
-        ["a link needs blocks, blocked_by or relates"],
-        ["$: a link needs blocks, blocked_by or relates"],
+        ["a link needs blocks, blocked_by, relates, causes or caused_by"],
+        ["$: a link needs blocks, blocked_by, relates, causes or caused_by"],
         id="link-without-lists",
     ),
     pytest.param(
@@ -408,6 +436,50 @@ def test_a_json_twin_of_a_shape_refusal_keeps_the_contract_words(
 
     assert (md.draft, md.problems) == (None, md_text)
     assert (js.draft, js.problems) == (None, json_text)
+
+
+@pytest.mark.parametrize(
+    ("front", "body", "document"),
+    [
+        (
+            CREATE + 'type = "task"\nepic = "TS-1"\nlabels = ["a", "b"]\nestimate = "2h 30m"',
+            "# T\n\nx\n",
+            {
+                **CREATE_JSON,
+                "type": "task",
+                "epic": "TS-1",
+                "labels": ["a", "b"],
+                "estimate": "2h 30m",
+            },
+        ),
+        (
+            EDIT + 'add_labels = ["a"]\nremove_labels = ["b"]\nestimate = "45m"',
+            "",
+            {**EDIT_JSON, "add_labels": ["a"], "remove_labels": ["b"], "estimate": "45m"},
+        ),
+        (
+            LINK + 'causes = ["TS-2"]\ncaused_by = ["TS-3"]',
+            "",
+            {**LINK_JSON, "causes": ["TS-2"], "caused_by": ["TS-3"]},
+        ),
+    ],
+    ids=["create", "edit", "link"],
+)
+def test_the_label_estimate_and_cause_keys_are_the_same_in_both_forms(
+    tmp_path, front, body, document
+):
+    md, js = twins(tmp_path, front, body, document)
+
+    assert md.problems == js.problems == []
+    assert md.draft.values == js.draft.values
+    assert md.draft.title == js.draft.title
+
+
+def test_labels_are_not_a_key_of_an_edit_in_either_form(tmp_path):
+    md, js = twins(tmp_path, EDIT + 'labels = ["a"]', "", {**EDIT_JSON, "labels": ["a"]})
+
+    assert md.problems == ["unknown key 'labels' for op edit"]
+    assert js.problems == ["$.labels: not a key of op edit"]
 
 
 def test_json_values_are_trimmed_like_the_markdown_twin(tmp_path):

@@ -271,6 +271,70 @@ def test_apply_steps_marks_a_create_without_calls_uncertain():
     assert step["sent"] == []
 
 
+class GuardedWriter(Writer):
+    def guard(self, calls):
+        return next((call["path"] for call in calls if "OTHER" in call["path"]), None)
+
+
+def after_create_plan():
+    plan = plan_fixture()
+    plan["steps"] = plan["steps"][:1]
+    plan["steps"][0]["native"] = [
+        {"method": "POST", "path": "/rest/api/3/issue", "body": {}},
+        {"method": "PUT", "path": f"/rest/api/3/issue/{write.CREATED}", "body": {"fields": {}}},
+    ]
+    return plan
+
+
+def test_apply_steps_puts_the_new_key_in_a_later_request_of_a_create():
+    sent = []
+
+    def send(call):
+        sent.append(call)
+        return {"key": "TS-9"}
+
+    [step] = list(write.apply_steps(GuardedWriter(), after_create_plan(), send))
+
+    assert [call["path"] for call in sent] == ["/rest/api/3/issue", "/rest/api/3/issue/TS-9"]
+    assert step["status"] == "applied"
+    assert [call["path"] for call in step["sent"]] == [call["path"] for call in sent]
+    assert write.CREATED in after_create_plan()["steps"][0]["native"][1]["path"]
+
+
+def test_apply_steps_refuses_a_new_key_the_guard_refuses_and_keeps_it_in_the_result():
+    sent = []
+
+    def send(call):
+        sent.append(call)
+        return {"key": "OTHER-9"}
+
+    [step] = list(write.apply_steps(GuardedWriter(), after_create_plan(), send))
+
+    assert len(sent) == 1
+    assert step["status"] == "failed"
+    assert step["created"] == "OTHER-9"
+    assert "leads outside the allowed requests" in step["error"]
+
+
+def test_apply_steps_keeps_the_key_of_a_card_whose_second_request_failed():
+    def send(call):
+        if call["method"] == "PUT":
+            raise TrackerError("no field")
+        return {"key": "TS-9"}
+
+    [step] = list(write.apply_steps(GuardedWriter(), after_create_plan(), send))
+
+    assert (step["status"], step["created"], len(step["sent"])) == ("failed", "TS-9", 1)
+
+
+def test_apply_steps_calls_a_create_without_a_key_for_its_second_request_uncertain():
+    [step] = list(write.apply_steps(GuardedWriter(), after_create_plan(), lambda call: {}))
+
+    assert step["status"] == "uncertain"
+    assert step["created"] is None
+    assert len(step["sent"]) == 1
+
+
 @pytest.mark.parametrize("value", ["2026-13-40", "2026-W46-7", "amanhã", "2026-1-5", 20261115])
 def test_check_document_refuses_a_malformed_date(value):
     document = {**write.to_document(DRAFTS["edit"]), "due": value}

@@ -28,6 +28,20 @@ def test_discover_maps_known_names():
     assert parsed["tracker"]["jira"]["links"] == {"blocks": "Blocks", "relates": "Relates"}
 
 
+def test_discover_maps_the_causes_link_type():
+    text = discover_toml(TYPES, [*LINKS, {"name": "Problem/Incident"}])
+
+    assert 'causes = "Problem/Incident"' in text
+    assert tomllib.loads(text)["tracker"]["jira"]["links"]["causes"] == "Problem/Incident"
+
+
+def test_discover_without_a_causes_link_type_says_so_in_a_comment():
+    text = discover_toml(TYPES, LINKS)
+
+    assert "# causes = ?  (no link type with a known name)" in text
+    assert "causes" not in tomllib.loads(text)["tracker"]["jira"]["links"]
+
+
 def test_discover_cli_reads_the_project(ws_config, fake_jira, capsys):
     (ws_config / "config.toml").write_text(
         f'[tracker]\nkind = "jira"\n[tracker.jira]\nsite = "{fake_jira.site}"\nemail = "dev@example.com"\nproject = "TS"\n',  # noqa: E501

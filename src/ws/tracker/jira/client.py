@@ -81,6 +81,20 @@ def role_jql(role: str) -> str:
     return _ROLE_JQL[role]
 
 
+def _quoted(text: str) -> str:
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def assignees_jql(accounts: tuple[str, ...]) -> str:
+    return f"assignee in ({', '.join(_quoted(account) for account in accounts)})"
+
+
+def sprint_jql(sprint: str) -> str:
+    """The open sprints (the project's board has one) for `active`; else the sprint of that
+    exact name."""
+    return "sprint in openSprints()" if sprint == "active" else f"sprint = {_quoted(sprint)}"
+
+
 def tasks_jql(since: date, role: str = "mine") -> str:
     return (
         f"{role_jql(role)} AND "
