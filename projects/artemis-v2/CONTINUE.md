@@ -12,6 +12,17 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 24/11/2026
 
+**Passagem de chat (24/11, fim da tarde):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-ts5537-errado-e-janela-24-11.md`
+(TS-5537 com os 19 contratos para `errado` e a janela de 24/11).
+
+- 4 PRs de produção abertas (shared, cessão, BFF, portal); GMUD com TS-5612 e TS-5537, viva-production
+  fora do deploy, head da shared corrigido (`5e7b2d94a1c8`) e o passo do SQL da TS-5537.
+- A4 validado na sandbox (15:00 e 15:30 UTC em sucesso sem `CELERY_CONFIRM_PUBLISH` no beat).
+- TS-5612 na sandbox (`sand-4b222d4`); falta conferir às 19:00 UTC que a rotina antiga não disparou.
+- Parameter Store de produção da cessão feito (as três variáveis).
+- TS-5537 na release (`dd004bf5e`), suíte 6691 passed; SQL para a DBA levar os 19 contratos a `errado`.
+
 **Passagem de chat (24/11, tarde):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-ts5612-sandbox-e-deploy-24-11.md`
 (TS-5612 na sandbox e deploy da release de 24/11).
@@ -501,13 +512,12 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Deploy de 24/11:** conferir o agendador da sandbox (`scripts/a4_despacho.py`); depois do merge
-   da #2795, tag da sandbox e teste da TS-5612; TS-5612 no rascunho da cessão e na GMUD; publicar as
-   4 PRs de produção; janela shared → cessão → BFF → portal com `/deploy-check`; depois, ligar o 1604
-   e o 15 pela tela, o A5 pela réplica e os cards.
+1. **Deploy de 24/11:** às 19:00 UTC conferir no Datadog que a rotina fixa antiga não disparou na
+   sandbox; a DBA roda o SQL da TS-5537 antes da tag da cessão; janela shared → cessão → BFF →
+   portal com `/deploy-check`; depois, ligar o 1604 e o 15 pela tela, o A5 pela réplica e os cards.
 2. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
 3. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
    recolhido.
 4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, consulta do resumo diário com ids); TS-5620
-   (D37, D38); S1 a S14; TS-5537.
+   (D37, D38); S1 a S14.
