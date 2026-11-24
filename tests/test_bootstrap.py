@@ -2164,11 +2164,7 @@ SESSION_HOOKS = [
 def test_session_hook_pointing_at_repo_is_stale(env, script, event):
     gates = _registered_gates()
     repo_path = env.repo / "hooks" / script
-    [entry] = [
-        item
-        for item in gates["hooks"][event]
-        if script in item["hooks"][0]["command"]
-    ]
+    [entry] = [item for item in gates["hooks"][event] if script in item["hooks"][0]["command"]]
     entry["hooks"][0]["command"] = f'python3 -I -B "{repo_path}"'
     _write_settings(env.settings, gates)
 
@@ -2184,11 +2180,7 @@ def test_session_hook_pointing_at_repo_is_stale(env, script, event):
 @pytest.mark.parametrize("script,event", SESSION_HOOKS)
 def test_a_short_timeout_on_a_session_hook_is_a_problem(env, script, event):
     gates = _registered_gates()
-    [entry] = [
-        item
-        for item in gates["hooks"][event]
-        if script in item["hooks"][0]["command"]
-    ]
+    [entry] = [item for item in gates["hooks"][event] if script in item["hooks"][0]["command"]]
     entry["hooks"][0]["timeout"] = 5
     _write_settings(env.settings, gates)
 

@@ -83,9 +83,7 @@ def test_time_is_local_iso_with_offset_in_the_month_file(env, monkeypatch):
     [event] = events(env)
     moment = datetime.fromisoformat(event["at"])
     assert moment.utcoffset() is not None
-    assert [item.name for item in (env / "data" / "timelog").iterdir()] == [
-        f"{moment:%Y-%m}.jsonl"
-    ]
+    assert [item.name for item in (env / "data" / "timelog").iterdir()] == [f"{moment:%Y-%m}.jsonl"]
 
 
 def test_appends_never_rewrites(env, monkeypatch):
