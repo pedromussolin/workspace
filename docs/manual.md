@@ -27,9 +27,12 @@ status looks behind). Write the standup from it, one line per task, the card key
 ## Jira card
 
 1. Write a draft in `~/.local/share/workspace/cards/drafts/<name>.md`, one operation per file. The
-   format (TOML front matter between `+++` lines, then the body) and the user's card style are in
-   [skills/card/SKILL.md](../skills/card/SKILL.md), sections "The draft" and "The user's card style". `ws card epics`
-   lists the epics for a `create`.
+   format (TOML front matter between `+++` lines, then the body) and the card policy are in
+   [skills/card/SKILL.md](../skills/card/SKILL.md), sections "The draft" and "The card policy".
+   `ws card policy` prints the rules a card must follow (title, sections, required fields,
+   categories); `ws card epics` lists the epics for a `create`. The draft keys for the categories
+   and the original estimate are `labels` and `estimate` on a create, `add_labels`,
+   `remove_labels` and `estimate` on an edit, and `causes` and `caused_by` on a link.
 2. `ws card check <draft>` until `ok` is true.
 3. `ws card preview <draft or folder>`: nothing is sent; it prints the change and an approval code.
 4. `ws card apply <same path> --approve <code>` in your terminal: it re-checks against Jira, shows

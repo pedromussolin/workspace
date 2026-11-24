@@ -126,6 +126,13 @@ stale_workdays = 3
   `[tracker.jira.links]` maps `blocks`, `relates` and `causes` to the link type name (`causes` is needed only by a draft with `causes` or `caused_by`). `[tracker.jira] issue_type` was
   replaced by `[tracker.jira.types]` and is refused: delete the `issue_type` line from `[tracker.jira]`, then
   run `ws tracker discover` and paste its output into `config.toml`.
+- `[card] policy = "<name>"` picks the company's card policy: the file
+  `~/.config/workspace/card-policies/<name>.toml` (a name with no file is a setup error, exit 2). It
+  sits over the default policy in the repo (`src/ws/data/card-policy/default.toml`, the title format,
+  the sections of each type and the other rules `ws card check` has always applied), and a project
+  may add its own `projects/<slug>/card-policy.toml` over both. Each layer declares only what it
+  changes; the more specific one wins. `ws card policy [--project SLUG]` prints the merged policy.
+  Contract and design: `docs/specs/2026-11-24-card-policy-design.md`.
 - `[tracker.jira] premium` (`true` or `false`, default `false`): with the premium plan an epic's `parent` sets its initiative as the parent field; without it, `parent` on an epic edit adds a link.
 - `[tracker.jira] initiative_link` (default `"relates"`) names the key of `[tracker.jira.links]` used for that link; a name missing from that table is a config error.
 - `[identity] email` is yours (absent means `[tracker.jira] email`). `[people."<dev id>"]` maps a dev id
@@ -587,6 +594,7 @@ Design: [docs/specs/](docs/specs/2026-10-26-new-name-check-design.md).
 | `ws standup report --activity FILE [--cards FILE] [--board FILE] [--today YYYY-MM-DD] [--top N]` | Groups the activity by task key and prints, as JSON, the `yesterday` and `today` topics, the `next_steps`, the `blockers`, the commits without a key and the `warnings`, with the status suggestions inside their task; `--top N` keeps only the first N of `yesterday` and `today` and `more` counts what was cut; `moves` lists every card move; `--board FILE` (the `ws board status` output) brings the status suggestions, `moves` and `to_confirm`, and its warnings join `warnings`; without `--cards` Jira is unavailable and the report comes from the activity alone (exit 2 on bad input); the skill `daily` writes the standup from it (short by default, with `--top 3`; detailed on request); exit 2 on a period activity (use `ws standup summary`) |
 | `ws card check DRAFT` | Validates a card draft (create, edit, move, comment, worklog, link) against live Jira and prints a JSON verdict: `ok`, `problems`, `warnings` and the resolved values; exit 1 a rule failed, 2 setup needed, 3 Jira refused or unreachable. A draft is a Markdown file (`NAME.md`) or a `card-write` JSON document (`NAME.json`) under the same rules; a `card-plan` JSON file is only checked against its schema |
 | `ws card show DRAFT` | Prints a draft under `cards/drafts/` (`.md` or `.json`) as its `card-write` JSON document; read only, writes nothing; exit 1 when the draft does not parse or the contract refuses it |
+| `ws card policy [--project SLUG]` | Prints the card policy that `ws card check` and `preview` apply, as JSON: `policy` (the merged `card-policy` v1 document: title format, sections per type, required fields, categories, estimate padding, finish rules) and `sources` (for each top-level key, the layer that set it: `default`, `company` or `project`); the layers are the default in the repo, the company file `[card] policy` names and the project's `card-policy.toml`; exit 2 for a missing or invalid layer |
 | `ws card epics` | Lists the epics of your open cards, plus the epics and initiatives you own and the open epics under those initiatives (`key`, `title`, `prefix`, `status`, `level`, `parent`) |
 | `ws tracker discover` | Prints the `[tracker.jira.types]` and `[tracker.jira.links]` blocks of the project's Jira, for you to paste in `config.toml` (read only); exit 2 on setup, 3 when Jira refuses |
 | `ws people me` / `ws people add EMAIL [--account ID]` | `me` prints your dev id; `add` prints the `[people."dev-…"]` block of a colleague (searches the account by e-mail unless `--account`; never prints the e-mail; read only) |
