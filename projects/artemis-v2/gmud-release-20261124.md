@@ -221,8 +221,11 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
   - A3, backstop: a cada :00 e :30 (último visto às 19:30), 0 remessas avaliadas;
   - A4, agendador: uma execução presa às 16:16, do incidente da tarde (ver o risco do disparo);
     nenhuma depois;
-  - A5, lote sem pagamento: não dá para ver pela tela (lote vazio não aparece, B29); conferir em
-    produção pelos logs;
+  - A5, lote sem pagamento (24/11): produto 35 em Agendado com o horário das 10:17; "Agendamentos
+    despachados" às 10:17:01 e "Fechamento de lotes por horário concluído" às 10:17:06; o lote
+    50048, aberto e sem pagamento, foi fechado e descartado pela esteira às 10:17:02 ("Lote sem
+    pagamento descartado." no log do lote). O descarte só sai no Datadog em DEBUG: em produção,
+    conferir na réplica (`liquidacao_lote_processo.estado_atual = 'descartado'`);
   - B1, por horário: produto 24 às 19:00, "Agendamentos despachados" às 19:00:01 e "Fechamento de
     lotes por horário concluído" às 19:00:07 (9 lotes, 0 falhas);
   - B2, esteira de baixa nova: produto 28 com `liquidacao_baixa_refact` ligada, lote 50047 fechado
@@ -241,4 +244,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737 e TS-5871.
     antes do corte"), compromisso `manual` de R$ 2.000,00 na conta vinculada e lote em
     `liquidando` às 09:14:46, aguardando o retorno da administradora; Datadog "Conciliacao de
     conta aprovada em tela; lote retoma a esteira de baixa." às 09:14:46 (`sand-a03d015`);
+  - ajustes de 24/11 no front (`sand-4917fe3`): o aviso de lote fechado lista só os lotes (a
+    contagem vinha dos avulsos e mostrava 0 no lote aberto) e o exemplo da observação no aprovar
+    deixou de citar uma pessoa real; o exemplo foi conferido na tela;
   - Produtos de teste de volta a Manual (53, 54, 55, 187, 24); esteira nova do 28 desligada.
