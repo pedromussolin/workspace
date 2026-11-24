@@ -5,7 +5,7 @@ import re
 import tomllib
 from datetime import date
 
-from ws.tracker.vocab import LINK_KINDS
+from ws.tracker.vocab import DRAFT_LINK_KINDS, LABEL_KEYS
 from ws.tracker.write import Draft, draft_problems, repeated_problem
 
 OPS = ("create", "edit", "move", "comment", "worklog", "link")
@@ -19,7 +19,17 @@ REQUIRED = {
     "link": {"key"},
 }
 OPTIONAL = {
-    "create": {"epic", "parent", "assignee", "reporter", "sprint", "due", "item"},
+    "create": {
+        "epic",
+        "parent",
+        "assignee",
+        "reporter",
+        "sprint",
+        "due",
+        "item",
+        "labels",
+        "estimate",
+    },
     "edit": {
         "title",
         "priority",
@@ -31,14 +41,17 @@ OPTIONAL = {
         "reporter",
         "parent",
         "sprint",
+        "add_labels",
+        "remove_labels",
+        "estimate",
     },
     "move": {"to", "status"},
     "comment": set(),
     "worklog": {"day"},
-    "link": set(LINK_KINDS),
+    "link": set(DRAFT_LINK_KINDS),
 }
 DATE_KEYS = {"start", "due", "day"}
-LIST_KEYS = set(LINK_KINDS)
+LIST_KEYS = set(DRAFT_LINK_KINDS) | set(LABEL_KEYS)
 
 _DATE_TEXT = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _FENCE = "+++"
@@ -98,7 +111,7 @@ def _values(op: str, front: dict) -> dict:
         if parsed is None:
             kind = "a date (YYYY-MM-DD)" if name in DATE_KEYS else "a non-empty string"
             if name in LIST_KEYS:
-                kind = "a list of card keys"
+                kind = "a list of labels" if name in LABEL_KEYS else "a list of card keys"
             problems.append(f"{name} must be {kind}")
         elif name in LIST_KEYS and (problem := repeated_problem(name, parsed)):
             problems.append(problem)

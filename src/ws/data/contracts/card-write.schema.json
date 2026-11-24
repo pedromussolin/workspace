@@ -108,6 +108,39 @@
       "items": {
         "type": "string"
       }
+    },
+    "causes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "caused_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "add_labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "remove_labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "estimate": {
+      "type": "string"
     }
   }
 }

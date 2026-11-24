@@ -114,8 +114,56 @@ def test_draft_link_strips_card_keys():
 
 
 def test_draft_link_needs_one_list():
-    with pytest.raises(DraftError, match="a link needs blocks, blocked_by or relates"):
+    with pytest.raises(
+        DraftError, match="a link needs blocks, blocked_by, relates, causes or caused_by"
+    ):
         link("")
+
+
+def test_draft_link_takes_causes_and_caused_by():
+    parsed = link('causes = ["TS-2"]\ncaused_by = ["TS-3"]')
+
+    assert parsed.values == {"key": "TS-1", "causes": ["TS-2"], "caused_by": ["TS-3"]}
+
+
+def test_draft_create_takes_labels_and_an_estimate():
+    parsed = create('epic = "TS-1"\nlabels = ["a", " b "]\nestimate = " 2h 30m "')
+
+    assert parsed.values["labels"] == ["a", "b"]
+    assert parsed.values["estimate"] == "2h 30m"
+
+
+def test_draft_edit_takes_label_changes_and_an_estimate():
+    parsed = draft(
+        'op = "edit"\nkey = "TS-1"\nadd_labels = ["a"]\nremove_labels = ["b"]\nestimate = "1h"'
+    )
+
+    assert parsed.values["add_labels"] == ["a"]
+    assert parsed.values["remove_labels"] == ["b"]
+
+
+def test_draft_edit_cannot_replace_the_labels():
+    with pytest.raises(DraftError, match="unknown key 'labels' for op edit"):
+        draft('op = "edit"\nkey = "TS-1"\nlabels = ["a"]')
+
+
+def test_draft_create_cannot_remove_labels():
+    with pytest.raises(DraftError, match="unknown key 'remove_labels' for op create"):
+        create('epic = "TS-1"\nremove_labels = ["a"]')
+
+
+def test_draft_labels_must_be_a_list_of_strings():
+    with pytest.raises(DraftError, match="labels must be a list of labels"):
+        create('epic = "TS-1"\nlabels = "a"')
+    with pytest.raises(DraftError, match="add_labels must be a list of labels"):
+        draft('op = "edit"\nkey = "TS-1"\nadd_labels = ["a", 3]')
+
+
+def test_draft_labels_cannot_repeat_or_clash():
+    with pytest.raises(DraftError, match="labels lists a twice"):
+        create('epic = "TS-1"\nlabels = ["a", "a"]')
+    with pytest.raises(DraftError, match="a is in add_labels and in remove_labels"):
+        draft('op = "edit"\nkey = "TS-1"\nadd_labels = ["a"]\nremove_labels = ["a"]')
 
 
 def test_draft_link_refuses_its_own_key():

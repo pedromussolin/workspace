@@ -14,7 +14,13 @@ from ws import approval, contracts
 from ws.itemfile import ITEM_PATH
 from ws.taskmodel import Status
 from ws.tracker.port import TrackerError
-from ws.tracker.vocab import ALL_TYPES, CARD_TYPES, LINK_KINDS, UPPER_TYPES
+from ws.tracker.vocab import (
+    ALL_TYPES,
+    CARD_TYPES,
+    DRAFT_LINK_KINDS,
+    LABEL_KEYS,
+    UPPER_TYPES,
+)
 
 VERSION = 1
 SCHEMAS = ("card-write", "card-plan", "card-result")
@@ -29,7 +35,18 @@ REQUIRED = {
     "link": {"key"},
 }
 OPTIONAL = {
-    "create": {"body", "epic", "parent", "assignee", "reporter", "sprint", "due", "item"},
+    "create": {
+        "body",
+        "epic",
+        "parent",
+        "assignee",
+        "reporter",
+        "sprint",
+        "due",
+        "item",
+        "labels",
+        "estimate",
+    },
     "edit": {
         "title",
         "priority",
@@ -42,14 +59,20 @@ OPTIONAL = {
         "parent",
         "sprint",
         "body",
+        "add_labels",
+        "remove_labels",
+        "estimate",
     },
     "move": {"to", "status"},
     "comment": set(),
     "worklog": {"day", "body"},
-    "link": {"blocks", "blocked_by", "relates"},
+    "link": set(DRAFT_LINK_KINDS),
 }
 HEADER = {"$schema", "version", "op"}
 DATES = {"start", "due", "day"}
+CREATED = "{created}"
+"""In the path of a request after a create's first one: the key of the card the create made."""
+LINK_NEEDS = "a link needs blocks, blocked_by, relates, causes or caused_by"
 UPPER_OUT_OF_SPRINTS = "an epic or an initiative stays out of sprints; put its cards in the sprint"
 
 
@@ -137,7 +160,7 @@ def _op_problems(document: dict, op: str) -> list[str]:
     if op == "move":
         problems += _move_rules(document)
     if op == "link" and not any(document.get(kind) for kind in OPTIONAL["link"]):
-        problems.append("$: a link needs blocks, blocked_by or relates")
+        problems.append(f"$: {LINK_NEEDS}")
     return problems
 
 
@@ -159,13 +182,14 @@ def _is_date(value: object) -> bool:
 
 def _value_problems(values: dict) -> list[str]:
     """What the contract's types let through and a Markdown draft refuses, in the same words:
-    a blank string, and a list of card keys with a blank or a repeated key."""
+    a blank string, and a list of card keys or labels with a blank or a repeated item."""
     problems = []
     for name in sorted(set(values) - DATES):
         value = values[name]
-        if name in LINK_KINDS:
+        if name in DRAFT_LINK_KINDS or name in LABEL_KEYS:
             if not all(value):
-                problems.append(f"{name} must be a list of card keys")
+                what = "labels" if name in LABEL_KEYS else "card keys"
+                problems.append(f"{name} must be a list of {what}")
             elif problem := repeated_problem(name, value):
                 problems.append(problem)
         elif not value:
@@ -173,9 +197,9 @@ def _value_problems(values: dict) -> list[str]:
     return problems
 
 
-def repeated_problem(name: str, cards: list[str]) -> str | None:
-    """The problem of a list of card keys that names a card twice; None when it does not."""
-    twice = next((card for card in cards if cards.count(card) > 1), None)
+def repeated_problem(name: str, items: list[str]) -> str | None:
+    """The problem of a list that names an item twice; None when it does not."""
+    twice = next((item for item in items if items.count(item) > 1), None)
     return None if twice is None else f"{name} lists {twice} twice"
 
 
@@ -247,13 +271,16 @@ def _edit_rules(kind: str | None, values: dict) -> list[str]:
         )
     if "epic" in values and "parent" in values:
         problems.append("use epic for a card or parent for an epic, not both")
+    both = sorted(set(values.get("add_labels", [])) & set(values.get("remove_labels", [])))
+    if both:
+        problems.append(f"{', '.join(both)} is in add_labels and in remove_labels")
     return problems
 
 
 def _link_rules(values: dict) -> list[str]:
-    lists = {name: values[name] for name in LINK_KINDS if values.get(name)}
+    lists = {name: values[name] for name in DRAFT_LINK_KINDS if values.get(name)}
     if not lists:
-        return ["a link needs blocks, blocked_by or relates"]
+        return [LINK_NEEDS]
     seen = []
     problems = []
     for cards in lists.values():
@@ -327,16 +354,20 @@ def apply_steps(writer, plan: dict, send: Callable[[dict], object]) -> Iterator[
         first = None
         try:
             for call in step["native"]:
+                if sent:
+                    call = _bound(writer, step, first, call)
                 reply = send(call)
                 if not sent:
                     first = reply
                 sent.append(call)
         except TrackerError as error:
             uncertain = bool(getattr(error, "uncertain", False))
-            yield _result(step, "uncertain" if uncertain else "failed", sent, str(error))
+            status = "uncertain" if uncertain else "failed"
+            yield _result(step, status, sent, str(error), created=_made(writer, step, first))
             return
         except Exception as error:
-            yield _result(step, "uncertain", sent, f"{type(error).__name__}: {error}")
+            message = f"{type(error).__name__}: {error}"
+            yield _result(step, "uncertain", sent, message, created=_made(writer, step, first))
             return
         try:
             created = writer.created_key(first) if step["op"] == "create" else None
@@ -346,6 +377,30 @@ def apply_steps(writer, plan: dict, send: Callable[[dict], object]) -> Iterator[
             yield _result(step, "uncertain", sent, f"{type(error).__name__}: {error}")
             return
         yield _result(step, "applied", sent, None, created=created, url=url)
+
+
+def _made(writer, step: dict, first: object) -> str | None:
+    """The key of the card a create made, when its first request was sent and told it."""
+    if step["op"] != "create" or first is None:
+        return None
+    try:
+        return writer.created_key(first)
+    except Exception:
+        return None
+
+
+def _bound(writer, step: dict, first: object, call: dict) -> dict:
+    """A request after a create's first one, with the new card's key where its path says
+    `CREATED`; a key the writer's guard refuses stops the step, as the card exists."""
+    if CREATED not in call["path"]:
+        return call
+    key = _made(writer, step, first)
+    if key is None:
+        raise TrackerError("the tracker did not say the key of the new card", uncertain=True)
+    bound = {**call, "path": call["path"].replace(CREATED, key)}
+    if (refused := writer.guard([bound])) is not None:
+        raise TrackerError(f"the new card's key leads outside the allowed requests: {refused}")
+    return bound
 
 
 def _result(
