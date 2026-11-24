@@ -10,8 +10,8 @@ Planejamento e acompanhamento do épico que reestrutura o front do portal
 Aqui ficam as tarefas, as decisões, o design system, as evidências e os
 protótipos próprios. O código vive no repositório da empresa, não aqui.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md`
-da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
+`instructions/` estão no `CLAUDE.md` da raiz do repositório, `~/repos/workspace/CLAUDE.md`. Aqui ficam só as regras específicas deste
 projeto.
 
 ## Análogos e placeholders deste projeto
@@ -46,6 +46,3 @@ empresa), use os nomes reais.
   decidiu e o motivo.
 - **Validação:** o passo a passo e os números de base ficam em
   `tasks/area-playbook.md`.
-
-As regras de git dos repos da empresa (branch e commit com `TS-…`, sem push
-pelo Claude) estão no `~/repos/CLAUDE.md` e não valem para este repo.

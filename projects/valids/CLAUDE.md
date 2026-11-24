@@ -12,8 +12,8 @@ O código vive nos repositórios da empresa (ver "Repositórios envolvidos"), n�
 Não é tarefa do Artemis: nada daqui vai para `projects/artemis-v2`, e as decisões daqui não usam a
 numeração de lá.
 
-As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) estão no `CLAUDE.md` da
-raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, mascaramento, commits, idioma e sincronização) e as regras de trabalho em
+`instructions/` estão no `CLAUDE.md` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
 
 ## Análogos e dados deste projeto
 
@@ -69,8 +69,6 @@ só o caminho.
 
 ## Como escrever
 
-- PT-BR, enxuto: conclusão primeiro, depois o porquê em poucos pontos. Explicar todo termo técnico
-  na primeira vez que aparece.
 - Separar o comprovado da hipótese: **[C]** (visto no código ou numa consulta) e **[H]**
   (hipótese, com o caminho para validar).
 - Citar código como `caminho/arquivo:linha` e dizer contra qual commit as linhas valem (tabela no
@@ -100,7 +98,5 @@ só o caminho.
 | platform-cessao | cadastro da régua de PDD (`POST /pdd/regua`) e régua em vigor (`GET /pdd/regua-vigente`, D19) |
 | data-lake-api-argocd | deploy do worker `valid` e do agendamento das cargas no beat |
 
-As regras de git dos repos da empresa (branch e commit com o ID `TS-…`, sem trailer de ferramenta
-de IA, nunca commit direto na `master`) estão no `~/repos/CLAUDE.md` e valem só para eles. Neste
-repo valem as regras do `CLAUDE.md` da raiz. Contrato novo entre front, BFF e data-lake-api muda
+Contrato novo entre front, BFF e data-lake-api muda
 nas três pontas no mesmo ciclo.

@@ -8,18 +8,16 @@ Evolução do fluxo do Pré-Trade; a primeira entrega é o SLA por etapa, o trad
 aprovação genérica. Aqui ficam as decisões, as tarefas e o desenho; o código vive nos repositórios
 da empresa.
 
-As regras comuns (sigilo, commits, idioma e sincronização) estão no `AGENTS.md` e em
-`docs/conventions/` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, commits, idioma e sincronização) e as regras de trabalho em
+`instructions/` estão no `AGENTS.md` e em `docs/conventions/` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
 
 ## Regras deste projeto
 
 - O motor de workflows é genérico: SLA, pulo de aprovações e avisos novos entram nele sem citar o
-  Pré-Trade; o módulo `pre_trade` só integra (avisos, rótulos, regras do fluxo). Nada de FK, import
-  ou chamada entre as features genéricas (workflows, e-mail, agendamento).
-- Mudança de arquitetura (camadas, contrato entre shared, BFF e front, `test_arch`, wiring) só com
-  o desenho aprovado pelo usuário.
-- Migration já aplicada não se altera: mudança de configuração do fluxo vai em migration nova.
-- Agendamento só pelo banco (`scheduler.scheduled_jobs`), nunca horário fixo no código.
+  Pré-Trade; o módulo `pre_trade` só integra (avisos, rótulos, regras do fluxo).
+- Mudança no contrato entre shared, BFF e front só com o desenho aprovado pelo usuário (regra geral
+  de arquitetura: `instructions/company-repos.md`, "Fluxo da tarefa").
+- Mudança na configuração do fluxo vai em migration nova.
 - A configuração do fluxo que vale é a da sandbox: conferir lá antes de afirmar como o fluxo está.
 
 ## Valores reais fora do repo

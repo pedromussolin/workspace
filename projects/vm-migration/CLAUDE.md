@@ -4,8 +4,8 @@ Tags:
 
 # Migração das telas de operações: regras do projeto
 
-As regras comuns (sigilo, commits, idioma e sincronização) estão no `CLAUDE.md` da raiz do
-repositório. Aqui ficam só as regras específicas deste projeto.
+As regras comuns (sigilo, commits, idioma e sincronização) e as regras de trabalho em
+`instructions/` estão no `CLAUDE.md` da raiz do repositório. Aqui ficam só as regras específicas deste projeto.
 
 ## Análogos deste projeto
 
@@ -29,7 +29,6 @@ caminho na máquina.
 
 ## Como escrever
 
-- PT-BR, enxuto: conclusão primeiro, depois o porquê. Explicar todo termo técnico na primeira vez.
 - Separar o comprovado da hipótese: **[C]** (visto na máquina, no código ou no Datadog) e **[H]**
   (hipótese, com o caminho para validar).
 - Cada item do inventário diz quem usa, com que frequência, do que depende e para onde vai.
