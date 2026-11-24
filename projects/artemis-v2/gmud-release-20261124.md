@@ -101,16 +101,12 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 - **Pods novos antes do fim da migration** → leitura de coluna inexistente na `produto_config` →
   na sandbox, em 23/11, nenhum erro de coluna ou tabela inexistente durante a migration → segura:
   conferir a revisão do Alembic antes do BFF e do portal (passo 6).
-- **Segundo ambiente de produção da cessão (`viva-production`)**: recebe a mesma imagem e roda as
-  mesmas migrations no banco dele, sem o worker isolado →
-  - o mapeamento das colunas novas vale para os produtos de lá (banco sem acesso; a confirmar);
-  - os 14 agendamentos entram com os ids de produto do principal: os 13 de liquidação nascem
-    desligados; o backstop nasce ligado e só olha remessas automáticas;
-  - sem a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê, os pods de lá não sobem (a
-    confirmar se é o mesmo do principal);
-  - a rotina fixa de fechamento das 16h também sai de lá: produto que fecha por ela (flag
-    `baixa_por_agendamento`) para de fechar sozinho até o agendamento dele ser ligado (a
-    confirmar).
+- **Segundo ambiente de produção da cessão (`viva-production`)**: fica fora deste deploy e segue em
+  `prod-ca52465`, sem as migrations; o principal e ele ficam em versões diferentes até lá → a
+  subida dele vai em outra mudança, com o que ainda está a confirmar (banco sem acesso): o
+  mapeamento das colunas novas nos produtos de lá, os agendamentos com os ids de produto do
+  principal, a `APL_SHARED_SERVICE_URL` no Parameter Store que ele lê e os produtos que fecham pela
+  rotina fixa das 16h (flag `baixa_por_agendamento`), que sai.
 - **Disparo do agendador perdido ou travado** (sandbox, 23/11) **[C]**: o despacho reaproveita a
   conexão com o RabbitMQ, e depois de ~30 min parada ela é derrubada em silêncio no caminho. Sem
   confirmação de publicação, a mensagem some (execução das 17:00 UTC publicada e nunca recebida);
@@ -120,7 +116,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
   funciona (16:30, 17:30 e 18:00 UTC). No backstop, disparos perdidos; num fechamento por horário
   (nasce desligado), o lote do dia não fecharia → segura: `CELERY_CONFIRM_PUBLISH` **não** vai no
   beat de produção; fechamento por horário só se liga depois que a correção do despacho (conexão nova a
-  cada publicação, TS-5569, já nesta release) for validada na sandbox; o agendador marca como falha, com aviso no log, a execução
+  cada publicação, TS-5569, já nesta release) for validada na sandbox (validada em 24/11: disparos das
+  15:00 e 15:30 UTC em sucesso, sem a variável no beat); o agendador marca como falha, com aviso no log, a execução
   não consumida em 2 h.
 - **E-mail recusado pelo shared** (sem remetente ativo ou sem destinatário: 422) → a execução do
   resumo ou do aviso fica registrada com erro, sem nova tentativa → segura: o job do resumo nasce
@@ -155,8 +152,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 1. Parameter Store de produção da cessão: criar `APL_SHARED_SERVICE_URL` (tipo `String`, mesmo
    valor do parâmetro de URL do shared no BFF) e acrescentar `liquidacao_baixa_isolada_celery=<N>` à
    `CONCORRENCIA_POR_FILA`. Conferir pelo nome. Sem a primeira, o pod da cessão não passa na
-   checagem de variáveis e não sobe. **No `viva-production`:** conferir se ele lê o mesmo Parameter
-   Store do principal; se não, criar a variável lá também.
+   checagem de variáveis e não sobe.
 2. Réplica, somente leitura: repetir a conferência dos produtos automáticos com
    `liquidacao_automatico` desligada (esperado: 22, 26, 27, 28, 39, 42) e a das flags incoerentes
    com a modalidade (esperado: nenhuma linha). Se a lista mudou, decidir produto a produto antes.
@@ -166,8 +162,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 **Janela (shared → cessão → BFF → portal)**
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
 5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `9300117a09ae`.
-6. **Cessão:** um commit no argocd com a tag nova em `asgard-production` e em `viva-production`, o
-   worker `liquidacao-baixa-isolada` no `asgard-production`. Sem `CELERY_CONFIRM_PUBLISH` no beat
+6. **Cessão:** um commit no argocd com a tag nova e o worker `liquidacao-baixa-isolada` no
+   `asgard-production`; o `viva-production` não muda. Sem `CELERY_CONFIRM_PUBLISH` no beat
    (ver o risco do disparo do agendador). Conferir:
    - Alembic em `a4f7c2d9e1b6` (pela réplica);
    - `produto_config` com o gatilho e o agrupamento preenchidos conforme o mapeamento;
@@ -197,7 +193,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 - **Sem deploy, por produto:** gatilho `manual` na tela de configuração (os 6 produtos do primeiro
   risco); desligar um agendamento (inclusive o backstop) pela rota de agendamento.
 - **Com deploy, na ordem inversa:** portal (as três tags anteriores), BFF `prod-5aca171`, cessão
-  `prod-ca52465` nos dois ambientes (em produção desde 23/11, com a TS-5616; remover o worker
+  `prod-ca52465` no `asgard-production` (em produção desde 23/11, com a TS-5616; remover o worker
   isolado depois de conferir a fila vazia), shared `prod-79d43a7`.
 - **Banco:** as migrations só acrescentam; a imagem anterior ignora as tabelas e colunas novas, então
   a volta não pede downgrade. O downgrade, se preciso, é com a DBA: apaga as tabelas do agendador
@@ -237,7 +233,8 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
     liquidação fechada automaticamente", 0 recusadas, 0 ocupadas, lote `concluido`;
   - A3, backstop: a cada :00 e :30 (último visto às 19:30), 0 remessas avaliadas;
   - A4, agendador: uma execução presa às 16:16, do incidente da tarde (ver o risco do disparo);
-    nenhuma depois;
+    nenhuma depois. Em 24/11, sem `CELERY_CONFIRM_PUBLISH` no beat (tirada às 14:33 UTC), disparos
+    das 15:00 e 15:30 UTC em sucesso, com a conexão parada 30 min entre eles;
   - A5, lote sem pagamento (24/11): produto 35 em Agendado com o horário das 10:17; "Agendamentos
     despachados" às 10:17:01 e "Fechamento de lotes por horário concluído" às 10:17:06; o lote
     50048, aberto e sem pagamento, foi fechado e descartado pela esteira às 10:17:02 ("Lote sem
