@@ -311,11 +311,6 @@ def _link_skills(setup: _Setup, repo: Path, skills_target: Path) -> None:
             setup.need(f"skill {skill.name}: {link} exists and is not a link to this repo")
 
 
-def _link_file(link: Path, source: Path) -> None:
-    link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(source.resolve())
-
-
 def _link_instructions(setup: _Setup, repo: Path, user_instructions: Path) -> None:
     source = repo / "instructions"
     if not source.is_dir():
@@ -331,7 +326,7 @@ def _link_instructions(setup: _Setup, repo: Path, user_instructions: Path) -> No
         if not (link.is_symlink() or link.exists()):
             setup.fix(
                 f"instructions {name}: link {link}",
-                lambda link=link, target=target: _link_file(link, target),
+                lambda link=link, target=target: _link(link, target),
                 f"instructions {name}: could not link {link}",
             )
         elif not (link.is_symlink() and link.resolve() == target.resolve()):

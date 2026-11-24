@@ -15,8 +15,8 @@ ws setup
 ```
 
 Run `ws setup` in your own terminal: it sets the git hooks path, links the skills, links
-`instructions/` as `~/.claude/CLAUDE.md` and `~/repos/CLAUDE.md`, and shows the diff of the protected copy of the
-Claude Code hooks before it writes it. It never edits
+`instructions/` as `~/.claude/CLAUDE.md` and `~/repos/CLAUDE.md`, and shows the diff of the
+protected copy of the Claude Code hooks before it writes it. It never edits
 `~/.claude/settings.json`; it prints the JSON to add. `ws setup --check` only reports. Details:
 [README.md](README.md), "Setup".
 
