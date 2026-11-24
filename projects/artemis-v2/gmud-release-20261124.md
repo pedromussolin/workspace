@@ -53,7 +53,9 @@ Liquidação: configuração do produto em tela e aprovação de lote antes do c
     `liquidacao_baixa_isolada_celery` (TS-5737);
   - sai a rotina fixa de fechamento por agendamento do beat (`liquidacao_fecha_lote_task`, 16h de
     Brasília): com a release, ela fecharia todo produto com gatilho agendado junto com o horário
-    novo; produto agendado passa a fechar só pelo agendamento dele (TS-5612).
+    novo; produto agendado passa a fechar só pelo agendamento dele (TS-5612);
+  - a liberação de contratos deixa de quebrar em título sem callbacks, que hoje deixa contratos
+    presos em `liberando` e para a liberação dos seguintes (TS-5537; na sandbox desde 03/11).
 - **apl-credit-whitelabel-api** (BFF, a camada entre o portal e os serviços; [PR #286](https://github.com/Capitalis/apl-credit-whitelabel-api/pull/286)): guardas de
   lote vazio (TS-5582), lote aberto (TS-5567), rotas da configuração do produto, que aceitam a lista
   de horários vazia fora do agendado (TS-5624), contrato
@@ -81,8 +83,8 @@ High
 
 ## Link Tarefa
 
-`<link do Jira>` das 15 tarefas: TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571,
-TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
+`<link do Jira>` das 16 tarefas: TS-5582, TS-5583, TS-5567, TS-5569, TS-5570, TS-5585, TS-5571,
+TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871, TS-5612 e TS-5537.
 
 ## Risco
 
@@ -95,6 +97,11 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
   nascem desligados) → o produto em gatilho agendado não fecha sozinho; no principal é só o 1604
   (réplica, 24/11) → segura: ligar o horário das 16:00 do 1604 logo depois do deploy (passo 9),
   antes das 16h do dia seguinte.
+- **Contratos presos em `liberando` pelo erro da TS-5537** (19 do produto 15, réplica em 24/11:
+  cedente concluído, sem recompra; fora do fluxo há meses, sem reclamação) → com a correção, iriam
+  para `cadastrado` na próxima baixa do produto → segura: decisão do time de mandá-los para
+  `errado` (reprocessável) antes do deploy da cessão, por SQL revisado pela DBA (passo 6). O
+  produto 15 não tem lote de cessão nem desembolso automáticos.
 - **Migration esperando trava na `produto_config`** (inclui colunas e faz um UPDATE em todas as
   linhas) → leituras da tabela ficam na fila atrás dela → segura: janela noturna; acompanhar o Job
   de migration; DBA de prontidão (a confirmar). A migration não define `lock_timeout` (a confirmar).
@@ -163,7 +170,9 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 **Janela (shared → cessão → BFF → portal)**
 4. Merge das PRs `release/20261124` → `master` dos quatro repositórios.
 5. **Shared:** tag nova em `asgard-production`. Conferir: pods prontos; Alembic em `5e7b2d94a1c8`.
-6. **Cessão:** um commit no argocd com a tag nova e o worker `liquidacao-baixa-isolada` no
+6. **Cessão:** antes da tag, a DBA roda o SQL da TS-5537 (19 contratos do produto 15 de
+   `liberando` para `errado`: prévia, transação que aborta se não forem 19, log em cada contrato e
+   conferência). Depois, um commit no argocd com a tag nova e o worker `liquidacao-baixa-isolada` no
    `asgard-production`; o `viva-production` não muda. Sem `CELERY_CONFIRM_PUBLISH` no beat
    (ver o risco do disparo do agendador). Conferir:
    - Alembic em `a4f7c2d9e1b6` (pela réplica);
@@ -196,6 +205,7 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 - **Com deploy, na ordem inversa:** portal (as três tags anteriores), BFF `prod-5aca171`, cessão
   `prod-ca52465` no `asgard-production` (em produção desde 23/11, com a TS-5616; remover o worker
   isolado depois de conferir a fila vazia), shared `prod-79d43a7`.
+- **Contratos da TS-5537:** o fim do SQL tem o desfazer (volta os 19 para `liberando`, pelo log).
 - **Banco:** as migrations só acrescentam; a imagem anterior ignora as tabelas e colunas novas, então
   a volta não pede downgrade. O downgrade, se preciso, é com a DBA: apaga as tabelas do agendador
   (perde o histórico) e não desfaz o preenchimento. O primeiro passo dele (`a4f7c2d9e1b6`) volta a
@@ -205,8 +215,9 @@ TS-5572, TS-5568, TS-5584, TS-5624, TS-5596, TS-5737, TS-5871 e TS-5612.
 
 ## Evidências de validação
 
-- **Testes (24/11, TS-5612):** cessão 6689 passaram e 207 pulados no Docker, sem falha (`8cccc51e8`);
-  antes da TS-5612, 6698 e 210: a diferença são os testes da rotina que saiu.
+- **Testes (24/11, TS-5612 e TS-5537):** cessão 6691 passaram e 207 pulados no Docker, sem falha
+  (`dd004bf5e`); antes da TS-5612, 6698 e 210: saíram os testes da rotina removida e entraram 2 da
+  TS-5537.
 - **Testes (23/11):** shared 898 (`15cb14d`, contém a `release/20261124` em `93835fe`); cessão 7082
   nos dois modos da suíte e integração 124 e 45 (`71be313a3`, contém `79747b2c0`). CI das PRs da
   sandbox (#87, #2782, #280, #317): verde, salvo o Semgrep no shared e na cessão (aceito).
