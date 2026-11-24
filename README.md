@@ -30,9 +30,12 @@ ws setup
 
 It prints a `fixed:` line per change and a `needs you:` line per problem left, and exits 0 when
 nothing is left. What stays for you: a missing `names.toml`, a skill link that points elsewhere,
-something that overrides the hooks path, and the Claude Code gates. `ws setup` never edits
-`~/.claude/settings.json`: it prints one JSON block with every gate that is missing, and Claude
-applies it after you approve.
+an instruction file that exists and is not a link to this repo, something that overrides the
+hooks path, and the Claude Code gates. `ws setup` never edits `~/.claude/settings.json`: it prints
+one JSON block with every gate that is missing, and Claude applies it after you approve.
+
+The instruction links and the import in `instructions/user.md` assume the clone lives at
+`~/repos/workspace`.
 
 `ws setup --check` is read-only and uses no network: it changes nothing and lists what setup would
 fix (`would fix:`) and what needs you; it exits 1 unless everything is already in place.
