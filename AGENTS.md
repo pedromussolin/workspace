@@ -39,6 +39,7 @@ only reports.
 |---|---|
 | `projects/<slug>/` | one planning project: `README.md`, `CLAUDE.md`, `CONTINUE.md`, `decisions.md`, `project.toml` (epics, optional), `tasks/`, `evidence/`, `attachments/` |
 | `projects/standalone/` | tasks that belong to no project: a `README.md` with the task table and `tasks/` |
+| `instructions/` | global Claude Code instructions (PT-BR), linked by `ws setup`: `user.md` as `~/.claude/CLAUDE.md`, `company-repos.md` as `~/repos/CLAUDE.md` |
 | `templates/project/` | template copied by `ws project new <slug>` |
 | `skills/` | daily-use Claude skills, symlinked into `~/.claude/skills` by `ws setup` |
 | `.claude/skills/` | skills for building this repo, one per how-to guide; not linked |

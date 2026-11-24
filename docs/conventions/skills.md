@@ -27,5 +27,6 @@ How a skill under `skills/` is written. Decisions:
 ## Context budget
 
 - Always-loaded files stay small: `AGENTS.md` and the root `CLAUDE.md` together under 200 lines,
-  a project `CLAUDE.md` short, `MEMORY.md` an index. [review]
+  `instructions/*.md` and `docs/conventions/agents.md` kept small too, a project `CLAUDE.md` short,
+  `MEMORY.md` an index. [review]
 - Procedures live in skills; detail lives in the project files. [review]
