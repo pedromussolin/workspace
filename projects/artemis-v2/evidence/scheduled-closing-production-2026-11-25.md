@@ -165,8 +165,13 @@ Uma rodada só não basta para concluir.
     recuos têm `recuos_por_trava` (espera acima de 2 s, `LOTE_ABERTO_LOCK_TIMEOUT_MS`). Fração das
     entradas: 80, 84 em 102.103 (0,08%); 4, 26 em 16.417 (0,16%); 713, 9 em 4.032 (0,22%). Nenhum
     outro produto teve recuo.
-  - **[H]** Os pagamentos recuados entram no fechamento seguinte: no 80 e no 4, a VM das 17h (a rota
-    antiga junta os pagamentos sem lote). Validar na réplica pelos `liquidacao_uuid` dos avisos.
+  - **[C] Para onde foram (réplica, 25/11 ~21:30 UTC, pelos `liquidacao_uuid` dos avisos):** no 4,
+    os 26 pagamentos estão em 2 lotes `concluido` criados de 20:08 a 20:12 UTC; no 80, os 84 estão
+    em 2 lotes `concluido` criados de 20:14 a 20:17 UTC. Os dois pela VM das 17h. No 713, os 9
+    seguem sem lote.
+  - **[C]** O 713 é fechado à mão pela tela, uma vez por dia por volta das 12h de Brasília (24/11 e
+    25/11, de 14:50 a 15:19 UTC), na mesma chave dos recuos (originador 1282, fundo 209).
+    **[H]** Os 9 entram no fechamento de 26/11, que leva o vigente e os avulsos da chave.
 - **Custo da entrada no lote aberto [C]:** de 24/11 21:00 a 25/11 21:13 UTC, p95 de ~1,1 s por
   entrada no 80, no 15 e no 81 (102 mil, 38 mil e 35 mil entradas); máximo de 5,7 s. Falta a média
   para estimar o custo total do dia.
