@@ -84,6 +84,13 @@ Uma rodada só não basta para concluir.
 - **[C]** O ganho foi consumido pela consulta das chaves (255 s sem achar nenhum pagamento sem
   lote). Em 24/11 20:45 ela respondeu em menos de 2 s.
 - **[H]** Com a consulta das chaves rápida, a rodada do 15 ficaria perto de 30 s.
+- **Em porcentagem (uma rodada só):**
+  - **[C]** Rodada inteira: 281 s contra a mediana de 354 s, 21% a menos. Dentro da variação da
+    VM: 9% mais lenta que a melhor rodada (258 s) e 52% mais rápida que a pior (588 s).
+  - **[C]** Fechamento em si: 23 s contra a mediana de 153 s da maior chamada por rodada, 85% a
+    menos (84% a 90% na faixa de 140 a 234 s). A VM criava 2 ou 3 lotes por rodada; o horário
+    fechou 1.
+  - **[H]** Com a consulta das chaves rápida: ~30 s contra 354 s, ~90% a menos.
 - **[H]** Parte do custo mudou de lugar: juntar os pagamentos agora acontece na chegada de cada um,
   ao longo do dia. Falta medir a entrada no lote aberto para a comparação ficar completa.
 - **[C]** Tempo não era o objetivo principal da tarefa 13 (`tasks/13-closing-design.md`, seção 1):
