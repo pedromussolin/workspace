@@ -21,8 +21,9 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
   fechamento da VM em 24/11; a execução das ~17h de 25/11 confirma.
 - **[C]** Fechamento por horário em produção: na rodada das 16:00 de 25/11 o 15 fechou 1 lote, o
   1604 não tinha nada e o agendador não falhou. Ponto de atenção: a consulta das chaves do 15 levou
-  255 s, com limite de 480 s. O worker de fechamento não reinicia desde 24/11 21:48. Rodadas e
-  pendentes em
+  255 s, com limite de 480 s. O worker de fechamento não reinicia desde 24/11 21:48. Linha de
+  base da VM (11 a 24/11): o 15 levava 4,3 a 9,8 min por rodada (p50 5,9 min); pelo horário,
+  4,7 min. Rodadas, linha de base por produto e pendentes em
   [evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md),
   atualizado a cada rodada.
 - **[C]** O travamento da migration de 24/11 não veio da API. Veio de uma sessão manual de um

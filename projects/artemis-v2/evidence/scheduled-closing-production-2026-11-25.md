@@ -29,6 +29,55 @@ consulta que lista os pagamentos sem lote aptos (ver o ponto de atenção).
 Agendador (`"Agendamentos despachados"`), 25/11 19:00:01 UTC: 3 disparos (1604, 15 e o backstop,
 que roda a cada :00 e :30), 0 falhas, 0 perdidos, 0 presos.
 
+## Antes: fechamento pela VM (rota antiga), 11/11 a 24/11
+
+Linha de base dos produtos do Mercato Libero para comparar com o fechamento por horário.
+
+- **Fonte [C]:** spans do APM `flask.request` `POST /liquidacao/` vindos da EC2 de automações,
+  `env:production`, de 11/11 03:00 UTC a 25/11 19:25 UTC. São 9 dias úteis: 11, 12, 13, 16, 17,
+  18, 19, 23 e 24/11; 20/11 foi feriado, e em 25/11 a VM ainda não tinha rodado.
+- **Por que a chamada mede o fechamento [C]:** a rota antiga fecha o vigente e cria os lotes dentro
+  da própria chamada e só responde no fim (`cessao/api/liquidacao/viewer.py:463`, commit `d28b83a`).
+- **Produto de cada chamada [C]:** sai do log `"Criar lote de liquidacoes - payload"`. O log da API
+  não traz `trace_id`, então a junção é pelo servidor e pelo horário: o log sai ~1 s depois do
+  início da chamada. Das 1.292 chamadas, 1.258 casaram (4 só pelo horário) e 34 ficaram sem log.
+- **Rodada:** as chamadas de um produto com menos de 20 min entre uma e a próxima. **Relógio** é do
+  início da primeira chamada ao fim da última; **servidor** é a soma das durações. A soma passa do
+  relógio quando há chamadas em paralelo.
+- **[H] Cobertura:** o APM guarda só os spans que o filtro de retenção indexa. Uma chamada curta
+  descartada na borda da rodada encurta o relógio e a soma. Validar contra `trace.flask.request`
+  se a diferença com o fechamento novo for pequena.
+
+| Produto | Rodadas | Início (Brasília) | Chamadas por rodada (p50) | Lotes criados | Relógio por rodada: p50 / máx | Servidor por rodada: p50 / máx | Maior chamada |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | 9 | 17h | 28 | 239 | 6,9 / 12,4 min | 6,7 / 12,0 min | 261 s |
+| 15 | 9 | 17h | 25 | 20 | 5,9 / 9,8 min | 5,7 / 9,7 min | 234 s |
+| 80 | 18 | 17h, 18h e 20h | 14 | 81 | 6,8 / 18,4 min | 5,1 / 8,9 min | 424 s |
+| 81 | 9 | 17h | 4 | 38 | 1,0 / 3,0 min | 1,0 / 2,7 min | 50 s |
+| 581 | 9 | 17h | 24 | 16 | 5,6 / 6,7 min | 5,4 / 7,3 min | 222 s |
+| 1406 | 9 | 17h e 18h | 6 | 54 | 2,7 / 8,2 min | 1,8 / 8,0 min | 233 s |
+
+Servidor somado de todas as rodadas por dia: 21 a 42 min. Nenhum 5xx nem 429 no período.
+
+Produto 15, rodada a rodada:
+
+| Início (Brasília) | Chamadas | Lotes | Relógio | Maior chamada |
+| --- | --- | --- | --- | --- |
+| 11/11 17:07 | 23 | 2 | 5,9 min | 155 s |
+| 12/11 17:08 | 39 | 3 | 6,7 min | 142 s |
+| 13/11 17:08 | 25 | 2 | 5,2 min | 140 s |
+| 16/11 17:13 | 23 | 2 | 4,3 min | 179 s |
+| 17/11 17:08 | 23 | 2 | 4,8 min | 153 s |
+| 18/11 17:07 | 26 | 2 | 4,9 min | 150 s |
+| 19/11 17:06 | 38 | 3 | 6,7 min | 151 s |
+| 23/11 17:09 | 24 | 2 | 9,8 min | 234 s |
+| 24/11 17:08 | 25 | 2 | 6,4 min | 215 s |
+
+**Comparação do produto 15 [C]:** pela VM, 4,3 a 9,8 min por rodada (p50 5,9 min), em ~25
+chamadas. Pelo horário, em 25/11 16:00: 4,7 min numa execução só, dos quais 255 s procurando as
+chaves e 23 s fechando. O tempo total ficou na mesma faixa; o que mudou foi onde ele é gasto.
+Uma rodada só não basta para concluir.
+
 ## Rodada das 16:00 do produto 15, passo a passo [C]
 
 | UTC | O quê |
@@ -95,3 +144,7 @@ que roda a cada :00 e :30), 0 falhas, 0 perdidos, 0 presos.
 - Compromisso de saldo: a mensagem acima, agrupada por `@fundo_id` e `@produto_id`.
 - Worker: `env:production "Warm shutdown"`, agrupado por `kube_deployment`.
 - VM: `"Criar lote de liquidacoes - payload"`, contando `'produto_id': N` por hora de Brasília.
+- Linha de base da VM: spans `service:platform-cessao operation_name:flask.request
+  resource_name:"POST /liquidacao/" @http.client_ip:<IP da EC2 de automações>` (lista, não
+  agregado) e logs do payload no mesmo período; casar cada span com o primeiro log do mesmo `host`
+  entre o início e o fim da chamada; agrupar por produto em rodadas (intervalo de menos de 20 min).
