@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 17/11/2026
+Data: 25/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,22 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 25/11/2026
+
+**Passagem de chat (25/11):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-dados-quentes-e-cache.md`
+(desenho do schema de dados quentes e do cache da configuração, em andamento). Nesta iteração:
+
+- TS-5773 em produção e funcionando, pela palavra do usuário. O produto 15 saiu do fechamento da
+  VM em 24/11; a execução das ~17h de 25/11 confirma.
+- **[C]** O travamento da migration de 24/11 não veio da API. Veio de uma sessão manual de um
+  usuário pessoal do banco, parada em `idle in transaction` desde 15:06 com uma leitura da
+  `produto_config` (amostras de sessão do Datadog). Os encerramentos forçados atingiram a API e a
+  própria migration; a trava só saiu quando essa sessão fechou, às 19:35:08.
+- Schema quente: decididos um schema próprio no mesmo banco (as tabelas da aplicação estão no
+  schema `master`), os últimos 6 meses e a alimentação por gatilhos no Postgres (opção B). A
+  TS-5733 vira várias tarefas. Falta confirmar o cache e escrever o desenho.
 
 ### 24/11/2026
 
@@ -524,16 +540,13 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Produto 15 e TS-5773:** confirmar pela VM o que foi desligado do 15 (só o fechamento; os
-   envios diários seguem até o parser novo ser ligado) e acompanhar o deploy do TS-5773 (cessão
-   com a fila de atraso antes de ligar a flag do parser).
-2. **25/11 às 16:00:** conferir o fechamento por horário do 1604 e do 15, primeira execução com
-   pagamento; conferir que os workers de fechamento não voltaram a reiniciar.
-3. **Fechamento da janela:** comentário da GDM-374 com Início e Fim reais; TS-5925 para Concluído;
-   Parte A do guia e o resumo diário (C2) com movimento real.
-4. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
-   administradora real.
-5. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
-   recolhido.
-6. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, consulta do resumo diário com ids); TS-5620
-   (D37, D38); S1 a S14.
+1. **Schema quente e cache (TS-5733 em várias tarefas):** pela passagem de 25/11, confirmar a
+   proposta do cache, a coluna de corte e a primeira entrega. Depois, escrever o desenho, passar
+   pela revisão e pela aprovação e quebrar em cards.
+2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
+   pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
+3. **Produto 15:** a VM sem o 15 na execução das ~17h; o fechamento por horário do 1604 e do 15.
+4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
+   guia e o resumo diário (C2).
+5. **D42 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.
+6. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, resumo diário); TS-5620 (D37, D38); S1 a S14.
