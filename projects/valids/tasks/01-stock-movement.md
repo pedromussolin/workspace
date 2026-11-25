@@ -38,6 +38,8 @@ synced = 2026-11-13
     (D34). data-lake-api refeita sem commit (ver
     [Implementação na poça](#implementação-na-poça-2610-d34)); BFF e front
     não mudam.
+  - 30/10/2026: **em produção** pela TS-5442 (imagem `prod-479fccb`), com a
+    carga diária ligada; conferido em 25/11 (ver [Histórico](#histórico)).
 - **Repos:** data-lake-api (consultas, consolidação diária e rota), BFF (rota
   e consolidação por fundo), front (waterfall e evolução mensal).
 - **Conceitos financeiros** (valor presente, taxa, accrual): ver
@@ -1535,3 +1537,27 @@ ou barra "variação sem detalhe" para os fundos só-INTERNAL.
   disparo funciona. Sandbox sem mudança (só tem a API, com imagem antiga).
   Conferido com o código: no staging o beat agenda só `dispatch_valid_ecl` e
   `dispatch_valid_movement`.
+- **25/11/2026:** conferência da produção depois de 30/10, pelo git e pelo
+  Datadog.
+  - **[C]** A TS-5442 entrou na `master` da data-lake-api pelos merges
+    `2e746d9` (#121, 29/10) e `beb3ef4` (#125, 30/10). A imagem
+    `prod-479fccb` (release de 30/10, que contém o `beb3ef4`) foi para
+    produção às 16:50 de 30/10. A `feature/TS-5442-pdd-cargas-diarias` do
+    ArgoCD entrou na `master` às 16:42 do mesmo dia (#8), com as variáveis do
+    `valid` no Parameter Store.
+  - **[C]** As cargas diárias rodam em produção desde 30/10, todos os dias,
+    fins de semana inclusive: 26 dias até 24/11, sem nenhum log de falha ou
+    de run parada. O ECL entra na fila às 17:00; a Mov. Estoque entra às
+    17:20 (em 30/10, às 17:52) e termina com sucesso entre 17:20 e 18:04.
+  - **[C]** Duração da Mov. Estoque: 12 min em 30/10, de 9 a 28 min de 31/10
+    a 08/11 e de 1 a 3 min desde 09/11. **[H]** É o histórico enchendo 31 dias
+    por execução até o `backfill_start` (01/01/2026); validar pelo dia mais
+    antigo em `valid_day` da carga `movement`.
+  - **[C]** O runner do ECL não tem log de sucesso, só de fila e de falha.
+    **[H]** O sucesso dele vem da falta de falha; validar pelo `status` das
+    runs em `valid_run` da carga `ecl`.
+  - **[C]** As cargas rodam no worker próprio (D77): `kube_deployment`
+    `data-lake-api-valid-worker` em todos os dias. Em 11/11 e desde 13/11, o
+    `service` dos logs aparece como `data-lake-api-worker`, no mesmo pod.
+  - Para repetir: logs com `"Valid ECL" OR "Valid movement"` e `queued`,
+    `succeeded`, `failed` ou `stale`, `env:production`, a partir de 30/10.

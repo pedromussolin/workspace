@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 04/11/2026
+Data: 25/11/2026
 Tags: valids, pdd, ecl, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,12 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 03/11/2026, na migração da pasta local `~/projects/pdd-workspace` para cá, a partir do README, do histórico das tarefas (último registro em 30/10) e das branches conferidas nos repositórios em 03/11. O que aqui não está escrito, essas fontes não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+**25/11/2026:** a feature está em produção desde 30/10, e as cargas diárias rodam todo dia,
+sem falha, no worker próprio: o ECL às 17:00 e a Mov. Estoque às 17:20. Detalhes, as duas
+hipóteses a validar e a consulta para repetir estão no histórico da
+[tarefa 01](tasks/01-stock-movement.md), entrada de 25/11. Isso fecha os passos 1 e 2 do
+"Próximo passo" de 04/11. O resto deste "Onde parei" é de 03 e 04/11.
 
 Migração: em 03/11/2026 a pasta local `~/projects/pdd-workspace` virou este projeto, com os nomes em inglês e o conteúdo igual, publicada no mesmo dia (8 commits, de `chore: palavras conhecidas do projeto valids` a `chore: Frescor como palavra conhecida`). O que sobrou dela está em "Pendências fora da feature".
 
@@ -41,7 +47,7 @@ Decisões pendentes no `decisions.md`: D21, D38, D41, D43, D47, D72 e D76.
 | apl-credit-whitelabel-api (BFF) | `feature/TS-5442-pdd-integracao` (`ee9d113`) | publicada, na `master`; TS-5466 e TS-5467 só locais |
 | apl-credit-whitelabel (front) | `feature/TS-5442-pdd-integracao` (`5adf998e`) | publicada, na `master`; TS-5466 e TS-5467 só locais |
 | platform-cessao | `feature/TS-5438-pdd-abertura-de-rating` | publicada, na `master` |
-| data-lake-api-argocd | `feature/TS-5442-pdd-cargas-diarias` (`5042f92`) | publicada; fora da `master` pelo que o clone local sabe (sem fetch desde o clone) |
+| data-lake-api-argocd | `feature/TS-5442-pdd-cargas-diarias` (`5042f92`) | na `master` desde 30/10, 16:42 (#8); conferido em 25/11 |
 
 Worktrees: nenhum. A cópia `~/projects/.worktrees/apl-credit-whitelabel-mov-estoque`, citada na tarefa 01, não existe mais; o front está no checkout principal.
 
@@ -59,7 +65,8 @@ Da migração e da máquina do Heitor, levantadas em 03 e 04/11/2026. Nenhuma bl
 
 ## Próximo passo
 
-1. Perguntar ao Heitor o que aconteceu depois de 30/10: o merge da TS-5442 na `master` (release e data), o deploy e se as cargas diárias foram ligadas. Conferir no Datadog se `dispatch_valid_ecl` e `dispatch_valid_movement` rodaram.
-2. Registrar a resposta no histórico da tarefa 01, na tabela de Tarefas e nas abas do `README.md`, e atualizar este arquivo.
-3. Decidir com ele o destino da TS-5466 (Residual) e da TS-5467 (Performance), locais e feitas sobre a TS-5442 de 28/10 (sem os commits de 29 e 30/10): atualizá-las sobre a `master` antes de publicar.
-4. Seguir pelas pendentes: D76 (indicadores da Performance), D41 e D72 (Lacunas) e a D21, que está com a controladoria.
+Os passos de 04/11 sobre o merge, o deploy e as cargas diárias foram feitos em 25/11 (ver "Onde parei").
+
+1. Decidir com o Heitor o destino da TS-5466 (Residual) e da TS-5467 (Performance), locais e feitas sobre a TS-5442 de 28/10 (sem os commits de 29 e 30/10): atualizá-las sobre a `master` antes de publicar.
+2. Seguir pelas pendentes: D76 (indicadores da Performance), D41 e D72 (Lacunas) e a D21, que está com a controladoria.
+3. Validar as duas hipóteses de 25/11 na tarefa 01: o `status` das runs do ECL em `valid_run` e o dia mais antigo da Mov. Estoque em `valid_day`.
