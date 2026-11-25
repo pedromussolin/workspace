@@ -25,9 +25,15 @@ consulta que lista os pagamentos sem lote aptos (ver o ponto de atenção).
 | 24/11 20:45 | 15 | 0 | 0 | 0 | 0 | 0 | 1,9 s | — |
 | 25/11 16:00 | 1604 | 0 | 0 | 0 | 0 | 0 | 0,05 s | — |
 | 25/11 16:00 | 15 | 1 | 1 | 0 | 1 | 0 | 281 s | 255 s |
+| 25/11 17:00 | 15 | 0 | 0 | 0 | 0 | 0 | 233 s | 233 s |
+| 25/11 18:00 | 15 | 0 | 0 | 0 | 0 | 0 | 5,2 s | 5,2 s |
 
-Agendador (`"Agendamentos despachados"`), 25/11 19:00:01 UTC: 3 disparos (1604, 15 e o backstop,
-que roda a cada :00 e :30), 0 falhas, 0 perdidos, 0 presos.
+Agendador (`"Agendamentos despachados"`): 25/11 19:00:01 UTC, 3 disparos (1604, 15 e o backstop,
+que roda a cada :00 e :30); 20:00:01 e 21:00:01 UTC, 2 disparos cada (15 e o backstop). Em todos,
+0 falhas, 0 perdidos, 0 presos.
+
+**VM das 17h de 25/11 [C]:** 80 payloads de 20:01 a 20:24 UTC: produto 4 (34), 80 (33), 1406 (6),
+81 (5) e 581 (2). O 15 não aparece.
 
 ## Antes: fechamento pela VM (rota antiga), 11/11 a 24/11
 
@@ -118,9 +124,11 @@ Uma rodada só não basta para concluir.
   do código; não está no values do argocd; Parameter Store não conferido) e orçamento de 480 s da
   execução (`ORCAMENTO_FECHAMENTO_POR_HORARIO_SEGUNDOS`). Acima disso o banco cancela a consulta e
   a rodada daquele horário não fecha nada.
-- **[C]** A rodada das 16:00 usou 255 s dos 480 s; a de 24/11 20:45 levou 1,9 s no total.
-- **[H]** A diferença vem da carga do banco às 16h ou do plano escolhido pelo Postgres. Validar:
-  comparar as rodadas das 17:00, 18:00 e 20:45 e, se a lentidão repetir, o `EXPLAIN` na réplica.
+- **[C]** Em 25/11 a consulta levou 255 s às 16:00, 233 s às 17:00 e 5,2 s às 18:00, nas três
+  vezes sem achar pagamento sem lote. A rodada de 24/11 20:45 levou 1,9 s no total.
+- **[H]** A lentidão acompanha o horário de carga do banco (16h e 17h; a VM roda às 17h), não o
+  plano fixo da consulta. Validar com o `EXPLAIN` na réplica nesses horários, e conferir as
+  sessões ativas do banco às 16h no Datadog.
 - Se repetir: proposta de card para a próxima sprint, pelo `task-shaping`.
 
 ## Fora do fechamento [C]
@@ -143,14 +151,23 @@ Uma rodada só não basta para concluir.
 - **Worker de fechamento:** 6 `"Warm shutdown"` no `platform-cessao-fake-batch-closing-worker`
   entre 24/11 23:50 e 25/11 00:48 UTC, durante a correção da variável duplicada (argocd `1ff0a57`)
   e o deploy da TS-5773; nenhum depois. A troca de pods a cada ~5 min acabou.
-- Nenhum `error` da cessão em produção de 18:55 a 19:10 UTC; só o aviso acima.
+- Nenhum `error` da cessão em produção de 18:55 a 19:10 UTC; só o aviso acima. Até 21:13 UTC, mais
+  62 avisos do compromisso de saldo.
+- **Recuo do lote aberto:** `"Pagamento de liquidação ficou sem lote aberto"` é o recuo previsto no
+  desenho do lote aberto: a entrada falha, o pagamento fica sem lote e entra no fechamento seguinte
+  (`cessao/api/liquidacao/refact.py:4352` e `:4369`, commit `d28b83a`). De 24/11 21:00 a 25/11 21:13 UTC,
+  119 avisos, todos com motivo `OperationalError`: produto 80 (84, de 11:01 a 19:32), 4 (26, às
+  11:15) e 713 (9, às 21:00). **[H]** É a espera curta pela trava do vigente ou o limite de tempo
+  da entrada; o evento de entrada (`recuos_por_trava`) separa os dois.
+- Outros erros de 19:10 a 21:13 UTC, sem relação com o fechamento: `GET /titulo/contratos` (172,
+  de 20:00 a 20:19), processamento de endosso (79), pagamento duplicado (2) e conexão fechada pelo
+  cliente na listagem de lotes reais (2).
 
 ## Pendentes
 
-- Execução da VM das ~17h de Brasília: o produto 15 não pode aparecer em
-  `"Criar lote de liquidacoes - payload"`; esperados 4, 80, 81, 581 e 1406.
-- Rodadas das 17:00, 18:00 e 20:45 do produto 15, com a duração da consulta das chaves.
-- Se a consulta das chaves repetir a lentidão: `EXPLAIN` na réplica e proposta de correção.
+- Rodada das 20:45 do produto 15, com a duração da consulta das chaves.
+- Consulta das chaves lenta às 16h e às 17h: `EXPLAIN` na réplica e proposta de correção (card
+  para a próxima sprint, pelo `task-shaping`).
 - Custo da entrada no lote aberto ao longo do dia (produto 15), para comparar o custo total com a VM.
 
 ## Consultas para repetir

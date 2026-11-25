@@ -18,10 +18,12 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 - TS-5773 em produção e funcionando, pela palavra do usuário. **[C]** A cessão em produção é a
   `prod-d28b83a` (release de 24/11 mais a TS-5773) desde 24/11 21:46. O produto 15 saiu do
-  fechamento da VM em 24/11; a execução das ~17h de 25/11 confirma.
+  fechamento da VM em 24/11; **[C]** a execução das 17h de 25/11 veio sem o 15 (4, 80, 81, 581 e
+  1406).
 - **[C]** Fechamento por horário em produção: na rodada das 16:00 de 25/11 o 15 fechou 1 lote, o
-  1604 não tinha nada e o agendador não falhou. Ponto de atenção: a consulta das chaves do 15 levou
-  255 s, com limite de 480 s. O worker de fechamento não reinicia desde 24/11 21:48. Linha de
+  1604 não tinha nada e o agendador não falhou; às 17:00 e às 18:00 o 15 não tinha nada a fechar.
+  Ponto de atenção: a consulta das chaves do 15 levou 255 s às 16h e 233 s às 17h (5 s às 18h), com
+  limite de 480 s. O worker de fechamento não reinicia desde 24/11 21:48. Linha de
   base da VM (11 a 24/11): o 15 levava 4,3 a 9,8 min por rodada (p50 5,9 min); pelo horário,
   4,7 min. Rodadas, linha de base por produto e pendentes em
   [evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md),
