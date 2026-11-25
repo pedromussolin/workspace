@@ -196,7 +196,7 @@ recursos):
 
 | Risco | Tratamento |
 |---|---|
-| Erro no gatilho derruba a gravação principal | Tirar as causas: só colunas comuns; teste no CI que compara nome e tipo das colunas; a função não faz nada se a tabela da cópia não existe (`to_regclass`); "insere ou atualiza" para linha repetida; a cópia sem NOT NULL nem chave estrangeira; nenhuma chamada externa. O que sobra (disco cheio, trava) já derrubaria a gravação de qualquer jeito. **Interruptor:** uma linha de configuração desliga a cópia sem deploy e as telas voltam às tabelas principais; religar pede nova carga inicial. **Não** engolir o erro na função (minha recomendação, aguardando o Pietro): cada execução abriria uma subtransação, e acima de 64 numa transação o Postgres degrada, inclusive na réplica; e a cópia ficaria errada em silêncio |
+| Erro no gatilho derruba a gravação principal | Tirar as causas: só colunas comuns; teste no CI que compara nome e tipo das colunas; a função não faz nada se a tabela da cópia não existe (`to_regclass`); "insere ou atualiza" para linha repetida; a cópia sem NOT NULL nem chave estrangeira; nenhuma chamada externa. O que sobra (disco cheio, trava) já derrubaria a gravação de qualquer jeito. **Interruptor:** uma linha de configuração desliga a cópia sem deploy e as telas voltam às tabelas principais; religar pede nova carga inicial. **Não** engolir o erro na função (decisão do Pietro, 25/11): cada execução abriria uma subtransação, e acima de 64 numa transação o Postgres degrada, inclusive na réplica; e a cópia ficaria errada em silêncio |
 | Performance e travas | Uma gravação por chave numa tabela menor, sem consulta lenta nem chamada externa; trava só as linhas copiadas, pelo tempo da transação que já existe. Medir na sandbox, antes de produção, as tasks de persistir e o fechamento de lote com e sem gatilho; critério de aceite com a DBA. `lock_timeout` nas migrations do `live`. Expurgo e carga inicial de madrugada, em blocos |
 | "Mágica" no banco | O gatilho só copia; não muda as tabelas principais nem decide regra da liquidação. Visível no decorator do modelo, em `COMMENT ON` da função e dos gatilhos, na documentação da cessão e do repositório `docs`, e no teste do CI. Gatilho e função só nascem por migration |
 | Lógica para uma linha em operação em lote | Por comando com tabelas de transição (8.4). Testes: uma linha, várias, zero, mistura de antigas e recentes, rollback e os UPDATEs em lote do `refact.py` |
@@ -227,22 +227,41 @@ recursos):
   decide igual; um lote antigo ainda aberto lê das principais, o que dá o mesmo resultado (as
   principais têm tudo) e é barato por ser uma busca pelo número. A rota devolve a mesma resposta: BFF
   e front não mudam.
-- **Interruptor (minha escolha):** um por tabela copiada, na tabela de regras. Com a cópia de uma
-  tabela desligada, as telas que a usam leem das principais; as outras seguem no `live`. Religar
-  pede a carga inicial daquela tabela. Quem liga e desliga em produção é a DBA, por UPDATE, registrado
-  como mudança manual em produção (GMUD, retroativa se for emergência).
+- **Interruptor (minha escolha):** um por tabela copiada, na tabela de regras do banco. Não pode ser
+  variável de ambiente: o gatilho roda dentro do Postgres e não enxerga as variáveis da aplicação.
+  A aplicação lê o mesmo interruptor para escolher a fonte, então cópia e leitura nunca discordam.
+  Com a cópia de uma tabela desligada, as telas que a usam leem das principais; as outras seguem no
+  `live`. Religar pede a carga inicial daquela tabela. Liga e desliga por uma rota da cessão, com log
+  (como a recarga do cache), e não por SQL à mão.
 - **Views:** uma por tela, no `live`, juntando as tabelas copiadas com as principais pelo número do
   registro. A view só organiza a consulta; o ganho vem de varrer menos linhas com o índice certo. O
   filtro de apagados (`data_delete IS NULL`) vai explícito na view, porque o listener de soft delete
   da cessão só age em consultas do ORM.
 
-### 8.8 Caminho mais barato a medir antes [C + H]
+### 8.8 Só um índice resolveria? Não [C + H]
 
-- `liquidacao_pagamento.data_criacao` (`models.py:6602`) e `contrato.data_criacao` não têm índice [C];
-  são o pré-filtro da L2/L3 e o filtro da L4 em aberto. **[H]** um índice nas tabelas principais
-  resolve parte da lentidão sem o `live`.
-- O card 1 começa medindo cada listagem na réplica. Se o índice resolver uma delas, o Pietro decide
-  se ela ainda entra na primeira entrega.
+Números em [listings-and-volume-2026-11-25](../evidence/listings-and-volume-2026-11-25.md).
+
+- **Hoje [C]:** em 7 dias, ao menos 75 requisições da L1, 98 da L2 e 9 da L4 passaram de 5 s; a L2
+  chegou a 360 s na cessão e ao limite de 120 s no BFF. A L3 fica quase sempre abaixo de 5 s.
+- **Volume [C]:** 786 milhões de pagamentos (376 GB), 833 milhões de remessas (466 GB), 850 milhões
+  de parcelas, 342 milhões de contratos. Em 6 meses entraram 108 milhões de pagamentos (cerca de 18
+  milhões por mês). Os 6 meses são cerca de 1/7 dos pagamentos e das remessas.
+- **Por que o índice não basta [C + H]:** `liquidacao_pagamento.data_criacao` (`models.py:6602`) e
+  `contrato.data_criacao` não têm índice [C], e um índice faz o filtro de data achar as linhas sem
+  varrer a tabela. Mas as listagens, depois de achar as linhas, juntam e somam milhares delas
+  espalhadas por tabelas de centenas de GB, e o lento é ler do disco: a mesma listagem de lotes fake
+  levou 0,5 s com os dados em memória e de 3,5 a 5,1 s sem, na réplica, em 03/11 [C]. O índice não
+  faz a tabela caber na memória; o `live`, com cerca de 1/7 das linhas e juntas, tem chance de caber
+  **[H]**. Com 18 milhões de pagamentos a mais por mês, a parte que cabe em memória só diminui se
+  ficar só o índice.
+- **Conclusão (25/11):** o Pietro achava que o índice não bastaria, e os números confirmam; o `live`
+  é construído e os índices entram nas tabelas do `live`. Se
+  vale criá-los também nas principais, para as consultas de mais de 6 meses, é com a DBA (criar índice
+  numa tabela de 376 GB leva horas, mesmo com `CREATE INDEX CONCURRENTLY`).
+- **Limite conhecido [H]:** as buscas pelo número em parcela, contrato e processo do contrato (L1 a
+  L3) continuam nas tabelas grandes. Se o EXPLAIN do card 1 mostrar que elas pesam, essas linhas
+  também entram no `live` ("referenciadas por um pagamento do `live`").
 
 ## 9. Cache da configuração: como funciona
 
@@ -354,8 +373,11 @@ lá o `live` só guarda um pouco mais que o necessário, sem efeito nas telas, q
 
 ## 12. A conferir com a DBA
 
-- Quanto de cada tabela são os 6 meses (se for metade, o ganho é pequeno).
-- A regra de seleção do DMS: se pega qualquer schema, o novo precisa ficar de fora.
+- Quanto de cada tabela são os 6 meses: pelo Datadog, cerca de 1/7 dos pagamentos e das remessas
+  (8.8); a DBA confirma com a contagem real e com quantos pagamentos sem lote e lotes abertos antigos
+  existem.
+- A regra de seleção do DMS: se pega qualquer schema, pedir ao time de dados para excluir o `live`;
+  se recusarem, deixar ir para o lake e avisá-los (decisão do Pietro, 25/11).
 - A revisão do schema, dos índices e da função do gatilho.
 - O custo dos gatilhos nos updates em lote e nos INSERTs linha a linha do ORM, medido na sandbox, e o
   critério de aceite.
@@ -367,12 +389,13 @@ lá o `live` só guarda um pouco mais que o necessário, sem efeito nas telas, q
 
 Perguntas da checagem do desenho por um agente novo (25/11), por ordem de impacto:
 
-1. Se os índices resolverem as listagens (8.8), o `live` ainda é construído?
-2. Credencial de parceiro revogada por SQL continua valendo até o TTL do cache: qual a validade
-   aceitável para o `produto_acesso`?
-3. Se a DBA mostrar que o DMS copia todo schema: pedir ao time de dados para excluir o `live` ou
-   deixá-lo ir para o lake?
-4. A função do gatilho engole o erro ou não (8.5)?
+1. ~~Se os índices resolverem as listagens, o `live` ainda é construído?~~ Respondida: só o índice
+   não basta (8.8); o `live` é construído.
+2. Chave de acesso de parceiro desativada direto no banco continua valendo até o cache vencer: qual a
+   validade aceitável para o `produto_acesso` no cache da API? (aberta)
+3. ~~DMS que copia todo schema~~ Respondida: pedir ao time de dados para excluir o `live`; se
+   recusarem, deixar ir para o lake e avisá-los.
+4. ~~O gatilho engole o erro?~~ Respondida: não engole (8.5).
 
 ## 13. O que fica com quem constrói
 
