@@ -78,6 +78,17 @@ chamadas. Pelo horário, em 25/11 16:00: 4,7 min numa execução só, dos quais 
 chaves e 23 s fechando. O tempo total ficou na mesma faixa; o que mudou foi onde ele é gasto.
 Uma rodada só não basta para concluir.
 
+- **[C]** O fechamento em si caiu: 23 s para fechar o lote, contra 140 a 234 s da maior chamada de
+  cada rodada da VM. É o efeito do lote aberto (TS-5567): o pagamento entra no lote quando chega, e
+  fechar vira atualizar o vigente.
+- **[C]** O ganho foi consumido pela consulta das chaves (255 s sem achar nenhum pagamento sem
+  lote). Em 24/11 20:45 ela respondeu em menos de 2 s.
+- **[H]** Com a consulta das chaves rápida, a rodada do 15 ficaria perto de 30 s.
+- **[H]** Parte do custo mudou de lugar: juntar os pagamentos agora acontece na chegada de cada um,
+  ao longo do dia. Falta medir a entrada no lote aberto para a comparação ficar completa.
+- **[C]** Tempo não era o objetivo principal da tarefa 13 (`tasks/13-closing-design.md`, seção 1):
+  o objetivo é fechar dentro da cessão, por horário por produto, sem a varredura da VM.
+
 ## Rodada das 16:00 do produto 15, passo a passo [C]
 
 | UTC | O quê |
@@ -132,6 +143,8 @@ Uma rodada só não basta para concluir.
 - Execução da VM das ~17h de Brasília: o produto 15 não pode aparecer em
   `"Criar lote de liquidacoes - payload"`; esperados 4, 80, 81, 581 e 1406.
 - Rodadas das 17:00, 18:00 e 20:45 do produto 15, com a duração da consulta das chaves.
+- Se a consulta das chaves repetir a lentidão: `EXPLAIN` na réplica e proposta de correção.
+- Custo da entrada no lote aberto ao longo do dia (produto 15), para comparar o custo total com a VM.
 
 ## Consultas para repetir
 
