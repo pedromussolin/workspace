@@ -16,8 +16,15 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-dados-quentes-e-cache.md`
 (desenho do schema de dados quentes e do cache da configuração, em andamento). Nesta iteração:
 
-- TS-5773 em produção e funcionando, pela palavra do usuário. O produto 15 saiu do fechamento da
-  VM em 24/11; a execução das ~17h de 25/11 confirma.
+- TS-5773 em produção e funcionando, pela palavra do usuário. **[C]** A cessão em produção é a
+  `prod-d28b83a` (release de 24/11 mais a TS-5773) desde 24/11 21:46. O produto 15 saiu do
+  fechamento da VM em 24/11; a execução das ~17h de 25/11 confirma.
+- **[C]** Fechamento por horário em produção: na rodada das 16:00 de 25/11 o 15 fechou 1 lote, o
+  1604 não tinha nada e o agendador não falhou. Ponto de atenção: a consulta das chaves do 15 levou
+  255 s, com limite de 480 s. O worker de fechamento não reinicia desde 24/11 21:48. Rodadas e
+  pendentes em
+  [evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md),
+  atualizado a cada rodada.
 - **[C]** O travamento da migration de 24/11 não veio da API. Veio de uma sessão manual de um
   usuário pessoal do banco, parada em `idle in transaction` desde 15:06 com uma leitura da
   `produto_config` (amostras de sessão do Datadog). Os encerramentos forçados atingiram a API e a
