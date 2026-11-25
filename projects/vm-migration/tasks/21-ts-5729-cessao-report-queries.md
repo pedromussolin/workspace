@@ -9,11 +9,11 @@ blocked_by = ["TS-5726"]
 docs = ["04-cessao-report-queries.md"]
 
 [tracker]
-status = "todo"
+status = "in_progress"
 priority = "Medium"
 due = 2026-11-23
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 21 — Rota de consulta de contratos no platform-cessao
 

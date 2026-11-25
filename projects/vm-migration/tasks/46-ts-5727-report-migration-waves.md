@@ -11,7 +11,7 @@ docs = ["12-report-migration-waves.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 46 — Migrar e desligar Valor conciliado e Resultado do processamento (Mercato Pago)
 

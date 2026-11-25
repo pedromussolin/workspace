@@ -23,6 +23,9 @@ dependente herda da branch de que depende. Detalhes, commits e pendências no ha
   cabe: faltam as rotas de consulta do platform-cessao e do data-lake-api e a D5.
 - Pedido em aberto, não executado: mover para "Em homologação" os cards implementados que estão
   com o Heitor na sprint atual, pelo `/card`.
+- Sync com o Jira (25/11): os implementados da sprint atual (TS-5707, 5708, 5709, 5710, 5715,
+  5718) já estão em validação; TS-5711, 5713, 5716, 5719, 5720 e 5721 estão fora da sprint, em
+  "a fazer". Prazo das TS-5738, 5751, 5754 e 5755 é 25/11.
 
 ### 04/11/2026
 
@@ -43,12 +46,11 @@ Locais, sem upstream (25/11): no apl-shared-service, `feature/TS-5710-motor-auto
 
 ## Próximo passo
 
-1. **25/11:** mover no Jira os cards implementados da sprint atual para "Em homologação" (`/card`).
-2. Push e PRs na ordem dos conflitos; revisão; ensaio da migration no sandbox.
-3. Rotas de consulta: catálogo (TS-5726), platform-cessao (TS-5729, 5730, 5731) e data-lake-api
+1. Push e PRs na ordem dos conflitos; revisão; ensaio da migration no sandbox.
+2. Rotas de consulta: catálogo (TS-5726), platform-cessao (TS-5729, 5730, 5731) e data-lake-api
    (TS-5742, 5743, 5732), depois da D5; decidir se a posição de ativos ganha o namespace
    `/reports/queries` ou amplia a rota existente.
-4. Atualizar no Jira as descrições antigas (TS-5707, 5710, 5714–5716, 5719–5721) e a da TS-5709.
+3. Atualizar no Jira as descrições antigas (TS-5707, 5710, 5714–5716, 5719–5721) e a da TS-5709.
 
 ### Histórico
 

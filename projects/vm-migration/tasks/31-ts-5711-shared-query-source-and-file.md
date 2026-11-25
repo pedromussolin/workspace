@@ -12,7 +12,7 @@ docs = ["07-shared-query-source-and-file.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 31 — Shared: execução da rota de dados e ajustes de linhas
 

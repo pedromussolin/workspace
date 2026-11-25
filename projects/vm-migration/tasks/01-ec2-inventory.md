@@ -6,11 +6,11 @@ assignee = "dev-a0893bc9a2"
 reporter = "dev-ae95329f82"
 
 [tracker]
-status = "todo"
+status = "done"
 priority = "Medium"
 due = 2026-11-16
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 01 — Inventário da EC2 de automações
 

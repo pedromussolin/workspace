@@ -12,7 +12,7 @@ docs = ["09-shared-calendar-schedule-alerts.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 33 — Shared: agenda por dia útil e aviso de falha de execução
 

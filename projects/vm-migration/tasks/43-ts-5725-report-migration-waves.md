@@ -11,7 +11,7 @@ docs = ["12-report-migration-waves.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 43 — Onda 2: migrar e desligar Relação de baixas (Vektor) e os envios de liquidação do Mercato Pago
 

@@ -9,11 +9,11 @@ blocked_by = ["TS-5707", "TS-5708"]
 docs = ["07-shared-query-source-and-file.md"]
 
 [tracker]
-status = "todo"
+status = "validation"
 priority = "Medium"
 due = 2026-11-26
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 30 — Shared: Origem com consulta e Gerar Arquivo no motor de fluxos
 

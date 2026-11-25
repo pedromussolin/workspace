@@ -8,11 +8,11 @@ blocks = ["TS-5729", "TS-5730", "TS-5742", "TS-5707", "TS-5708"]
 blocked_by = ["TS-5717"]
 
 [tracker]
-status = "todo"
+status = "done"
 priority = "Medium"
 due = 2026-11-18
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 03 — Especificação do catálogo de consultas
 

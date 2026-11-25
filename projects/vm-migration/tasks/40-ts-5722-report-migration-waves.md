@@ -9,11 +9,11 @@ blocked_by = ["TS-5707"]
 docs = ["12-report-migration-waves.md"]
 
 [tracker]
-status = "todo"
+status = "in_progress"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 40 — Cadastrar URLs, tokens e credenciais dos envios no Parameter Store
 

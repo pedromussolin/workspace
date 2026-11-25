@@ -11,7 +11,7 @@ docs = ["12-report-migration-waves.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 44 — Onda 3: migrar e desligar Estoque (VLTS I), Base de operações e estoque (FBRX3) e report do OCR
 

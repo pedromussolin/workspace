@@ -9,11 +9,11 @@ blocked_by = ["TS-5726", "TS-5707"]
 docs = ["06-shared-api-connection.md"]
 
 [tracker]
-status = "todo"
+status = "validation"
 priority = "Medium"
 due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 28 — Shared: catálogo fixo de consultas e prévias de dados e SQL
 

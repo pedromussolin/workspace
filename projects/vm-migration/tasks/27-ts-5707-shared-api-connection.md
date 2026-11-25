@@ -9,11 +9,11 @@ blocked_by = ["TS-5717", "TS-5726"]
 docs = ["06-shared-api-connection.md"]
 
 [tracker]
-status = "todo"
+status = "validation"
 priority = "Medium"
 due = 2026-11-18
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 27 — Shared: conexão do tipo API para os microsserviços, a GalaPay e a CVM
 

@@ -9,11 +9,11 @@ blocked_by = ["TS-5717"]
 docs = ["09-shared-calendar-schedule-alerts.md"]
 
 [tracker]
-status = "todo"
+status = "validation"
 priority = "Medium"
 due = 2026-11-17
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 29 — Calendário de dias úteis: rota no data-lake-api e uso no shared
 

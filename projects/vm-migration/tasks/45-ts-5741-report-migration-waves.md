@@ -11,7 +11,7 @@ docs = ["12-report-migration-waves.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 45 — Onda 4: migrar e desligar os envios com regra em código e fontes externas
 

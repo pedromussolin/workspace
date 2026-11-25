@@ -9,11 +9,11 @@ blocked_by = ["TS-5717"]
 docs = ["08-shared-email-destination.md"]
 
 [tracker]
-status = "todo"
+status = "in_progress"
 priority = "Medium"
 due = 2026-11-17
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 34 — Shared: conexão do tipo E-mail e cadastro de contatos
 

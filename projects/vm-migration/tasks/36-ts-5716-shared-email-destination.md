@@ -12,7 +12,7 @@ docs = ["08-shared-email-destination.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 36 — Shared: destino e-mail no bloco, item da execução e teste de conexão
 

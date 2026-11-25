@@ -13,7 +13,7 @@ status = "todo"
 priority = "Medium"
 due = 2026-11-25
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 25 — Posição de ativos e consulta do OCR no data-lake-api: ramos Dayvale e FBRX3
 

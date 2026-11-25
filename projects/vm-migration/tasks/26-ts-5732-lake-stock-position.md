@@ -13,7 +13,7 @@ status = "todo"
 priority = "Medium"
 due = 2026-11-27
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 26 — Validar as rotas do data-lake-api contra o SQL dos scripts
 

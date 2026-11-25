@@ -11,7 +11,7 @@ status = "done"
 priority = "Highest"
 due = 2026-11-17
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 13 — Liquidação do Mercato Libero: absorção pela V2
 

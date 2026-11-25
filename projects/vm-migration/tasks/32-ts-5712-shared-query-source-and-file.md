@@ -12,7 +12,7 @@ docs = ["07-shared-query-source-and-file.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 32 — Shared: regras nomeadas em código no catálogo, também sobre arquivos de entrada
 

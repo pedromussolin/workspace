@@ -7,11 +7,11 @@ reporter = "dev-ae95329f82"
 blocks = ["TS-5726", "TS-5707", "TS-5709", "TS-5711", "TS-5714", "TS-5718"]
 
 [tracker]
-status = "todo"
+status = "done"
 priority = "Medium"
 due = 2026-11-16
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 02 — Envio de relatórios pela tela Envio de Relatórios
 

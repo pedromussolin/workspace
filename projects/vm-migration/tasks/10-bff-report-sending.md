@@ -8,11 +8,11 @@ blocks = ["TS-5719", "TS-5720"]
 blocked_by = ["TS-5717", "TS-5707", "TS-5708", "TS-5714"]
 
 [tracker]
-status = "todo"
+status = "validation"
 priority = "Medium"
 due = 2026-11-26
 sprint = "TETRIS - Sprint 16.6.41"
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 10 — BFF da tela Envio de Relatórios
 

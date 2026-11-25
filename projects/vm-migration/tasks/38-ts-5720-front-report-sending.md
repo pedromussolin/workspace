@@ -12,7 +12,7 @@ docs = ["11-front-report-sending.md"]
 status = "todo"
 priority = "Medium"
 sprint = ""
-synced = 2026-11-16
+synced = 2026-11-25
 +++
 # 38 — Front: Origem com consulta, filtros e prévias
 
