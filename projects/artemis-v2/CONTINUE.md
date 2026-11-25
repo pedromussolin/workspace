@@ -12,6 +12,15 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 24/11/2026
 
+**Passagem de chat (24/11, 21:45):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-pos-deploy-24-11-workers-e-ts5773.md`
+(pós-deploy de 24/11, workers da cessão e o TS-5773 do produto 15). Nesta iteração: deploy da
+release de 24/11 feito (shared, cessão, BFF e portal, de 18:47 a 19:50); a migration da cessão
+ficou presa numa trava da `produto_config` até ~19:35; agendador validado em produção (20:00,
+20:30 e 20:45); 1604 e 15 com fechamento por horário; os workers de fechamento, trocados a cada
+5 minutos desde ~13/11 por uma variável duplicada, foram corrigidos no argocd; 16 cards em
+Concluído.
+
 **Passagem de chat (24/11, 16:30):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261124-janela-24-11-com-ts5925.md`
 (janela de produção das 17:30 com a TS-5925 incluída). Nesta iteração: GMUD criada no portal
@@ -515,13 +524,16 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Deploy de 24/11 (17:30 às 19:30, GDM-374):** confirmar a resposta da DBA e as roles do Azure
-   da TS-5925; a DBA roda o SQL da TS-5537 antes da tag da cessão; janela shared → cessão → BFF →
-   portal com `/deploy-check` e o passo a passo do argocd de produção; depois, ligar o 1604 e o 15
-   pela tela, o A5 pela réplica e os cards (TS-5612, TS-5537 e TS-5925 incluídas).
-2. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
+1. **Produto 15 e TS-5773:** confirmar pela VM o que foi desligado do 15 (só o fechamento; os
+   envios diários seguem até o parser novo ser ligado) e acompanhar o deploy do TS-5773 (cessão
+   com a fila de atraso antes de ligar a flag do parser).
+2. **25/11 às 16:00:** conferir o fechamento por horário do 1604 e do 15, primeira execução com
+   pagamento; conferir que os workers de fechamento não voltaram a reiniciar.
+3. **Fechamento da janela:** comentário da GDM-374 com Início e Fim reais; TS-5925 para Concluído;
+   Parte A do guia e o resumo diário (C2) com movimento real.
+4. **D42 com o negócio:** regra dos pagamentos avulsos antigos antes de ligar horário em produto de
    administradora real.
-3. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
+5. **Próxima sprint:** achado B31 (log do descarte de lote vazio em DEBUG) e o card do menu lateral
    recolhido.
-4. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, consulta do resumo diário com ids); TS-5620
+6. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, consulta do resumo diário com ids); TS-5620
    (D37, D38); S1 a S14.
