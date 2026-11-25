@@ -172,6 +172,16 @@ Uma rodada só não basta para concluir.
   - **[C]** O 713 é fechado à mão pela tela, uma vez por dia por volta das 12h de Brasília (24/11 e
     25/11, de 14:50 a 15:19 UTC), na mesma chave dos recuos (originador 1282, fundo 209).
     **[H]** Os 9 entram no fechamento de 26/11, que leva o vigente e os avulsos da chave.
+  - **[C] O fechamento leva os avulsos:** o núcleo (`_close_fake_batch`,
+    `cessao/api/liquidacao/refact.py:4069`, commit `d28b83a`), usado pela tela, pelo horário e pelo
+    automático, marca o vigente como fechado e junta no mesmo lote todos os avulsos aptos da chave,
+    de qualquer data. Os fechamentos do 713 em 24 e 25/11 passaram por ele.
+  - **[C] Nenhuma entrada sem destino:** em todos os produtos, entradas = pagamentos no lote aberto +
+    recuos, e cada recuo tem aviso (119 avisos, 119 recuos). Ex.: 80, 102.019 + 84 = 102.103; 4,
+    16.391 + 26 = 16.417; 713, 4.023 + 9 = 4.032. No 15, as rodadas das 16h, 17h e 18h não acharam
+    avulso apto.
+  - **Falta cobrir:** vigente aberto ou avulso de chave que a VM não chama (ela usa uma lista fixa).
+    Conferir os vigentes abertos com mais de um dia nos produtos do Mercato Libero e da Voltis.
 - **Custo da entrada no lote aberto [C]:** de 24/11 21:00 a 25/11 21:13 UTC, p95 de ~1,1 s por
   entrada no 80, no 15 e no 81 (102 mil, 38 mil e 35 mil entradas); máximo de 5,7 s. Falta a média
   para estimar o custo total do dia.
