@@ -12,6 +12,15 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 25/11/2026
 
+**Passagem de chat (25/11, 19h, fechamento):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-fechamento-horario-e-recuos.md`
+(acompanhamento do fechamento por horário e recuos do lote aberto). Nesta iteração: rodadas de 25/11
+e linha de base da VM em
+[evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md);
+119 recuos do lote aberto, todos por trava (110 já em lotes concluídos; 9 do 713 esperam o fechamento
+de 26/11); D43 escolhida (nova tentativa na entrada e fechamento só do lote aberto), a validar com o
+negócio.
+
 **Passagem de chat (25/11, fim do dia):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-desenho-live-e-cache.md`. Nesta
 iteração, o desenho da TS-5733 ficou pronto para aprovação:
@@ -564,8 +573,10 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    da seção 10 pelo `/card`.
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
-3. **Produto 15:** a VM sem o 15 na execução das ~17h; o fechamento por horário do 1604 e do 15.
+3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261125-fechamento-horario-e-recuos.md`):
+   rodada das 20:45 de 25/11; em 26/11, depois das ~12h, os 9 recuos do 713 no lote e os vigentes
+   antigos; desenho da D43.
 4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
    guia e o resumo diário (C2).
-5. **D42 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.
+5. **D42 e D43 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.
 6. **Sem data:** DBA (TS-5596, `EXPLAIN` da TS-5737, resumo diário); TS-5620 (D37, D38); S1 a S14.
