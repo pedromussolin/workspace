@@ -1,6 +1,7 @@
 # Schema `live` e cache da configuração: desenho da TS-5733
 
-Rascunho de 25/11/2026, para aprovação do Pietro antes de qualquer código (mudança de arquitetura).
+Desenho de 25/11/2026, checado por um agente novo e com as perguntas respondidas; aguardando a
+aprovação do Pietro antes de qualquer código (mudança de arquitetura).
 Linhas de código valem para `platform-cessao` `origin/master` **d28b83a7a** (24/11/2026), salvo
 quando indicado. [C] = conferido no código, na réplica ou no Datadog; [H] = hipótese, com o caminho
 para validar. "Minha escolha" marca o que não foi decidido pelo Pietro e pode ser trocado na
@@ -227,7 +228,10 @@ recursos):
   decide igual; um lote antigo ainda aberto lê das principais, o que dá o mesmo resultado (as
   principais têm tudo) e é barato por ser uma busca pelo número. A rota devolve a mesma resposta: BFF
   e front não mudam.
-- **Interruptor (minha escolha):** um por tabela copiada, na tabela de regras do banco. Não pode ser
+- **Interruptor:** um por tabela copiada, na tabela de regras dentro do próprio schema `live` (uma
+  linha por tabela copiada: a regra de quem fica e o liga/desliga). Tudo do mecanismo mora no `live`,
+  e apagar o schema leva tudo junto; se a tabela não existir, a aplicação trata como desligado e lê
+  das principais (Pietro, 25/11). Não pode ser
   variável de ambiente: o gatilho roda dentro do Postgres e não enxerga as variáveis da aplicação.
   A aplicação lê o mesmo interruptor para escolher a fonte, então cópia e leitura nunca discordam.
   Com a cópia de uma tabela desligada, as telas que a usam leem das principais; as outras seguem no
@@ -336,6 +340,10 @@ Levantamento de 25/11 contra `origin/master` da cessão (d28b83a7a), do BFF e do
   `ativo()`.
 - **Roteiro de deploy:** depois de uma migration que mexe nas 7 tabelas, apertar o botão (a
   migration não incrementa a versão).
+- **Chave de acesso de parceiro:** a `produto_acesso` guarda as chaves que os parceiros mandam em cada
+  chamada (`cessao/api/cadastro/repository.py:31`). Ela segue com o mesmo TTL das outras tabelas
+  (decisão do Pietro, 25/11): uma chave desativada direto no banco continua aceita até o TTL vencer
+  ou até alguém apertar o botão. Desativar pela aplicação invalida na hora.
 
 ## 10. Entregas propostas (cards)
 
@@ -391,8 +399,8 @@ Perguntas da checagem do desenho por um agente novo (25/11), por ordem de impact
 
 1. ~~Se os índices resolverem as listagens, o `live` ainda é construído?~~ Respondida: só o índice
    não basta (8.8); o `live` é construído.
-2. Chave de acesso de parceiro desativada direto no banco continua valendo até o cache vencer: qual a
-   validade aceitável para o `produto_acesso` no cache da API? (aberta)
+2. ~~Validade da `produto_acesso` no cache da API~~ Respondida: a mesma das outras tabelas, sem
+   mudança; chave desativada direto no banco vale até o TTL ou até o botão de recarga (9.3).
 3. ~~DMS que copia todo schema~~ Respondida: pedir ao time de dados para excluir o `live`; se
    recusarem, deixar ir para o lake e avisá-los.
 4. ~~O gatilho engole o erro?~~ Respondida: não engole (8.5).
