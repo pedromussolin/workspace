@@ -12,7 +12,16 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 25/11/2026
 
-**Passagem de chat (25/11):** retomar pela passagem privada
+**Passagem de chat (25/11, fim do dia):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-desenho-live-e-cache.md`. Nesta
+iteração, o desenho da TS-5733 ficou pronto para aprovação:
+[04-hot-data-and-config-cache-design.md](tasks/04-hot-data-and-config-cache-design.md) (schema `live`
+com os dados recentes ou ainda em aberto das quatro listagens, alimentado por gatilhos, e o cache da
+configuração ligado na API com recarga por botão). Números de produção em
+[listings-and-volume-2026-11-25](evidence/listings-and-volume-2026-11-25.md); decisões em
+`decisions.md` (25/11).
+
+**Passagem de chat anterior (25/11):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261125-dados-quentes-e-cache.md`
 (desenho do schema de dados quentes e do cache da configuração, em andamento). Nesta iteração:
 
@@ -550,9 +559,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Schema quente e cache (TS-5733 em várias tarefas):** pela passagem de 25/11, confirmar a
-   proposta do cache, a coluna de corte e a primeira entrega. Depois, escrever o desenho, passar
-   pela revisão e pela aprovação e quebrar em cards.
+1. **Schema `live` e cache (TS-5733 em várias tarefas):** aprovação do desenho
+   (`tasks/04-hot-data-and-config-cache-design.md`); depois o plano de implementação e os 6 cards
+   da seção 10 pelo `/card`.
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
 3. **Produto 15:** a VM sem o 15 na execução das ~17h; o fechamento por horário do 1604 e do 15.
