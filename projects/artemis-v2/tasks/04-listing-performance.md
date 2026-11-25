@@ -15,6 +15,10 @@ synced = 2026-11-23
 # 04 — Performance das listagens de lotes
 
 - **Status:** mapeado; a revisão de queries é com a DBA.
+- **25/11/2026:** a tarefa virou várias: schema `live` com os dados vivos das listagens e cache da
+  configuração na API. Desenho em
+  [04-hot-data-and-config-cache-design.md](04-hot-data-and-config-cache-design.md), aguardando
+  aprovação.
 - **14/10/2026:** a parte de lotes reais (`lotes_das_remessas` e o filtro de
   fundo da página) saiu daqui para a
   [tarefa 12](12-real-batches-before-values.md), que passou na
