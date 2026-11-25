@@ -157,8 +157,19 @@ Uma rodada só não basta para concluir.
   desenho do lote aberto: a entrada falha, o pagamento fica sem lote e entra no fechamento seguinte
   (`cessao/api/liquidacao/refact.py:4352` e `:4369`, commit `d28b83a`). De 24/11 21:00 a 25/11 21:13 UTC,
   119 avisos, todos com motivo `OperationalError`: produto 80 (84, de 11:01 a 19:32), 4 (26, às
-  11:15) e 713 (9, às 21:00). **[H]** É a espera curta pela trava do vigente ou o limite de tempo
-  da entrada; o evento de entrada (`recuos_por_trava`) separa os dois.
+  11:15) e 713 (9, às 21:00).
+  - **[C] Novo desde o deploy de 24/11:** o aviso veio com o lote aberto (TS-5567, `ceadb3185`); antes
+    não havia entrada no lote na chegada. O guia de 24/11 (A1) e o plano da TS-5567 (passo 4 da
+    transição) já mandavam acompanhar esse evento.
+  - **[C] Todos por trava:** no evento `"Entrada no lote aberto da liquidação concluída"`, os 119
+    recuos têm `recuos_por_trava` (espera acima de 2 s, `LOTE_ABERTO_LOCK_TIMEOUT_MS`). Fração das
+    entradas: 80, 84 em 102.103 (0,08%); 4, 26 em 16.417 (0,16%); 713, 9 em 4.032 (0,22%). Nenhum
+    outro produto teve recuo.
+  - **[H]** Os pagamentos recuados entram no fechamento seguinte: no 80 e no 4, a VM das 17h (a rota
+    antiga junta os pagamentos sem lote). Validar na réplica pelos `liquidacao_uuid` dos avisos.
+- **Custo da entrada no lote aberto [C]:** de 24/11 21:00 a 25/11 21:13 UTC, p95 de ~1,1 s por
+  entrada no 80, no 15 e no 81 (102 mil, 38 mil e 35 mil entradas); máximo de 5,7 s. Falta a média
+  para estimar o custo total do dia.
 - Outros erros de 19:10 a 21:13 UTC, sem relação com o fechamento: `GET /titulo/contratos` (172,
   de 20:00 a 20:19), processamento de endosso (79), pagamento duplicado (2) e conexão fechada pelo
   cliente na listagem de lotes reais (2).
