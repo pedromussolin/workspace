@@ -192,6 +192,10 @@ Uma rodada só não basta para concluir.
 ## Pendentes
 
 - Rodada das 20:45 do produto 15, com a duração da consulta das chaves.
+- [D43](../decisions.md) (nova tentativa na entrada e fechamento só do lote aberto): validar com o
+  negócio, escrever o desenho para aprovação e propor os cards da próxima sprint.
+- Confirmar que os 9 recuos do 713 entraram no fechamento de 26/11 (~12h) e conferir os vigentes
+  abertos com mais de um dia nos produtos do Mercato Libero e da Voltis.
 - Consulta das chaves lenta às 16h e às 17h: `EXPLAIN` na réplica e proposta de correção (card
   para a próxima sprint, pelo `task-shaping`).
 - Custo da entrada no lote aberto ao longo do dia (produto 15), para comparar o custo total com a VM.
