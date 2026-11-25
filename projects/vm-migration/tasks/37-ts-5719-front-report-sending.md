@@ -20,7 +20,9 @@ synced = 2026-11-16
 
 Cadastro de conexão API, seleção múltipla com busca e chips em shared/ui, cadastro de conexão E-mail e aba Contatos.
 
+O cadastro de conexão API também cobre a GalaPay (credenciais por produto) e o download da CVM.
+
 ## Pronto quando
 
-Telas funcionando contra o BFF, com specs e vitrine do componente.
-
+- Telas funcionando contra o BFF, com specs e vitrine do componente.
+- Conexões da GalaPay e da CVM cadastradas e testadas pela tela.

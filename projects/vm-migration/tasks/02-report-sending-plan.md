@@ -15,7 +15,7 @@ synced = 2026-11-16
 +++
 # 02 — Envio de relatórios pela tela Envio de Relatórios
 
-Status: planejada (13/11/2026)
+Status: planejada (13/11/2026); escopo ampliado para os 25 scripts (16/11/2026)
 Épico no Jira: Migração VM (tarefas 02 a 12)
 
 ## Objetivo
@@ -31,40 +31,56 @@ Esta tarefa é o mapa: o trabalho está quebrado nas tarefas 03 a 12.
 
 ## Escopo
 
-13 relatórios entram, em quatro ondas e um grupo bloqueado [C]:
+Os 25 scripts de envio de relatórios saem da EC2 de automações, nos cards que já existem (T19 e
+T20, 16/11/2026). Antes eram 13 relatórios nesta fase e 13 scripts fora dela [C]:
 
-| Onda | Relatórios | De onde vêm os dados |
+| Card | Scripts | De onde vêm os dados |
 |---|---|---|
-| 1 | Cessões diárias, Cessões mensais, Pendura a acrescer e Vencimentos atualizados (FIDC Fornecedores) | platform-cessao, consulta de contratos |
-| 2 | Relação de baixas (FIDC Vektor); Valores processados e Liquidações rejeitadas (FIDCs Mercato Pago) | platform-cessao, consulta de liquidação |
-| 3 | Estoque (FIDC VLTS I); Base de operações e estoque (FIDC FBRX3) | data-lake-api, posição de ativos |
-| 4 | Projeção de valor presente (FIDC VLTS I); Renegociações (Equimedix, administrador Dayvale) | data-lake-api e uma regra em código |
-| bloqueado | Valor conciliado e Resultado do processamento (FIDCs Mercato Pago) | dependem de uma planilha que outro script grava numa pasta local da EC2 |
+| TS-5724, Onda 1 | FIDC Fornecedores: cessões diárias e mensais, pendura a acrescer, vencimentos atualizados, cobrança diária e fee mensal; aviso mensal do Jurídico | platform-cessao (contratos, com filtro por vencimento, e liquidação por mês); modelo fixo no S3 |
+| TS-5725, Onda 2 | Relação de baixas (FIDC Vektor); valores processados, liquidações rejeitadas e as três retiradas de recusados (FIDCs Mercato Pago) | platform-cessao, consulta de liquidação, com o motivo da rejeição |
+| TS-5740, Onda 3 | Estoque (FIDC VLTS I); base de operações e estoque (FIDC FBRX3); report do OCR | data-lake-api, posição de ativos e consulta do OCR |
+| TS-5741, Onda 4 | Projeção de valor presente e ganhos semanais (VLTS I); renegociações (Equimedix, administrador Dayvale); write-off mensal e estornos (Mercato Pago); boletos pagos e mensais (Padtek); relação de fundos ativos (CVM) | data-lake-api, regras em código, SFTP, GalaPay e download da CVM |
+| TS-5727 | Valor conciliado e resultado do processamento (FIDCs Mercato Pago) | platform-cessao e o esperado do dia calculado dos File 4 do SFTP, sem a planilha da EC2 |
 
-Fora desta fase:
+O que mudou na plataforma para caber tudo nos cards existentes:
 
-- Boletos pagos do FIDC Padtek: lê a API da GalaPay e grava uma cópia no SharePoint.
-- Relação de fundos ativos: baixa um arquivo da CVM.
-- Report do OCR: lê tabelas próprias no Lake.
-- Os 10 scripts de avisos e solicitações, entre eles os Boletos mensais da Padtek, que saem por um
-  botão no portal e não pela agenda.
-- Os scripts apagados do repositório em 05/11 e 09/11 (T18).
+- TS-5707: a conexão API usa os clientes que o shared já tem para o platform-cessao e o
+  data-lake-api e passa a cobrir a GalaPay e o download da CVM.
+- TS-5712: as regras nomeadas também recebem um arquivo de entrada (File 4, ganhos da VLTS I,
+  cadastro da CVM).
+- TS-5715 e TS-5716: cópia no SharePoint, anexo zip e disparo manual.
+- TS-5743: consulta do OCR no data-lake-api.
+
+Não entram: os scripts apagados do repositório em 05/11 e 09/11 (T18), a emissão dos boletos da
+Padtek na GalaPay (é tela, não envio) e os alertas do Mercato Pago (TS-5751).
 
 ## Como a tela fica
 
-Decisões T12 a T17 de [decisions.md](../decisions.md):
+Revisto em 17/11/2026 (T21 a T26 de [decisions.md](../decisions.md)): os envios entram na tela
+nova Automações, aba de disparo de e-mails. A tela Envio de Relatórios continua até ser absorvida
+pela aba de envio de arquivos.
 
-- **Origem por API.** A Origem aceita uma conexão do tipo API, ligada ao platform-cessao ou ao
-  data-lake-api, com o token no Parameter Store. O painel da Origem muda conforme o tipo da
-  conexão: pasta para arquivos; consulta, filtros, prévia de dados e prévia SQL para API.
-- **Catálogo fixo** de consultas no shared-service.
-- **Prévia SQL** gerada pelo microsserviço que executa a consulta, só leitura.
-- **Gerar Arquivo**, um bloco novo que transforma as linhas da consulta em xlsx ou csv.
-- **E-mail como conexão** só de destino, com destinatários escolhidos de uma lista.
-- **Duas rotas no platform-cessao:** contratos e liquidação.
+- **Blocos separados** para Consultar API e Disparar e-mail (T22, que substitui a T12 e a T16).
+  Os blocos de arquivo ficam só para pasta e bucket, com os nomes "Buscar arquivos" e "Gravar
+  arquivos" (T27).
+- **Catálogo fixo** de consultas no shared-service (T13): Consultar API só chama o que está nele.
+- **Prévia SQL** gerada pelo microsserviço que executa a consulta, só leitura (T14).
+- **Gerar Arquivo**, que transforma as linhas da consulta em xlsx ou csv (T15), na família de
+  blocos de planilha.
+- **Disparar e-mail** pelo `email_dispatch` do shared: um e-mail só, com Para, Cópia, Cópia oculta
+  e anexos (T26), para grupos e endereços do Entra ID, inclusive os clientes (T28, D11).
+- **Duas rotas no platform-cessao:** contratos e liquidação (T17).
+- **Cálculo na tela:** a conta (fee, valor desembolsado, rótulos) é escrita pelo usuário num bloco
+  de cálculo, sobre as colunas que existem, sem regra fixa em código (T30, detalhes na D12).
+- **Linha reta com contexto** entre os blocos (T24), na mesma tabela de fluxos do Envio de
+  Relatórios, com a aba como filtro (T25).
 
-Nenhum script faz algo depois do e-mail além de apagar o arquivo temporário [C]. O destino e-mail
-fecha o subfluxo (o trecho de origem a destino dentro de um fluxo).
+Nenhum script faz algo depois do e-mail além de apagar o arquivo temporário [C]. O bloco Disparar
+e-mail fecha o subfluxo (o trecho do primeiro ao último bloco dentro de um fluxo).
+
+As descrições das TS-5707, TS-5710, TS-5714 a TS-5716 e TS-5719 a TS-5721 ainda falam em Origem
+por API e conexão E-mail, e as das TS-5714, TS-5719 e TS-5723 num cadastro de contatos no shared
+(T28), e as das TS-5711 e TS-5712 em regras nomeadas em código (T30): atualizar pelo `/card`.
 
 ## Tarefas
 

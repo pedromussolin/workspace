@@ -20,7 +20,12 @@ synced = 2026-11-16
 
 Destino e-mail com assunto e corpo em template, anexos e variante quando vazio ou com alerta; envio como item da execução sem duplicar no reenvio; testar conexão E-mail.
 
+Também cobre:
+
+- vários arquivos num anexo zip (boletos mensais da Padtek);
+- disparo manual do fluxo, para os envios que hoje saem por botão (boletos mensais da Padtek).
+
 ## Pronto quando
 
-Fluxo gera arquivo e envia o e-mail, e o reenvio não duplica.
-
+- Fluxo gera arquivo e envia o e-mail, e o reenvio não duplica.
+- Envio com anexo zip e disparo manual funcionando.

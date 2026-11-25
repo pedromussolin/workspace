@@ -21,7 +21,9 @@ synced = 2026-11-16
 
 Base do namespace novo (paginação com teto e cursor, prévia SQL), consulta Contratos, rota de opções dos filtros sem identificadores de acesso e token de serviço se D5 pedir.
 
+A consulta Contratos também filtra pela data de vencimento da parcela, para a cobrança diária do FIDC Fornecedores (títulos que vencem no dia).
+
 ## Pronto quando
 
-Rotas com testes e documentação; prévia SQL devolvida junto.
-
+- Rotas com testes e documentação; prévia SQL devolvida junto.
+- Filtro por vencimento da parcela coberto por teste.

@@ -1,6 +1,6 @@
 # 12 — Migração em ondas e desligamento dos scripts
 
-Status: a começar (13/11/2026)
+Status: a começar (13/11/2026); ondas ampliadas para os 25 scripts (16/11/2026)
 
 ## Objetivo
 
@@ -17,11 +17,11 @@ reais, paralelo em dias corridos e GMUD.
 |---|---|---|---|---|
 | MG1 | URL e token dos serviços no Parameter Store, em homologação e produção; reiniciar a API e o worker do shared-service | 0,5 | 0,5 | SS1 |
 | MG2 | Levar as listas da `mv_mail_list` para contatos e conexões de e-mail, direto no ambiente, sem arquivo versionado | 1,5 | 1 | SS13, SS14 |
-| MG3 | Onda 1: Cessões diárias, Cessões mensais, Pendura a acrescer, Vencimentos atualizados | 3 | 2,5 | PC6, SS17, SS21, FE10 |
-| MG4 | Onda 2: Relação de baixas (Vektor), Valores processados, Liquidações rejeitadas | 3 | 2,5 | MG3, PC6 |
-| MG5 | Onda 3: Estoque (VLTS I), Base de operações e estoque (FBRX3) | 2 | 1,5 | DL6, MG3 |
-| MG6 | Onda 4: Projeção de valor presente (VLTS I), Renegociações (Equimedix) | 4 | 2,5 | SS12, DL6 |
-| MG7 | Valor conciliado e Resultado do processamento: **bloqueado** até a planilha analítica diária sair da pasta local da EC2 para um lugar que o shared-service leia, como um bucket | 4 | 3 | SS12 |
+| MG3 | Onda 1 (TS-5724): Cessões diárias, Cessões mensais, Pendura a acrescer, Vencimentos atualizados, Cobrança diária e Fee mensal (FIDC Fornecedores); aviso mensal do Jurídico | 3 | 2,5 | PC6, SS17, SS21, FE10 |
+| MG4 | Onda 2 (TS-5725): Relação de baixas (Vektor), Valores processados, Liquidações rejeitadas e as três retiradas de recusados (Mercato Pago) | 3 | 2,5 | MG3, PC6 |
+| MG5 | Onda 3 (TS-5740): Estoque (VLTS I), Base de operações e estoque (FBRX3), report do OCR | 2 | 1,5 | DL6, MG3 |
+| MG6 | Onda 4 (TS-5741): Projeção de valor presente e ganhos semanais (VLTS I), Renegociações (Equimedix), write-off mensal e estornos (Mercato Pago), boletos pagos e mensais (Padtek), relação de fundos ativos (CVM) | 4 | 2,5 | SS12, DL6 |
+| MG7 | Valor conciliado e Resultado do processamento (TS-5727): o esperado do dia passa a ser calculado dos File 4 do SFTP por regra nomeada (TS-5712), sem a planilha analítica da EC2 | 4 | 3 | SS12 |
 | MG8 | Desativar na `mv_schedule_reports` as linhas de cada onda validada | 1 | 0,5 | MG3 |
 | MG9 | GMUDs dos deploys, uma por repositório e entrega | 2,5 | 1 | — |
 

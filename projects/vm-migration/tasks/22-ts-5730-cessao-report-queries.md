@@ -21,7 +21,12 @@ synced = 2026-11-16
 
 Consulta Liquidação por processo ou pagamento (junta parcela, contrato e lote), com janela, estado, extratos, identificador e agrupar_por.
 
+Também atende os envios de liquidação fora das ondas iniciais:
+
+- janela pelo mês anterior, para o fee mensal do FIDC Fornecedores;
+- processos rejeitados com o motivo do último registro do log, para as retiradas de recusados do Mercato Pago (parcial diária, BGT e Fynvest semanais).
+
 ## Pronto quando
 
-Rota com testes cobrindo as duas granularidades e a prévia SQL.
-
+- Rota com testes cobrindo as duas granularidades e a prévia SQL.
+- Janela por mês e filtro por motivo de rejeição cobertos por teste.

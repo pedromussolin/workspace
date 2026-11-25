@@ -21,7 +21,8 @@ synced = 2026-11-16
 
 Comparar na réplica (só leitura, com trava) linhas e totais das rotas com o SQL dos scripts na mesma data e contar processos com mais de um pagamento por produto.
 
+Entram todos os scripts que usam as rotas do platform-cessao: as Ondas 1 e 2, a cobrança e o fee mensal do FIDC Fornecedores, as retiradas parcial, BGT e Fynvest, o valor conciliado e o resultado do processamento do Mercato Pago, e a validação dos ganhos semanais da VLTS I.
+
 ## Pronto quando
 
-Comparação bate para as Ondas 1 e 2 e a contagem está em evidence/ sem dado de cliente.
-
+- Comparação bate para todos esses scripts e a contagem está em evidence/ sem dado de cliente.

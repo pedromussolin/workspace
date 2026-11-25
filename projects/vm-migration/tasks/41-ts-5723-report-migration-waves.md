@@ -15,13 +15,18 @@ due = 2026-11-19
 sprint = "TETRIS - Sprint 16.6.41"
 synced = 2026-11-16
 +++
-# 41 — Migrar listas de destinatários da mv_mail_list para contatos
+# 41 — Migrar as listas de destinatários dos envios da mv_mail_list para contatos
 
 ## Contexto
 
-Levar as listas para contatos e conexões de e-mail direto no ambiente, sem arquivo versionado.
+Levar para contatos e conexões de e-mail, direto no ambiente e sem arquivo versionado, as 25 listas da mv_mail_list usadas pelos scripts de envio de relatórios: 1, 2, 6, 10, 11, 12, 13, 14, 19, 20, 23, 25, 26, 27, 28, 29, 32, 33, 34, 35, 37, 38, 39, 46 e 47.
+
+Pontos de atenção:
+
+- o vencimento atualizado usa a lista 38 no para e a 39 em cópia, e a 39 também é de outro alerta;
+- o write-off mensal filtra a lista 19 por domínio no código;
+- o aviso do Jurídico usa cópia oculta.
 
 ## Pronto quando
 
-Listas das ondas cadastradas e conferidas.
-
+- As 25 listas cadastradas e conferidas, com para, cópia e cópia oculta como hoje.

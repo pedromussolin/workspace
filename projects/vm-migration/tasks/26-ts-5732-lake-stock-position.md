@@ -15,13 +15,14 @@ due = 2026-11-27
 sprint = "TETRIS - Sprint 16.6.41"
 synced = 2026-11-16
 +++
-# 26 — Validar a posição de ativos contra os relatórios de estoque
+# 26 — Validar as rotas do data-lake-api contra o SQL dos scripts
 
 ## Contexto
 
-Comparar a rota com o SQL atual dos relatórios de estoque na mesma data, conferindo antes qual valor presente o cliente recebe.
+Comparar as rotas do data-lake-api com o SQL atual dos scripts na mesma data, conferindo antes qual valor presente o cliente recebe.
+
+Entram os quatro relatórios de estoque (estoque e projeção da VLTS I, base do FBRX3, renegociações do Equimedix), o report do OCR e a base do write-off mensal.
 
 ## Pronto quando
 
-Comparação bate para os quatro relatórios de estoque.
-
+- Comparação bate para os quatro relatórios de estoque, o report do OCR e o write-off mensal.

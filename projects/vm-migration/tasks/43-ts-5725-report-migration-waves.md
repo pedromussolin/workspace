@@ -13,13 +13,21 @@ priority = "Medium"
 sprint = ""
 synced = 2026-11-16
 +++
-# 43 — Onda 2: migrar e desligar Relação de baixas (Vektor), Valores processados e Liquidações rejeitadas (Mercato Pago)
+# 43 — Onda 2: migrar e desligar Relação de baixas (Vektor) e os envios de liquidação do Mercato Pago
 
 ## Contexto
 
 Montar os fluxos de liquidação, rodar em paralelo, conferir e desativar as linhas do script.
 
+Scripts:
+
+- FIDC Vektor: relação de baixas semanal;
+- Mercato Pago: valores processados e liquidações rejeitadas do dia, parcial diária de retirada de recusados, retirada semanal de recusados CITTI e NPL (BGT) e NP (Fynvest).
+
+## A fazer antes de implementar
+
+- Hoje as retiradas mandam um xlsx por fundo num e-mail só. Confirmar com o BGT, a Fynvest e o Mercato Pago o formato novo (um fluxo por fundo ou um arquivo com a coluna do fundo).
+
 ## Pronto quando
 
-Anexos e totais batem por uma semana e linhas desativadas.
-
+- Anexos e totais batem por uma semana e linhas desativadas.

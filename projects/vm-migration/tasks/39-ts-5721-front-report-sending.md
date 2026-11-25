@@ -20,7 +20,9 @@ synced = 2026-11-16
 
 Blocos Gerar Arquivo e ajustes no editor, destino com conexão E-mail, agenda por dia útil e dados fictícios no mock e no smoke.
 
+Inclui o anexo zip com vários arquivos e o botão de disparo manual do fluxo (TS-5716).
+
 ## Pronto quando
 
-Fluxo completo montado na tela e validate.sh sem falha nova.
-
+- Fluxo completo montado na tela e validate.sh sem falha nova.
+- Anexo zip e disparo manual funcionando na tela.

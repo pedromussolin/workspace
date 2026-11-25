@@ -16,24 +16,12 @@ synced = 2026-11-16
 +++
 # 10 — BFF da tela Envio de Relatórios
 
-Status: a começar (13/11/2026)
+## Contexto
 
-## Objetivo
+Repasse do catálogo, das prévias, dos tipos de conexão e dos contatos; busca no diretório no escopo da tela; escopos novos no BFF e no Azure.
 
-Repassar no BFF (`apl-credit-whitelabel-api`, o backend da tela) os contratos novos do
-shared-service e criar as permissões. Contrato com o BFF muda no mesmo ciclo do front.
+Inclui as conexões da GalaPay e da CVM (TS-5707), as regras nomeadas sobre arquivo de entrada (TS-5712) e o disparo manual do fluxo (TS-5716).
 
-Estimativa: 5 dias sem IA, 2,5 com IA.
+## Pronto quando
 
-## Itens
-
-| ID | Item | Sem IA | Com IA | Depende de |
-|---|---|---|---|---|
-| BF1 | Repasse do catálogo, da prévia de dados e da prévia SQL | 1,5 | 0,5 | SS4, SS5 |
-| BF2 | Repasse dos tipos de conexão API e E-mail e do cadastro de contatos | 1,5 | 0,5 | SS1, SS13, SS14 |
-| BF3 | Busca no diretório da empresa no escopo desta tela: hoje existe só no Controle de Acesso [C] | 1 | 0,5 | D6 |
-| BF4 | Escopos novos no BFF e no Azure: contatos e conexões de e-mail, prévia SQL | 1 | 1 | D6 |
-
-## Cuidados
-
-- Editar contatos e conexões de e-mail tem escopo próprio: é por eles que o dado sai da empresa.
+- Endpoints do BFF com testes e escopos criados, incluindo as conexões da GalaPay e da CVM e o disparo manual.

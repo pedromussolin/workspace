@@ -15,13 +15,19 @@ due = 2026-11-18
 sprint = "TETRIS - Sprint 16.6.41"
 synced = 2026-11-16
 +++
-# 27 — Shared: conexão do tipo API e cliente HTTP dos microsserviços
+# 27 — Shared: conexão do tipo API para os microsserviços, a GalaPay e a CVM
 
 ## Contexto
 
-Tipo de conexão API (migration, prefixo de segredo), cliente HTTP com timeout, retry em 5xx e paginação, só endpoints do catálogo, e testar conexão pelo health.
+Tipo de conexão API na tela Envio de Relatórios. Para o platform-cessao e o data-lake-api, usa os clientes HTTP que o shared já tem (src/services/cessao e src/services/data_lake), sem cliente novo.
+
+A mesma conexão passa a cobrir as fontes de fora que os scripts de envio usam:
+
+- GalaPay, com as credenciais por produto: transações pagas e cobranças do vencimento, com os PDFs dos boletos (boletos pagos e boletos mensais da Padtek);
+- download público do cadastro de fundos da CVM (relação de fundos ativos).
+
+Timeout, retry em 5xx, paginação, só endpoints do catálogo, e testar conexão.
 
 ## Pronto quando
 
-Conexão API criada e testada contra o health de um serviço, com testes.
-
+- Conexões do platform-cessao, do data-lake-api, da GalaPay e da CVM criadas e testadas, com testes.

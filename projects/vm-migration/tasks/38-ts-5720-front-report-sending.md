@@ -20,7 +20,9 @@ synced = 2026-11-16
 
 Painel da Origem com API montado a partir do catálogo, limpeza ao trocar o tipo da conexão e prévias de linhas, contagem e SQL recolhível.
 
+A Origem também aceita arquivo de entrada (SFTP ou download) seguido de uma regra nomeada do catálogo (TS-5712).
+
 ## Pronto quando
 
-Painel monta filtros do catálogo e mostra as duas prévias.
-
+- Painel monta filtros do catálogo e mostra as duas prévias.
+- Origem com arquivo e regra nomeada configurável pela tela, com prévia.

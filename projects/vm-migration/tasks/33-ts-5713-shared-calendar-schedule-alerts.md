@@ -20,7 +20,9 @@ synced = 2026-11-16
 
 Agenda além do cron (só em dia útil, N-ésimo e último dia útil do mês) e aviso quando uma execução falha, por monitor no Datadog ou e-mail.
 
+Cobre todas as recorrências dos scripts de envio: dia útil, segunda-feira, dia fixo do mês (1, 25 e 27), primeiro dia útil do mês e várias vezes no mesmo dia (resultado do processamento do Mercato Pago, das 9h às 11h).
+
 ## Pronto quando
 
-Agendamento por dia útil funcionando e falha de execução gera aviso.
-
+- Agendamento por dia útil funcionando e falha de execução gera aviso.
+- Cada recorrência dos scripts de envio tem um agendamento equivalente.

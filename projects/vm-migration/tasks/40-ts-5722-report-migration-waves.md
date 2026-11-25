@@ -15,13 +15,19 @@ due = 2026-11-24
 sprint = "TETRIS - Sprint 16.6.41"
 synced = 2026-11-16
 +++
-# 40 — Cadastrar URL e token dos serviços no Parameter Store
+# 40 — Cadastrar URLs, tokens e credenciais dos envios no Parameter Store
 
 ## Contexto
 
 URL e token do platform-cessao e do data-lake-api em homologação e produção e reinício da API e do worker do shared-service.
 
+Também as credenciais dos envios que usam fontes de fora:
+
+- GalaPay da Padtek (ID e hash);
+- chave do SFTP do Mercato Pago (File 4);
+- SFTP da empresa para os ganhos semanais da VLTS I, com usuário de serviço no lugar do usuário pessoal usado hoje;
+- local no S3 do modelo de relatório do aviso mensal do Jurídico.
+
 ## Pronto quando
 
-Teste de conexão API passa em homologação e produção.
-
+- Teste de conexão passa em homologação e produção para todas as conexões.

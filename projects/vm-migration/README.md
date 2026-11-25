@@ -29,7 +29,7 @@ relatórios, ficam no épico "Migração VM" do Jira.
 
 | # | Tarefa | Status |
 |---|---|---|
-| 01 | [Inventário da EC2 de automações](tasks/01-ec2-inventory.md) | a começar (05/11) |
+| 01 | [Inventário da EC2 de automações](tasks/01-ec2-inventory.md) | preenchido, destinos à espera da D2 (16/11) |
 | 02 | [Envio de relatórios pela tela Envio de Relatórios](tasks/02-report-sending-plan.md) | planejada (13/11) |
 | 03 | [Especificação do catálogo de consultas](tasks/03-query-catalog-spec.md) | a começar |
 | 04 | [Rotas de consulta no platform-cessao](tasks/04-cessao-report-queries.md) | a começar |
@@ -61,14 +61,14 @@ relatórios, ficam no épico "Migração VM" do Jira.
 | 22 | [Rota de consulta de liquidação no platform-cessao](tasks/22-ts-5730-cessao-report-queries.md) | TS-5730 | Nova função | dev-a0893bc9a2 | a fazer |
 | 23 | [Validar as rotas do platform-cessao contra o SQL dos scripts](tasks/23-ts-5731-cessao-report-queries.md) | TS-5731 | Tarefa | dev-a0893bc9a2 | a fazer |
 | 24 | [Posição de ativos no data-lake-api: lista opcional, VLTS I e prévia SQL](tasks/24-ts-5742-lake-stock-position.md) | TS-5742 | Melhoria | dev-a0893bc9a2 | a fazer |
-| 25 | [Posição de ativos no data-lake-api: ramos Dayvale e FBRX3](tasks/25-ts-5743-lake-stock-position.md) | TS-5743 | Melhoria | dev-a0893bc9a2 | a fazer |
-| 26 | [Validar a posição de ativos contra os relatórios de estoque](tasks/26-ts-5732-lake-stock-position.md) | TS-5732 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 27 | [Shared: conexão do tipo API e cliente HTTP dos microsserviços](tasks/27-ts-5707-shared-api-connection.md) | TS-5707 | Nova função | dev-a0893bc9a2 | a fazer |
+| 25 | [Posição de ativos e consulta do OCR no data-lake-api: ramos Dayvale e FBRX3](tasks/25-ts-5743-lake-stock-position.md) | TS-5743 | Melhoria | dev-a0893bc9a2 | a fazer |
+| 26 | [Validar as rotas do data-lake-api contra o SQL dos scripts](tasks/26-ts-5732-lake-stock-position.md) | TS-5732 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 27 | [Shared: conexão do tipo API para os microsserviços, a GalaPay e a CVM](tasks/27-ts-5707-shared-api-connection.md) | TS-5707 | Nova função | dev-a0893bc9a2 | a fazer |
 | 28 | [Shared: catálogo fixo de consultas e prévias de dados e SQL](tasks/28-ts-5708-shared-api-connection.md) | TS-5708 | Nova função | dev-a0893bc9a2 | a fazer |
 | 29 | [Shared: calendário de dias úteis e datas relativas nos filtros](tasks/29-ts-5709-shared-calendar-schedule-alerts.md) | TS-5709 | Nova função | dev-a0893bc9a2 | a fazer |
 | 30 | [Shared: Origem com consulta e Gerar Arquivo no motor de fluxos](tasks/30-ts-5710-shared-query-source-and-file.md) | TS-5710 | Nova função | dev-a0893bc9a2 | a fazer |
 | 31 | [Shared: execução da rota de dados e ajustes de linhas](tasks/31-ts-5711-shared-query-source-and-file.md) | TS-5711 | Nova função | dev-a0893bc9a2 | a fazer |
-| 32 | [Shared: regras nomeadas em código no catálogo](tasks/32-ts-5712-shared-query-source-and-file.md) | TS-5712 | Nova função | dev-a0893bc9a2 | a fazer |
+| 32 | [Shared: regras nomeadas em código no catálogo, também sobre arquivos de entrada](tasks/32-ts-5712-shared-query-source-and-file.md) | TS-5712 | Nova função | dev-a0893bc9a2 | a fazer |
 | 33 | [Shared: agenda por dia útil e aviso de falha de execução](tasks/33-ts-5713-shared-calendar-schedule-alerts.md) | TS-5713 | Nova função | dev-a0893bc9a2 | a fazer |
 | 34 | [Shared: conexão do tipo E-mail e cadastro de contatos](tasks/34-ts-5714-shared-email-destination.md) | TS-5714 | Nova função | dev-a0893bc9a2 | a fazer |
 | 35 | [Shared: resolução de destinatários e envio pelo Graph com anexos](tasks/35-ts-5715-shared-email-destination.md) | TS-5715 | Nova função | dev-a0893bc9a2 | a fazer |
@@ -76,13 +76,13 @@ relatórios, ficam no épico "Migração VM" do Jira.
 | 37 | [Front: conexões API e E-mail e aba Contatos](tasks/37-ts-5719-front-report-sending.md) | TS-5719 | Nova função | dev-a0893bc9a2 | a fazer |
 | 38 | [Front: Origem com consulta, filtros e prévias](tasks/38-ts-5720-front-report-sending.md) | TS-5720 | Nova função | dev-a0893bc9a2 | a fazer |
 | 39 | [Front: Gerar Arquivo, destino e-mail e agenda por dia útil no editor](tasks/39-ts-5721-front-report-sending.md) | TS-5721 | Nova função | dev-a0893bc9a2 | a fazer |
-| 40 | [Cadastrar URL e token dos serviços no Parameter Store](tasks/40-ts-5722-report-migration-waves.md) | TS-5722 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 41 | [Migrar listas de destinatários da mv_mail_list para contatos](tasks/41-ts-5723-report-migration-waves.md) | TS-5723 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 42 | [Onda 1: migrar e desligar Cessões diárias e mensais, Pendura a acrescer e Vencimentos atualizados](tasks/42-ts-5724-report-migration-waves.md) | TS-5724 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 43 | [Onda 2: migrar e desligar Relação de baixas (Vektor), Valores processados e Liquidações rejeitadas (Mercato Pago)](tasks/43-ts-5725-report-migration-waves.md) | TS-5725 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 44 | [Onda 3: migrar e desligar Estoque (VLTS I) e Base de operações e estoque (FBRX3)](tasks/44-ts-5740-report-migration-waves.md) | TS-5740 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 45 | [Onda 4: migrar e desligar Projeção de valor presente (VLTS I) e Renegociações (Equimedix)](tasks/45-ts-5741-report-migration-waves.md) | TS-5741 | Tarefa | dev-a0893bc9a2 | a fazer |
-| 46 | [Migrar e desligar Valor conciliado e Resultado do processamento (Mercato Pago), bloqueado](tasks/46-ts-5727-report-migration-waves.md) | TS-5727 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 40 | [Cadastrar URLs, tokens e credenciais dos envios no Parameter Store](tasks/40-ts-5722-report-migration-waves.md) | TS-5722 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 41 | [Migrar as listas de destinatários dos envios da mv_mail_list para contatos](tasks/41-ts-5723-report-migration-waves.md) | TS-5723 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 42 | [Onda 1: migrar e desligar os envios do FIDC Fornecedores e o aviso do Jurídico](tasks/42-ts-5724-report-migration-waves.md) | TS-5724 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 43 | [Onda 2: migrar e desligar Relação de baixas (Vektor) e os envios de liquidação do Mercato Pago](tasks/43-ts-5725-report-migration-waves.md) | TS-5725 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 44 | [Onda 3: migrar e desligar Estoque (VLTS I), Base de operações e estoque (FBRX3) e report do OCR](tasks/44-ts-5740-report-migration-waves.md) | TS-5740 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 45 | [Onda 4: migrar e desligar os envios com regra em código e fontes externas](tasks/45-ts-5741-report-migration-waves.md) | TS-5741 | Tarefa | dev-a0893bc9a2 | a fazer |
+| 46 | [Migrar e desligar Valor conciliado e Resultado do processamento (Mercato Pago)](tasks/46-ts-5727-report-migration-waves.md) | TS-5727 | Tarefa | dev-a0893bc9a2 | a fazer |
 | 47 | [GMUDs dos deploys da migração de relatórios](tasks/47-ts-5728-report-migration-waves.md) | TS-5728 | Tarefa | dev-a0893bc9a2 | a fazer |
 <!-- /ws:items -->
 
@@ -90,3 +90,15 @@ relatórios, ficam no épico "Migração VM" do Jira.
 
 04/11/2026: projeto criado com o contexto da saída do Rafael. Em 05/11 começa o inventário da
 máquina, base para quebrar o trabalho em tarefas.
+
+16/11/2026: inventário preenchido (tarefa 01). São 153 itens, cada um com destino proposto: 50
+já têm cartão, 44 ainda não. Os achados urgentes da passagem são o alarme de falha na caixa
+pessoal do Rafael e a rotação das credenciais. Nada fica na EC2 (T19), e os 25 scripts de envio
+de relatórios migram nos cards que já existem, sem card novo (T20).
+
+17/11/2026: os envios de e-mail vão para uma tela nova, Automações, montada com blocos e com abas
+por natureza (T21). Consultar API e Disparar e-mail viram blocos separados (T22, substitui T12 e
+T16), o disparo reaproveita o módulo de e-mail do shared com cópia e anexo (T26), e os fluxos de
+e-mail ficam na mesma tabela do Envio de Relatórios (T25). Os blocos de arquivo viram "Buscar
+arquivos" e "Gravar arquivos" (T27), e os destinatários, inclusive clientes, ficam no Entra ID
+(T28). Em aberto: nome da tabela (D10) e como o cliente entra no Entra ID (D11).

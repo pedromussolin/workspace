@@ -21,7 +21,13 @@ synced = 2026-11-16
 
 Resolver contatos, pessoas e grupos do diretório e enviar mensagem única com to, cc, cco e anexos, com sessão de upload para anexos grandes.
 
+Também grava uma cópia do arquivo numa pasta do SharePoint pelo Graph, para os boletos pagos da Padtek, que hoje vão para a pasta da Conciliação.
+
+## A fazer antes de implementar
+
+- Confirmar com a Conciliação se a pasta do SharePoint dos boletos pagos ainda é usada.
+
 ## Pronto quando
 
-Envio com anexo grande validado em homologação.
-
+- Envio com anexo grande validado em homologação.
+- Cópia no SharePoint validada em homologação, se a pasta ainda for usada.
