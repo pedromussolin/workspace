@@ -127,6 +127,8 @@ revisão.
 - Totais guardados, atualizados por gatilho (opção a), no lugar da cópia das linhas e do streaming,
   depois de ver os limites em 8.9.
 - "Vamos tirar as ordenações que não tem índice" (8.7).
+- L4 em aberto: corrigir a soma repetida por fundo e por estado; cada linha mostra a soma daquele
+  fundo (12a).
 
 **25/11/2026, que continuam valendo:**
 - Gatilhos no mesmo banco ("Vamos de B"), por comando com tabelas de transição; o gatilho **não
@@ -474,11 +476,11 @@ logo depois; 4 e 5 não dependem do resto. O card de expurgo do desenho de 25/11
 
 Da checagem do desenho por um agente novo (26/11):
 
-1. **L4 em aberto: manter os números de hoje ou corrigir?** A consulta junta todos os processos de
-   contrato da remessa pelo `proc_id` (`cessao/repository/cessao.py:274`) e agrupa por fundo e pelo
-   estado do processo: a mesma soma de (remessa, cedente) se repete uma vez por fundo e por estado
-   encontrados na remessa. Um resumo por fundo não reproduz isso sem acompanhar cada mudança de estado.
-   Corrigir (a soma de cada fundo) muda a resposta da rota; manter exige outra chave e outras fontes.
+1. ~~L4 em aberto: manter os números de hoje ou corrigir?~~ Respondida (Pietro, 26/11): corrigir.
+   Hoje a consulta junta todos os processos de contrato da remessa pelo `proc_id`
+   (`cessao/repository/cessao.py:274`) e agrupa por fundo e pelo estado do processo, e a mesma soma de
+   (remessa, cedente) se repete uma vez por fundo e por estado encontrados na remessa. Com o resumo,
+   cada linha mostra a soma dos contratos daquele fundo; a resposta da rota muda nessa tela.
 
 ## 13. O que fica com quem constrói
 

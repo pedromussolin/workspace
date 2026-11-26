@@ -314,3 +314,5 @@ WAL
 Expurgo
 UPDAT
 INSER
+Kafka
+DEFINER
