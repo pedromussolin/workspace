@@ -276,6 +276,12 @@ de origem, na mesma transação.
 - **Não monta tabela espelho** (era para a cópia de 25/11) e a migration não lê o decorator: cada
   migration nomeia o que cria, porque é história congelada. Adaptar o decorator aos totais é minha
   escolha.
+- **Nova tabela de origem:** o gatilho não nasce sozinho. Vai junto, no mesmo card, o decorator no
+  modelo, uma migration nova com a função da soma daquela fonte e o gatilho, e o ajuste da carga
+  inicial e da conferência noturna se a regra do total mudar. A função é escrita à mão porque cada
+  fonte acha a chave do total por um caminho próprio (o soft delete do contrato, por exemplo, vai do
+  processo do contrato às parcelas e daí aos pagamentos com lote). O teste do CI falha se um modelo
+  com o decorator não tiver o gatilho no banco.
 
 ### 8.7 Carga inicial, conferência, leitura e ordenação
 
