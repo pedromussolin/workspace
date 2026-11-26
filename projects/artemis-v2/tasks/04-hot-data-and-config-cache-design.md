@@ -127,8 +127,8 @@ revisão.
 - Totais guardados, atualizados por gatilho (opção a), no lugar da cópia das linhas e do streaming,
   depois de ver os limites em 8.9.
 - "Vamos tirar as ordenações que não tem índice" (8.7).
-- L4 em aberto: corrigir a soma repetida por fundo e por estado; cada linha mostra a soma daquele
-  fundo (12a).
+- L4 em aberto: corrigir a soma repetida em cada fundo da remessa; cada linha mostra a soma daquele
+  fundo (12a). Confirmado com o exemplo: "tem que trazer a visão real".
 
 **25/11/2026, que continuam valendo:**
 - Gatilhos no mesmo banco ("Vamos de B"), por comando com tabelas de transição; o gatilho **não
