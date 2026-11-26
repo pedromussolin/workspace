@@ -477,10 +477,14 @@ logo depois; 4 e 5 não dependem do resto. O card de expurgo do desenho de 25/11
 Da checagem do desenho por um agente novo (26/11):
 
 1. ~~L4 em aberto: manter os números de hoje ou corrigir?~~ Respondida (Pietro, 26/11): corrigir.
-   Hoje a consulta junta todos os processos de contrato da remessa pelo `proc_id`
-   (`cessao/repository/cessao.py:274`) e agrupa por fundo e pelo estado do processo, e a mesma soma de
-   (remessa, cedente) se repete uma vez por fundo e por estado encontrados na remessa. Com o resumo,
-   cada linha mostra a soma dos contratos daquele fundo; a resposta da rota muda nessa tela.
+   Hoje a consulta soma os contratos sem lote por (remessa, cedente), junta essa soma a todos os
+   processos de contrato da remessa pelo `proc_id` (`cessao/api/cessao/repository/cessao.py:274`) e
+   agrupa pelo fundo de cada processo (`:287`), e a mesma soma de (remessa, cedente) se repete uma vez
+   por fundo encontrado na remessa, inclusive fundos só de outros cedentes [C]. Exemplo: remessa R com
+   R$ 100 no fundo A e R$ 50 no fundo B; hoje a tela mostra duas linhas de R$ 150, uma por fundo, e
+   o filtro pelo fundo B mostra R$ 150. Com o resumo, cada linha mostra a soma dos contratos daquele
+   fundo (A = R$ 100, B = R$ 50); a resposta da rota muda nessa tela. Os lotes fechados
+   (`get_lotes_paginated`, `:144`) já somam por fundo e não mudam.
 
 ## 13. O que fica com quem constrói
 
