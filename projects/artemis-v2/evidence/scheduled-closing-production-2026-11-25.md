@@ -5,7 +5,7 @@ Acompanhamento da B1 do [guia da release de 24/11](../tasks/13-post-deploy-switc
 
 - **Fontes:** Datadog (logs e APM), `env:production`; código da cessão no commit `d28b83a`, o que
   está em produção.
-- **Consulta feita em:** 25/11/2026, ~19:10 UTC; atualizada em 26/11, ~14:05 UTC. Horários em UTC;
+- **Consulta feita em:** 25/11/2026, ~19:10 UTC; atualizada em 26/11, ~14:05 e ~17:40 UTC. Horários em UTC;
   Brasília é UTC−3.
 - **Atualizar:** a cada rodada do produto 15 (17:00, 18:00 e 20:45 de Brasília), na tabela das
   rodadas e nos pendentes.
@@ -153,15 +153,35 @@ Uma rodada só não basta para concluir.
   (`AGENDAMENTO_ATRASO_TOLERADO_SEGUNDOS`, `cessao/constants.py:12`) vira `perdida`
   (`cessao/agendamento/service.py:497-498`) e não dispara; o `agora` é tirado no início do despacho
   (`service.py:540`), por isso o atraso conta a parada inteira.
-- **[H]** O tempo vai no envio da `contrato_registro_baixa_task` (`cessao/schedule/registro.py:40`,
-  `crontab(hour=12, minute=0)`). De 11:59 a 12:40 UTC de 26/11, a busca
-  `env:production *contrato_registro_baixa*` só acha o envio do beat; pode ser que os workers não
-  registrem o recebimento. O código não roda a tarefa dentro do beat (não há `task_always_eager`).
-  Validar no trace do beat das 12:00 e nos logs do broker.
-- **Efeito no fechamento:** hoje nenhum, porque o 15 e o 1604 fecham às 16h ou depois. Um produto
+- **[C] A parada é o envio da tarefa ao RabbitMQ, dentro do beat** (consulta de 26/11 ~17:40 UTC):
+  o span `celery.apply` da `contrato_registro_baixa` (`cessao/schedule/registro.py:40`,
+  `crontab(hour=12, minute=0)`) vai de 12:00:00 a 12:16:03 UTC em 26/11 (963 s) e de 12:00:00 a
+  12:16:04 em 25/11 (964 s). O worker começa a tarefa 5 ms depois de o envio terminar.
+- **[C] Não é novo nem é dessa tarefa:** de 12/11 a 26/11, o envio das 12:00 levou de 961 a 974 s
+  todos os dias; o da `calcular_taxa_operacao` das 20:00 UTC levou ~961 s todos os dias de 12/11 a
+  24/11 e 0,1 s em 25/11. Os envios das 11:00 (a renegociação), das 17:00
+  (`conciliar_lotes_por_agendamento`) e das 02:00 (`verificar_liquidacao_d0`) levaram 0,1 s ou
+  menos em todos os dias medidos.
+- **[C] A correção de 23/11 cobre só o despacho do banco:** o despacho abre uma conexão nova a cada
+  disparo (`cessao/agendamento/service.py:598`, TS-5569); as entradas fixas saem pelo
+  `PersistentScheduler` do Celery (`super().tick()` em `cessao/agendamento/beat.py:36`), que
+  reaproveita a conexão.
+- **[H] Causa:** a mesma comprovada no despacho em 23/11 (passagem de 23/11 no `CONTINUE.md`): a
+  conexão com o RabbitMQ cai em silêncio depois de ~30 min parada, e o envio espera o sistema
+  desistir dela (~16 min) antes de reconectar. A duração quase constante (961 a 974 s) é a marca
+  disso. Falta explicar por que alguns horários não travam. Validar o heartbeat da conexão e o tempo
+  limite de inatividade da rede entre o beat e o RabbitMQ.
+- **[C] Não é a esteira de baixa:** a `contrato_registro_baixa` é a baixa diária dos contratos
+  registrados pela API de arranjos de pagamento (`cessao/tasks/registro.py:26`); a esteira nova (TS-5737) roda
+  por lote, ligada por `produto_config.liquidacao_baixa_refact`
+  (`cessao/framework/liquidacao/refact_baixa.py:1-4`). Ligar produtos nela não muda o envio das 12:00.
+- **Efeito no fechamento:** a ocorrência das 12:00 do backstop vira `perdida` todo dia. Um produto
   com fechamento por horário entre 09:00 e ~09:16 de Brasília perderia a rodada do dia, sem nova
-  tentativa.
-- Proposta de card para a próxima sprint, pelo `task-shaping`.
+  tentativa. **Risco às 20:00 UTC:** a rodada das 17h de Brasília do 15 sai às 20:00 UTC, depois
+  do envio da `calcular_taxa_operacao`; se ele travar como de 12/11 a 24/11, a rodada vira
+  `perdida` e a das 18h leva o que ficou.
+- Proposta de card para a próxima sprint, pelo `task-shaping`: entradas fixas do beat com conexão
+  nova a cada envio, como o despacho.
 
 ## Fora do fechamento [C]
 
@@ -257,8 +277,9 @@ Uma rodada só não basta para concluir.
 - Rodadas das 16:00 e 17:00 de 26/11 do produto 15: a duração da consulta das chaves e os 4 avulsos
   de 26/11 08:22 UTC no lote.
 - Na réplica, depois do fechamento manual do 713: os 9 recuos de 25/11 no lote.
-- Beat parado às 12:00 UTC: confirmar a causa (trace do beat, broker) e propor o card pelo
-  `task-shaping`.
+- Beat parado às 12:00 UTC: parada no envio confirmada (entradas fixas do Celery, desde 12/11 ou
+  antes); falta conferir o envio das 20:00 de 26/11 e propor o card pelo `task-shaping`.
+- 713: até 17:20 UTC de 26/11, nenhum fechamento manual (em 24 e 25/11 foi de 14:50 a 15:19 UTC).
 - [D43](../decisions.md): desenho escrito para aprovação
   ([13-d43-retry-and-reconciliation-design](../tasks/13-d43-retry-and-reconciliation-design.md));
   validar com o negócio e propor os cards da próxima sprint.

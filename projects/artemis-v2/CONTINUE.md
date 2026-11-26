@@ -12,6 +12,15 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 26/11/2026
 
+**Conferência das 14h40 (beat e 713):** **[C]** O beat trava no envio das entradas fixas do Celery,
+não no despacho do banco: o envio da `contrato_registro_baixa` às 12:00 UTC leva 961 a 974 s todo
+dia desde 12/11, e o da `calcular_taxa_operacao` às 20:00 UTC também travou de 12/11 a 24/11. A
+correção de 23/11 (conexão nova a cada disparo) só cobre o despacho. Não é a esteira de baixa
+(TS-5737). Risco: a rodada das 17h do 15 (20:00 UTC) vira perdida se o envio das 20:00 travar. 713
+ainda sem fechamento manual às 17:20 UTC. Detalhe na
+[evidência](evidence/scheduled-closing-production-2026-11-25.md). Desenho da D43 com o usuário
+para leitura.
+
 **Passagem de chat (26/11, 13h, D43 e fechamento):** retomar pela passagem privada
 `~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261126-d43-desenho-e-fechamento.md`, que
 substitui a de 25/11 do fechamento (desenho da D43 para aprovação; rodadas das 16h e 17h do 15; os 9
