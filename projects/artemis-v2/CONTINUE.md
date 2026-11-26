@@ -21,6 +21,12 @@ a `contrato_registro_baixa_task`, em 25 e 26/11; a ocorrência das 12:00 do back
 Proposta de card. **[C]** 128 recuos de 25/11 21:10 a 26/11 14:00 UTC, todos por trava: 78 numa
 rajada de uma remessa do 1637, 46 no 80 e 4 no 15; nenhum no 713.
 
+**D43 (13h):** desenho escrito para aprovação,
+[13-d43-retry-and-reconciliation-design](tasks/13-d43-retry-and-reconciliation-design.md): nova
+tentativa na chegada, conciliação antes do envio e depois do processamento (7 dias), remessa nunca
+em outro lote. **[C]** A D9 tardia não acontece (0 em ~530 mil entradas); os 78 recuos do 1637 estão
+nos lotes da remessa; nenhum vigente aberto com mais de um dia no Mercato Libero e no 713.
+
 ### 25/11/2026
 
 **Passagem de chat (25/11, 19h, fechamento):** retomar pela passagem privada
@@ -585,9 +591,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
 3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261125-fechamento-horario-e-recuos.md`):
-   em 26/11, depois das ~12h, na réplica: os 9 recuos do 713 e os 78 do 1637 no lote, e os vigentes
-   antigos; rodadas das 16h e 17h do 15 (consulta das chaves e os 4 avulsos); desenho da D43; card do
-   beat parado às 12:00 UTC.
+   aprovação do desenho da D43 e cards pelo `task-shaping`; os 9 recuos do 713 no lote depois do
+   fechamento manual; rodadas das 16h e 17h do 15 (consulta das chaves e os 4 avulsos); card do beat
+   parado às 12:00 UTC.
 4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
    guia e o resumo diário (C2).
 5. **D42 e D43 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.

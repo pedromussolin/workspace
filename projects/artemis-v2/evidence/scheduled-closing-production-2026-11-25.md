@@ -228,8 +228,21 @@ Uma rodada só não basta para concluir.
 
   - **[C] 1637:** os 78 vieram numa rajada da mesma remessa, ~0,4 s antes do fechamento automático
     dela (`"Remessa de liquidação fechada automaticamente"`, 05:12:49,934, origem `esteira`, 376
-    esperados). **[H]** Entraram nesse fechamento, que leva os avulsos da chave; conferir na réplica.
-    É o caso da D43 numa forma mais aguda: 21% dos pagamentos da remessa recuaram.
+    esperados). É o caso da D43 numa forma mais aguda: 21% dos pagamentos da remessa recuaram.
+    **[C] Réplica, 26/11 ~15:45 UTC:** os 376 pagamentos da remessa estão em 2 lotes, um por fundo e
+    originador (186 e 190), em `conciliacao_manual`; nenhum solto. O fechamento da remessa levou os
+    recuos para o lote dela.
+  - **[C] Vigentes abertos com mais de um dia (réplica, 26/11 ~15:45 UTC):** nenhum nos produtos do
+    Mercato Libero (4, 15, 80, 81, 581, 1406) nem no 713. Fora deles: 1571 (3, desde 24/11) e 1340
+    (1, desde 25/11); e vigentes de fluxos antigos, com lotes `concluido` e `pendente`: 1109 (27.922,
+    desde 14/05/2026), 1373 (627), 944, 977 e 911 (325, 257 e 241, desde 10/04/2024), 1213, 1212 e
+    1211 (89, 70 e 66, desde 03/04/2025). Ligado ao retrato do B25 (TS-5573); não investigado aqui.
+  - **[C] D9 na chegada:** de 25/11 00:46 a 26/11 ~15:00 UTC, nenhuma entrada no lote aberto achou a
+    chave e deixou o pagamento de fora sem recuo (`@chaves:>0 @pagamentos_no_lote:0
+    @chaves_com_recuo:0`: 0; com `@chaves_com_recuo:>0`: 247). Nos últimos 60 dias, todo pagamento
+    solto na réplica é de contrato com a cessão `cadastrado` (1 exceção, contrato rejeitado e
+    apagado). A D9 tardia não aparece. Detalhe em
+    [13-d43-retry-and-reconciliation-design](../tasks/13-d43-retry-and-reconciliation-design.md).
   - **[C] 15:** os 4 avulsos são da chave que o horário fecha. **[H]** A rodada das 16:00 de 26/11
     deve trazer `qtd_pagamentos_sem_lote` 4 e levá-los no lote.
 - **Custo da entrada no lote aberto [C]:** de 24/11 21:00 a 25/11 21:13 UTC, p95 de ~1,1 s por
@@ -243,13 +256,12 @@ Uma rodada só não basta para concluir.
 
 - Rodadas das 16:00 e 17:00 de 26/11 do produto 15: a duração da consulta das chaves e os 4 avulsos
   de 26/11 08:22 UTC no lote.
-- Na réplica: os 78 recuos do 1637 no lote da remessa fechada em 26/11 05:12 UTC.
+- Na réplica, depois do fechamento manual do 713: os 9 recuos de 25/11 no lote.
 - Beat parado às 12:00 UTC: confirmar a causa (trace do beat, broker) e propor o card pelo
   `task-shaping`.
-- [D43](../decisions.md) (nova tentativa na entrada e fechamento só do lote aberto): validar com o
-  negócio, escrever o desenho para aprovação e propor os cards da próxima sprint.
-- Confirmar que os 9 recuos do 713 entraram no fechamento de 26/11 (~12h) e conferir os vigentes
-  abertos com mais de um dia nos produtos do Mercato Libero e da Voltis.
+- [D43](../decisions.md): desenho escrito para aprovação
+  ([13-d43-retry-and-reconciliation-design](../tasks/13-d43-retry-and-reconciliation-design.md));
+  validar com o negócio e propor os cards da próxima sprint.
 - Consulta das chaves lenta às 16h e às 17h: `EXPLAIN` na réplica e proposta de correção (card
   para a próxima sprint, pelo `task-shaping`).
 - Custo da entrada no lote aberto ao longo do dia (produto 15), para comparar o custo total com a VM.
