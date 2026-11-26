@@ -12,6 +12,11 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 26/11/2026
 
+**Passagem de chat (26/11, 13h, D43 e fechamento):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261126-d43-desenho-e-fechamento.md`, que
+substitui a de 25/11 do fechamento (desenho da D43 para aprovação; rodadas das 16h e 17h do 15; os 9
+recuos do 713 depois do fechamento manual; card do beat).
+
 **Conferência das 11h (fechamento por horário e recuos):** em
 [evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md).
 **[C]** Rodada das 20:45 de 25/11 do 15 sem nada a fechar, em 1,9 s (consulta das chaves em 1,8 s).
@@ -601,8 +606,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    seção 10 e os achados como cards da próxima sprint, pelo `/card`.
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
-3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261125-fechamento-horario-e-recuos.md`):
-   aprovação do desenho da D43 e cards pelo `task-shaping`; os 9 recuos do 713 no lote depois do
+3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261126-d43-desenho-e-fechamento.md`):
+   aprovação do desenho da D43 (`tasks/13-d43-retry-and-reconciliation-design.md`) e cards pelo
+   `task-shaping`; os 9 recuos do 713 no lote depois do
    fechamento manual; rodadas das 16h e 17h do 15 (consulta das chaves e os 4 avulsos); card do beat
    parado às 12:00 UTC.
 4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
