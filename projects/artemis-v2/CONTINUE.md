@@ -27,6 +27,17 @@ tentativa na chegada, conciliação antes do envio e depois do processamento (7 
 em outro lote. **[C]** A D9 tardia não acontece (0 em ~530 mil entradas); os 78 recuos do 1637 estão
 nos lotes da remessa; nenhum vigente aberto com mais de um dia no Mercato Libero e no 713.
 
+**Passagem de chat (26/11, TS-5733):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261126-totais-guardados-ts5733.md`. Nesta
+iteração, as quatro listagens foram medidas na réplica
+([listings-replica-2026-11-26](evidence/listings-replica-2026-11-26.md),
+[fake-listing-open-batches-replica-2026-11-26](evidence/fake-listing-open-batches-replica-2026-11-26.md)):
+o lento são as buscas pelo número no cadastro, linha a linha, e o custo cresce com o tamanho do lote.
+O desenho da TS-5733 foi refeito com totais guardados por lote, atualizados por gatilho na mesma
+transação, no lugar da cópia dos dados recentes
+([04-hot-data-and-config-cache-design.md](tasks/04-hot-data-and-config-cache-design.md)); decisões em
+`decisions.md` (26/11). Falta a aprovação do texto final.
+
 ### 25/11/2026
 
 **Passagem de chat (25/11, 19h, fechamento):** retomar pela passagem privada
@@ -585,9 +596,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 
 ## Próximo passo
 
-1. **Schema `live` e cache (TS-5733 em várias tarefas):** aprovação do desenho
-   (`tasks/04-hot-data-and-config-cache-design.md`); depois o plano de implementação e os 6 cards
-   da seção 10 pelo `/card`.
+1. **Totais guardados e cache (TS-5733 em várias tarefas):** aprovação do desenho refeito em 26/11
+   (`tasks/04-hot-data-and-config-cache-design.md`); depois o plano de implementação, os 5 cards da
+   seção 10 e os achados como cards da próxima sprint, pelo `/card`.
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
 3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261125-fechamento-horario-e-recuos.md`):
