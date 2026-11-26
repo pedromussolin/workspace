@@ -12,6 +12,10 @@ Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do hi
 
 ### 26/11/2026
 
+**Passagem de chat (26/11, 16h, D43, beat e entrega conjunta):** retomar pela passagem privada
+`~/.local/share/workspace/projects/artemis-v2/HANDOFF-20261126-d43-beat-e-entrega-conjunta.md`, que
+substitui a das 13h da D43. O usuário quer subir a D43 e a TS-5733 juntas, planejadas num chat só.
+
 **Conferência das 14h40 (beat e 713):** **[C]** O beat trava no envio das entradas fixas do Celery,
 não no despacho do banco: o envio da `contrato_registro_baixa` às 12:00 UTC leva 961 a 974 s todo
 dia desde 12/11, e o da `calcular_taxa_operacao` às 20:00 UTC também travou de 12/11 a 24/11. A
@@ -615,11 +619,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
    seção 10 e os achados como cards da próxima sprint, pelo `/card`.
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
-3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261126-d43-desenho-e-fechamento.md`):
-   aprovação do desenho da D43 (`tasks/13-d43-retry-and-reconciliation-design.md`) e cards pelo
-   `task-shaping`; os 9 recuos do 713 no lote depois do
-   fechamento manual; rodadas das 16h e 17h do 15 (consulta das chaves e os 4 avulsos); card do beat
-   parado às 12:00 UTC.
+3. **D43, fechamento e beat** (passagem `HANDOFF-20261126-d43-beat-e-entrega-conjunta.md`):
+   rodadas das 16h e 17h de 26/11 do 15 e o envio das 20:00 UTC do beat; os 9 recuos do 713 depois
+   do fechamento manual; aprovação da D43 e plano conjunto com a TS-5733 (uma entrega só).
 4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
    guia e o resumo diário (C2).
 5. **D42 e D43 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.
