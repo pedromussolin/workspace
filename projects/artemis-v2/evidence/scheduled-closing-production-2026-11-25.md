@@ -5,7 +5,8 @@ Acompanhamento da B1 do [guia da release de 24/11](../tasks/13-post-deploy-switc
 
 - **Fontes:** Datadog (logs e APM), `env:production`; código da cessão no commit `d28b83a`, o que
   está em produção.
-- **Consulta feita em:** 25/11/2026, ~19:10 UTC. Horários em UTC; Brasília é UTC−3.
+- **Consulta feita em:** 25/11/2026, ~19:10 UTC; atualizada em 26/11, ~14:05 UTC. Horários em UTC;
+  Brasília é UTC−3.
 - **Atualizar:** a cada rodada do produto 15 (17:00, 18:00 e 20:45 de Brasília), na tabela das
   rodadas e nos pendentes.
 
@@ -14,6 +15,11 @@ Acompanhamento da B1 do [guia da release de 24/11](../tasks/13-post-deploy-switc
 Cessão `prod-d28b83a` desde 25/11 00:46 UTC (argocd `d389626`): a release de 24/11 mais a TS-5773
 (`851e7f3cf`, fila `liquidacao.atraso` declarada no consumer; `90817566f`, pagamento parcial de
 parcela fechada).
+
+Desde 25/11 21:57 UTC, `prod-c6f88ce` (argocd `6b5dba8` e `7459a6d`), a release de 25/11 de outro
+dev: remessa do Dayvale (TS-5498) e ocorrência 91 do CNAB (TS-5845). Não muda
+`cessao/api/liquidacao/refact.py` nem `cessao/framework/liquidacao/` (`git diff d28b83a c6f88ce`):
+o fechamento é o mesmo código.
 
 ## Rodadas [C]
 
@@ -27,10 +33,12 @@ consulta que lista os pagamentos sem lote aptos (ver o ponto de atenção).
 | 25/11 16:00 | 15 | 1 | 1 | 0 | 1 | 0 | 281 s | 255 s |
 | 25/11 17:00 | 15 | 0 | 0 | 0 | 0 | 0 | 233 s | 233 s |
 | 25/11 18:00 | 15 | 0 | 0 | 0 | 0 | 0 | 5,2 s | 5,2 s |
+| 25/11 20:45 | 15 | 0 | 0 | 0 | 0 | 0 | 1,9 s | 1,8 s |
 
 Agendador (`"Agendamentos despachados"`): 25/11 19:00:01 UTC, 3 disparos (1604, 15 e o backstop,
 que roda a cada :00 e :30); 20:00:01 e 21:00:01 UTC, 2 disparos cada (15 e o backstop). Em todos,
-0 falhas, 0 perdidos, 0 presos.
+0 falhas, 0 perdidos, 0 presos. De 25/11 21:30 a 26/11 14:00 UTC, 35 despachos e 34 disparos, sem
+falha nem presa; 1 perdido, às 26/11 12:16:03 (ver "Ponto de atenção: o beat para às 12:00 UTC").
 
 **VM das 17h de 25/11 [C]:** 80 payloads de 20:01 a 20:24 UTC: produto 4 (34), 80 (33), 1406 (6),
 81 (5) e 581 (2). O 15 não aparece.
@@ -124,12 +132,36 @@ Uma rodada só não basta para concluir.
   do código; não está no values do argocd; Parameter Store não conferido) e orçamento de 480 s da
   execução (`ORCAMENTO_FECHAMENTO_POR_HORARIO_SEGUNDOS`). Acima disso o banco cancela a consulta e
   a rodada daquele horário não fecha nada.
-- **[C]** Em 25/11 a consulta levou 255 s às 16:00, 233 s às 17:00 e 5,2 s às 18:00, nas três
-  vezes sem achar pagamento sem lote. A rodada de 24/11 20:45 levou 1,9 s no total.
+- **[C]** Em 25/11 a consulta levou 255 s às 16:00, 233 s às 17:00, 5,2 s às 18:00 e 1,8 s às
+  20:45 (Brasília), nas quatro vezes sem achar pagamento sem lote. A rodada de 24/11 20:45 levou
+  1,9 s no total.
 - **[H]** A lentidão acompanha o horário de carga do banco (16h e 17h; a VM roda às 17h), não o
   plano fixo da consulta. Validar com o `EXPLAIN` na réplica nesses horários, e conferir as
   sessões ativas do banco às 16h no Datadog.
 - Se repetir: proposta de card para a próxima sprint, pelo `task-shaping`.
+
+## Ponto de atenção: o beat para às 12:00 UTC
+
+- **[C]** Em 25/11 e em 26/11, o `platform-cessao-beat` registrou às 12:00:00 UTC (09:00 de
+  Brasília) `"Scheduler: Sending due task contrato_registro_baixa_task"` e não registrou mais nada até
+  `"Agendamentos despachados"` às 12:16:04 e 12:16:03. Nos dois dias, o despacho das 12:16 teve
+  `qtd_vencidos` 1, `qtd_disparados` 0 e `qtd_perdidos` 1. É a ocorrência das 12:00 do backstop
+  (a das 12:30 disparou normalmente).
+- **[C] Por que vira perdido:** o beat tem um laço só. O `tick` de `SchedulerComBanco` primeiro
+  envia as entradas fixas do Celery (`super().tick()`) e só depois despacha os agendamentos do banco
+  (`cessao/agendamento/beat.py`, commit `c6f88ce`). Quem é encontrado com mais de 900 s de atraso
+  (`AGENDAMENTO_ATRASO_TOLERADO_SEGUNDOS`, `cessao/constants.py:12`) vira `perdida`
+  (`cessao/agendamento/service.py:497-498`) e não dispara; o `agora` é tirado no início do despacho
+  (`service.py:540`), por isso o atraso conta a parada inteira.
+- **[H]** O tempo vai no envio da `contrato_registro_baixa_task` (`cessao/schedule/registro.py:40`,
+  `crontab(hour=12, minute=0)`). De 11:59 a 12:40 UTC de 26/11, a busca
+  `env:production *contrato_registro_baixa*` só acha o envio do beat; pode ser que os workers não
+  registrem o recebimento. O código não roda a tarefa dentro do beat (não há `task_always_eager`).
+  Validar no trace do beat das 12:00 e nos logs do broker.
+- **Efeito no fechamento:** hoje nenhum, porque o 15 e o 1604 fecham às 16h ou depois. Um produto
+  com fechamento por horário entre 09:00 e ~09:16 de Brasília perderia a rodada do dia, sem nova
+  tentativa.
+- Proposta de card para a próxima sprint, pelo `task-shaping`.
 
 ## Fora do fechamento [C]
 
@@ -148,9 +180,11 @@ Uma rodada só não basta para concluir.
   | 3 | 15 | 1 |
 
   **[H]** As contas se cadastram pela tela da TS-5925, que ainda espera as roles no Azure.
+  De 25/11 21:10 a 26/11 14:00 UTC, nenhum aviso.
 - **Worker de fechamento:** 6 `"Warm shutdown"` no `platform-cessao-fake-batch-closing-worker`
   entre 24/11 23:50 e 25/11 00:48 UTC, durante a correção da variável duplicada (argocd `1ff0a57`)
-  e o deploy da TS-5773; nenhum depois. A troca de pods a cada ~5 min acabou.
+  e o deploy da TS-5773; nenhum depois. A troca de pods a cada ~5 min acabou. De 25/11 21:10 a
+  26/11 14:00 UTC, 2, às 21:58:40 e 21:59:06 de 25/11: a troca de pods do deploy da `prod-c6f88ce`.
 - Nenhum `error` da cessão em produção de 18:55 a 19:10 UTC; só o aviso acima. Até 21:13 UTC, mais
   62 avisos do compromisso de saldo.
 - **Recuo do lote aberto:** `"Pagamento de liquidação ficou sem lote aberto"` é o recuo previsto no
@@ -182,6 +216,22 @@ Uma rodada só não basta para concluir.
     avulso apto.
   - **Falta cobrir:** vigente aberto ou avulso de chave que a VM não chama (ela usa uma lista fixa).
     Conferir os vigentes abertos com mais de um dia nos produtos do Mercato Libero e da Voltis.
+  - **[C] De 25/11 21:10 a 26/11 14:00 UTC:** 128 recuos, todos `OperationalError` e todos com
+    `recuos_por_trava`:
+
+    | Produto | Recuos | Entradas | Fração | Quando (UTC) | Chave |
+    | --- | --- | --- | --- | --- | --- |
+    | 1637 | 78 | 11.244 | 0,69% | 26/11 05:12:49 | uma remessa (agrupamento por remessa, `d7668909…`) |
+    | 80 | 46 | 112.368 | 0,04% | ao longo do dia | — |
+    | 15 | 4 | 40.766 | 0,01% | 26/11 08:22:56 | originador 19, fundo 3, `PPV_baixa_ordinaria_padrao` |
+    | 713 | 0 | 3.089 | — | — | — |
+
+  - **[C] 1637:** os 78 vieram numa rajada da mesma remessa, ~0,4 s antes do fechamento automático
+    dela (`"Remessa de liquidação fechada automaticamente"`, 05:12:49,934, origem `esteira`, 376
+    esperados). **[H]** Entraram nesse fechamento, que leva os avulsos da chave; conferir na réplica.
+    É o caso da D43 numa forma mais aguda: 21% dos pagamentos da remessa recuaram.
+  - **[C] 15:** os 4 avulsos são da chave que o horário fecha. **[H]** A rodada das 16:00 de 26/11
+    deve trazer `qtd_pagamentos_sem_lote` 4 e levá-los no lote.
 - **Custo da entrada no lote aberto [C]:** de 24/11 21:00 a 25/11 21:13 UTC, p95 de ~1,1 s por
   entrada no 80, no 15 e no 81 (102 mil, 38 mil e 35 mil entradas); máximo de 5,7 s. Falta a média
   para estimar o custo total do dia.
@@ -191,7 +241,11 @@ Uma rodada só não basta para concluir.
 
 ## Pendentes
 
-- Rodada das 20:45 do produto 15, com a duração da consulta das chaves.
+- Rodadas das 16:00 e 17:00 de 26/11 do produto 15: a duração da consulta das chaves e os 4 avulsos
+  de 26/11 08:22 UTC no lote.
+- Na réplica: os 78 recuos do 1637 no lote da remessa fechada em 26/11 05:12 UTC.
+- Beat parado às 12:00 UTC: confirmar a causa (trace do beat, broker) e propor o card pelo
+  `task-shaping`.
 - [D43](../decisions.md) (nova tentativa na entrada e fechamento só do lote aberto): validar com o
   negócio, escrever o desenho para aprovação e propor os cards da próxima sprint.
 - Confirmar que os 9 recuos do 713 entraram no fechamento de 26/11 (~12h) e conferir os vigentes
@@ -206,6 +260,10 @@ Uma rodada só não basta para concluir.
   com `@produto_id`, `@duracao_ms` e `@qtd_*`.
 - Agendador: `"Agendamentos despachados"` (`@qtd_disparados`, `@qtd_falhas`, `@qtd_perdidos`,
   `@qtd_presas`).
+- Beat parado: todos os logs de `service:platform-cessao-beat` de 11:55 a 12:20 UTC, em ordem; a
+  parada é o intervalo entre o `"Sending due task contrato_registro_baixa_task"` e o despacho seguinte.
+- Recuos por produto: `"Entrada no lote aberto da liquidação concluída"` agrupado por `@produto_id`,
+  contagem e soma de `@recuos_por_trava`; a chave e o `liquidacao_uuid` estão no aviso do recuo.
 - Consulta das chaves: spans do trace da rodada agrupados por `resource_name`, soma de `@duration`
   (nanossegundos); a consulta começa por `SELECT CASE WHEN ( produto_config.agrupamento_lote_liquidacao`.
 - Compromisso de saldo: a mensagem acima, agrupada por `@fundo_id` e `@produto_id`.

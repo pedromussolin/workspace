@@ -1,5 +1,5 @@
 Status: em andamento
-Data: 25/11/2026
+Data: 26/11/2026
 Tags: artemis, v2, liquidacao, continuar
 
 # Continuar em outro chat
@@ -9,6 +9,17 @@ Leia antes: o `CLAUDE.md` da raiz, o `CLAUDE.md` desta pasta, a tabela de Tarefa
 Este arquivo foi montado em 26/10/2026 a partir do status do `README.md` e do histórico de commits da pasta. O que aqui não está escrito, o README e o histórico não dizem: confira antes de afirmar.
 
 ## Onde parei
+
+### 26/11/2026
+
+**Conferência das 11h (fechamento por horário e recuos):** em
+[evidence/scheduled-closing-production-2026-11-25.md](evidence/scheduled-closing-production-2026-11-25.md).
+**[C]** Rodada das 20:45 de 25/11 do 15 sem nada a fechar, em 1,9 s (consulta das chaves em 1,8 s).
+**[C]** Cessão em `prod-c6f88ce` desde 25/11 21:57 UTC (release de 25/11 de outro dev), sem mudança
+no fechamento. **[C]** Achado: o beat para ~16 min às 12:00 UTC (09:00 de Brasília) depois de enviar
+a `contrato_registro_baixa_task`, em 25 e 26/11; a ocorrência das 12:00 do backstop vira perdida.
+Proposta de card. **[C]** 128 recuos de 25/11 21:10 a 26/11 14:00 UTC, todos por trava: 78 numa
+rajada de uma remessa do 1637, 46 no 80 e 4 no 15; nenhum no 713.
 
 ### 25/11/2026
 
@@ -574,8 +585,9 @@ O README e o histórico não registram branches nem worktrees. O código da V2 v
 2. **Travamento da migration:** cards de `idle_in_transaction_session_timeout` nos usuários
    pessoais do banco, de `lock_timeout` na migration e do roteiro com `pg_blocking_pids`.
 3. **Fechamento por horário e recuos** (passagem `HANDOFF-20261125-fechamento-horario-e-recuos.md`):
-   rodada das 20:45 de 25/11; em 26/11, depois das ~12h, os 9 recuos do 713 no lote e os vigentes
-   antigos; desenho da D43.
+   em 26/11, depois das ~12h, na réplica: os 9 recuos do 713 e os 78 do 1637 no lote, e os vigentes
+   antigos; rodadas das 16h e 17h do 15 (consulta das chaves e os 4 avulsos); desenho da D43; card do
+   beat parado às 12:00 UTC.
 4. **Fechamento da janela:** conferir o comentário da GDM-374; TS-5925 para Concluído; Parte A do
    guia e o resumo diário (C2).
 5. **D42 e D43 com o negócio.** Na próxima sprint: B31 e o menu lateral recolhido.
